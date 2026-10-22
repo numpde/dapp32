@@ -22,6 +22,10 @@ interface IBicycleComponents is IERC721Metadata {
     /// @notice Returns true if `tokenId` exists.
     function exists(uint256 tokenId) external view returns (bool);
 
+    /// @notice Ownership changes since minting, excluding self-transfers.
+    /// @dev Changes before a safe-transfer receiver callback can use registry permissions.
+    function ownershipGeneration(uint256 tokenId) external view returns (uint256);
+
     /// @notice Returns true while privileged token writes and transfers are paused.
     function paused() external view returns (bool);
 

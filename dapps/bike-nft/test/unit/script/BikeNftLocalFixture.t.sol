@@ -52,6 +52,12 @@ contract BikeNftLocalFixtureTest is Test {
 
         BikeNftLocalFixture.Deployment memory deployment = harness.deployCleanForTest();
 
+        assertEq(
+            deployment.camRoot.contractAddress("BicycleComponents"),
+            address(deployment.components),
+            "fixture must bind the collection for direct ERC-721 handover"
+        );
+
         assertFalse(
             deployment.components.hasRole(deployment.components.MINTER_ROLE(), address(harness)),
             "fixture admin should not retain direct mint authority"

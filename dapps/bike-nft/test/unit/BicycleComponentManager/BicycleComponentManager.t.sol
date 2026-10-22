@@ -849,6 +849,7 @@ contract RevertingReadComponents is IBicycleComponents {
     mapping(uint256 tokenId => address owner) private _owners;
     mapping(uint256 tokenId => string uri) private _uris;
     mapping(address owner => uint256 balance) private _balances;
+    mapping(uint256 tokenId => uint256 generation) public ownershipGeneration;
 
     function setRevertReads(bool revertReads) external {
         _revertReads = revertReads;
@@ -954,6 +955,7 @@ contract RevertingReadComponents is IBicycleComponents {
         _owners[tokenId] = to;
         _balances[from] -= 1;
         _balances[to] += 1;
+        if (from != to) ownershipGeneration[tokenId]++;
     }
 
     function _requireOwner(uint256 tokenId) private view returns (address owner_) {

@@ -522,10 +522,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertActions(
             view_.actions,
             expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_MARK_COMPONENT_MISSING,
-                ACTION_DECOMMISSION_COMPONENT,
-                ACTION_DELEGATION
+                ACTION_LOOKUP_COMPONENT, ACTION_MARK_COMPONENT_MISSING, ACTION_DECOMMISSION_COMPONENT, ACTION_DELEGATION
             )
         );
 

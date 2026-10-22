@@ -132,10 +132,14 @@ contract BicycleLifecycleRoadmapTest is BicycleComponentManagerTestSupport {
         // First prove the owner entrypoint exists; unknown-function reverts
         // must never masquerade as successful authorization coverage.
         transition(OWNER, true);
-        for (uint256 i; i < actors.length; i++) rejectTransition(actors[i], false);
+        for (uint256 i; i < actors.length; i++) {
+            rejectTransition(actors[i], false);
+        }
         assertTrue(inactive(), "unauthorized reactivation must preserve state");
         transition(OWNER, false);
-        for (uint256 i; i < actors.length; i++) rejectTransition(actors[i], true);
+        for (uint256 i; i < actors.length; i++) {
+            rejectTransition(actors[i], true);
+        }
         assertFalse(inactive(), "unauthorized decommission must preserve state");
     }
 
@@ -167,14 +171,16 @@ contract BicycleLifecycleRoadmapTest is BicycleComponentManagerTestSupport {
 
     function test_lifecycleReadRejectsEmptySerialAndUsesFalseForUnknownSerial() external view {
         assertFalse(inactive(), "registered active control must support lifecycle read");
-        (bool emptyOk, bytes memory emptyResult) = address(manager).staticcall(
-            abi.encodeCall(IBicycleLifecycleRoadmap.inactiveStatus, (""))
-        );
+        (bool emptyOk, bytes memory emptyResult) =
+            address(manager).staticcall(abi.encodeCall(IBicycleLifecycleRoadmap.inactiveStatus, ("")));
         assertFalse(emptyOk, "empty serial must not be a lifecycle lookup");
-        assertEq(emptyResult, abi.encodeWithSelector(BicycleComponentManager.EmptySerialNumber.selector), "empty serial error");
-        (bool unknownOk, bytes memory unknownResult) = address(manager).staticcall(
-            abi.encodeCall(IBicycleLifecycleRoadmap.inactiveStatus, ("UNKNOWN-ROADMAP-SERIAL"))
+        assertEq(
+            emptyResult,
+            abi.encodeWithSelector(BicycleComponentManager.EmptySerialNumber.selector),
+            "empty serial error"
         );
+        (bool unknownOk, bytes memory unknownResult) = address(manager)
+            .staticcall(abi.encodeCall(IBicycleLifecycleRoadmap.inactiveStatus, ("UNKNOWN-ROADMAP-SERIAL")));
         // Like missingStatus, false is a default, not proof of registration.
         assertTrue(unknownOk, "unknown lifecycle reads use the existing false-status sentinel convention");
         assertEq(unknownResult.length, 32, "unknown lifecycle read must return a bool");
@@ -193,15 +199,20 @@ contract BicycleLifecycleRoadmapTest is BicycleComponentManagerTestSupport {
             vm.prank(OWNER);
             (bool emptyOk, bytes memory emptyResult) = address(manager).call(abi.encodeWithSelector(selectors[i], ""));
             assertFalse(emptyOk, "lifecycle writes must reject empty serial");
-            assertEq(emptyResult, abi.encodeWithSelector(BicycleComponentManager.EmptySerialNumber.selector), "empty serial error");
-            vm.prank(OWNER);
-            (bool unknownOk, bytes memory unknownResult) = address(manager).call(
-                abi.encodeWithSelector(selectors[i], unknownSerial)
+            assertEq(
+                emptyResult,
+                abi.encodeWithSelector(BicycleComponentManager.EmptySerialNumber.selector),
+                "empty serial error"
             );
+            vm.prank(OWNER);
+            (bool unknownOk, bytes memory unknownResult) =
+                address(manager).call(abi.encodeWithSelector(selectors[i], unknownSerial));
             assertFalse(unknownOk, "lifecycle writes must reject unregistered serial");
             assertEq(
                 unknownResult,
-                abi.encodeWithSelector(BicycleComponentManager.ComponentNotRegistered.selector, keccak256(bytes(unknownSerial))),
+                abi.encodeWithSelector(
+                    BicycleComponentManager.ComponentNotRegistered.selector, keccak256(bytes(unknownSerial))
+                ),
                 "unregistered serial must fail at manager registration boundary"
             );
         }
@@ -240,9 +251,8 @@ contract BicycleLifecycleRoadmapTest is BicycleComponentManagerTestSupport {
     }
 
     function inactive() private view returns (bool) {
-        (bool ok, bytes memory result) = address(manager).staticcall(
-            abi.encodeCall(IBicycleLifecycleRoadmap.inactiveStatus, (SERIAL))
-        );
+        (bool ok, bytes memory result) =
+            address(manager).staticcall(abi.encodeCall(IBicycleLifecycleRoadmap.inactiveStatus, (SERIAL)));
         assertTrue(ok, "roadmap missing: inactiveStatus(string) must expose independent lifecycle flag");
         assertEq(result.length, 32, "inactiveStatus must return one ABI bool");
         return abi.decode(result, (bool));

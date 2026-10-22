@@ -93,7 +93,11 @@ contract BicycleOwnershipGenerationRoadmapInvariantTest is Test {
             bool expected = handler.expectedActive(index);
             (,,, bool active) = manager.componentDelegation(component, handler.DELEGATE());
             assertEq(active, expected, "grant validity must match latest grant and subsequent ownership changes");
-            assertEq(manager.permissionsOf(handler.DELEGATE(), component), expected ? 7 : 0, "stale capabilities cannot revive");
+            assertEq(
+                manager.permissionsOf(handler.DELEGATE(), component),
+                expected ? 7 : 0,
+                "stale capabilities cannot revive"
+            );
         }
     }
 }

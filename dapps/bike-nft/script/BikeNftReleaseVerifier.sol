@@ -19,6 +19,7 @@ import {IBicycleComponents} from "../src/IBicycleComponents.sol";
 abstract contract BikeNftReleaseVerifier {
     string private constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
     string private constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
+    string private constant CAM_CONTRACT_COMPONENTS = "BicycleComponents";
 
     struct Artifact {
         string sourceCommit;
@@ -110,6 +111,7 @@ abstract contract BikeNftReleaseVerifier {
         if (pendingOwner != address(0)) revert PendingAuthority("intendedCamRootOwner", pendingOwner);
         _requireAddress("BicycleComponentManager binding", artifact.manager, root.contractAddress(CAM_CONTRACT_MANAGER));
         _requireAddress("BicycleComponentManagerUI binding", artifact.ui, root.contractAddress(CAM_CONTRACT_MANAGER_UI));
+        _requireAddress("BicycleComponents binding", artifact.components, root.contractAddress(CAM_CONTRACT_COMPONENTS));
         _requireAddress(
             "UI manager", artifact.manager, address(BicycleComponentManagerUI(payable(artifact.ui)).manager())
         );

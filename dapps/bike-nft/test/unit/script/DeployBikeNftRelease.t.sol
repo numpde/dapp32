@@ -72,6 +72,11 @@ contract DeployBikeNftReleaseTest is Test {
     function testReleaseWiringDoesNotRegisterOrMintSeedComponents() external {
         vm.recordLogs();
         DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(harness.parsePlan(planJson));
+        assertEq(
+            deployment.camRoot.contractAddress("BicycleComponents"),
+            address(deployment.components),
+            "release must bind the collection for direct ERC-721 handover"
+        );
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes32 registered = BicycleComponentManager.ComponentRegistered.selector;
         bytes32 transfer = keccak256("Transfer(address,address,uint256)");

@@ -16,6 +16,7 @@ contract BikeNftLocalFixture {
 
     string internal constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
     string internal constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
+    string internal constant CAM_CONTRACT_COMPONENTS = "BicycleComponents";
     string internal constant SEEDED_FRAME_SERIAL = "DEMO-FRAME-001";
     string internal constant SEEDED_BATTERY_SERIAL = "DEMO-BATTERY-001";
     string internal constant SEEDED_MOTOR_SERIAL = "DEMO-MOTOR-001";
@@ -54,6 +55,7 @@ contract BikeNftLocalFixture {
 
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
+        deployment.camRoot.setContractAddress(CAM_CONTRACT_COMPONENTS, address(deployment.components));
     }
 
     /// @dev Keep deployment authority separate from seeded ownership: the

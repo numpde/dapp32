@@ -57,8 +57,13 @@ test("Bike reference includes every registrar and ordered authority handoff", ()
   assert.deepEqual(reference.steps.slice(0, 4).map((step) => step.name), ["CamRoot", "BicycleComponents", "BicycleComponentManager", "BicycleComponentManagerUI"])
   assert.deepEqual(reference.steps[2]?.args, [deployer, "172800", { createdContract: "components" }])
   assert.deepEqual(reference.steps[3]?.args, [{ createdContract: "manager" }])
-  assert.deepEqual(reference.steps.map((step) => step.name).slice(-5), [
-    "setContractAddress", "setContractAddress", "transferOwnership", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer",
+  assert.deepEqual(reference.steps.map((step) => step.name).slice(-6), [
+    "setContractAddress", "setContractAddress", "setContractAddress", "transferOwnership", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer",
+  ])
+  assert.deepEqual(reference.steps.filter(step => step.name === "setContractAddress").map(step => step.args), [
+    ["BicycleComponentManager", { createdContract: "manager" }],
+    ["BicycleComponentManagerUI", { createdContract: "ui" }],
+    ["BicycleComponents", { createdContract: "components" }],
   ])
   assert.equal(reference.steps.filter((step) => step.name === "grantRole").length, 6 + plan.registrars.length)
   assert.equal(reference.steps.filter((step) => step.name === "revokeRole").length, 4)

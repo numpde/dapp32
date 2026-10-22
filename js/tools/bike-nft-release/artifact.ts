@@ -71,6 +71,7 @@ type RootObservation = {
   readonly camHash: Hex
   readonly managerBinding: Address
   readonly uiBinding: Address
+  readonly componentsBinding: Address
   readonly owner: Address
   readonly pendingOwner: Address
 }
@@ -230,10 +231,11 @@ async function observeCode(
 }
 
 async function observeRoot(read: ContractReader, address: Address): Promise<RootObservation> {
-  const [manifest, managerBinding, uiBinding, owner, pendingOwner] = await Promise.all([
+  const [manifest, managerBinding, uiBinding, componentsBinding, owner, pendingOwner] = await Promise.all([
     read<{ uri: string; sha256Digest: Hex }>(address, ROOT_ABI, "camManifest"),
     read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponentManager"]),
     read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponentManagerUI"]),
+    read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponents"]),
     read<Address>(address, ROOT_ABI, "owner"),
     read<Address>(address, ROOT_ABI, "pendingOwner"),
   ])
@@ -242,6 +244,7 @@ async function observeRoot(read: ContractReader, address: Address): Promise<Root
     camHash: manifest.sha256Digest,
     managerBinding,
     uiBinding,
+    componentsBinding,
     owner,
     pendingOwner,
   }
@@ -350,6 +353,7 @@ function verifyRoot(
   assertEqual(root.camHash.toLowerCase(), plan.camHash.toLowerCase(), "CamRoot CAM hash")
   assertAddress(root.managerBinding, contracts.manager.address, "manager binding")
   assertAddress(root.uiBinding, contracts.ui.address, "UI binding")
+  assertAddress(root.componentsBinding, contracts.components.address, "components binding")
   requireHandoff(
     "CamRoot ownership",
     deployer,

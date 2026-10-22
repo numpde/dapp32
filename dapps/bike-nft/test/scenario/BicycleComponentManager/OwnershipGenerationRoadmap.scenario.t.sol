@@ -75,9 +75,11 @@ contract BicycleOwnershipGenerationRoadmapTest is BicycleComponentManagerTestSup
         transfer(BUYER, OWNER, 0);
         assertFalse(manager.canClearMissing(DELEGATE, SERIAL), "return must not revive resolution capability");
         vm.prank(DELEGATE);
-        vm.expectRevert(abi.encodeWithSelector(
-            BicycleComponentManager.Unauthorized.selector, DELEGATE, keccak256(bytes(SERIAL)), uint64(4)
-        ));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.Unauthorized.selector, DELEGATE, keccak256(bytes(SERIAL)), uint64(4)
+            )
+        );
         manager.clearComponentMissing(SERIAL, "fixture://reports/stale-resolution.json");
         assertTrue(manager.missingStatus(SERIAL), "stale delegate cannot close open report");
     }
@@ -96,9 +98,10 @@ contract BicycleOwnershipGenerationRoadmapTest is BicycleComponentManagerTestSup
         RejectOwnershipReceiver rejecting = new RejectOwnershipReceiver();
         uint256 tokenId = manager.tokenIdOf(SERIAL);
         vm.prank(OWNER);
-        (bool ok,) = address(components).call(
-            abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", OWNER, address(rejecting), tokenId)
-        );
+        (bool ok,) = address(components)
+            .call(
+                abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", OWNER, address(rejecting), tokenId)
+            );
         assertFalse(ok, "receiver must reject safe transfer fixture");
         assertEq(manager.ownerOf(SERIAL), OWNER, "failed transfer must preserve owner");
         assertEq(manager.permissionsOf(DELEGATE, SERIAL), CAPABILITIES, "reverted transfer must preserve grant");
@@ -109,7 +112,8 @@ contract BicycleOwnershipGenerationRoadmapTest is BicycleComponentManagerTestSup
     function test_unauthorizedTransferDoesNotInvalidateGrant() external {
         uint256 tokenId = manager.tokenIdOf(SERIAL);
         vm.prank(OPERATOR);
-        (bool ok,) = address(components).call(abi.encodeWithSignature("transferFrom(address,address,uint256)", OWNER, BUYER, tokenId));
+        (bool ok,) = address(components)
+            .call(abi.encodeWithSignature("transferFrom(address,address,uint256)", OWNER, BUYER, tokenId));
         assertFalse(ok, "unapproved transfer must fail");
         assertEq(manager.ownerOf(SERIAL), OWNER, "failed authorization preserves owner");
         assertEq(manager.permissionsOf(DELEGATE, SERIAL), CAPABILITIES, "failed authorization preserves delegation");
@@ -124,7 +128,9 @@ contract BicycleOwnershipGenerationRoadmapTest is BicycleComponentManagerTestSup
         assertTrue(receiver.callbackReached(), "test must exercise ERC721 receiver callback");
         assertEq(manager.ownerOf(SERIAL), OWNER, "receiver fixture must return token during callback");
         assertFalse(receiver.staleWriteSucceeded(), "ownership change must invalidate grant before receiver callback");
-        assertEq(manager.componentURI(SERIAL), "fixture://components/original.json", "callback must not mutate metadata");
+        assertEq(
+            manager.componentURI(SERIAL), "fixture://components/original.json", "callback must not mutate metadata"
+        );
         assertInvalid(address(receiver));
     }
 
@@ -144,7 +150,9 @@ contract BicycleOwnershipGenerationRoadmapTest is BicycleComponentManagerTestSup
     function roundTrip(uint8 path) private {
         transfer(OWNER, BUYER, path);
         assertInvalid(DELEGATE);
-        assertEq(manager.permissionsOf(DELEGATE, SECOND_SERIAL), CAPABILITIES, "selling one token must not revoke another");
+        assertEq(
+            manager.permissionsOf(DELEGATE, SECOND_SERIAL), CAPABILITIES, "selling one token must not revoke another"
+        );
         transfer(BUYER, OWNER, path);
         assertEq(manager.ownerOf(SERIAL), OWNER, "round trip returns ownership to original grantor");
         assertInvalid(DELEGATE);
@@ -157,10 +165,18 @@ contract BicycleOwnershipGenerationRoadmapTest is BicycleComponentManagerTestSup
         assertFalse(manager.canUpdateMetadata(actor, SERIAL), "stale delegate must not be offered metadata writes");
         assertFalse(manager.canMarkMissing(actor, SERIAL), "stale delegate must not be offered report writes");
         vm.prank(actor);
-        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.Unauthorized.selector, actor, keccak256(bytes(SERIAL)), uint64(1)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.Unauthorized.selector, actor, keccak256(bytes(SERIAL)), uint64(1)
+            )
+        );
         manager.setComponentMetadata(SERIAL, "fixture://components/stale.json");
         vm.prank(actor);
-        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.Unauthorized.selector, actor, keccak256(bytes(SERIAL)), uint64(2)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.Unauthorized.selector, actor, keccak256(bytes(SERIAL)), uint64(2)
+            )
+        );
         manager.markComponentMissing(SERIAL, "fixture://reports/stale.json");
     }
 
@@ -202,7 +218,12 @@ contract ReturnAndUseStaleGrant is IERC721Receiver {
     bool public callbackReached;
     bool public staleWriteSucceeded;
 
-    constructor(BicycleComponents components_, BicycleComponentManager manager_, address owner_, string memory serial_) {
+    constructor(
+        BicycleComponents components_,
+        BicycleComponentManager manager_,
+        address owner_,
+        string memory serial_
+    ) {
         components = components_;
         manager = manager_;
         originalOwner = owner_;
@@ -213,9 +234,12 @@ contract ReturnAndUseStaleGrant is IERC721Receiver {
         require(msg.sender == address(components), "unexpected collection");
         callbackReached = true;
         components.transferFrom(address(this), originalOwner, tokenId);
-        (staleWriteSucceeded,) = address(manager).call(
-            abi.encodeCall(BicycleComponentManager.setComponentMetadata, (serial, "fixture://components/stale-callback.json"))
-        );
+        (staleWriteSucceeded,) = address(manager)
+            .call(
+                abi.encodeCall(
+                    BicycleComponentManager.setComponentMetadata, (serial, "fixture://components/stale-callback.json")
+                )
+            );
         return IERC721Receiver.onERC721Received.selector;
     }
 }

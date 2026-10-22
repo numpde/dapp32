@@ -34,6 +34,10 @@ interface IBicycleComponentManagerView is IERC165 {
 
     function componentTokenPaused() external view returns (bool);
 
+    function maxDelegationDuration() external view returns (uint48);
+
+    function inactiveStatus(string calldata serialNumber) external view returns (bool);
+
     function accountInfo(address account) external view returns (string memory);
 
     function canRegister(address actor) external view returns (bool);
@@ -52,6 +56,4 @@ interface IBicycleComponentManagerView is IERC165 {
     function canMarkMissing(address actor, string calldata serialNumber) external view returns (bool);
 
     function canClearMissing(address actor, string calldata serialNumber) external view returns (bool);
-
-    function canRetire(address actor, string calldata serialNumber) external view returns (bool);
 }

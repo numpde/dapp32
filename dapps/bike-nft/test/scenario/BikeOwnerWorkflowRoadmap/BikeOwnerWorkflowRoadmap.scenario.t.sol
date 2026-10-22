@@ -27,7 +27,9 @@ interface IWorkshopPreviewRoadmap {
         uint48 validUntil;
     }
     function viewDelegation(string calldata serialNumber, address delegate, address account, uint48 duration)
-        external view returns (DelegationView memory);
+        external
+        view
+        returns (DelegationView memory);
 }
 
 /// @dev Fresh deployment acceptance. This is not an RPC mock: ownership,
@@ -61,7 +63,8 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
         uint48 expiry = uint48(block.timestamp + 1 hours);
         vm.prank(OWNER);
         manager.setComponentDelegate(SERIAL, WORKSHOP, 1, expiry);
-        (address grantor, uint64 capabilities, uint48 validUntil, bool active) = manager.componentDelegation(SERIAL, WORKSHOP);
+        (address grantor, uint64 capabilities, uint48 validUntil, bool active) =
+            manager.componentDelegation(SERIAL, WORKSHOP);
         assertEq(grantor, OWNER);
         assertEq(uint256(capabilities), 1);
         assertEq(uint256(validUntil), uint256(expiry));
@@ -93,8 +96,13 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
         manager.clearComponentMissing(SERIAL, "fixture://resolved-by-buyer");
         assertFalse(manager.missingStatus(SERIAL));
         assertFalse(inactive());
-        assertTrue(hasAction(ui.viewComponent(SERIAL, BUYER).actions, "transferComponent"), "roadmap: new owner must have guided handover");
-        assertTrue(hasAction(ui.viewComponent(SERIAL, BUYER).actions, "delegation"), "roadmap: new owner must manage workshops");
+        assertTrue(
+            hasAction(ui.viewComponent(SERIAL, BUYER).actions, "transferComponent"),
+            "roadmap: new owner must have guided handover"
+        );
+        assertTrue(
+            hasAction(ui.viewComponent(SERIAL, BUYER).actions, "delegation"), "roadmap: new owner must manage workshops"
+        );
     }
 
     function test_ownerCanPreviewAnotherWorkshopWithoutImpersonatingIt() external {
@@ -105,29 +113,65 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
         // Owner remains the actor while delegate selects the grant being read.
         // Duration is translated by the read projection into exact validUntil;
         // the renderer must not invent JS clock arithmetic.
-        (bool ok, bytes memory result) = address(ui).staticcall(
-            abi.encodeWithSignature("viewDelegation(string,address,address,uint48)", SERIAL, WORKSHOP, OWNER, uint48(1 hours))
-        );
+        (bool ok, bytes memory result) = address(ui)
+            .staticcall(
+                abi.encodeWithSignature(
+                    "viewDelegation(string,address,address,uint48)", SERIAL, WORKSHOP, OWNER, uint48(1 hours)
+                )
+            );
         assertTrue(ok, "roadmap missing: viewDelegation(serial,delegate,account,duration)");
         assertGt(result.length, 0, "workshop preview must return ABI view data");
-        IWorkshopPreviewRoadmap.DelegationView memory preview = abi.decode(result, (IWorkshopPreviewRoadmap.DelegationView));
+        IWorkshopPreviewRoadmap.DelegationView memory preview =
+            abi.decode(result, (IWorkshopPreviewRoadmap.DelegationView));
         assertEq(preview.delegate, WORKSHOP);
         assertEq(preview.owner, OWNER);
         assertEq(preview.account, OWNER, "preview actor remains connected owner");
         assertEq(preview.delegationGrantor, OWNER, "preview reads selected workshop grant");
         assertEq(uint256(preview.delegationCapabilities), 3, "preview must not show owner capability mask");
-        assertEq(uint256(preview.delegationValidUntil), block.timestamp + 2 hours, "stored grant expiry differs from new preview duration");
+        assertEq(
+            uint256(preview.delegationValidUntil),
+            block.timestamp + 2 hours,
+            "stored grant expiry differs from new preview duration"
+        );
         assertTrue(preview.delegationActive);
         assertEq(uint256(preview.duration), 1 hours);
-        assertEq(uint256(preview.validUntil), block.timestamp + 1 hours, "new expiry comes from chain clock and requested duration");
+        assertEq(
+            uint256(preview.validUntil),
+            block.timestamp + 1 hours,
+            "new expiry comes from chain clock and requested duration"
+        );
         assertEq(uint256(preview.maxDelegationDuration), 30 days);
         for (uint256 i; i < 2; i++) {
             uint48 invalidDuration = i == 0 ? 0 : uint48(30 days + 1);
-            (bool accepted,) = address(ui).staticcall(abi.encodeCall(IWorkshopPreviewRoadmap.viewDelegation, (SERIAL, WORKSHOP, OWNER, invalidDuration)));
+            (bool accepted,) = address(ui)
+                .staticcall(
+                    abi.encodeCall(IWorkshopPreviewRoadmap.viewDelegation, (SERIAL, WORKSHOP, OWNER, invalidDuration))
+                );
             assertFalse(accepted, "preview must reject zero or over-limit grant duration");
         }
         assertEq(manager.permissionsOf(OWNER, SERIAL) & 7, 7, "inspection must not switch the owner actor");
         assertEq(manager.permissionsOf(WORKSHOP, SERIAL), 3, "inspection must not alter grant");
+    }
+
+    function test_componentProjectionExposesConfiguredWorkshopDurationBeforePreview() external {
+        vm.prank(REGISTRAR);
+        manager.registerComponent(OWNER, SERIAL, "fixture://original");
+        manager.setMaxDelegationDuration(30 minutes);
+
+        assertEq(
+            uint256(ui.viewComponent(SERIAL, OWNER).maxDelegationDuration),
+            30 minutes,
+            "the first workshop form must know the configured cap before choosing a duration"
+        );
+        BicycleComponentManagerUI.DelegationView memory preview = ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 30 minutes);
+        assertEq(uint256(preview.maxDelegationDuration), 30 minutes);
+        assertEq(uint256(preview.validUntil), block.timestamp + 30 minutes);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManagerUI.InvalidDelegationDuration.selector, uint48(30 minutes + 1), uint48(30 minutes)
+            )
+        );
+        ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 30 minutes + 1);
     }
 
     function test_handoverUsesRecordedCollectionPauseNotCurrentRegistrationPause() external {
@@ -142,12 +186,18 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
         BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, OWNER);
         assertEq(view_.tokenContract, address(original));
         assertFalse(view_.componentTokenPaused, "component projection must inspect recorded collection");
-        assertTrue(hasAction(view_.actions, "transferComponent"), "registry/current collection pause must not hide available direct transfer");
+        assertTrue(
+            hasAction(view_.actions, "transferComponent"),
+            "registry/current collection pause must not hide available direct transfer"
+        );
         vm.prank(OWNER);
         original.safeTransferFrom(OWNER, BUYER, tokenId);
         assertEq(original.ownerOf(tokenId), BUYER);
         original.pause();
-        assertFalse(hasAction(ui.viewComponent(SERIAL, BUYER).actions, "transferComponent"), "record collection pause must disable transfer");
+        assertFalse(
+            hasAction(ui.viewComponent(SERIAL, BUYER).actions, "transferComponent"),
+            "record collection pause must disable transfer"
+        );
     }
 
     function test_zeroRecipientRejectsWithoutChangingOwnerGrantOrMissingReport() external {
@@ -158,7 +208,8 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
         vm.prank(OWNER);
         manager.markComponentMissing(SERIAL, "fixture://missing");
         vm.prank(OWNER);
-        (bool ok,) = address(original).call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", OWNER, address(0), tokenId));
+        (bool ok,) = address(original)
+            .call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", OWNER, address(0), tokenId));
         assertFalse(ok, "zero recipient must never receive ownership");
         assertEq(manager.ownerOf(SERIAL), OWNER);
         assertEq(manager.permissionsOf(WORKSHOP, SERIAL), 1);
@@ -169,6 +220,129 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
         assertTrue(active);
         assertTrue(manager.missingStatus(SERIAL));
         assertEq(manager.componentBySerial(SERIAL).missingReportURI, "fixture://missing");
+    }
+
+    function test_workshopActionsFollowCurrentOwnerAndSelectedDelegate() external {
+        vm.prank(REGISTRAR);
+        (, uint256 tokenId) = manager.registerComponent(OWNER, SERIAL, "fixture://original");
+        vm.prank(OWNER);
+        manager.setComponentDelegate(SERIAL, WORKSHOP, 7, uint48(block.timestamp + 1 hours));
+
+        assertActions(
+            ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours).actions,
+            expectedActions("lookupComponent", "delegation", "setComponentDelegate", "revokeComponentDelegate")
+        );
+        address[3] memory nonowners = [BUYER, WORKSHOP, address(0)];
+        for (uint256 i; i < nonowners.length; i++) {
+            BicycleComponentManagerUI.DelegationView memory preview =
+                ui.viewDelegation(SERIAL, WORKSHOP, nonowners[i], 1 hours);
+            assertFalse(preview.isOwner, "registry delegates and anonymous viewers are not the token owner");
+            assertActions(preview.actions, expectedActions("lookupComponent", "delegation"));
+        }
+        assertActions(
+            ui.viewDelegation(SERIAL, address(0), OWNER, 1 hours).actions,
+            expectedActions("lookupComponent", "delegation")
+        );
+
+        vm.prank(OWNER);
+        original.transferFrom(OWNER, BUYER, tokenId);
+        assertActions(
+            ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours).actions,
+            expectedActions("lookupComponent", "delegation")
+        );
+        assertActions(
+            ui.viewDelegation(SERIAL, WORKSHOP, BUYER, 1 hours).actions,
+            expectedActions("lookupComponent", "delegation", "setComponentDelegate", "revokeComponentDelegate")
+        );
+    }
+
+    function test_managerPauseKeepsWorkshopInspectionWithoutGrantOrRevokeActions() external {
+        vm.prank(REGISTRAR);
+        manager.registerComponent(OWNER, SERIAL, "fixture://original");
+        vm.prank(OWNER);
+        manager.setComponentDelegate(SERIAL, WORKSHOP, 1, uint48(block.timestamp + 1 hours));
+        manager.pause();
+
+        BicycleComponentManagerUI.DelegationView memory preview = ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours);
+        assertTrue(preview.paused);
+        assertTrue(preview.isOwner);
+        assertTrue(preview.delegationActive, "manager pause does not erase an existing grant");
+        assertActions(preview.actions, expectedActions("lookupComponent", "delegation"));
+    }
+
+    function test_tokenPauseKeepsWorkshopGrantAndRevokeAvailable() external {
+        vm.prank(REGISTRAR);
+        manager.registerComponent(OWNER, SERIAL, "fixture://original");
+        original.pause();
+
+        BicycleComponentManagerUI.DelegationView memory preview = ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours);
+        assertTrue(preview.componentTokenPaused);
+        assertFalse(preview.paused);
+        assertActions(
+            preview.actions,
+            expectedActions("lookupComponent", "delegation", "setComponentDelegate", "revokeComponentDelegate")
+        );
+        vm.prank(OWNER);
+        manager.setComponentDelegate(SERIAL, WORKSHOP, 1, preview.validUntil);
+        assertTrue(ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours).delegationActive);
+        vm.prank(OWNER);
+        manager.revokeComponentDelegate(SERIAL, WORKSHOP);
+        assertFalse(ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours).delegationActive);
+    }
+
+    function test_workshopProjectionReadsEachRecordsCollectionPauseAfterReplacement() external {
+        vm.prank(REGISTRAR);
+        manager.registerComponent(OWNER, SERIAL, "fixture://original");
+        BicycleComponents replacement = new BicycleComponents("New Components", "NEW", address(this), 0, "", "");
+        replacement.grantRole(replacement.MINTER_ROLE(), address(manager));
+        replacement.grantRole(replacement.TOKEN_URI_SETTER_ROLE(), address(manager));
+        manager.setComponentsAddress(address(replacement));
+        string memory replacementSerial = "OWNER-WORKFLOW-REPLACEMENT";
+        vm.prank(REGISTRAR);
+        manager.registerComponent(OWNER, replacementSerial, "fixture://replacement");
+        replacement.pause();
+
+        BicycleComponentManagerUI.DelegationView memory originalPreview =
+            ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours);
+        BicycleComponentManagerUI.DelegationView memory replacementPreview =
+            ui.viewDelegation(replacementSerial, WORKSHOP, OWNER, 1 hours);
+        assertFalse(originalPreview.componentTokenPaused, "new registration collection does not own older records");
+        assertTrue(replacementPreview.componentTokenPaused);
+        assertActions(
+            originalPreview.actions,
+            expectedActions("lookupComponent", "delegation", "setComponentDelegate", "revokeComponentDelegate")
+        );
+        assertActions(replacementPreview.actions, originalPreview.actions);
+
+        replacement.unpause();
+        original.pause();
+        assertTrue(ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours).componentTokenPaused);
+        assertFalse(ui.viewDelegation(replacementSerial, WORKSHOP, OWNER, 1 hours).componentTokenPaused);
+    }
+
+    function test_workshopExpiryAcceptsUint48LimitAndRejectsOverflowOrOutOfRangeClock() external {
+        vm.prank(REGISTRAR);
+        manager.registerComponent(OWNER, SERIAL, "fixture://original");
+        uint256 maxTimestamp = type(uint48).max;
+        vm.warp(maxTimestamp - 1 hours);
+        BicycleComponentManagerUI.DelegationView memory preview = ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours);
+        assertEq(uint256(preview.validUntil), maxTimestamp, "exact uint48 expiry remains representable");
+        vm.prank(OWNER);
+        manager.setComponentDelegate(SERIAL, WORKSHOP, 1, preview.validUntil);
+        (,, uint48 storedExpiry, bool active) = manager.componentDelegation(SERIAL, WORKSHOP);
+        assertEq(uint256(storedExpiry), maxTimestamp);
+        assertTrue(active, "the exact-limit preview is accepted by the grant write");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManagerUI.TimestampOutOfRange.selector, maxTimestamp + 1)
+        );
+        ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours + 1);
+
+        vm.warp(maxTimestamp + 1);
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManagerUI.TimestampOutOfRange.selector, maxTimestamp + 1)
+        );
+        ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1);
     }
 
     function hasAction(string[] memory actions, string memory expected) private pure returns (bool) {
@@ -185,7 +359,8 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
     }
 
     function inactive() private view returns (bool) {
-        (bool ok, bytes memory result) = address(manager).staticcall(abi.encodeWithSignature("inactiveStatus(string)", SERIAL));
+        (bool ok, bytes memory result) =
+            address(manager).staticcall(abi.encodeWithSignature("inactiveStatus(string)", SERIAL));
         assertTrue(ok, "roadmap missing: independent inactiveStatus read");
         assertEq(result.length, 32);
         return abi.decode(result, (bool));

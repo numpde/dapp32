@@ -41,6 +41,7 @@ export function bikeReference(planBytes: Uint8Array, independentDeployer: string
 
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "BicycleComponentManager", createdContract("manager"))
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "BicycleComponentManagerUI", createdContract("ui"))
+  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "BicycleComponents", createdContract("components"))
   call("camRoot", "transferOwnership", "transferOwnership(address)", plan.intendedCamRootOwner)
   call("components", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", plan.intendedComponentsAdmin)
   call("manager", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", plan.intendedManagerAdmin)

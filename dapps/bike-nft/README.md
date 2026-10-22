@@ -31,6 +31,31 @@ component-token pause and the viewed account's registrar role are separate facts
 On a component view, editing the lookup serial does not change the displayed
 loaded component or the target of its writes; look up the new serial first.
 
+The current owner can take a component out of service and reactivate it later.
+This lifecycle flag is independent of missing reports: neither operation opens
+or resolves a report. Metadata corrections and ordinary NFT transfers remain
+available in either lifecycle state.
+
+To authorize a workshop, enter its address on the component view and choose
+an access duration within the displayed maximum. Inspect the grant and preview
+its exact onchain expiry, then choose a named permission preset. Each preset
+replaces the existing permissions and expiry. Revoke access for the inspected
+workshop with **Revoke workshop access**. Workshop grants
+authorize only the selected registry actions and provide no NFT transfer
+approval. Every ownership change permanently invalidates earlier grants, even
+if the token returns to the grantor. Self-transfers preserve grants; failed
+transfers leave them unchanged.
+
+Handover prepares a direct ERC-721 safe transfer from the current owner to the
+recipient using the loaded record's collection and token ID. Review both
+addresses before sending. This operation transfers token ownership; it does
+not collect payment or verify physical delivery. Registry pause does not stop
+token transfers, while the recorded collection's pause does.
+
+These workflows require fresh contracts. Previously deployed irreversible
+`Retired` records retain their original meaning; migration is outside this
+workflow.
+
 After connection, wallets that report account and network changes update the
 viewer automatically and clear unsent prepared calls. After an account change,
 wait for the refreshed view, check the account and chain, then prepare anew.
@@ -59,7 +84,7 @@ make bike-nft/local/demo/terminal/down
 ```
 
 The Bike fixture and release lane both pin SHA-256 of the exact CAM manifest
-bytes. CAM 1.2 also authenticates the bundled protocol reference before ABI/UI
+bytes. CAM also authenticates the bundled protocol reference before ABI/UI
 loading.
 
 ## Release policy
@@ -92,6 +117,7 @@ cam/
   abi/
     BicycleComponentManager.json
     BicycleComponentManagerUI.json
+    BicycleComponents.json
 ```
 
 Use an immutable or versioned HTTPS origin with JSON content types and browser-readable CORS. Before any release ceremony, run:

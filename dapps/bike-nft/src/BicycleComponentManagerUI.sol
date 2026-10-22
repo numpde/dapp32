@@ -1,6 +1,7 @@
 pragma solidity 0.8.35;
 
 import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
+import {IBicycleComponents} from "./IBicycleComponents.sol";
 
 /// @title BicycleComponentManagerUI
 /// @notice Read-only CAM route projection for BicycleComponentManager.
@@ -14,9 +15,8 @@ import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 /// - it never forwards user actions;
 /// - it only reads manager state and returns semantic UI view data.
 ///
-/// CAM write actions should target BicycleComponentManager directly. The
-/// manager remains the source of truth for all
-/// permissions and state changes.
+/// Registry write actions target the manager; handover targets the recorded
+/// ERC-721 collection. Each remains the authority for its own state changes.
 contract BicycleComponentManagerUI {
     IBicycleComponentManagerView public immutable manager;
 
@@ -25,6 +25,7 @@ contract BicycleComponentManagerUI {
     string private constant VIEW_COMPONENT_ACTIVE = "component.active";
     string private constant VIEW_COMPONENT_MISSING = "component.missing";
     string private constant VIEW_COMPONENT_RETIRED = "component.retired";
+    string private constant VIEW_COMPONENT_INACTIVE = "component.inactive";
     string private constant VIEW_COMPONENT_NOT_FOUND = "component.notFound";
     string private constant VIEW_REGISTER_EMPTY = "register.empty";
     string private constant VIEW_REGISTER_READY = "register.ready";
@@ -37,7 +38,12 @@ contract BicycleComponentManagerUI {
     string private constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
     string private constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
     string private constant ACTION_CLEAR_COMPONENT_MISSING = "clearComponentMissing";
-    string private constant ACTION_RETIRE_COMPONENT = "retireComponent";
+    string private constant ACTION_DECOMMISSION_COMPONENT = "decommissionComponent";
+    string private constant ACTION_REACTIVATE_COMPONENT = "reactivateComponent";
+    string private constant ACTION_DELEGATION = "delegation";
+    string private constant ACTION_TRANSFER_COMPONENT = "transferComponent";
+    string private constant ACTION_SET_COMPONENT_DELEGATE = "setComponentDelegate";
+    string private constant ACTION_REVOKE_COMPONENT_DELEGATE = "revokeComponentDelegate";
 
     string private constant STATUS_NONE = "none";
     string private constant STATUS_ACTIVE = "active";
@@ -79,18 +85,41 @@ contract BicycleComponentManagerUI {
         uint64 delegationCapabilities;
         uint48 delegationValidUntil;
         bool delegationActive;
+        uint48 maxDelegationDuration;
         bool componentTokenPaused;
         bool canUpdateMetadata;
         bool canMarkMissing;
         bool canClearMissing;
-        bool canRetire;
+        bool inactive;
+        bool canTransfer;
         address componentsAddress;
+    }
+
+    struct DelegationView {
+        string viewId;
+        string[] actions;
+        address account;
+        bool paused;
+        bool componentTokenPaused;
+        string serialNumber;
+        address owner;
+        bool isOwner;
+        address delegate;
+        address delegationGrantor;
+        uint64 delegationCapabilities;
+        uint48 delegationValidUntil;
+        bool delegationActive;
+        uint48 duration;
+        uint48 maxDelegationDuration;
+        uint48 validUntil;
     }
 
     error ZeroAddress();
     error ManagerHasNoCode(address managerAddress);
     error ManagerUnsupported(address managerAddress);
     error UnsupportedComponentStatus(IBicycleComponentManagerView.ComponentStatus status);
+    error InvalidDelegationDuration(uint48 duration, uint48 maxDuration);
+    error TimestampOutOfRange(uint256 timestamp);
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
 
@@ -112,6 +141,7 @@ contract BicycleComponentManagerUI {
     /// @notice Route projection for the application entry view.
     function viewEntry(address account) external view returns (AppView memory view_) {
         _setBaseView(view_, account);
+        view_.componentTokenPaused = manager.componentTokenPaused();
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
         view_.actions = _entryActions(account, view_.canRegister, view_.paused, view_.componentTokenPaused);
@@ -122,6 +152,7 @@ contract BicycleComponentManagerUI {
         _setBaseView(view_, account);
 
         if (_isEmpty(serialNumber)) {
+            view_.componentTokenPaused = manager.componentTokenPaused();
             view_.viewId = VIEW_COMPONENT_EMPTY;
             view_.serialNumber = serialNumber;
             view_.actions = _lookupAndRegisterActions(view_.canRegister, view_.paused, view_.componentTokenPaused);
@@ -130,6 +161,7 @@ contract BicycleComponentManagerUI {
 
         _setComponentView(view_, serialNumber, account);
         if (!view_.exists) {
+            view_.componentTokenPaused = manager.componentTokenPaused();
             view_.viewId = VIEW_COMPONENT_NOT_FOUND;
         }
         view_.actions = view_.exists
@@ -140,6 +172,7 @@ contract BicycleComponentManagerUI {
     /// @notice Route projection for component registration views.
     function viewRegister(string calldata serialNumber, address account) external view returns (AppView memory view_) {
         _setBaseView(view_, account);
+        view_.componentTokenPaused = manager.componentTokenPaused();
         view_.componentsAddress = manager.componentsAddress();
         view_.serialNumber = serialNumber;
         view_.tokenURI = "";
@@ -165,10 +198,51 @@ contract BicycleComponentManagerUI {
         }
     }
 
+    /// @notice Inspects one workshop grant and previews its expiry from the chain clock.
+    function viewDelegation(string calldata serialNumber, address delegate, address account, uint48 duration)
+        external
+        view
+        returns (DelegationView memory view_)
+    {
+        view_.maxDelegationDuration = manager.maxDelegationDuration();
+        if (duration == 0 || duration > view_.maxDelegationDuration) {
+            revert InvalidDelegationDuration(duration, view_.maxDelegationDuration);
+        }
+        if (block.timestamp > type(uint48).max) revert TimestampOutOfRange(block.timestamp);
+        uint256 expiry = block.timestamp + duration;
+        if (expiry > type(uint48).max) revert TimestampOutOfRange(expiry);
+
+        view_.viewId = ACTION_DELEGATION;
+        view_.account = account;
+        view_.paused = manager.paused();
+        view_.serialNumber = serialNumber;
+        view_.delegate = delegate;
+        view_.duration = duration;
+        view_.validUntil = uint48(expiry);
+
+        IBicycleComponentManagerView.ComponentView memory component = manager.componentBySerial(serialNumber);
+        view_.owner = component.owner;
+        view_.isOwner = account != address(0) && component.owner == account;
+        if (component.exists) {
+            view_.componentTokenPaused = IBicycleComponents(component.tokenContract).paused();
+        }
+        (view_.delegationGrantor, view_.delegationCapabilities, view_.delegationValidUntil, view_.delegationActive) =
+            manager.componentDelegation(serialNumber, delegate);
+
+        bool canManage = view_.isOwner && !view_.paused && delegate != address(0);
+        view_.actions = new string[](canManage ? 4 : 2);
+        view_.actions[0] = ACTION_LOOKUP_COMPONENT;
+        view_.actions[1] = ACTION_DELEGATION;
+        if (canManage) {
+            view_.actions[2] = ACTION_SET_COMPONENT_DELEGATE;
+            view_.actions[3] = ACTION_REVOKE_COMPONENT_DELEGATE;
+        }
+    }
+
     function _setBaseView(AppView memory view_, address account) internal view {
         view_.account = account;
         view_.paused = manager.paused();
-        view_.componentTokenPaused = manager.componentTokenPaused();
+        view_.maxDelegationDuration = manager.maxDelegationDuration();
         // The manager stores status as a Solidity enum, but CAM view data must
         // expose stable semantic IDs so generic renderers never decode ordinals.
         view_.statusId = _componentStatusId(IBicycleComponentManagerView.ComponentStatus.None);
@@ -207,6 +281,9 @@ contract BicycleComponentManagerUI {
         }
 
         view_.viewId = _componentViewId(component.status);
+        view_.inactive = manager.inactiveStatus(serialNumber);
+        if (view_.inactive) view_.viewId = VIEW_COMPONENT_INACTIVE;
+        view_.componentTokenPaused = IBicycleComponents(component.tokenContract).paused();
 
         if (component.owner != address(0)) {
             view_.ownerInfo = manager.accountInfo(component.owner);
@@ -231,7 +308,7 @@ contract BicycleComponentManagerUI {
             view_.canUpdateMetadata = manager.canUpdateMetadata(account, serialNumber);
             view_.canMarkMissing = manager.canMarkMissing(account, serialNumber);
             view_.canClearMissing = manager.canClearMissing(account, serialNumber);
-            view_.canRetire = manager.canRetire(account, serialNumber);
+            view_.canTransfer = view_.isOwner && !view_.componentTokenPaused;
         }
     }
 
@@ -324,26 +401,32 @@ contract BicycleComponentManagerUI {
     }
 
     function _componentActions(AppView memory view_) internal pure returns (string[] memory actions) {
-        if (view_.paused) {
-            return _lookupOnlyActions();
-        }
-
         uint256 count = 1;
-        if (!view_.componentTokenPaused && view_.canUpdateMetadata) count++;
-        if (view_.canMarkMissing) count++;
-        if (view_.canClearMissing) count++;
-        if (view_.canRetire) count++;
+        if (!view_.paused) {
+            if (!view_.componentTokenPaused && view_.canUpdateMetadata) count++;
+            if (view_.canMarkMissing) count++;
+            if (view_.canClearMissing) count++;
+            if (view_.isOwner) count++;
+        }
+        if (view_.isOwner) count++;
+        if (view_.canTransfer) count++;
 
         actions = new string[](count);
         uint256 index;
 
         actions[index++] = ACTION_LOOKUP_COMPONENT;
-        if (!view_.componentTokenPaused && view_.canUpdateMetadata) {
-            actions[index++] = ACTION_UPDATE_COMPONENT_METADATA;
+        if (!view_.paused) {
+            if (!view_.componentTokenPaused && view_.canUpdateMetadata) {
+                actions[index++] = ACTION_UPDATE_COMPONENT_METADATA;
+            }
+            if (view_.canMarkMissing) actions[index++] = ACTION_MARK_COMPONENT_MISSING;
+            if (view_.canClearMissing) actions[index++] = ACTION_CLEAR_COMPONENT_MISSING;
+            if (view_.isOwner) {
+                actions[index++] = view_.inactive ? ACTION_REACTIVATE_COMPONENT : ACTION_DECOMMISSION_COMPONENT;
+            }
         }
-        if (view_.canMarkMissing) actions[index++] = ACTION_MARK_COMPONENT_MISSING;
-        if (view_.canClearMissing) actions[index++] = ACTION_CLEAR_COMPONENT_MISSING;
-        if (view_.canRetire) actions[index++] = ACTION_RETIRE_COMPONENT;
+        if (view_.isOwner) actions[index++] = ACTION_DELEGATION;
+        if (view_.canTransfer) actions[index++] = ACTION_TRANSFER_COMPONENT;
     }
 
     function _isEmpty(string calldata value) internal pure returns (bool) {

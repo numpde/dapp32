@@ -15,6 +15,7 @@ contract DeployBikeNftRelease is Script {
     string private constant CAM_ROOT_PATH = "bike-nft/cam/main.json";
     string private constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
     string private constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
+    string private constant CAM_CONTRACT_COMPONENTS = "BicycleComponents";
 
     struct ReleasePlan {
         string sourceCommit;
@@ -125,6 +126,7 @@ contract DeployBikeNftRelease is Script {
 
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
+        deployment.camRoot.setContractAddress(CAM_CONTRACT_COMPONENTS, address(deployment.components));
         deployment.camRoot.transferOwnership(plan.intendedCamRootOwner);
         deployment.components.beginDefaultAdminTransfer(plan.intendedComponentsAdmin);
         deployment.manager.beginDefaultAdminTransfer(plan.intendedManagerAdmin);

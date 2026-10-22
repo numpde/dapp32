@@ -129,6 +129,22 @@ contract BikeNftReleaseVerifierTest is Test {
         verifier.verify(artifact, SOURCE_COMMIT);
     }
 
+    function testVerifierRejectsWrongComponentsBinding() public {
+        _acceptHandoffs();
+        vm.prank(ROOT_OWNER);
+        root.setContractAddress("BicycleComponents", address(manager));
+        BikeNftReleaseVerifier.Artifact memory artifact = _artifact();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                bytes4(keccak256("AddressMismatch(string,address,address)")),
+                "BicycleComponents binding",
+                address(components),
+                address(manager)
+            )
+        );
+        verifier.verify(artifact, SOURCE_COMMIT);
+    }
+
     function _acceptHandoffs() private {
         vm.prank(ROOT_OWNER);
         root.acceptOwnership();

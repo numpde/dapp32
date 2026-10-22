@@ -17,7 +17,7 @@ import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 ///
 /// - serial number -> component NFT reference;
 /// - verified registrar-created records;
-/// - missing / retired status;
+/// - missing reports and independent inactive lifecycle;
 /// - owner-granted delegates for registry actions;
 /// - account profile URIs.
 ///
@@ -40,10 +40,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     uint64 public constant CAP_UPDATE_METADATA = 1 << 0;
     uint64 public constant CAP_MARK_MISSING = 1 << 1;
     uint64 public constant CAP_CLEAR_MISSING = 1 << 2;
-    uint64 public constant CAP_RETIRE = 1 << 3;
-
-    uint64 public constant VALID_CAPABILITY_MASK =
-        CAP_UPDATE_METADATA | CAP_MARK_MISSING | CAP_CLEAR_MISSING | CAP_RETIRE;
+    uint64 public constant VALID_CAPABILITY_MASK = CAP_UPDATE_METADATA | CAP_MARK_MISSING | CAP_CLEAR_MISSING;
 
     uint48 public constant DEFAULT_MAX_DELEGATION_DURATION = 365 days;
 
@@ -61,14 +58,16 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         uint48 registeredAt;
         uint48 updatedAt;
         string serialNumber;
+        bool inactive;
     }
 
     /// @notice Owner-granted registry-action delegation.
-    /// @dev A delegation is effective only while `grantor` remains the token owner.
+    /// @dev Each actual ownership change permanently invalidates earlier grants.
     struct Delegation {
         address grantor;
         uint64 capabilities;
         uint48 validUntil;
+        uint256 ownershipGeneration;
     }
 
     // ---------------------------------------------------------------------
@@ -139,6 +138,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         ComponentStatus oldStatus,
         ComponentStatus newStatus
     );
+
+    event ComponentLifecycleUpdated(bytes32 indexed serialHash, address indexed owner, bool inactive);
 
     event ComponentReported(
         bytes32 indexed serialHash,
@@ -216,7 +217,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         _setComponentsAddress(tokenContract, true);
     }
 
-    function maxDelegationDuration() external view returns (uint48) {
+    function maxDelegationDuration() external view override returns (uint48) {
         return _maxDelegationDuration;
     }
 
@@ -265,7 +266,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         if (!_canAct(record, actor, CAP_UPDATE_METADATA)) {
             revert Unauthorized(actor, serialHash, CAP_UPDATE_METADATA);
         }
-        if (record.status == ComponentStatus.Retired) revert InvalidStatus(record.status);
         if (bytes(tokenURI_).length == 0) revert EmptyTokenURI();
 
         IBicycleComponents(record.tokenContract).setTokenURI(record.tokenId, tokenURI_);
@@ -284,24 +284,16 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         _setMissing(serialNumber, false, resolutionURI);
     }
 
-    function retireComponent(string calldata serialNumber) external whenNotPaused {
-        bytes32 serialHash = _requireSerialNumber(serialNumber);
-        ComponentRecord storage record = _requireRegistered(serialHash);
-        address actor = _msgSender();
+    function decommissionComponent(string calldata serialNumber) external whenNotPaused {
+        _setInactive(serialNumber, true);
+    }
 
-        if (!_canAct(record, actor, CAP_RETIRE)) {
-            revert Unauthorized(actor, serialHash, CAP_RETIRE);
-        }
-        // A missing report must be resolved with a URI before the component
-        // enters the final Retired state; otherwise indexers see an open report
-        // with no closing event.
-        if (record.status != ComponentStatus.Active) revert InvalidStatus(record.status);
-
-        _updateStatus(record, actor, ComponentStatus.Retired);
+    function reactivateComponent(string calldata serialNumber) external whenNotPaused {
+        _setInactive(serialNumber, false);
     }
 
     /// @notice Grants a delegate limited, expiring permission over registry actions for a component.
-    /// @dev The delegation is effective only while the grantor remains the token owner.
+    /// @dev Any later ownership change invalidates this grant, including a round trip.
     function setComponentDelegate(
         string calldata serialNumber,
         address delegate,
@@ -319,8 +311,12 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
 
         _validateDelegation(capabilities, validUntil);
 
-        _delegations[serialHash][delegate] =
-            Delegation({grantor: owner, capabilities: capabilities, validUntil: validUntil});
+        _delegations[serialHash][delegate] = Delegation({
+            grantor: owner,
+            capabilities: capabilities,
+            validUntil: validUntil,
+            ownershipGeneration: IBicycleComponents(record.tokenContract).ownershipGeneration(record.tokenId)
+        });
 
         emit ComponentDelegationSet(serialHash, owner, delegate, record.serialNumber, capabilities, validUntil);
     }
@@ -465,6 +461,10 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         return componentStatus(serialNumber) == ComponentStatus.Missing;
     }
 
+    function inactiveStatus(string calldata serialNumber) external view override returns (bool) {
+        return _componentRecords[serialHashOf(serialNumber)].inactive;
+    }
+
     function componentDelegation(string calldata serialNumber, address delegate)
         external
         view
@@ -502,8 +502,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
 
     function canUpdateMetadata(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
-        return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
-            && _canAct(record, actor, CAP_UPDATE_METADATA);
+        return record.status != ComponentStatus.None && _canAct(record, actor, CAP_UPDATE_METADATA);
     }
 
     function canMarkMissing(address actor, string calldata serialNumber) external view override returns (bool) {
@@ -514,11 +513,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     function canClearMissing(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         return record.status == ComponentStatus.Missing && _canAct(record, actor, CAP_CLEAR_MISSING);
-    }
-
-    function canRetire(address actor, string calldata serialNumber) external view override returns (bool) {
-        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
-        return record.status == ComponentStatus.Active && _canAct(record, actor, CAP_RETIRE);
     }
 
     // ---------------------------------------------------------------------
@@ -553,7 +547,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             missingReportURI: "",
             registeredAt: now_,
             updatedAt: now_,
-            serialNumber: serialNumber
+            serialNumber: serialNumber,
+            inactive: false
         });
 
         emit ComponentRegistered(serialHash, tokenContract, tokenId, owner, _msgSender(), serialNumber, tokenURI_);
@@ -587,6 +582,17 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
                 record.serialHash, record.tokenContract, actor, record.tokenId, record.serialNumber, lifecycleURI
             );
         }
+    }
+
+    function _setInactive(string calldata serialNumber, bool inactive) internal {
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        ComponentRecord storage record = _requireRegistered(serialHash);
+        address actor = _msgSender();
+        if (!_isTokenOwner(record, actor)) revert Unauthorized(actor, serialHash, 0);
+
+        record.inactive = inactive;
+        record.updatedAt = _now48();
+        emit ComponentLifecycleUpdated(serialHash, actor, inactive);
     }
 
     function _updateStatus(ComponentRecord storage record, address actor, ComponentStatus newStatus) internal {
@@ -635,6 +641,10 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         if (block.timestamp > type(uint48).max) revert TimestampOutOfRange(block.timestamp);
         if (delegation.validUntil <= block.timestamp) return 0;
         if (_ownerOf(record) != delegation.grantor) return 0;
+        if (
+            IBicycleComponents(record.tokenContract).ownershipGeneration(record.tokenId)
+                != delegation.ownershipGeneration
+        ) return 0;
 
         return delegation.capabilities;
     }

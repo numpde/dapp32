@@ -41,6 +41,8 @@ contract BicycleComponents is
     string private _baseTokenURI;
     string private _contractMetadataURI;
 
+    mapping(uint256 tokenId => uint256 generation) public override ownershipGeneration;
+
     error EmptyTokenURI();
 
     event BaseURIUpdated(string oldBaseURI, string newBaseURI);
@@ -175,7 +177,11 @@ contract BicycleComponents is
         override(ERC721, ERC721Pausable)
         returns (address)
     {
-        return super._update(to, tokenId, auth);
+        address from = super._update(to, tokenId, auth);
+        // All ERC-721 transfer entrypoints reach this hook before receiver callbacks.
+        // A rejected transfer rolls this change back together with ownership.
+        if (from != address(0) && from != to) ownershipGeneration[tokenId]++;
+        return from;
     }
 
     function tokenURI(uint256 tokenId)
