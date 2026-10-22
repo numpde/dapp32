@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   NFT_IMAGE_MAX_BYTES,
   NFT_METADATA_MAX_BYTES,
+  NftResourceError,
   loadNftImage,
   loadNftMetadata,
   nftMetadataDataURI,
@@ -78,6 +79,25 @@ test("unsupported metadata schemes and credential-bearing URLs fail before retri
   assert.equal(fetch.mock.callCount(), 0)
 })
 
+test("unusable resource addresses explain the correction and retain the rejected URL cause without requesting bytes", async t => {
+  const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected network") })
+  for (const load of [
+    () => loadNftMetadata("not a URL", signal()),
+    () => loadNftMetadata("https://user:secret@example.test/item", signal()),
+    () => loadNftImage("https://[", undefined, signal()),
+    () => loadNftImage("image.png", "not a URL", signal()),
+    () => loadNftImage("//[", "https://example.test/metadata.json", signal()),
+  ]) await assert.rejects(load(), error => {
+    assert(error instanceof NftResourceError)
+    assert.match(error.message, /Cannot load/)
+    assert.match(error.message, /http:\/\/.*https:\/\//)
+    assert.doesNotMatch(error.message, /construct|expected|Invalid URL|secret/)
+    assert(error.cause instanceof Error)
+    return true
+  })
+  assert.equal(fetch.mock.callCount(), 0)
+})
+
 test("HTTP status and unreadable/CORS resources explain the failed operation", async t => {
   t.mock.method(globalThis, "fetch", async () => new Response("missing", { status: 404 }))
   await assert.rejects(loadNftMetadata("https://example.test/item", signal()), /NFT metadata.*HTTP 404/)
@@ -126,7 +146,7 @@ test("raster data images are local; executable and relative-without-base sources
   const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected network") })
   assert.equal((await loadNftImage("data:image/png;base64,AQID", undefined, signal())).size, 3)
   for (const [uri, base] of [["data:image/svg+xml,%3Csvg%3E", undefined], ["javascript:alert(1)", undefined], ["image.png", "data:application/json,%7B%7D"], ["image.png", undefined]] as const) {
-    await assert.rejects(loadNftImage(uri, base, signal()), /SVG|HTTP|URL|relative/)
+    await assert.rejects(loadNftImage(uri, base, signal()), /SVG|https?:|relative/i)
   }
   assert.equal(fetch.mock.callCount(), 0)
 })

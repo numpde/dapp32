@@ -3,9 +3,9 @@ import type { ReactElement } from "react"
 import { isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import { errorMessage } from "./errors.ts"
-import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, serializeNftMetadata, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
+import { loadNftImage, loadNftMetadata, nftMetadataDataURI, NftResourceError, parseNftMetadata, serializeNftMetadata, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
-type Resource<T> = { readonly status: "idle" | "pending" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly message: string }
+type Resource<T> = { readonly status: "idle" | "pending" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown }
 
 function useNftResource<T>() {
   const [resource, setResource] = useState<Resource<T>>({ status: "idle" })
@@ -26,7 +26,7 @@ function useNftResource<T>() {
       setResource({ status: "ready", value })
       return value
     } catch (error) {
-      if (!controller.signal.aborted) setResource({ status: "failed", message: errorMessage(error) })
+      if (!controller.signal.aborted) setResource({ status: "failed", error })
     }
     return undefined
   }, [])
@@ -35,7 +35,11 @@ function useNftResource<T>() {
 
 function ResourceFeedback({ resource }: { readonly resource: Resource<unknown> }): ReactElement | null {
   if (resource.status === "pending") return <p role="status">Loading…</p>
-  if (resource.status === "failed") return <p className="field-error" role="alert">{resource.message}</p>
+  if (resource.status === "failed") {
+    const diagnostic = errorMessage(resource.error)
+    const message = resource.error instanceof NftResourceError ? errorMessage(resource.error.message) : diagnostic
+    return <div className="nft-resource-error"><p className="field-error" role="alert">{message}</p>{diagnostic !== message ? <details><summary>Technical details</summary><code className="nft-source">{diagnostic}</code></details> : null}</div>
+  }
   return null
 }
 
@@ -93,11 +97,11 @@ function NftImage({ uri, baseURI, alt }: { readonly uri: string; readonly baseUR
   </div>
 }
 
-function metadataDraft(text: string): { readonly metadata: InertRecord; readonly json: string; readonly uri: string } | { readonly error: string } {
+function metadataDraft(text: string): { readonly metadata: InertRecord; readonly json: string; readonly uri: string } | { readonly error: unknown } {
   try {
     const metadata = parseNftMetadata(text)
     return { metadata, json: serializeNftMetadata(metadata), uri: nftMetadataDataURI(metadata) }
-  } catch (error) { return { error: errorMessage(error) } }
+  } catch (error) { return { error } }
 }
 
 export function NftMetadataFieldView({ label, name, value, disabled, onInput }: {
@@ -151,7 +155,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
       {(["name", "description", "image"] as const).map(key => <label className="field" key={key}><span>{key === "image" ? "Image URL" : key === "name" ? "Name" : "Description"}</span><input name={`${name}.metadata.${key}`} maxLength={NFT_METADATA_MAX_BYTES} disabled={"error" in draft} value={"error" in draft || typeof draft.metadata[key] !== "string" ? "" : draft.metadata[key] as string}
         onChange={event => { if (!("error" in draft)) editDraft(JSON.stringify({ ...draft.metadata, [key]: event.currentTarget.value }, null, 2)) }} /></label>)}
       <label className="field"><span>Metadata JSON (including attributes and other fields)</span><textarea id={`${id}-json`} name={`${name}.metadata.json`} maxLength={NFT_METADATA_MAX_BYTES} value={text} aria-invalid={"error" in draft} aria-describedby={`${id}-feedback`} onChange={event => editDraft(event.currentTarget.value)} /></label>
-      {"error" in draft ? <p className="field-error" role="alert">{draft.error}</p> : <>
+      {"error" in draft ? <ResourceFeedback resource={{ status: "failed", error: draft.error }} /> : <>
         <NftMetadataPreview metadata={draft.metadata} baseURI={baseURI} />
         <div className="nft-actions"><button className="button-quiet" type="button" onClick={() => { void copy(draft.json) }}>Copy JSON</button><button className="button-quiet" type="button" onClick={download}>Download JSON</button></div>
       </>}

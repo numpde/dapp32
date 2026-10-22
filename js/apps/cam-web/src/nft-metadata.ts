@@ -1,5 +1,7 @@
 import { isRecordObject, parseJsonText, readBoundedResponseBytes, requireHttpURL, toInertValue } from "@cam/protocol"
-import type { InertRecord } from "@cam/protocol"
+import type { HttpURL, InertRecord } from "@cam/protocol"
+
+export class NftResourceError extends Error {}
 
 export const NFT_METADATA_MAX_BYTES = 256 * 1024
 export const NFT_IMAGE_MAX_BYTES = 4 * 1024 * 1024
@@ -12,13 +14,13 @@ export function parseNftMetadata(text: string): InertRecord {
   try {
     value = parseJsonText(text)
   } catch (cause) {
-    throw new Error("Cannot read NFT metadata: use valid JSON without duplicate object keys.", { cause })
+    throw new NftResourceError("Cannot read NFT metadata: use valid JSON without duplicate object keys.", { cause })
   }
-  if (!isRecordObject(value)) throw new Error("Cannot read NFT metadata: the JSON root must be an object.")
+  if (!isRecordObject(value)) throw new NftResourceError("Cannot read NFT metadata: the JSON root must be an object.")
   try {
     return toInertValue(value) as InertRecord
   } catch (cause) {
-    throw new Error("Cannot read NFT metadata: all values must be finite JSON values.", { cause })
+    throw new NftResourceError("Cannot read NFT metadata: all values must be finite JSON values.", { cause })
   }
 }
 
@@ -39,10 +41,10 @@ export async function loadNftMetadata(uri: string, signal: AbortSignal): Promise
   signal.throwIfAborted()
   if (uri.startsWith("data:")) {
     const { bytes, type } = readDataURI(uri, NFT_METADATA_MAX_BYTES)
-    if (type !== "application/json") throw new Error("Cannot read NFT metadata: a data URI must contain application/json.")
+    if (type !== "application/json") throw new NftResourceError("Cannot read NFT metadata: a data URI must contain application/json.")
     return parseNftMetadata(decodeMetadata(bytes))
   }
-  const url = requireHttpURL(uri, "NFT metadata URL (use HTTP(S) or a JSON data URI)")
+  const url = nftHttpURL(uri, "NFT details")
   return withDeadline(signal, "NFT metadata", async activeSignal => {
     const response = await fetchReadable(url.href, activeSignal, "NFT metadata")
     const bytes = await readBytes(response, activeSignal, NFT_METADATA_MAX_BYTES, "NFT metadata")
@@ -58,23 +60,21 @@ export async function loadNftImage(uri: string, baseURI: string | undefined, sig
     return new Blob([bytes as Uint8Array<ArrayBuffer>], { type })
   }
   if (uri.length === 0 || /[\u0000-\u001f\u007f\\]/u.test(uri)) {
-    throw new Error("Cannot load NFT image: use a nonempty image URL without control characters or backslashes.")
+    throw new NftResourceError("Cannot load NFT image: use a nonempty image URL without control characters or backslashes.")
   }
-  let absolute = uri
-  if (!/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri)) {
+  const relative = !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri)
+  if (relative) {
     if (baseURI === undefined || baseURI.startsWith("data:")) {
-      throw new Error("Cannot load NFT image: a relative image URI needs an HTTP(S) metadata URL. Use an absolute image URL.")
+      throw new NftResourceError("Cannot load NFT image: a relative image URI needs an HTTP(S) metadata URL. Use an absolute image URL.")
     }
-    const base = requireHttpURL(baseURI, "NFT metadata URL")
-    absolute = new URL(uri, base.href).href
   }
-  const url = requireHttpURL(absolute, "NFT image URL (use HTTP(S) or a raster image data URI)")
+  const url = nftHttpURL(uri, "NFT image", relative ? baseURI : undefined)
   return withDeadline(signal, "NFT image", async activeSignal => {
     const response = await fetchReadable(url.href, activeSignal, "NFT image")
     const contentType = response.headers.get("content-type")
     if (contentType === null) {
       void response.body?.cancel().catch(() => {})
-      throw new Error("Cannot load NFT image: the server did not supply a Content-Type header. Use a PNG, JPEG, WebP or GIF response with its image type declared.")
+      throw new NftResourceError("Cannot load NFT image: the server did not supply a Content-Type header. Use a PNG, JPEG, WebP or GIF response with its image type declared.")
     }
     const type = contentType.split(";")[0]!.trim().toLowerCase()
     if (!IMAGE_TYPES.has(type)) {
@@ -86,21 +86,30 @@ export async function loadNftImage(uri: string, baseURI: string | undefined, sig
   })
 }
 
+function nftHttpURL(uri: string, label: "NFT details" | "NFT image", baseURI?: string): HttpURL {
+  try {
+    const absolute = baseURI === undefined ? uri : new URL(uri, requireHttpURL(baseURI, "Metadata document URL").href).href
+    return requireHttpURL(absolute, `${label} URL`)
+  } catch (cause) {
+    throw new NftResourceError(`Cannot load ${label}. Enter a complete http:// or https:// address without a username or password.`, { cause })
+  }
+}
+
 function assertImageType(type: string): void {
-  if (!IMAGE_TYPES.has(type)) throw new Error("Cannot load NFT image: choose a PNG, JPEG, WebP or GIF image. SVG and HTML are not displayed.")
+  if (!IMAGE_TYPES.has(type)) throw new NftResourceError("Cannot load NFT image: choose a PNG, JPEG, WebP or GIF image. SVG and HTML are not displayed.")
 }
 
 function decodeMetadata(bytes: Uint8Array): string {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
   } catch (cause) {
-    throw new Error("Cannot read NFT metadata: JSON must use valid UTF-8 text.", { cause })
+    throw new NftResourceError("Cannot read NFT metadata: JSON must use valid UTF-8 text.", { cause })
   }
 }
 
 function assertMetadataTextBounds(text: string): void {
   if (text.length > NFT_METADATA_MAX_BYTES || new TextEncoder().encode(text).byteLength > NFT_METADATA_MAX_BYTES) {
-    throw new Error("Cannot read NFT metadata: JSON exceeds the 256 KiB limit. Reduce the metadata size.")
+    throw new NftResourceError("Cannot read NFT metadata: JSON exceeds the 256 KiB limit. Reduce the metadata size.")
   }
   // Bound nesting before the protocol duplicate-key parser and inert clone recurse.
   let depth = 0
@@ -113,23 +122,23 @@ function assertMetadataTextBounds(text: string): void {
       else if (character === '"') quoted = false
     } else if (character === '"') quoted = true
     else if (character === "{" || character === "[") {
-      if (++depth > 32) throw new Error("Cannot read NFT metadata: JSON exceeds the nesting limit of 32. Reduce nested objects or arrays.")
+      if (++depth > 32) throw new NftResourceError("Cannot read NFT metadata: JSON exceeds the nesting limit of 32. Reduce nested objects or arrays.")
     } else if (character === "}" || character === "]") depth--
   }
 }
 
 function readDataURI(uri: string, maxBytes: number): { bytes: Uint8Array; type: string } {
   const comma = uri.indexOf(",")
-  if (comma < 0 || comma > 100) throw new Error("Cannot read data URI: include a media type and comma before the encoded content.")
+  if (comma < 0 || comma > 100) throw new NftResourceError("Cannot read data URI: include a media type and comma before the encoded content.")
   const header = uri.slice(5, comma).toLowerCase()
   const parts = header.split(";")
   const type = parts.shift()!
   const base64 = parts.at(-1) === "base64"
   if (base64) parts.pop()
-  if (parts.some(part => part !== "charset=utf-8")) throw new Error("Cannot read data URI: use UTF-8 text or base64 encoding.")
+  if (parts.some(part => part !== "charset=utf-8")) throw new NftResourceError("Cannot read data URI: use UTF-8 text or base64 encoding.")
   const encoded = uri.slice(comma + 1)
   if (encoded.length > (base64 ? Math.ceil(maxBytes / 3) * 4 : maxBytes * 3)) {
-    throw new Error(`Cannot read data URI: decoded content exceeds the ${maxBytes / 1024} KiB limit.`)
+    throw new NftResourceError(`Cannot read data URI: decoded content exceeds the ${maxBytes / 1024} KiB limit.`)
   }
   let bytes: Uint8Array
   try {
@@ -154,9 +163,9 @@ function readDataURI(uri: string, maxBytes: number): { bytes: Uint8Array; type: 
       bytes = Uint8Array.from(decoded)
     }
   } catch (cause) {
-    throw new Error("Cannot read data URI: content is malformed or exceeds the size limit. Use valid base64 or percent encoding.", { cause })
+    throw new NftResourceError("Cannot read data URI: content is malformed or exceeds the size limit. Use valid base64 or percent encoding.", { cause })
   }
-  if (bytes.byteLength > maxBytes) throw new Error(`Cannot read data URI: decoded content exceeds the ${maxBytes / 1024} KiB limit.`)
+  if (bytes.byteLength > maxBytes) throw new NftResourceError(`Cannot read data URI: decoded content exceeds the ${maxBytes / 1024} KiB limit.`)
   return { bytes, type }
 }
 
@@ -166,11 +175,11 @@ async function fetchReadable(uri: string, signal: AbortSignal, label: string): P
     response = await fetch(uri, { signal, mode: "cors", credentials: "omit", referrerPolicy: "no-referrer", redirect: "error", cache: "no-store" })
   } catch (cause) {
     signal.throwIfAborted()
-    throw new Error(`Cannot load ${label}: check connectivity, browser CORS access and redirects. Choose a directly readable URL.`, { cause })
+    throw new NftResourceError(`Cannot load ${label}: check connectivity, browser CORS access and redirects. Choose a directly readable URL.`, { cause })
   }
   if (!response.ok || response.type === "opaque" || response.body === null) {
     void response.body?.cancel().catch(() => {})
-    throw new Error(`Cannot load ${label}: the server returned HTTP ${response.status} or no readable body. Choose a directly readable URL.`)
+    throw new NftResourceError(`Cannot load ${label}: the server returned HTTP ${response.status} or no readable body. Choose a directly readable URL.`)
   }
   if (signal.aborted) {
     void response.body.cancel().catch(() => {})
@@ -191,9 +200,9 @@ async function readBytes(response: Response, signal: AbortSignal, maxBytes: numb
   } catch (cause) {
     signal.throwIfAborted()
     if (cause instanceof Error && cause.message === `CAM resource is too large: ${label}`) {
-      throw new Error(`Cannot load ${label}: content exceeds the ${maxBytes / 1024} KiB limit. Choose a smaller resource.`, { cause })
+      throw new NftResourceError(`Cannot load ${label}: content exceeds the ${maxBytes / 1024} KiB limit. Choose a smaller resource.`, { cause })
     }
-    throw new Error(`Cannot read ${label} bytes. Retry or choose another resource.`, { cause })
+    throw new NftResourceError(`Cannot read ${label} bytes. Retry or choose another resource.`, { cause })
   } finally {
     signal.removeEventListener("abort", cancel)
     if (signal.aborted) cancel()
@@ -205,7 +214,7 @@ async function withDeadline<T>(signal: AbortSignal, label: string, acquire: (sig
   const cancel = () => controller.abort(signal.reason)
   signal.addEventListener("abort", cancel, { once: true })
   if (signal.aborted) cancel()
-  const timer = setTimeout(() => controller.abort(new Error(`Cannot load ${label}: the request exceeded 15 seconds. Retry or choose another resource.`)), DEADLINE_MS)
+  const timer = setTimeout(() => controller.abort(new NftResourceError(`Cannot load ${label}: the request exceeded 15 seconds. Retry or choose another resource.`)), DEADLINE_MS)
   let rejectAbort: () => void = () => {}
   const aborted = new Promise<never>((_resolve, reject) => {
     rejectAbort = () => reject(controller.signal.reason)
