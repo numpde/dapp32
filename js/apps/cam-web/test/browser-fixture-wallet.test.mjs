@@ -18,7 +18,7 @@ function install(existing, deploymentFacts) {
   const href = 'http://127.0.0.1:5175/?host='+address+'&chainId=eip155:31337&account='+address+'&rpcUrl=http%3A%2F%2F127.0.0.1%3A5175%2Frpc'
   const sandbox = { window, document, location: { href }, URL, URLSearchParams, Map, Set, Error, Object, Promise, JSON, confirm: () => true }
   vm.runInNewContext(fixtureWalletSource({ accounts: { alice: address, bob: other }, initialRole: 'alice', origin: 'http://127.0.0.1:5175', host: address, confirmTransactions: false, deploymentFacts }), sandbox)
-  return { window, owner: window.__fixtureWallet, sent, elements }
+  return { window, owner: window.__fixtureWallet, sent, elements, location: sandbox.location }
 }
 
 function descendants(node) { return [node, ...node.children.flatMap(descendants)] }
@@ -26,7 +26,7 @@ const text = node => descendants(node).map(item => item.textContent).join(' ')
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
 test('deployment panel loads on demand, suppresses old-account replies and preserves link connection settings', async () => {
-  const { owner, sent, elements } = install(undefined, true)
+  const { owner, sent, elements, location } = install(undefined, true)
   const bar = elements.get('local-fixture-wallet')
   const panel = descendants(bar).find(node => node.tagName === 'DETAILS')
   assert(panel, 'deployment facts have their own disclosure')
@@ -43,7 +43,7 @@ test('deployment panel loads on demand, suppresses old-account replies and prese
   await tick()
   assert(text(panel).includes('FRAME & # 01'))
   const link = descendants(panel).find(node => node.tagName === 'A')
-  const href = new URL(link.href)
+  const href = new URL(link.href, location.href)
   assert.equal(href.searchParams.get('account'), address)
   assert.equal(href.searchParams.get('host'), address)
   assert.equal(href.searchParams.get('rpcUrl'), 'http://127.0.0.1:5175/rpc')
@@ -81,6 +81,23 @@ test('deployment panel loads on demand, suppresses old-account replies and prese
 test('fact collection is not exposed as a wallet RPC method', async () => {
   const { owner } = install(undefined, true)
   await assert.rejects(owner.provider.request({ method: 'fixture_facts' }), /Unsupported/)
+  owner.shutdown()
+})
+
+test('record navigation uses the current connection after the viewer updates its URL', async () => {
+  const { owner, sent, elements, location } = install(undefined, true)
+  const panel = descendants(elements.get('local-fixture-wallet')).find(node => node.tagName === 'DETAILS')
+  panel.open = true
+  panel.ontoggle()
+  owner.resolve(sent[0].id, true, { title: 'Records', description: '', blockNumber: '1', rows: [{ label: 'Frame', values: [], route: 'component', inputs: { serialNumber: 'Frame' }, linkLabel: 'Open component →' }] })
+  await tick()
+  const updated = new URL(location.href)
+  updated.searchParams.set('account', other)
+  location.href = updated.href
+  const link = descendants(panel).find(node => node.tagName === 'A')
+  const destination = new URL(link.href, location.href)
+  assert.equal(destination.search, updated.search, 'opening a record must not restore a previous viewer account')
+  assert.equal(new URLSearchParams(destination.hash.slice(1)).get('serialNumber'), 'Frame')
   owner.shutdown()
 })
 test('address/key mismatch fails without revealing either key', () => {

@@ -26,11 +26,20 @@ export async function checkDeploymentFacts({ call, evaluate }) {
     await evaluate(`document.querySelector('#local-fixture-facts button').click()`)
     await wait(`document.querySelector('#local-fixture-facts [role="status"]')?.textContent.startsWith('Checked at block')`)
     if (records.rows.length > 0) {
-      const link = new URL(records.rows[0].href)
+      const connection = await evaluate(`(() => { const selector=document.getElementById('local-fixture-wallet-role');const role=[...selector.options].find(option=>option.value!==selector.value).value;window.__fixtureWallet.setRole(role);return {role,address:document.querySelector('#local-fixture-wallet .wallet-controls > code').textContent} })()`)
+      await wait(`document.querySelector('#local-fixture-facts [role="status"]')?.textContent.startsWith('Checked at block')`)
+      await evaluate(`document.querySelector('.wallet-button').click()`)
+      await wait(`new URL(location.href).searchParams.get('account')?.toLowerCase()===${JSON.stringify(connection.address.toLowerCase())}&&!document.querySelector('.wallet-button').disabled&&!document.querySelector('.elements').disabled`)
+      const currentLink = new URL(await evaluate(`document.querySelector('#local-fixture-facts section a').href`))
+      assert.equal(currentLink.search, new URL(await evaluate('location.href')).search, 'record links keep the current connection after wallet synchronization')
+      const link = currentLink
       const route = new URLSearchParams(link.hash.slice(1)).get('route')
+      const documentStart = await evaluate('performance.timeOrigin')
       await evaluate(`document.querySelector('#local-fixture-facts section a').click()`)
-      await wait(`[...document.querySelectorAll('.ui-meta .key-value')].some(row=>row.firstElementChild.textContent==='Read route'&&row.lastElementChild.textContent===${JSON.stringify(route)})&&!document.querySelector('.elements').disabled`)
+      await wait(`location.hash===${JSON.stringify(link.hash)}&&[...document.querySelectorAll('.ui-meta .key-value')].some(row=>row.firstElementChild.textContent==='Read route'&&row.lastElementChild.textContent===${JSON.stringify(route)})&&!document.querySelector('.elements').disabled`)
       assert.equal(await evaluate('location.hash'), link.hash)
+      assert.equal(await evaluate('performance.timeOrigin'), documentStart, 'opening a record must preserve the connected document')
+      assert.equal((await evaluate('new URL(location.href).searchParams.get("account")')).toLowerCase(), connection.address.toLowerCase(), 'opening a record must preserve the connected account')
       assert(await evaluate(`!document.querySelector('.prepared-call')`), 'opening a record does not prepare a transaction')
     }
     return { ...records, navigation: records.rows.length > 0 }

@@ -6,17 +6,20 @@ import { privateKeyToAccount } from 'viem/accounts'
 export class BrowserFixtureError extends Error {}
 
 export async function checkFixtureWalletToolbar({ call, evaluate }) {
-  const scroll = await evaluate(`(() => { const app=document.getElementById('root');return {x:app.scrollLeft,y:app.scrollTop} })()`)
+  const scroll = await evaluate(`(() => { const app=document.getElementById('root');return {x:app.scrollLeft,y:app.scrollTop,hasFacts:!!document.getElementById('local-fixture-facts')} })()`)
   const failures = []
   let wideHeight
+  let facts
   try {
+    if (scroll.hasFacts === true) facts = await checkDeploymentFacts({ call, evaluate })
     await evaluate(`(() => { const filler=document.createElement('div');filler.id='wallet-toolbar-scroll-test';filler.style.height='200vh';document.getElementById('root').append(filler) })()`)
-    for (const width of [1280, 320]) {
-      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: true })
+    for (const [width, height] of [[1280, 900], [320, 900], [320, 320], [320, 256]]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true })
       await call('Page.captureScreenshot', { format: 'jpeg', quality: 10, captureBeyondViewport: false })
-      const height = await evaluate(`document.getElementById('local-fixture-wallet').getBoundingClientRect().height`)
-      if (width === 1280) wideHeight = height
-      else assert(height > wideHeight, 'wallet header wraps at narrow width')
+      const headerHeight = await evaluate(`document.getElementById('local-fixture-wallet').getBoundingClientRect().height`)
+      if (width === 1280) wideHeight = headerHeight
+      else if (height === 900) assert(headerHeight > wideHeight, 'wallet header wraps at narrow width')
+      if (scroll.hasFacts === true) assert(await evaluate(`(() => { const panel=document.getElementById('local-fixture-facts');panel.scrollTop=0;const summary=panel.querySelector('summary').getBoundingClientRect();const bounds=panel.getBoundingClientRect();return panel.clientHeight>=summary.height&&summary.top>=bounds.top&&summary.bottom<=bounds.bottom+1 })()`), 'deployment disclosure remains visible in a short viewport')
       await evaluate(`document.getElementById('root').scrollTo(0,0)`)
       assert(await evaluate(`(() => { const bar=document.getElementById('local-fixture-wallet').getBoundingClientRect();const app=document.getElementById('root');const bounds=app.getBoundingClientRect();return bounds.top>=bar.bottom-1&&bounds.bottom<=innerHeight+1&&app.clientHeight>0&&app.scrollHeight>app.clientHeight })()`), 'app has its own bounded scroll area below the wallet header')
       await evaluate(`document.getElementById('root').scrollTo(0,300)`)
@@ -31,7 +34,7 @@ export async function checkFixtureWalletToolbar({ call, evaluate }) {
   }
   if (failures.length === 1) throw failures[0]
   if (failures.length > 1) throw new AggregateError(failures, 'Wallet toolbar check and restoration failures')
-  if (await evaluate(`!!document.getElementById('local-fixture-facts')`) === true) return await checkDeploymentFacts({ call, evaluate })
+  return facts
 }
 
 export function browserFixtureFailureDetails(error) {

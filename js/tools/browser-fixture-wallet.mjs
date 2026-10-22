@@ -161,9 +161,7 @@ function installFixtureWallet(options) {
       item.append(element('strong', row.label))
       for (const value of row.values) item.append(element('p', value))
       const link = element('a', row.linkLabel)
-      const url = new URL(location.href)
-      url.hash = new URLSearchParams({ route: row.route, ...row.inputs }).toString()
-      link.href = url.href
+      link.href = '#' + new URLSearchParams({ route: row.route, ...row.inputs }).toString()
       item.append(link)
       factsContent.append(item)
     }
@@ -236,15 +234,15 @@ function installFixtureWallet(options) {
     if (closed) return
     const bar = document.createElement('aside')
     bar.id = 'local-fixture-wallet'
-    bar.style.cssText = 'grid-row:1;margin:0;box-sizing:border-box;background:#fff3c4;color:#242424;border:0;border-bottom:2px solid #826000;padding:10px 16px;font:14px/1.4 system-ui;display:flex;gap:12px;align-items:center;flex-wrap:wrap'
+    bar.style.cssText = 'flex:0 1 auto;min-height:0;margin:0;box-sizing:border-box;background:#fff3c4;color:#242424;border:0;border-bottom:2px solid #826000;padding:10px 16px;font:14px/1.4 system-ui;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px'
     const layout = document.createElement('style')
     layout.textContent = `
       html { overflow: hidden; }
-      body { margin: 0; height: 100dvh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-      body > #root { grid-row: 2; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; }
-      #local-fixture-facts { flex: 1 1 100%; min-width: 0; }
+      body { margin: 0; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+      body > #root { flex: 1 0 3rem; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; }
+      #local-fixture-wallet .wallet-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-width: 0; }
+      #local-fixture-facts { min-width: 0; min-height: 0; max-height: 40dvh; overflow: auto; overscroll-behavior: contain; }
       #local-fixture-facts summary { cursor: pointer; }
-      #local-fixture-facts > div { max-height: 40dvh; overflow: auto; overscroll-behavior: contain; }
       #local-fixture-facts section { border-top: 1px solid #b9a777; padding-block: 8px; }
       #local-fixture-facts p { margin-block: 4px; }
       #local-fixture-facts code, #local-fixture-facts p, #local-fixture-facts strong { overflow-wrap: anywhere; }
@@ -264,7 +262,10 @@ function installFixtureWallet(options) {
     accountLabel.style.cssText = 'overflow-wrap:anywhere;min-width:0;max-width:100%'
     const explanation = document.createElement('span')
     explanation.textContent = options.confirmTransactions ? 'Public test accounts. Confirming a send submits immediately on this local chain.' : 'Local test accounts. The test process submits transactions.'
-    bar.append(layout, label, accountLabel, explanation)
+    const controls = document.createElement('div')
+    controls.className = 'wallet-controls'
+    controls.append(label, accountLabel, explanation)
+    bar.append(layout, controls)
     if (options.deploymentFacts) {
       factsPanel = document.createElement('details')
       factsPanel.id = 'local-fixture-facts'
