@@ -29,7 +29,9 @@ Current software supports CAM 1.2.0 with UI 1.0.0: [protocol reference](docs/ref
 - [EVM networks and testnets](docs/evm-networks.html): browse the RPC catalog by
   stable network index, with mainnet/testnet views and authoritative references.
 - [Select an RPC service](docs/rpc-services.md): use the executable chain/service
-  catalog with deployment commands, or supply your own endpoint.
+  catalog with deployment commands, or supply your own endpoint. The separate
+  `rpc/indexer/up` lane starts a bounded, read-only RPC proxy for contract
+  indexing; it does not start an indexer or database.
 
 Docker with Compose and Make are the supported development entrypoints. Run
 `make help` for available lanes. Before building, testing, or running a local

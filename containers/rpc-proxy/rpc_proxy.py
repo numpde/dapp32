@@ -29,7 +29,9 @@ CONTENT_LENGTH_RE = re.compile(r"^[0-9]+$")
 MAX_REQUEST_LIMIT_BYTES = 16 * 1024 * 1024
 MAX_RESPONSE_LIMIT_BYTES = 16 * 1024 * 1024
 MAX_UPSTREAM_URL_LIMIT_BYTES = 16 * 1024
-UPSTREAM_DEADLINE_SECONDS = 25
+MAX_CONCURRENT_REQUESTS_LIMIT = 32
+MAX_BATCH_ITEMS_LIMIT = 1000
+MAX_TIMEOUT_SECONDS = 300
 
 
 def required_positive_int_env(name):
@@ -63,6 +65,13 @@ def required_positive_seconds_env(name):
     return seconds
 
 
+def required_bounded_seconds_env(name):
+    seconds = required_positive_seconds_env(name)
+    if seconds > MAX_TIMEOUT_SECONDS:
+        raise RuntimeError(f"{name}: expected positive seconds no greater than {MAX_TIMEOUT_SECONDS}")
+    return seconds
+
+
 LISTEN_HOST = required_env("RPC_PROXY_HOST")
 LISTEN_PORT = required_port_env("RPC_PROXY_PORT")
 UPSTREAM_FILE = required_env("RPC_UPSTREAM_FILE")
@@ -70,6 +79,12 @@ MAX_REQUEST_BYTES = required_bounded_positive_int_env("RPC_PROXY_MAX_REQUEST_BYT
 MAX_RESPONSE_BYTES = required_bounded_positive_int_env("RPC_PROXY_MAX_RESPONSE_BYTES", MAX_RESPONSE_LIMIT_BYTES)
 MAX_UPSTREAM_URL_BYTES = required_bounded_positive_int_env("RPC_PROXY_MAX_UPSTREAM_URL_BYTES", MAX_UPSTREAM_URL_LIMIT_BYTES)
 CONNECT_TIMEOUT_SECONDS = required_positive_seconds_env("RPC_PROXY_CONNECT_TIMEOUT_SECONDS")
+MAX_CONCURRENT_REQUESTS = required_bounded_positive_int_env(
+    "RPC_PROXY_MAX_CONCURRENT_REQUESTS", MAX_CONCURRENT_REQUESTS_LIMIT,
+)
+MAX_BATCH_ITEMS = required_bounded_positive_int_env("RPC_PROXY_MAX_BATCH_ITEMS", MAX_BATCH_ITEMS_LIMIT)
+REQUEST_DEADLINE_SECONDS = required_bounded_seconds_env("RPC_PROXY_REQUEST_TIMEOUT_SECONDS")
+UPSTREAM_DEADLINE_SECONDS = required_bounded_seconds_env("RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS")
 ALLOWED_METHODS = frozenset(
     method
     for method in required_env("RPC_ALLOWED_METHODS").replace(",", " ").split()
@@ -104,6 +119,14 @@ class UpstreamDeadlineExceeded(Exception):
     pass
 
 
+class RequestDeadlineExceeded(Exception):
+    pass
+
+
+class ServerStopping(BaseException):
+    pass
+
+
 def reject_json_constant(value):
     raise RpcRequestMalformed(f"JSON-RPC request body contains non-standard JSON constant: {value}")
 
@@ -112,7 +135,7 @@ def reject_duplicate_json_keys(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise RpcRequestMalformed(f"JSON-RPC request body contains duplicate object key: {key}")
+            raise RpcRequestMalformed("JSON-RPC request body contains duplicate object key")
         result[key] = value
     return result
 
@@ -152,7 +175,7 @@ def read_upstream():
         raise UpstreamRejected("RPC upstream must use https")
     if not parsed.hostname:
         raise UpstreamRejected("RPC upstream is missing a host")
-    if parsed.username or parsed.password:
+    if parsed.username is not None or parsed.password is not None:
         raise UpstreamRejected("RPC upstream must not include userinfo")
     if parsed.fragment:
         raise UpstreamRejected("RPC upstream must not include a fragment")
@@ -178,6 +201,9 @@ def read_upstream():
 
 
 def resolve_addresses(host, port, sender):
+    # The worker's graceful-stop handler must not prevent terminating DNS.
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGALRM, signal.SIGTERM})
     try:
         addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
         sender.send((True, [(family, sockaddr[0]) for family, _, _, _, sockaddr in addresses]))
@@ -193,8 +219,12 @@ def resolve_global_ip(host, port, deadline):
     resolver = process_context.Process(target=resolve_addresses, args=(host, port, sender))
     started = False
     try:
-        resolver.start()
-        started = True
+        old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM, signal.SIGTERM})
+        try:
+            resolver.start()
+            started = True
+        finally:
+            signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
         sender.close()
         remaining = deadline - time.monotonic()
         if remaining <= 0 or not receiver.poll(remaining):
@@ -211,7 +241,7 @@ def resolve_global_ip(host, port, deadline):
         if started:
             # A deadline signal must not interrupt termination of a stalled
             # resolver and leave it running after the request has failed.
-            old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})
+            old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM, signal.SIGTERM})
             try:
                 if resolver.is_alive():
                     resolver.terminate()
@@ -244,6 +274,8 @@ def request_items(payload):
     if isinstance(payload, list):
         if not payload:
             raise RpcRequestMalformed("JSON-RPC batch must not be empty")
+        if len(payload) > MAX_BATCH_ITEMS:
+            raise RpcRequestMalformed("JSON-RPC batch has too many entries")
         return payload
     raise RpcRequestMalformed("JSON-RPC request must be an object or batch array")
 
@@ -254,14 +286,14 @@ def validate_rpc_request(raw_body, allowed_methods):
 
     try:
         payload = json.loads(
-            raw_body,
+            raw_body.decode("utf-8"),
             object_pairs_hook=reject_duplicate_json_keys,
             parse_constant=reject_json_constant,
         )
-    except json.JSONDecodeError as exc:
-        raise RpcRequestMalformed("invalid JSON-RPC request body") from exc
     except UnicodeDecodeError as exc:
         raise RpcRequestMalformed("JSON-RPC request body must be UTF-8") from exc
+    except (ValueError, RecursionError) as exc:
+        raise RpcRequestMalformed("invalid JSON-RPC request body") from exc
 
     methods = set()
     for item in request_items(payload):
@@ -273,24 +305,45 @@ def validate_rpc_request(raw_body, allowed_methods):
             raise RpcRequestMalformed("JSON-RPC request method must be a non-empty string")
 
         if method not in allowed_methods:
-            raise RpcMethodRejected(f"JSON-RPC method is not allowed: {method}")
+            raise RpcMethodRejected("JSON-RPC method is not allowed")
         methods.add(method)
 
     return frozenset(methods)
 
 
 @contextmanager
-def upstream_deadline():
-    def expired(_signal_number, _frame):
-        raise UpstreamDeadlineExceeded()
+def request_deadline(seconds, exception_type):
+    """Nest the upstream budget inside the original client connection budget."""
+    started = time.monotonic()
+    old_handler = signal.getsignal(signal.SIGALRM)
+    old_timer, old_interval = signal.getitimer(signal.ITIMER_REAL)
+    parent_expires_first = old_timer > 0 and old_timer <= seconds
 
-    old_handler = signal.signal(signal.SIGALRM, expired)
-    signal.setitimer(signal.ITIMER_REAL, UPSTREAM_DEADLINE_SECONDS)
+    def expired(signal_number, frame):
+        if parent_expires_first and callable(old_handler):
+            old_handler(signal_number, frame)
+        raise exception_type()
+
+    budget = min(seconds, old_timer) if old_timer > 0 else seconds
+    signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, budget)
     try:
-        yield time.monotonic() + UPSTREAM_DEADLINE_SECONDS
+        yield started + budget
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, old_handler)
+        if old_timer > 0:
+            remaining = old_timer - (time.monotonic() - started)
+            if remaining > 0:
+                signal.setitimer(signal.ITIMER_REAL, remaining, old_interval)
+            elif not isinstance(sys.exception(), (RequestDeadlineExceeded, ServerStopping, KeyboardInterrupt)) and callable(old_handler):
+                # Cleanup can finish after the outer deadline. Preserve that
+                # deadline even if another failure is already unwinding.
+                old_handler(signal.SIGALRM, None)
+
+
+def upstream_deadline():
+    return request_deadline(UPSTREAM_DEADLINE_SECONDS, UpstreamDeadlineExceeded)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -300,6 +353,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # reduces response fingerprinting. Keep this local to the proxy handler so
     # it is not mistaken for an unconfigured server version.
     sys_version = ""
+
+    def handle(self):
+        self.response_started = False
+        self.upstream_started = False
+        self.is_submission = False
+        self.submission_started = False
+        # A deadline may expire before BaseHTTPRequestHandler reads a line.
+        self.requestline = ""
+        self.request_version = "HTTP/1.0"
+        self.command = None
+        try:
+            with request_deadline(REQUEST_DEADLINE_SECONDS, RequestDeadlineExceeded):
+                super().handle()
+        except RequestDeadlineExceeded:
+            self.close_connection = True
+            if self.upstream_started:
+                status = 504
+                reason = "RPC request deadline exceeded"
+                if self.is_submission:
+                    if self.submission_started:
+                        reason += "; transaction submission outcome unknown"
+                    else:
+                        reason += " before transaction submission"
+            else:
+                status = 408
+                reason = "RPC request deadline exceeded before forwarding"
+            print(f"rpc-proxy: {reason}", file=sys.stderr)
+            if not self.response_started:
+                # Even the final error must not wait on a non-reading client.
+                self.connection.settimeout(0.1)
+                try:
+                    self.send_error(status, reason)
+                # silent-defaults: allow-exception-fallback -- A disconnected or non-reading client must not extend the expired request lifetime.
+                except OSError:
+                    pass
+
+    def send_response(self, code, message=None):
+        self.response_started = True
+        super().send_response(code, message)
 
     def do_GET(self):
         if self.path == "/healthz":
@@ -325,19 +417,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
         conn = None
         submission_started = False
         is_submission = False
-        content_length = self.headers.get("content-length")
-        if content_length is None:
+        lengths = self.headers.get_all("content-length", [])
+        if self.headers.get_all("transfer-encoding") or len(lengths) > 1:
+            self.send_error(400, "ambiguous request framing")
+            return
+        if not lengths:
             self.send_error(411, "content-length required")
             return
 
+        content_length = lengths[0]
         if CONTENT_LENGTH_RE.fullmatch(content_length) is None:
             self.send_error(400, "invalid content-length")
             return
 
-        request_size = int(content_length)
-        if request_size > MAX_REQUEST_BYTES:
+        # Compare decimal lengths before int(), including Python's digit limit.
+        normalized_length = content_length.lstrip("0")
+        if normalized_length == "":
+            normalized_length = "0"
+        maximum_length = str(MAX_REQUEST_BYTES)
+        if len(normalized_length) > len(maximum_length) or (
+            len(normalized_length) == len(maximum_length) and normalized_length > maximum_length
+        ):
             self.send_error(413, "request too large")
             return
+        request_size = int(normalized_length)
 
         request_body = self.rfile.read(request_size)
         if len(request_body) != request_size:
@@ -347,12 +450,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             methods = validate_rpc_request(request_body, ALLOWED_METHODS)
             is_submission = "eth_sendRawTransaction" in methods
+            self.is_submission = is_submission
+            self.upstream_started = True
             with upstream_deadline() as deadline:
                 conn, path, host = self.open_upstream(deadline)
                 # This proxy is a JSON-RPC method gate, not a generic HTTP relay.
                 # Do not let untrusted viewer clients shape upstream request headers.
                 headers = {"accept": "application/json", "content-type": "application/json", "host": host}
                 submission_started = True
+                self.submission_started = True
                 conn.request("POST", path, body=request_body, headers=headers)
                 response = conn.getresponse()
                 response_body = response.read(MAX_RESPONSE_BYTES + 1)
@@ -376,6 +482,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             print(f"rpc-proxy: {reason}", file=sys.stderr)
             self.send_error(504, reason)
             return
+        except RequestDeadlineExceeded:
+            raise
         except Exception as exc:
             diagnostic = type(exc).__name__
             if isinstance(exc, ssl.SSLCertVerificationError):
@@ -411,8 +519,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         self.send_response(response.status, response.reason)
+        connection_headers = {
+            token.strip().lower()
+            for name, value in response.getheaders() if name.lower() == "connection"
+            for token in value.split(",")
+        }
         for name, value in response.getheaders():
-            if name.lower() in HOP_BY_HOP_HEADERS:
+            if name.lower() in HOP_BY_HOP_HEADERS or name.lower() in connection_headers:
                 continue
             if name.lower() == "content-length":
                 continue
@@ -436,11 +549,146 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return
 
 
+class BoundedForkingHTTPServer(http.server.HTTPServer):
+    """One deadline-isolated process per connection, without an unbounded queue."""
+
+    def __init__(self, server_address, handler_class):
+        self.active_children = set()
+        self.request_queue_size = MAX_CONCURRENT_REQUESTS
+        super().__init__(server_address, handler_class)
+
+    def collect_children(self):
+        for pid in tuple(self.active_children):
+            try:
+                reaped, _status = os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                reaped = pid
+            if reaped:
+                self.active_children.discard(pid)
+
+    def service_actions(self):
+        self.collect_children()
+
+    def reject_busy(self, request):
+        try:
+            request.setblocking(False)
+            request.sendall(
+                b"HTTP/1.0 503 Service Unavailable\r\n"
+                b"Content-Length: 0\r\nConnection: close\r\nRetry-After: 1\r\n\r\n"
+            )
+        # silent-defaults: allow-exception-fallback -- An overloaded server closes the socket even if its nonblocking rejection cannot reach the client.
+        except OSError:
+            pass
+        finally:
+            self.shutdown_request(request)
+
+    def process_request(self, request, client_address):
+        self.collect_children()
+        if len(self.active_children) >= MAX_CONCURRENT_REQUESTS:
+            self.reject_busy(request)
+            return
+
+        # Do not interrupt fork before the parent owns the child's lifetime.
+        old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM, signal.SIGINT})
+        try:
+            pid = os.fork()
+        except OSError:
+            signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+            self.reject_busy(request)
+            print("rpc-proxy: could not start request worker", file=sys.stderr)
+            return
+
+        if pid:
+            self.active_children.add(pid)
+            try:
+                # Either side may win this race; both assign the same group.
+                os.setpgid(pid, pid)
+            # silent-defaults: allow-exception-fallback -- A completed worker can disappear before grouping; its recorded PID is still reaped.
+            except ProcessLookupError:
+                pass
+            finally:
+                self.close_request(request)
+                signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+            return
+
+        status = 1
+        try:
+            os.setpgid(0, 0)
+            self.socket.close()
+
+            def stop_worker(_signal_number, _frame):
+                raise ServerStopping()
+
+            signal.signal(signal.SIGTERM, stop_worker)
+            signal.signal(signal.SIGINT, stop_worker)
+            signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
+            self.finish_request(request, client_address)
+            status = 0
+        except ServerStopping:
+            status = 0
+        except Exception:
+            self.handle_error(request, client_address)
+        finally:
+            try:
+                self.shutdown_request(request)
+            finally:
+                os._exit(status)
+
+    def handle_error(self, _request, _client_address):
+        # Exception text and tracebacks may contain upstream URLs or bodies.
+        print("rpc-proxy: request worker failed", file=sys.stderr)
+
+    def server_close(self):
+        super().server_close()
+        self.collect_children()
+        for pid in self.active_children:
+            try:
+                os.killpg(pid, signal.SIGTERM)
+            # silent-defaults: allow-exception-fallback -- A worker may exit before its shutdown signal; collection below still reaps it.
+            except ProcessLookupError:
+                pass
+        deadline = time.monotonic() + 2
+        while self.active_children and time.monotonic() < deadline:
+            self.collect_children()
+            if self.active_children:
+                time.sleep(0.01)
+        for pid in tuple(self.active_children):
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            # silent-defaults: allow-exception-fallback -- Graceful shutdown can finish before escalation; waitpid below still reaps the worker.
+            except ProcessLookupError:
+                pass
+            try:
+                os.waitpid(pid, 0)
+            # silent-defaults: allow-exception-fallback -- Another completed wait can already have reaped this owned child.
+            except ChildProcessError:
+                pass
+            self.active_children.discard(pid)
+
+
+def run_server(server):
+    def stop(_signal_number, _frame):
+        raise ServerStopping()
+
+    old_handler = signal.signal(signal.SIGTERM, stop)
+    try:
+        server.serve_forever(poll_interval=0.1)
+    # silent-defaults: allow-exception-fallback -- Operator stop is successful only after the finally block stops and reaps all request workers.
+    except (ServerStopping, KeyboardInterrupt):
+        pass
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        try:
+            server.server_close()
+        finally:
+            signal.signal(signal.SIGTERM, old_handler)
+
+
 def main():
     read_upstream()
 
-    server = http.server.HTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
-    server.serve_forever()
+    server = BoundedForkingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
+    run_server(server)
     return 0
 
 

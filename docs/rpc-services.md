@@ -96,6 +96,157 @@ methods or traffic; plans and availability can change. Provider fees are separat
 from blockchain transaction fees. The local rehearsal keeps its own private
 Anvil endpoint and ignores external catalog settings.
 
+## Run a proxy for contract indexing
+
+The [indexing lane](../compose/rpc-indexer.yml) runs the repository's RPC proxy
+as a persistent service. It starts only the proxy; the indexer, its contract
+configuration and its database remain separate services. The proxy keeps the
+provider URL and any API key away from the indexer and exposes only:
+
+```text
+eth_chainId eth_blockNumber eth_getBlockByNumber eth_getLogs
+```
+
+This covers ordinary contract event indexing and block/reorg tracking. It does
+not grant transaction submission. Enrichment through `eth_call`, receipts or
+traces needs an explicit change to this lane's allowlist after choosing that
+feature. The Cast and release lanes keep their own method policies.
+
+Run as a non-root user with Docker and Compose. Prepare an existing file
+outside this checkout containing one complete HTTPS RPC URL. It must have a
+normalized absolute path, no symlink components, be owned by your `LOCAL_UID`,
+and have owner-only permissions, for example `0600`. Do not put the URL or API
+key in a Make argument or an indexer configuration.
+
+```sh
+export RPC_URL_FILE=/absolute/path/to/private/base-sepolia-rpc-url
+export RPC_INDEXER_COMPOSE_PROJECT_NAME=contract-base-sepolia
+make rpc/indexer/up
+make rpc/indexer/logs
+```
+
+The proxy runs as the operator's non-root UID, with a read-only root filesystem,
+no capabilities, a read-only URL-file bind, bounded memory/PIDs/CPU and no host
+port. Only the proxy joins its egress network. The command prints the client
+network and the internal RPC URL; the example above produces:
+
+```text
+Client network: contract-base-sepolia_rpc_internal
+RPC URL: http://contract-base-sepolia-rpc:8080
+```
+
+`/healthz` checks local request handling, not the upstream provider's availability
+or chain ID. Verify the chain ID in the indexer configuration and at startup.
+Use a different project name and URL file for each chain or provider policy.
+The catalog records Ethereum mainnet/Sepolia, Base mainnet/Sepolia and Avalanche
+C-Chain mainnet/Fuji independently. Project-specific DNS aliases let one indexer
+join several proxy networks without confusing their endpoints.
+
+### Attach an indexer without granting internet access
+
+In the indexer's own Compose file, join the proxy's existing internal network.
+This is a networking fragment to apply to an explicitly configured, pinned
+indexer image; it is not a complete rindexer deployment:
+
+```yaml
+services:
+  rindexer:
+    networks:
+      - base_sepolia_rpc
+      - indexer_database
+  postgres:
+    networks:
+      - indexer_database
+
+networks:
+  base_sepolia_rpc:
+    external: true
+    name: contract-base-sepolia_rpc_internal
+  indexer_database:
+    internal: true
+```
+
+List only these internal networks on the indexer, and do not attach it to a
+default or egress network. Do not use `network_mode: service:rpc-proxy`: that
+would share the proxy's network namespace and its internet route. Give the
+indexer its own database role and database. Do not mount the RPC URL file or
+any wallet/signing key into it. The proxy itself needs no database access.
+
+For rindexer, point the network's `rpc` at the internal URL. For a few selected
+contracts, turn off the shared, unfiltered live-tip log fetch. Set an initial
+block span that the chosen provider accepts, then adjust using real response
+sizes and latency:
+
+```yaml
+networks:
+  - name: base_sepolia
+    chain_id: 84532
+    rpc: http://contract-base-sepolia-rpc:8080
+    max_block_range: 1000
+    block_poll_frequency: optimized
+    shared_tip_logs:
+      enabled: false
+```
+
+This fragment still needs the project's storage, ABIs, contract addresses,
+start blocks and events. Keep address filtering in the RPC requests; avoid
+rindexer's `in-memory` address filtering for this use case. The proxy enforces
+methods and resource limits; it does not restrict contract addresses or prove
+that an upstream response is correct. Do not enable HyperSync, webhook or other
+external-service integrations on this isolated client without designing a
+separate permitted route. These rindexer settings are documented in its
+[network configuration](https://rindexer.xyz/docs/start-building/yaml-config/networks/).
+
+### Capacity, deadlines and failure handling
+
+The indexing profile sets the following limits explicitly. Other lanes use
+smaller time budgets; none silently inherits a permissive policy.
+
+| Setting | Indexing profile | Meaning |
+| --- | --- | --- |
+| `RPC_PROXY_MAX_CONCURRENT_REQUESTS` | 4 | Maximum active client connections, including slow clients and health checks |
+| `RPC_PROXY_MAX_BATCH_ITEMS` | 100 | Maximum JSON-RPC items in one batch; every item must be allowed |
+| `RPC_PROXY_MAX_REQUEST_BYTES` | 1 MiB | Maximum request body |
+| `RPC_PROXY_MAX_RESPONSE_BYTES` | 16 MiB | Maximum upstream response body |
+| `RPC_PROXY_CONNECT_TIMEOUT_SECONDS` | 10 seconds | Socket inactivity/connect timeout |
+| `RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS` | 60 seconds | Total upstream DNS/TLS/request/response budget |
+| `RPC_PROXY_REQUEST_TIMEOUT_SECONDS` | 90 seconds | Whole accepted connection budget, including client headers/body and response delivery |
+
+The whole-connection deadline remains the outer cap. Concurrent requests run
+in separate bounded worker processes, so a stalled request does not serialize
+the others. When all workers are occupied, new connections receive HTTP `503`
+with `Retry-After`; there is no unbounded application queue. A health probe may
+also receive `503` while all workers are busy.
+
+Start with low indexer concurrency and allow room for its block polling and
+health probes. Concurrency across multiple event streams adds up. These limits
+bound simultaneous work, not requests per second or a provider's daily quota.
+If you encounter `503`, reduce combined client concurrency. If log responses
+hit the size cap or deadlines, reduce the requested block range first. Provider
+rate limits still apply, including to batches, and historical coverage depends
+on the selected endpoint. Read-only callers may retry with bounded backoff;
+the proxy itself never retries, caches or switches upstreams. Existing release
+lanes preserve the explicit unknown-outcome error when a transaction submission
+might have reached the provider.
+
+Review limits together with container memory and PID budgets before increasing
+them. Change the explicit lane configuration for the intended workload rather
+than widening other clients' policies. WebSocket subscriptions and arbitrary
+HTTP proxying are not supported by this lane. Ordinary HTTP log polling works
+through it.
+
+Logs omit request bodies and credential-bearing URLs. The indexing service
+keeps at most three 10 MiB local log files. Stop indexer clients before removing
+their proxy network:
+
+```sh
+make rpc/indexer/down RPC_INDEXER_COMPOSE_PROJECT_NAME=contract-base-sepolia
+```
+
+Logs and shutdown do not require the original URL file. To rotate its contents,
+stop the proxy, replace the protected file, and run `rpc/indexer/up` again so the
+bind mount refers to the current file. Keep it available for the proxy's lifetime.
+
 ## Sources and maintenance
 
 Endpoint documentation was checked on **2026-10-20**, not live-tested against

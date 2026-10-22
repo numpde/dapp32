@@ -92,6 +92,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "LOCAL_GID": "1000",
     "LOCAL_UID": "1000",
     "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
+    "RPC_INDEXER_COMPOSE_PROJECT_NAME": "dapps-rpc-indexer",
     "REFUND_CONFIG_FILE": "/tmp/refund-config",
     "REFUND_PRIVATE_KEY_FILE": "/tmp/refund-relayer-key",
     "REFUND_STATE_DIR": "/tmp/refund-state",
