@@ -125,6 +125,10 @@ dd,
 }
 
 .nft-row, .nft-editor { min-inline-size: 0; margin-block: 16px; }
+.nft-row { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 6px; }
+.nft-row > .nft-placeholder { color: var(--muted); font-weight: 600; }
+.nft-row > .nft-identity, .nft-row > .nft-actions { margin: 0; }
+.nft-row > .nft-preview { margin: 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; }
 .nft-editor { border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
 .nft-editor legend { color: var(--muted); padding-inline: 6px; }
 .nft-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }

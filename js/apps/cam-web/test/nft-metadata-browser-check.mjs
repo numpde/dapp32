@@ -35,12 +35,12 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     await evaluate(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}))`)
     assert(await evaluate(`document.activeElement.textContent==='Hosted JSON'&&document.activeElement.getAttribute('aria-selected')==='true'`), 'Home returns focus and selection to the first tab')
     assert(await evaluate(`window.nftFixture.requests.length===0&&!document.querySelector('.nft-row .nft-preview')&&!document.querySelector('img')`), 'rendering performs no automatic metadata or image fetch')
-    await click('.nft-row button', 'Load metadata')
+    assert(await evaluate(`(() => { const preview=document.querySelector('section.nft-row[aria-label="NFT"]');return !!preview?.querySelector('.nft-placeholder')&&!!preview.querySelector('.nft-identity')&&[...preview.querySelectorAll('button')].some(button=>button.textContent==='Load NFT') })()`), 'the unloaded NFT groups its identity, source and loading action in one preview area')
+    await click('.nft-row button', 'Load NFT')
     await wait(`!!document.querySelector('.nft-row .nft-preview h3')`)
-    assert(await evaluate(`window.nftFixture.requests.length===0&&!document.querySelector('.nft-row img')`), 'inline metadata loads independently; image remains explicit')
-    await click('.nft-row button', 'Load image')
+    assert(await evaluate(`!!document.querySelector('section.nft-row[aria-label="NFT"] .nft-preview')&&!document.querySelector('.nft-row .nft-placeholder')`), 'loaded content replaces the placeholder within the same NFT area')
     await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
-    assert(await evaluate(`window.nftFixture.requests.length===1&&window.nftFixture.requests[0]===window.nftFixture.metadata.image`), 'image bytes are fetched and decoded only on request')
+    assert(await evaluate(`window.nftFixture.requests.length===1&&window.nftFixture.requests[0]===window.nftFixture.metadata.image`), 'loading an NFT fetches and decodes its image without a second action')
 
     await click(`${editor} summary`, 'Prepare JSON for hosting')
     await click(`${editor} button`, 'Load selected metadata')
@@ -123,9 +123,8 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
 
     for (const kind of ['account', 'route']) {
       if (!(await evaluate(`!!document.querySelector('.nft-row .nft-preview')`))) {
-        await click('.nft-row button', 'Load metadata')
+        await click('.nft-row button', 'Load NFT')
         await wait(`!!document.querySelector('.nft-row .nft-preview')`)
-        await click('.nft-row button', 'Load image')
         await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
       }
       await click(`${editor} [role="tab"]`, 'Embed JSON')
@@ -141,7 +140,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     await edit(json, JSON.stringify({ image: inlineImage }))
     await wait(`document.querySelector('.nft-editor img')?.naturalWidth===2`)
     await evaluate(`window.nftFixture.image(${JSON.stringify(inlineImage)})`)
-    await click('.nft-row button', 'Load metadata')
+    await click('.nft-row button', 'Load NFT')
     await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
     assert.equal(await evaluate(`window.nftFixture.requests.length`), beforeInline, 'embedded viewer images decode automatically without network requests')
     const inlineURL = await evaluate(`document.querySelector('.nft-editor img').src`)
@@ -152,6 +151,10 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     await wait(`!!document.querySelector('.nft-editor .nft-image [role="alert"]')`)
     assert(await evaluate(`!document.querySelector('.nft-editor img')&&!document.querySelector('.nft-editor svg')&&document.querySelector('.nft-editor .nft-image [role="alert"]').textContent.includes('SVG')`), 'SVG image bytes fail visibly without rendering active content')
     assert(await evaluate(`document.querySelector('.nft-editor h3').textContent==='<img src=x onerror=alert(1)>'&&!document.querySelector('.nft-editor .nft-preview script')`), 'metadata text is rendered as text rather than active HTML')
+    await evaluate(`window.nftFixture.image('data:image/svg+xml,%3Csvg/%3E')`)
+    await click('.nft-row button', 'Load NFT')
+    await wait(`!!document.querySelector('.nft-row .nft-image [role="alert"]')`)
+    assert(await evaluate(`document.querySelector('.nft-row h3').textContent==='Fixture NFT'&&!document.querySelector('.nft-row img')`), 'an image failure stays inside the NFT and preserves its metadata')
     const beforeRejected = await evaluate('window.nftFixture.requests.length')
     await click(`${editor} [role="tab"]`, 'Hosted JSON')
     await edit('input[name="tokenURI"]', 'not a URL')
