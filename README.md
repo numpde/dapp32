@@ -24,11 +24,11 @@ Current software supports CAM 1.2.0 with UI 1.0.0: [protocol reference](docs/ref
 - [Bike NFT](dapps/bike-nft/README.md): register bicycle components and manage
   ownership, metadata, reports, and delegation. Includes local demos and release
   authority handoffs.
-- [Release ceremony](docs/release-ceremony.md): shared deployment mechanics,
+- [Deployment guide](https://numpde.github.io/dapp32/deployment/): shared deployment mechanics,
   credential files, evidence, and read-only verification.
-- [EVM networks and testnets](docs/evm-networks.html): browse the RPC catalog by
+- [EVM networks and testnets](https://numpde.github.io/dapp32/deployment/networks/): browse the RPC catalog by
   stable network index, with mainnet/testnet views and authoritative references.
-- [Select an RPC service](docs/rpc-services.md): use the executable chain/service
+- [Select an RPC service](https://numpde.github.io/dapp32/deployment/rpc/): use the executable chain/service
   catalog with deployment commands, or supply your own endpoint.
 
 Docker with Compose and Make are the supported development entrypoints. Run

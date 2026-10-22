@@ -718,7 +718,7 @@ help:
 	  '    Select RPC as above; set PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE to the absolute deployment JSON path.' \
 	  '    Verification needs a clean checkout and installed Solidity/JS dependencies; it sends no transactions.' \
 	  '    Custom RPC URL files and API-key files must also have owner-only permissions.' \
-	  '    Deployment record layout and file rules: docs/release-ceremony.md.' \
+	  '    Deployment record layout and file rules: https://numpde.github.io/dapp32/deployment/.' \
 	  '' \
 	  'Run a bare local blockchain or query a block number:' \
 	  '  make anvil/internal/up           Run Anvil for Docker peers only; publish no host port.' \

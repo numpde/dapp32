@@ -317,94 +317,9 @@ ESCROW_GUI_ORIGIN=http://host:5174 \
 make escrow/local/demo/gui/up
 ```
 
-## Release deployment
+## Deployment
 
-For guided setup, run `make escrow/release/setup CONFIG=/absolute/private/escrow.json`,
-then `make escrow/release/deploy CONFIG=/absolute/private/escrow.json`.
-The [shared walkthrough](../../docs/release-ceremony.md#deploy-to-the-selected-chain)
-saves every app input, concrete RPC URL, signing key and deployment confirmation
-in one protected off-repo file. Use the same `CONFIG` for release verification.
-
-A release deployment is deliberately separate from the local fixture. It has no default chain and accepts no local fixture chain ID. The offline planning step validates the complete checked-in CAM bundle and computes the exact-byte SHA-256 root digest stored in `CamRoot`.
-
-Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).
-
-For the first public rehearsal, prepare Ethereum Sepolia (`11155111`) but do not conflate it with the local Anvil workflow. Anvil is a disposable process on the operator's machine; Sepolia is a persistent public test network with externally funded accounts, provider RPC, public CAM hosting, wallet interaction, explorer records, and an explicit finality decision.
-
-Publish the exact checked-in CAM bytes and their declared protocol/ABI/UI resources at the chosen URI before deployment. The release planner binds the URI and checked-in root hash; it does not fetch the remote publication. Viewers will reject the publication if the bytes served there do not match the hash stored in `CamRoot`.
-
-Prepare the RPC and deployer-key files:
-
-```bash
-umask 077
-printf '%s\n' 'https://rpc.example.invalid' > /secure/escrow-rpc-url
-printf '%s\n' '0x<32-byte-deployer-private-key>' > /secure/escrow-deployer-key
-```
-
-Run the release only from the exact clean commit intended for publication:
-
-```bash
-CONFIRM_ESCROW_RELEASE_DEPLOY=YES \
-ESCROW_RELEASE_EXPECTED_CHAIN_ID=<chain-id> \
-ESCROW_RELEASE_CAM_URI=https://published.example/escrow/cam/main.json \
-ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER=0x<intended-root-owner> \
-RPC_URL_FILE=/secure/escrow-rpc-url \
-DEPLOYER_PRIVATE_KEY_FILE=/secure/escrow-deployer-key \
-ESCROW_RELEASE_OUTPUT_DIR=/secure/releases/escrow-<chain>-<version> \
-make escrow/release/deploy
-```
-
-The target writes:
-
-```text
-plan/release-plan.json
-broadcast/DeployEscrowRelease.s.sol/<chain-id>/run-latest.json
-artifact/deployment.json
-```
-
-The `escrow.release-plan.v2` and `escrow.deployment.v2` schemas identify SHA-256 manifest commitments; older v1 artifacts retain their Keccak meaning and are rejected by these lanes.
-
-`plan/release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `artifact/deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, and intended `CamRoot` owner. It also records whether an ownership transfer was required and whether that account owned `CamRoot` with no transfer pending when the artifact was created.
-
-The deployed `CamEscrow` and `CamEscrowUI` are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. `CamRoot` remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, deployment starts an `Ownable2Step` transfer. The intended owner must review the addresses and artifact, then call `acceptOwnership()` independently. Do not treat the release as accepted while `pendingOwner()` is nonzero.
-
-## Release verification
-
-Run verification from the same exact clean source commit recorded in `deployment.json`:
-
-```bash
-RPC_URL_FILE=/secure/escrow-rpc-url \
-ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/artifact/deployment.json \
-make escrow/release/verify
-```
-
-The verifier checks:
-
-- current chain ID and source commit;
-- nonzero deployed code at all three addresses;
-- exact runtime bytecode against contracts compiled from the current source tree;
-- artifact code hashes;
-- CAM URI and nonzero publication-derived CAM hash;
-- final `CamRoot` ownership with no pending owner;
-- exact `CamEscrow` and `CamEscrowUI` root bindings;
-- the projection's immutable escrow address;
-- ERC-165 interfaces;
-- `totalLiabilities() <= address(CamEscrow).balance`.
-
-A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original `deployment.json` remains an immutable record of the post-deployment observation; it is not rewritten after ownership acceptance.
-
-## Operational monitoring
-
-Protect the final `CamRoot` owner as release authority; operationally, use an appropriately controlled account rather than the deployer hot key. Monitor:
-
-- `OwnershipTransferStarted` and `OwnershipTransferred` on `CamRoot`;
-- `CamUpdated` and `ContractAddressSet` on `CamRoot`;
-- `AgreementCreated`, `AgreementStateChanged`, and `Withdrawal` on `CamEscrow`;
-- `totalLiabilities()` against the escrow balance;
-- active deadlines that require a public timeout transaction;
-- arbitrator availability for disputed agreements.
-
-No component automatically executes timeouts. The arbitrator is selected by each client and never acknowledges participation on-chain.
+See the [published Escrow deployment guide](https://numpde.github.io/dapp32/deployment/escrow/) for release inputs, authority handoffs and verification. The [shared deployment guide](https://numpde.github.io/dapp32/deployment/) explains the release workflow.
 
 ## Verification gates
 
