@@ -65,6 +65,7 @@ Object.assign(window, { nftFixture: { requests, copies, downloads, revoked, meta
   releaseMetadata() { hold = false; held?.(); held = undefined },
   response(text: string | undefined) { responseText = text },
   uri: () => tokenURI,
+  source(uri: string) { viewerURI = uri; render() },
   image(uri: string) { viewerURI = `data:application/json,${encodeURIComponent(JSON.stringify({ ...metadata, image: uri }))}`; render() },
   busy(value: boolean) { busy = value; render() },
   scope(kind: "account" | "route") { if (kind === "account") account = "0x0000000000000000000000000000000000000002"; else route = "another-view"; tokenURI = publishedURI; render() },

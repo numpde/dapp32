@@ -47,15 +47,25 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
   readonly metadataURI: string | undefined
 }): ReactElement {
   const preview = useNftResource<InertRecord>()
+  const loadLabel = preview.resource.status === "ready" ? "Reload preview"
+    : preview.resource.status === "failed" ? "Retry loading"
+    : preview.resource.status === "pending" ? "Loading preview…" : "Load preview"
+  const imageReference = preview.resource.status === "ready" && typeof preview.resource.value.image === "string"
+    ? preview.resource.value.image : undefined
   return <section className="nft-row" aria-label="NFT">
     {preview.resource.status === "ready" ? <NftMetadataPreview metadata={preview.resource.value} baseURI={metadataURI} loadImage /> : <p className="nft-placeholder">NFT preview</p>}
     <ResourceFeedback resource={preview.resource} />
-    {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-source-controls">
-      <dl className="nft-identity"><div><dt>Metadata URI</dt><dd>{metadataURI}</dd></div></dl>
-      <div className="nft-actions"><button className="button-quiet" type="button" disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal)) }}>Load NFT</button>
+    <div className="nft-details">
+      {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-actions"><button className="button-quiet" type="button" disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal)) }}>{loadLabel}</button>
         {preview.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={preview.cancel}>Cancel loading</button> : null}</div>
-    </div> : null}
-    <dl className="nft-identity"><div><dt>NFT contract</dt><dd>{contractAddress}</dd></div><div><dt>Token ID</dt><dd>{tokenId}</dd></div></dl>
+      : null}
+      <dl className="nft-identity">
+        {metadataURI !== undefined && metadataURI !== "" ? <div><dt>Metadata URI</dt><dd>{metadataURI}</dd></div> : null}
+        {imageReference ? <div><dt>Image reference in metadata</dt><dd>{imageReference}</dd></div> : null}
+        <div><dt>NFT contract</dt><dd>{contractAddress}</dd></div>
+        <div><dt>Token ID</dt><dd>{tokenId}</dd></div>
+      </dl>
+    </div>
   </section>
 }
 
@@ -69,7 +79,6 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage = false }: { r
     <dl className="nft-attributes">{attributes.map((attribute, index) => isRecordObject(attribute) && typeof attribute.trait_type === "string" && (typeof attribute.value === "string" || typeof attribute.value === "number" || typeof attribute.value === "boolean")
       ? <div key={index}><dt>{attribute.trait_type}</dt><dd>{String(attribute.value)}</dd></div> : null)}</dl>
     </div>
-    {typeof metadata.image === "string" && metadata.image !== "" ? <p className="field-hint">Image source: <code className="nft-source">{metadata.image}</code></p> : null}
   </section>
 }
 
@@ -88,9 +97,15 @@ function NftImage({ uri, baseURI, alt, autoLoad }: { readonly uri: string; reado
     setSource({ blob, url })
     return () => URL.revokeObjectURL(url)
   }, [image.resource])
+  const showLoadButton = !autoLoad || image.resource.status === "idle" || image.resource.status === "failed" || decodeFailed
+  const loadLabel = decodeFailed || image.resource.status === "failed" ? "Retry image"
+    : image.resource.status === "ready" ? "Reload image"
+    : image.resource.status === "pending" ? "Loading image…" : "Load image"
   return <div className="nft-image">
-    {!embedded && (!autoLoad || image.resource.status !== "ready" || decodeFailed) ? <div className="nft-actions">{!autoLoad || image.resource.status !== "pending" ? <button className="button-quiet" type="button" disabled={image.resource.status === "pending"} onClick={() => { setDecodeFailed(false); void image.run(signal => loadNftImage(uri, baseURI, signal)) }}>Load image</button> : null}
-      {image.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={image.cancel}>Cancel loading</button> : null}</div> : null}
+    {!embedded && (showLoadButton || image.resource.status === "pending") ? <div className="nft-actions">
+      {showLoadButton ? <button className="button-quiet" type="button" disabled={image.resource.status === "pending"} onClick={() => { setDecodeFailed(false); void image.run(signal => loadNftImage(uri, baseURI, signal)) }}>{loadLabel}</button> : null}
+      {image.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={image.cancel}>Cancel loading</button> : null}
+    </div> : null}
     <ResourceFeedback resource={image.resource} />
     {image.resource.status === "ready" && source?.blob === image.resource.value && !decodeFailed ? <img src={source.url} alt={alt || "NFT image"} onError={() => setDecodeFailed(true)} /> : null}
     {decodeFailed ? <p className="field-error" role="alert">Cannot display these image bytes. Use a valid PNG, JPEG, WebP or GIF image.</p> : null}
