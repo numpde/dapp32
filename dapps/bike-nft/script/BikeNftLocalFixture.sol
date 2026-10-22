@@ -67,13 +67,34 @@ contract BikeNftLocalFixture {
         string memory camURI,
         bytes32 camHash
     ) internal returns (Deployment memory deployment) {
+        string memory metadataDirectory = _metadataDirectory(camURI);
         deployment = deployLocalFixture(broadcasterAdmin, camURI, camHash);
-        _seedLocalComponents(deployment.manager, seedOwner);
+        _seedLocalComponents(deployment.manager, seedOwner, metadataDirectory);
     }
 
-    function _seedLocalComponents(BicycleComponentManager manager, address owner) private {
-        manager.registerComponent(owner, SEEDED_FRAME_SERIAL, "fixture://bike-nft/components/demo-frame-001.json");
-        manager.registerComponent(owner, SEEDED_BATTERY_SERIAL, "fixture://bike-nft/components/demo-battery-001.json");
-        manager.registerComponent(owner, SEEDED_MOTOR_SERIAL, "fixture://bike-nft/components/demo-motor-001.json");
+    function _metadataDirectory(string memory camURI) private pure returns (string memory) {
+        bytes memory uri = bytes(camURI);
+        bytes memory suffix = bytes("/main.json");
+        require(uri.length >= suffix.length, "Local Bike NFT fixture CAM URI must end with /main.json");
+        uint256 start = uri.length - suffix.length;
+        for (uint256 i; i < suffix.length; ++i) {
+            require(uri[start + i] == suffix[i], "Local Bike NFT fixture CAM URI must end with /main.json");
+        }
+        bytes memory directory = new bytes(start + 1);
+        for (uint256 i; i < directory.length; ++i) {
+            require(uri[i] != "?" && uri[i] != "#", "Local Bike NFT fixture CAM URI cannot have a query or fragment");
+            directory[i] = uri[i];
+        }
+        return string.concat(string(directory), "components/");
+    }
+
+    function _seedLocalComponents(BicycleComponentManager manager, address owner, string memory metadataDirectory)
+        private
+    {
+        manager.registerComponent(owner, SEEDED_FRAME_SERIAL, string.concat(metadataDirectory, "demo-frame-001.json"));
+        manager.registerComponent(
+            owner, SEEDED_BATTERY_SERIAL, string.concat(metadataDirectory, "demo-battery-001.json")
+        );
+        manager.registerComponent(owner, SEEDED_MOTOR_SERIAL, string.concat(metadataDirectory, "demo-motor-001.json"));
     }
 }

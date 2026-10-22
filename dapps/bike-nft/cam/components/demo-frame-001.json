@@ -1,0 +1,15 @@
+{
+  "name": "Demo frame",
+  "description": "Sample bicycle frame for the local Bike NFT walkthrough.",
+  "image": "demo-frame-001.png",
+  "attributes": [
+    {
+      "trait_type": "Kind",
+      "value": "Frame"
+    },
+    {
+      "trait_type": "Serial number",
+      "value": "DEMO-FRAME-001"
+    }
+  ]
+}

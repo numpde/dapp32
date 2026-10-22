@@ -24,9 +24,11 @@ contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
         deployment = deployLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
     }
 
-    function deploySeededForTest(address seedOwner) external returns (Deployment memory deployment) {
-        deployment =
-            deploySeededLocalFixture(address(this), seedOwner, "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
+    function deploySeededForTest(address seedOwner, string memory camURI)
+        external
+        returns (Deployment memory deployment)
+    {
+        deployment = deploySeededLocalFixture(address(this), seedOwner, camURI, bytes32(0));
     }
 }
 
@@ -90,29 +92,46 @@ contract BikeNftLocalFixtureTest is Test {
         );
 
         address seedOwner = makeAddr("seed owner");
-        deployment = harness.deploySeededForTest(seedOwner);
+        deployment = harness.deploySeededForTest(seedOwner, "file:///work/dapps/bike-nft/cam/main.json");
 
         assertSeededComponent(
             deployment,
             seedOwner,
             address(harness),
             "DEMO-FRAME-001",
-            "fixture://bike-nft/components/demo-frame-001.json"
+            "file:///work/dapps/bike-nft/cam/components/demo-frame-001.json"
         );
         assertSeededComponent(
             deployment,
             seedOwner,
             address(harness),
             "DEMO-BATTERY-001",
-            "fixture://bike-nft/components/demo-battery-001.json"
+            "file:///work/dapps/bike-nft/cam/components/demo-battery-001.json"
         );
         assertSeededComponent(
             deployment,
             seedOwner,
             address(harness),
             "DEMO-MOTOR-001",
-            "fixture://bike-nft/components/demo-motor-001.json"
+            "file:///work/dapps/bike-nft/cam/components/demo-motor-001.json"
         );
+    }
+
+    function test_seedMetadataUsesTheLaneResourceDirectory() external {
+        BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
+        address owner = makeAddr("seed owner");
+        string[2] memory directories = ["http://bike-nft-cam-http:8080/", "https://viewer.example.test/demo/cam/"];
+        for (uint256 i; i < directories.length; ++i) {
+            BikeNftLocalFixture.Deployment memory deployment =
+                harness.deploySeededForTest(owner, string.concat(directories[i], "main.json"));
+            assertSeededComponent(
+                deployment,
+                owner,
+                address(harness),
+                "DEMO-BATTERY-001",
+                string.concat(directories[i], "components/demo-battery-001.json")
+            );
+        }
     }
 
     function assertSeededComponent(

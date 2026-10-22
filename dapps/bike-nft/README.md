@@ -28,6 +28,13 @@ account. A write button prepares and simulates a call; **Send with wallet** requ
 its submission after review. On-chain roles and ownership determine
 whether the transaction can execute.
 
+The demo seeds `DEMO-FRAME-001`, `DEMO-BATTERY-001` and `DEMO-MOTOR-001`.
+Their NFT metadata and distinct PNG illustrations are served locally from
+`cam/components/`. Open a component, choose **Load metadata**, then **Load image**.
+The fixture derives these URLs from its `CAM_URI`, which must end in
+`/main.json`; the JSON uses relative image filenames so the same files work
+through the browser gateway and the internal resource server.
+
 To use the shared local fixture wallet in an existing CDP browser tab, keep this
 foreground attachment running alongside the demo:
 

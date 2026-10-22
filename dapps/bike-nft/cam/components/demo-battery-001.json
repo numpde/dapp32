@@ -1,0 +1,15 @@
+{
+  "name": "Demo battery",
+  "description": "Sample bicycle battery for the local Bike NFT walkthrough.",
+  "image": "demo-battery-001.png",
+  "attributes": [
+    {
+      "trait_type": "Kind",
+      "value": "Battery"
+    },
+    {
+      "trait_type": "Serial number",
+      "value": "DEMO-BATTERY-001"
+    }
+  ]
+}

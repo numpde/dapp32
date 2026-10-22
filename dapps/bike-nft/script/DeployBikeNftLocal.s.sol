@@ -12,7 +12,8 @@ import {BikeNftLocalFixture} from "./BikeNftLocalFixture.sol";
 ///
 /// Required environment:
 /// - PRIVATE_KEY: deployer/admin private key used by Forge broadcast.
-/// - CAM_URI: exact CAM document URI to store in CamRoot.
+/// - CAM_URI: exact CAM document URI ending in /main.json. Demo metadata is
+///   served from components/ beside that manifest.
 contract DeployBikeNftLocal is Script, BikeNftLocalFixture {
     function run() external returns (Deployment memory deployment) {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");

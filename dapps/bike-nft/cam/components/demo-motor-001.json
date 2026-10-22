@@ -1,0 +1,15 @@
+{
+  "name": "Demo motor",
+  "description": "Sample bicycle motor for the local Bike NFT walkthrough.",
+  "image": "demo-motor-001.png",
+  "attributes": [
+    {
+      "trait_type": "Kind",
+      "value": "Motor"
+    },
+    {
+      "trait_type": "Serial number",
+      "value": "DEMO-MOTOR-001"
+    }
+  ]
+}

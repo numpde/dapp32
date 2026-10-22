@@ -537,7 +537,7 @@ help:
 	  '  make escrow/local/scenario/run       Run the Escrow workflows through the contract-driven viewer.' \
 	  '  make pay-to-play/local/scenario/run  Test deposits, vouchers, collection and withdrawals through the viewer.' \
 	  '  make pay-to-play/local/recovery/run  Also test recovery deadlines, retirement and the refund CLI.' \
-	  '  make bike-nft/local/deploy CAM_URI=URI  Test a Bike NFT deployment, then remove it.' \
+	  '  make bike-nft/local/deploy CAM_URI=URI  Test a Bike NFT deployment, then remove it; URI must end in /main.json.' \
 	  '    URI must be the absolute HTTP(S) or IPFS address to record for the CAM manifest.' \
 	  '  make bike-nft/local/integration/fuzz/run  Walk generated CAM workflows and simulate transactions.' \
 	  '  make bike-nft/local/integration/fuzz/fixture-writes/run  Also submit transactions on its disposable chain.' \
