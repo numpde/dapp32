@@ -820,7 +820,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_no_published_ports(proxy)
         self.assertEqual({"rpc_internal", "rpc_egress"}, set(proxy["networks"]))
         self.assertTrue(config["networks"]["rpc_internal"]["internal"])
-        self.assertFalse(config["networks"]["rpc_egress"].get("internal", False))
+        egress = config["networks"]["rpc_egress"]
+        if "internal" in egress:
+            self.assertFalse(egress["internal"])
         self.assertEqual(["dapps-rpc-indexer-rpc"], proxy["networks"]["rpc_internal"]["aliases"])
         self.assertEqual("1000:1000", proxy["user"])
         mounts = proxy["volumes"]
@@ -845,7 +847,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         for compose_unit in compose_render_units():
             config = rendered_compose_config(compose_unit, env=compose_render_env())
             for service_name, service in config["services"].items():
-                environment = service.get("environment", {})
+                if "environment" not in service:
+                    continue
+                environment = service["environment"]
                 if "RPC_PROXY_HOST" not in environment:
                     continue
                 found += 1

@@ -20,6 +20,8 @@ class RpcIndexerLaneTest(unittest.TestCase):
         shutil.copyfile(repo_path("Makefile"), self.checkout / "Makefile")
         for name in ("compose", "containers", "dapps", "docs", "js", "tests", "tools"):
             (self.checkout / name).mkdir()
+        for name in ("release_process.sh", "release-config.sh"):
+            shutil.copyfile(repo_path(f"tools/{name}"), self.checkout / "tools" / name)
         self.upstream = self.directory / "rpc-url"
         self.upstream.write_text("https://example.com/private?token=fixture-secret\n")
         self.upstream.chmod(0o600)
@@ -33,7 +35,8 @@ class RpcIndexerLaneTest(unittest.TestCase):
     def make(self, target: str, upstream: Path | str | None = None) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         for name in ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "RPC_URL_FILE", "RPC_URL"):
-            environment.pop(name, None)
+            if name in environment:
+                del environment[name]
         environment.update({
             "LOCAL_UID": str(os.getuid()),
             "LOCAL_GID": str(os.getgid()),
@@ -75,13 +78,21 @@ class RpcIndexerLaneTest(unittest.TestCase):
         in_checkout.chmod(0o600)
         linked_directory = self.directory / "linked"
         linked_directory.symlink_to(self.directory, target_is_directory=True)
-        cases = (None, "rpc-url", public_file, in_checkout, self.directory,
-                 linked_directory / "rpc-url", self.directory / "missing",
-                 f"{self.directory}/checkout/../rpc-url")
-        for path in cases:
+        cases = (
+            (None, "Set RPC_URL_FILE"),
+            ("rpc-url", "must be an absolute path"),
+            (public_file, "must not be group- or world-accessible"),
+            (in_checkout, "must be outside the repository"),
+            (self.directory, "must be a readable regular file"),
+            (linked_directory / "rpc-url", "must not pass through a symlink"),
+            (self.directory / "missing", "must be a readable regular file"),
+            (f"{self.directory}/checkout/../rpc-url", "must be a normalized absolute path"),
+        )
+        for path, reason in cases:
             with self.subTest(path=path):
                 result = self.make("rpc/indexer/up", path)
                 self.assertNotEqual(0, result.returncode)
+                self.assertIn(reason, result.stderr)
                 self.assertFalse(self.calls.exists(), result.stdout + result.stderr)
                 self.assertNotIn("fixture-secret", result.stdout + result.stderr)
 
