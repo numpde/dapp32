@@ -14,6 +14,7 @@ export type {
   ResolvedLeafElementNode,
   ResolvedStatusNode,
   ResolvedTextFieldNode,
+  ResolvedNftMetadataFieldNode,
   ResolvedDocumentHashFieldNode,
   ResolvedUiCall,
   ResolvedUiNode,

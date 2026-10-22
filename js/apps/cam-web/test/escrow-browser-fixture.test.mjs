@@ -4,6 +4,7 @@ import { createWalletClient, custom, HttpRequestError } from 'viem'
 import { createCdpCommands, fixtureAccount, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import * as fixture from './escrow-browser-fixture.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
+import { checkNftMetadata } from './nft-metadata-browser-check.mjs'
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 
 for (const failure of ['lost broadcast reply', 'transport exception']) {
@@ -94,7 +95,7 @@ test('expired run can close only its owned target under a separate cleanup budge
 })
 
 const viewerURL = 'http://127.0.0.1:5186/?chainId=eip155:31337'
-for (const check of [checkActionStyles, checkTimestampStatus]) {
+for (const check of [checkActionStyles, checkTimestampStatus, checkNftMetadata]) {
   test(`${check.name} restores a committed, complete viewer before returning its original failure`, async () => {
     const primary = new Error('fixture operation failed')
     let release

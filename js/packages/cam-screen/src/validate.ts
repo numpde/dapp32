@@ -107,6 +107,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Text),
       }
     case "TextField":
+    case "NftMetadataField":
     case "DurationField":
     case "NonNegativeIntegerField":
       rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
@@ -153,12 +154,12 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         element,
         props: parseStatusProps(source.props, `${path}.props`),
       }
-    case "Nft":
+    case "Nft": {
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
-      return {
-        element,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Nft),
-      }
+      const props = parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Nft)
+      if (Object.hasOwn(props, "metadataURI") && typeof props.metadataURI !== "string") throw new UiError("UI_INVALID_FIELD", "Nft metadataURI must be a string or expression", `${path}.props.metadataURI`)
+      return { element, props }
+    }
     case "Include":
       rejectUnexpectedNodeShape(source, INCLUDE_KEYS, path)
       return {

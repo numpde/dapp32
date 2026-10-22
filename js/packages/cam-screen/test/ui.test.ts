@@ -1238,3 +1238,36 @@ test("DurationField defaults and current state remain canonical seconds with exp
     assert.throws(() => resolveInitialUiNode(ui, "wait", {}, { ...context, state: {} }), UiError)
   }
 })
+
+
+test("NftMetadataField keeps the token URI scalar and participates in state and availability", () => {
+  const ui = parseUi({ ui: UI_VERSION, nodes: { app: {
+    requires: [], element: "NftMetadataField", props: { label: "Token metadata" },
+    state: { key: "tokenURI", defaultValue: "$inputs.uri" },
+    enabledWhen: { member: "edit", in: [] },
+  } } })
+  const initial = resolveInitialUiNode(ui, "app", {}, { ...context, inputs: { uri: "https://example.test/token.json" }, state: {} })
+  assert.deepEqual({ ...initial.state }, { tokenURI: "https://example.test/token.json" })
+  assert.deepEqual(resolvedUiInputNames(initial.resolvedUi), ["tokenURI"])
+  assert.equal(initial.resolvedUi.element, "NftMetadataField")
+  assert.equal("disabled" in initial.resolvedUi && initial.resolvedUi.disabled, true)
+  const edited = resolveUiNode(ui, "app", {}, { ...context, state: { tokenURI: "data:application/json,%7B%7D" } })
+  assert.deepEqual(resolvedUiInputNames(edited), ["tokenURI"])
+  assert.throws(() => resolveInitialUiNode(ui, "app", {}, { ...context, inputs: { uri: 3 }, state: {} }), /defaultValue must resolve to a string/)
+})
+
+test("Nft accepts an optional metadata URI string while retaining arbitrary inert token IDs", () => {
+  const makeUi = (extra: Record<string, unknown>) => ({ ui: UI_VERSION, nodes: { app: {
+    requires: [], element: "Nft", props: { contractAddress: context.host.address, tokenId: { legacy: true }, ...extra },
+  } } })
+  const absent = resolveUiNode(parseUi(makeUi({})), "app", {}, context)
+  if (absent.element !== "Nft") throw new Error("expected NFT node")
+  assert.equal(Object.hasOwn(absent.props, "metadataURI"), false)
+  assert.deepEqual({ ...absent.props.tokenId as Record<string, unknown> }, { legacy: true })
+  const ui = parseUi(makeUi({ metadataURI: "$inputs.uri" }))
+  const resolved = resolveUiNode(ui, "app", {}, { ...context, inputs: { uri: "https://example.test/token.json" } })
+  if (resolved.element !== "Nft") throw new Error("expected NFT node")
+  assert.equal(resolved.props.metadataURI, "https://example.test/token.json")
+  assert.throws(() => parseUi(makeUi({ metadataURI: 3 })), /metadataURI/)
+  assert.throws(() => resolveUiNode(ui, "app", {}, { ...context, inputs: { uri: 3 } }), /metadataURI/)
+})

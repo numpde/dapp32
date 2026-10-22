@@ -1,0 +1,125 @@
+import assert from 'node:assert/strict'
+import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+
+export async function checkNftMetadata({ call, evaluate, viewerURL }) {
+  const fixture = new URL('/test/nft-metadata-fixture.html', viewerURL)
+  fixture.search = new URL(viewerURL).search
+  const editor = '.nft-editor'
+  const json = `${editor} textarea[name="tokenURI.metadata.json"]`
+  async function wait(expression) {
+    const deadline = Date.now() + 10000
+    while (Date.now() < deadline) {
+      if (await evaluate(expression)) return
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+    assert.fail(`NFT fixture did not reach: ${expression}`)
+  }
+  async function click(selector, text) {
+    assert(await evaluate(`(() => { const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(node => node.textContent === ${JSON.stringify(text)}); if (!button) return false; button.click(); return true })()`), `control exists: ${text}`)
+  }
+  async function edit(selector, value) {
+    await evaluate(`(() => { const node=document.querySelector(${JSON.stringify(selector)}); const prototype=node instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(prototype,'value').set.call(node,${JSON.stringify(value)}); node.dispatchEvent(new Event('input',{bubbles:true})) })()`)
+  }
+  const failures = []
+  try {
+    await call('Page.navigate', { url: fixture.href })
+    await wait(`!!window.nftFixture&&document.querySelectorAll('.nft-editor').length===2`)
+    assert(await evaluate(`window.nftFixture.requests.length===0&&!document.querySelector('.nft-row .nft-preview')&&!document.querySelector('img')`), 'rendering performs no automatic metadata or image fetch')
+    await click('.nft-row button', 'Load metadata')
+    await wait(`!!document.querySelector('.nft-row .nft-preview h3')`)
+    assert(await evaluate(`window.nftFixture.requests.length===0&&!document.querySelector('.nft-row img')`), 'inline metadata loads independently; image remains explicit')
+    await click('.nft-row button', 'Load image')
+    await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
+    assert(await evaluate(`window.nftFixture.requests.length===1&&window.nftFixture.requests[0]===window.nftFixture.metadata.image`), 'image bytes are fetched and decoded only on request')
+
+    await click(`${editor} summary`, 'Prepare metadata JSON')
+    await click(`${editor} button`, 'Load from current URI')
+    await wait(`document.querySelector(${JSON.stringify(json)}).value.includes('retained')`)
+    await evaluate(`window.nftFixture.holdMetadata()`)
+    await click(`${editor} button`, 'Load from current URI')
+    await wait(`[...document.querySelectorAll('.nft-editor button')].find(e=>e.textContent==='Load from current URI').disabled`)
+    await edit('input[name="tokenURI.metadata.name"]', 'Edited during import')
+    await evaluate(`window.nftFixture.releaseMetadata()`)
+    assert.equal(await evaluate(`JSON.parse(document.querySelector(${JSON.stringify(json)}).value).name`), 'Edited during import', 'a late import cannot replace newer edits')
+    await evaluate(`window.nftFixture.response(JSON.stringify({...window.nftFixture.metadata,image:'./image.png'}))`)
+    await click(`${editor} button`, 'Load from current URI')
+    await wait(`document.querySelector('input[name="tokenURI.metadata.image"]').value==='./image.png'`)
+    await click(`${editor} button`, 'Load image')
+    await wait(`document.querySelector('.nft-editor img')?.naturalWidth===2`)
+    assert(await evaluate(`[...document.querySelectorAll('.nft-editor button')].find(e=>e.textContent==='Use data URI').disabled`), 'relative images retain their import base for preview and cannot silently become inline metadata')
+    const beforeOversize = await evaluate(`document.querySelector(${JSON.stringify(json)}).value`)
+    await evaluate(`window.nftFixture.response(JSON.stringify({values:Array(60000).fill(0)}))`)
+    await click(`${editor} button`, 'Load from current URI')
+    await wait(`[...document.querySelectorAll('.nft-editor [role="alert"]')].some(e=>e.textContent.includes('256 KiB'))`)
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(json)}).value`), beforeOversize, 'an import too large after formatting preserves the previous draft')
+    await evaluate(`window.nftFixture.response(undefined)`)
+    await click(`${editor} button`, 'Load from current URI')
+    await wait(`document.querySelector('input[name="tokenURI.metadata.image"]').value===window.nftFixture.metadata.image`)
+    await edit('input[name="tokenURI.metadata.name"]', 'Edited NFT')
+    await edit('input[name="tokenURI.metadata.description"]', 'An edited description')
+    await edit('input[name="tokenURI.metadata.image"]', 'https://nft.fixture.test/other.png')
+    await wait(`document.querySelector(${JSON.stringify(json)}).value.includes('other.png')`)
+    const exported = await evaluate(`JSON.stringify(JSON.parse(document.querySelector(${JSON.stringify(json)}).value),null,2)+String.fromCharCode(10)`)
+    const document = JSON.parse(exported)
+    assert.equal(document.name, 'Edited NFT')
+    assert.equal(document.description, 'An edited description')
+    assert.equal(document.image, 'https://nft.fixture.test/other.png')
+    assert.deepEqual(document.extra, { retained: true })
+    assert.deepEqual(document.attributes, [{ trait_type: 'Year', value: 2026, display_type: 'number', extension: true }])
+    await click(`${editor} button`, 'Copy JSON')
+    await wait(`window.nftFixture.copies.length===1`)
+    assert.equal(await evaluate(`window.nftFixture.copies[0]`), exported, 'copy uses the exact displayed JSON document')
+    await click(`${editor} button`, 'Download JSON')
+    await wait(`window.nftFixture.downloads.length===1`)
+    assert.equal(await evaluate(`window.nftFixture.downloads[0]`), exported, 'download preserves JSON bytes')
+    assert(await evaluate(`window.nftFixture.uri()===window.nftFixture.publishedURI`), 'copy and download do not change the transaction URI')
+    await click(`${editor} summary`, 'Data URI')
+    await click(`${editor} button`, 'Copy data URI')
+    await wait(`window.nftFixture.copies.length===2`)
+    const inline = await evaluate(`window.nftFixture.copies[1]`)
+    assert.equal(Buffer.from(inline.split(',')[1], 'base64').toString('utf8'), exported)
+    assert.equal(await evaluate(`document.querySelector('.nft-editor textarea[readonly]').value`), inline)
+    await click(`${editor} button`, 'Use data URI')
+    await wait(`window.nftFixture.uri()===${JSON.stringify(inline)}`)
+    await edit('input[name="tokenURI.metadata.name"]', 'Later draft')
+    await wait(`window.nftFixture.uri()===''`)
+    await edit('input[name="tokenURI"]', 'https://nft.fixture.test/manual.json')
+    await edit('input[name="tokenURI.metadata.description"]', 'Unpublished changes')
+    assert.equal(await evaluate(`window.nftFixture.uri()`), 'https://nft.fixture.test/manual.json', 'editing a draft preserves a manually supplied URI')
+
+    assert(await evaluate(`[...document.querySelectorAll('.nft-editor')][1].querySelectorAll('input,textarea,button').length>0&&[...[...document.querySelectorAll('.nft-editor')][1].querySelectorAll('input,textarea,button')].every(node=>node.matches(':disabled'))`), 'field disablement reaches all nested controls')
+    await evaluate(`window.nftFixture.busy(true)`)
+    await wait(`document.querySelector('.elements').disabled`)
+    assert(await evaluate(`[...document.querySelectorAll('.elements input,.elements textarea,.elements button')].every(node=>node.matches(':disabled'))`), 'view transition disables NFT loading and all editor controls')
+    await evaluate(`window.nftFixture.busy(false)`)
+    await wait(`!document.querySelector('.elements').disabled`)
+
+    for (const kind of ['account', 'route']) {
+      if (!(await evaluate(`!!document.querySelector('.nft-row .nft-preview')`))) {
+        await click('.nft-row button', 'Load metadata')
+        await wait(`!!document.querySelector('.nft-row .nft-preview')`)
+        await click('.nft-row button', 'Load image')
+        await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
+      }
+      if (!(await evaluate(`document.querySelector('.nft-editor>details').open`))) await click(`${editor} summary`, 'Prepare metadata JSON')
+      await edit(json, '{"name":"Local draft to discard"}')
+      const imageURL = await evaluate(`document.querySelector('.nft-row img').src`)
+      await evaluate(`window.nftFixture.scope(${JSON.stringify(kind)})`)
+      await wait(`!document.querySelector('.nft-row .nft-preview')&&document.querySelector(${JSON.stringify(json)}).value==='{}'`)
+      assert(await evaluate(`window.nftFixture.revoked.includes(${JSON.stringify(imageURL)})`), `${kind} change clears previews and drafts and revokes image resources`)
+    }
+    await click(`${editor} summary`, 'Prepare metadata JSON')
+    await edit(json, '{"name":"<img src=x onerror=alert(1)>","description":"<script>alert(1)</script>","image":"data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22/%3E"}')
+    await click(`${editor} button`, 'Load image')
+    await wait(`!!document.querySelector('.nft-editor .nft-image [role="alert"]')`)
+    assert(await evaluate(`!document.querySelector('.nft-editor img')&&!document.querySelector('.nft-editor svg')&&document.querySelector('.nft-editor .nft-image [role="alert"]').textContent.includes('SVG')`), 'SVG image bytes fail visibly without rendering active content')
+    assert(await evaluate(`document.querySelector('.nft-editor h3').textContent==='<img src=x onerror=alert(1)>'&&!document.querySelector('.nft-editor .nft-preview script')`), 'metadata text is rendered as text rather than active HTML')
+    await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: true })
+    assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), 'metadata JSON and long URIs fit a 320px viewport')
+    return { explicitResourceLoading: true, metadataRoundTrip: true, publicationURIHonest: true, scopeCleanup: true, disabledControls: true, width: 320 }
+  } catch (error) {
+    failures.push(error)
+  } finally {
+    await finishDisplayFixture({ call, evaluate, viewerURL, failures })
+  }
+}

@@ -263,6 +263,7 @@ function renderNode(
       output.write(`\n${formatValue(node.props.text)}\n`)
       return
     case "TextField":
+    case "NftMetadataField":
       output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(textFieldValue(node, state))}\n`)
       return
     case "AmountField":
@@ -295,6 +296,7 @@ function renderNode(
       return
     case "Nft":
       output.write(`NFT: ${formatValue(node.props.contractAddress)} #${formatValue(node.props.tokenId)}\n`)
+      if (node.props.metadataURI !== undefined) output.write(`Metadata URI: ${formatValue(node.props.metadataURI)}\n`)
       return
     case "Button":
       buttons.push(node)
@@ -303,8 +305,8 @@ function renderNode(
 }
 
 function textFieldValue(node: ResolvedUiNode, state: Record<string, unknown>): unknown {
-  if (node.element !== "TextField") {
-    throw new Error(`expected TextField node, got ${node.element}`)
+  if (node.element !== "TextField" && node.element !== "NftMetadataField") {
+    throw new Error(`expected URI or text field node, got ${node.element}`)
   }
 
   return state[node.state.key]

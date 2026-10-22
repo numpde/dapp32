@@ -309,7 +309,7 @@ function statusTerminalOutput(
   commands?: string,
   rejectAction?: boolean,
   preparedCall?: CamViewerPreparedContractCall,
-  snapshotOverrides?: Partial<Pick<CamViewerLoadedSnapshot, "route" | "uiURI">>,
+  snapshotOverrides?: Partial<Pick<CamViewerLoadedSnapshot, "route" | "uiURI" | "state">>,
 ): string {
   const snapshot: CamViewerLoadedSnapshot = {
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
@@ -346,3 +346,15 @@ function statusTerminalOutput(
     "--experimental-test-module-mocks", "--experimental-strip-types", "--input-type=module", "-e", script,
   ], { input: commands === undefined ? "quit\n" : commands, encoding: "utf8", timeout: 10_000, maxBuffer: 512_000 })
 }
+
+
+test("terminal renders NFT metadata URI fields without treating local preparation as published", () => {
+  const output = statusTerminalOutput([
+    { element: "NftMetadataField", props: { label: "Token metadata" }, state: { key: "tokenURI" }, children: [] },
+    { element: "NftMetadataField", props: { label: "Disabled metadata" }, state: { key: "locked" }, disabled: true, children: [] },
+    { element: "Nft", props: { contractAddress: "0x0000000000000000000000000000000000000001", tokenId: "7", metadataURI: "https://example.test/token.json" }, children: [] },
+  ], undefined, undefined, undefined, undefined, { state: { tokenURI: "https://example.test/token.json", locked: "https://example.test/locked.json" } })
+  assert.ok(output.includes("Token metadata: https://example.test/token.json"))
+  assert.ok(output.includes("Disabled metadata (disabled): https://example.test/locked.json"))
+  assert.ok(output.includes("Metadata URI: https://example.test/token.json"))
+})

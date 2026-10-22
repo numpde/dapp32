@@ -30,6 +30,7 @@ import {
 import {
   preparedCallFields,
 } from "./prepared-call.ts"
+import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
 
 export function ConnectionSummary({
   chainId,
@@ -109,7 +110,7 @@ export function UiView({
         </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -162,6 +163,7 @@ export function PreparedCallView({
 
 function UiNodeView({
   node,
+  scopeKey,
   state,
   documentHashes,
   onAction,
@@ -173,6 +175,7 @@ function UiNodeView({
   onCancelDocumentHash,
 }: {
   readonly node: ResolvedUiNode
+  readonly scopeKey: string
   readonly state: Record<string, InertValue>
   readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
@@ -189,7 +192,7 @@ function UiNodeView({
       return (
         <>
           {node.children.map((child, index) => (
-            <UiNodeView key={index} node={child} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+            <UiNodeView key={index} scopeKey={scopeKey} node={child} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
           ))}
         </>
       )
@@ -222,16 +225,13 @@ function UiNodeView({
       return <IntegerFieldView node={node} onInteger={onInteger} />
     case "DocumentHashField":
       return <DocumentHashFieldView node={node} value={stateString(state, node.state.key)} status={documentHashes[node.state.key]} onInput={onInput} onCalculate={onDocumentHash} onCancel={onCancelDocumentHash} />
+    case "NftMetadataField":
+      return <NftMetadataFieldView key={JSON.stringify([scopeKey, node.state.key])} label={stringProp(node.props, "label")} name={node.state.key} value={stateString(state, node.state.key)} disabled={node.disabled === true} onInput={onInput} />
     case "Status":
       if (node.props.format === "timestampSeconds") return <TimestampStatusView key={JSON.stringify([node.props.label, node.props.zeroText])} node={node} />
       return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
     case "Nft":
-      return (
-        <div className="nft-row">
-          <KeyValue label="NFT contract" value={stringProp(node.props, "contractAddress")} mono={true} />
-          <KeyValue label="Token ID" value={formatInertValue(node.props.tokenId)} mono={false} />
-        </div>
-      )
+      return <NftView key={JSON.stringify([scopeKey, node.props])} contractAddress={stringProp(node.props, "contractAddress")} tokenId={formatInertValue(node.props.tokenId)} metadataURI={node.props.metadataURI === undefined ? undefined : stringProp(node.props, "metadataURI")} />
     case "Button": {
       const label = displayText(stringProp(node.props, "label"))
       return (

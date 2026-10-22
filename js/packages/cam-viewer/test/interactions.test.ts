@@ -256,3 +256,14 @@ function button(route: string, args: ResolvedButtonNode["call"]["args"]): Resolv
     },
   }
 }
+
+
+test("NftMetadataField accepts only enabled rendered URI edits", () => {
+  const field = {
+    element: "NftMetadataField" as const, props: { label: "Token metadata" },
+    state: { key: "tokenURI" }, children: [] as const,
+  }
+  assert.doesNotThrow(() => assertStatePatchTargets(field, { tokenURI: "https://example.test/token.json" }))
+  assert.throws(() => assertStatePatchTargets({ ...field, disabled: true }, { tokenURI: "changed" }), /disabled/)
+  assert.throws(() => assertStatePatchTargets(field, { metadataJSON: "{}" }), /no rendered input/)
+})

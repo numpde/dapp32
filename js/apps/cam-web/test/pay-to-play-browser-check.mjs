@@ -1,5 +1,6 @@
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
+import { checkNftMetadata } from './nft-metadata-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
@@ -215,6 +216,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   phase = 'action presentation fixture'
   await checkActionStyles({ call, evaluate, viewerURL: viewer.href })
+  await checkNftMetadata({ call, evaluate, viewerURL: viewer.href })
   phase = 'timestamp display lifecycle fixture'
   await checkTimestampStatus({ call, evaluate, viewerURL: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })

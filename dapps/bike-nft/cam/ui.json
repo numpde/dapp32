@@ -331,7 +331,8 @@
           "element": "Nft",
           "props": {
             "contractAddress": "$view.tokenContract",
-            "tokenId": "$view.tokenId"
+            "tokenId": "$view.tokenId",
+            "metadataURI": "$view.tokenURI"
           }
         },
         {
@@ -377,13 +378,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "Token URI is a required nonempty location for token metadata. The contract stores the URI; this viewer displays the NFT contract and token ID without loading that metadata."
+            "text": "The token metadata URI is stored on chain. Enter a published JSON location, or prepare metadata below and explicitly use its data URI. Review the URI before sending the update."
           }
         },
         {
-          "element": "TextField",
+          "element": "NftMetadataField",
           "props": {
-            "label": "New token URI"
+            "label": "Token metadata"
           },
           "state": {
             "key": "tokenURI",
@@ -905,13 +906,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "Token URI is required and nonempty. Publish the token metadata and enter its location; registration stores the URI without fetching or validating its contents."
+            "text": "Prepare the token metadata or enter a published metadata URI. Registration mints the NFT using the URI shown below; downloading JSON alone does not register it."
           }
         },
         {
-          "element": "TextField",
+          "element": "NftMetadataField",
           "props": {
-            "label": "Token URI"
+            "label": "Token metadata"
           },
           "state": {
             "key": "tokenURI",

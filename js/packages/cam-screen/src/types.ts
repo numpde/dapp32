@@ -10,6 +10,7 @@ export type UiNode =
   | FragmentNode
   | TextNode
   | TextFieldNode
+  | NftMetadataFieldNode
   | DocumentHashFieldNode
   | AmountFieldNode
   | NonNegativeIntegerFieldNode
@@ -42,6 +43,13 @@ export type TextNode = UiNodeBase & {
 
 export type TextFieldNode = UiNodeBase & {
   readonly element: "TextField"
+  readonly enabledWhen?: UiMembership
+  readonly props: InertRecord
+  readonly state: UiStateBinding
+}
+
+export type NftMetadataFieldNode = UiNodeBase & {
+  readonly element: "NftMetadataField"
   readonly enabledWhen?: UiMembership
   readonly props: InertRecord
   readonly state: UiStateBinding
@@ -209,6 +217,7 @@ export type ResolvedElementNode =
   | ResolvedContainerNode
   | ResolvedLeafElementNode
   | ResolvedTextFieldNode
+  | ResolvedNftMetadataFieldNode
   | ResolvedDocumentHashFieldNode
   | ResolvedStatusNode
   | ResolvedAmountFieldNode
@@ -222,7 +231,7 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField" | "Status">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField" | "Status">
   readonly props: InertRecord
   readonly children: readonly []
 }
@@ -236,6 +245,14 @@ export type ResolvedStatusNode = {
 
 export type ResolvedTextFieldNode = {
   readonly element: "TextField"
+  readonly disabled?: boolean
+  readonly props: InertRecord
+  readonly state: ResolvedUiStateBinding
+  readonly children: readonly []
+}
+
+export type ResolvedNftMetadataFieldNode = {
+  readonly element: "NftMetadataField"
   readonly disabled?: boolean
   readonly props: InertRecord
   readonly state: ResolvedUiStateBinding

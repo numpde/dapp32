@@ -22,7 +22,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -120,6 +121,21 @@ dd,
   overflow: hidden;
 }
 
+.nft-row, .nft-editor { min-inline-size: 0; margin-block: 16px; }
+.nft-editor { border: 1px solid var(--line); border-radius: 6px; padding: 16px; }
+.nft-editor legend { color: var(--muted); padding-inline: 6px; }
+.nft-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
+.nft-source, .nft-identity dd { overflow-wrap: anywhere; word-break: break-word; }
+.nft-identity, .nft-attributes { margin-block: 8px; }
+.nft-identity > div, .nft-attributes > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; padding-block: 6px; }
+.nft-identity dt, .nft-attributes dt { color: var(--muted); }
+.nft-identity dd, .nft-attributes dd { margin: 0; }
+.nft-preview { margin-block: 16px; overflow-wrap: anywhere; }
+.nft-preview p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.nft-image img { display: block; max-inline-size: 100%; max-block-size: 360px; object-fit: contain; margin-block: 12px; }
+.nft-editor textarea { inline-size: 100%; min-block-size: 130px; resize: vertical; padding: 12px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.nft-editor details > summary, .nft-row details > summary { cursor: pointer; }
+
 .ui-meta {
   display: flex;
   align-items: baseline;
@@ -189,7 +205,8 @@ dd,
 }
 
 button:disabled,
-input:disabled {
+input:disabled,
+textarea:disabled {
   color: var(--muted);
   border-color: var(--line);
   background: #edf2f6;
@@ -225,6 +242,7 @@ input {
 }
 
 input:focus-visible,
+textarea:focus-visible,
 button:focus-visible,
 .ui summary:focus-visible,
 .panel summary:focus-visible {

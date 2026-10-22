@@ -56,9 +56,21 @@ for browser setup, deployment checks, confirmation and attachment lifecycle.
 Use the exact serial text, including case and spaces. To register an unused
 serial, choose **Look up component**, then **Check registration** when available.
 The registrar sends the transaction; the initial NFT owner may be another
-account. Token metadata, missing reports and resolutions use nonempty URIs;
-these controls store locations rather than uploading files or calculating
-document digests.
+account. Token metadata, missing reports and resolutions use nonempty URIs.
+The metadata field offers a local JSON editor for name, description, image URL,
+attributes and other JSON fields. Load an existing document to revise it, or
+prepare a new one. Display, copy and download are separate from publication:
+host the downloaded JSON and enter its URI, or explicitly use its data URI.
+Registration and metadata updates submit exactly the URI shown in the field.
+Editing an applied JSON draft clears its generated URI until it is applied
+again; editing a draft does not change a manually entered URI.
+
+The generic NFT viewer receives this URI from the contract projection. Choose
+**Load metadata**, then **Load image** to retrieve each resource. Preview accepts
+HTTP(S) and data URIs, bounded to 256 KiB for UTF-8 JSON and 4 MiB for PNG, JPEG,
+WebP or GIF images. Use an HTTP(S) gateway URL for other schemes such as IPFS.
+The browser must have CORS access. Neither component uploads files or changes
+minting permissions; registration remains an ordinary CAM contract action.
 
 Unavailable actions and their inputs stay visible and disabled. Registry pause,
 component-token pause and the viewed account's registrar role are separate facts.

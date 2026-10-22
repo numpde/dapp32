@@ -104,9 +104,9 @@ test("bike availability keeps component writes and their fields visible across a
       if (button.disabled === true) await assert.rejects(() => session.dispatchAction(button))
     }
     for (const [field, action] of [["tokenURI", "updateComponentMetadata"], ["reportURI", "markComponentMissing"], ["resolutionURI", "clearComponentMissing"]]) {
-      let input: Extract<ResolvedUiNode, { element: "TextField" }> | undefined
+      let input: Extract<ResolvedUiNode, { element: "TextField" | "NftMetadataField" }> | undefined
       forEachResolvedUiNode(snapshot.resolvedUi, node => {
-        if (node.element === "TextField" && node.state.key === field) input = node
+        if ((node.element === "TextField" || node.element === "NftMetadataField") && node.state.key === field) input = node
       })
       assert.ok(input, `${scenario.name}: ${field} must remain visible`)
       assert.equal(input.disabled === true, !actions.includes(action), `${scenario.name}: ${field} availability`)
@@ -136,9 +136,9 @@ test("bike availability keeps registration inputs and preparation visible when r
     assert.ok(button, `${scenario.name}: registration preparation must remain visible`)
     assert.equal(button.disabled === true, !enabled, scenario.name)
     for (const field of ["owner", "tokenURI"]) {
-      let input: Extract<ResolvedUiNode, { element: "TextField" }> | undefined
+      let input: Extract<ResolvedUiNode, { element: "TextField" | "NftMetadataField" }> | undefined
       forEachResolvedUiNode(snapshot.resolvedUi, node => {
-        if (node.element === "TextField" && node.state.key === field) input = node
+        if ((node.element === "TextField" || node.element === "NftMetadataField") && node.state.key === field) input = node
       })
       assert.ok(input, `${scenario.name}: ${field} must remain visible`)
       assert.equal(input.disabled === true, !enabled, `${scenario.name}: ${field} availability`)

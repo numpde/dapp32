@@ -56,6 +56,7 @@ export const UI_PROP_SCHEMAS = {
     string: ["label"],
     address: [],
   },
+  NftMetadataField: { required: ["label"], string: ["label"], address: [] },
   DocumentHashField: { required: ["label", "algorithm"], optional: ["sourceURI"], string: ["label"], address: [], literal: ["algorithm"] },
   AmountField: { required: ["label", "unit"], string: ["label"], address: [], literal: ["unit"] },
   NonNegativeIntegerField: { required: ["label"], optional: ["min", "max"], string: ["label"], address: [] },
@@ -73,6 +74,7 @@ export const UI_PROP_SCHEMAS = {
   },
   Nft: {
     required: ["contractAddress", "tokenId"],
+    optional: ["metadataURI"],
     string: ["contractAddress"],
     address: ["contractAddress"],
   },
