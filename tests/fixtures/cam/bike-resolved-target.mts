@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { CAM_VERSION, UI_VERSION } from "../../../js/packages/cam-protocol/src/versions.ts"
 
 // Proposed CAM 1.3 boundary: one optional static read invocation on a write
 // route. Its outputs feed only that write's call.target and call.args. This is
@@ -32,7 +33,7 @@ export function resolvedTargetDocument() {
       ui: { type: "ui", uri: "./ui.json", integrity: "" },
     },
     routes: {
-      entry: { kind: "read", inputs: [], call: { namespace: "contracts.Manager", function: "viewEntry", args: {} }, then: { namespace: "ui", function: "app", args: { title: "$outputs.0" } } },
+      entry: { kind: "read", inputs: [], call: { namespace: "contracts.Manager", function: "viewEntry", args: {} }, then: { namespace: "ui", function: "app", args: { view: "$outputs.0" } } },
       transferComponent: {
         kind: "write", inputs: ["serialNumber", "to"],
         resolve: { namespace: "contracts.Manager", function: "tokenReference", args: { serialNumber: "$inputs.serialNumber" } },
@@ -44,8 +45,8 @@ export function resolvedTargetDocument() {
 }
 
 export const resolvedTargetUi = {
-  ui: "1.0.0",
-  nodes: { app: { element: "Screen", requires: ["title"], props: { title: "$title" }, children: [
+  ui: UI_VERSION,
+  nodes: { app: { element: "Screen", requires: ["view"], props: { title: "$view" }, children: [
     { element: "Button", props: { label: "Review transfer" }, call: { namespace: "routes", function: "transferComponent", args: { serialNumber: resolvedTargetSerial, to: resolvedTargetRecipient } } },
   ] } },
 }
@@ -70,7 +71,7 @@ export function resolvedTargetBundle(edit?: (document: ReturnType<typeof resolve
 
 // Positive legacy control: identical resource loading/UI/ABI harness, no new grammar.
 export function makeStaticResolvedTargetDocument(document: ReturnType<typeof resolvedTargetDocument>): void {
-  document.cam = "1.2.0"
+  document.cam = CAM_VERSION
   delete (document.routes.transferComponent as Record<string, unknown>).resolve
   delete (document.routes.transferComponent.call as Record<string, unknown>).target
   document.routes.transferComponent.call.args.tokenId = "17"

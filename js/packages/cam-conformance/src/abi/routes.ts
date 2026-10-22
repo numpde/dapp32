@@ -86,6 +86,11 @@ const RULES = conformanceRules({
     class: "A",
     reason: "Payable writes require a declared uint256 transaction value; nonpayable writes forbid one.",
   },
+  CAM_RESOLVER_ARGUMENT_ABI_MISMATCH: {
+    class: "B",
+    reason: "Direct resolver output arguments must agree with the final write ABI.",
+    limitation: "Only complete direct output arguments are compared, using exact ABI type-string equality; tuple component compatibility remains a runtime check, and safe conversions are not inferred.",
+  },
 })
 
 const TRANSACTION_VALUE_ABI = {
@@ -107,6 +112,53 @@ export function validateRouteAbiCompatibility({
   for (const route of routes) {
     const fn = validateRouteCallAbi(resource, route, functionsByNamespace, issues)
     validateRouteValue(resource, route, fn, issues)
+    validateRouteResolverAbi(resource, route, fn, functionsByNamespace, issues)
+  }
+}
+
+function validateRouteResolverAbi(
+  resource: string,
+  route: DeclaredRoute,
+  write: AbiFunction | undefined,
+  functionsByNamespace: ContractFunctionsByNamespace,
+  issues: CamConformanceIssue[],
+): void {
+  if (route.resolve === undefined) return
+  const path = `routes.${route.name}.resolve`
+  const functions = functionsByNamespace.get(route.resolve.namespace)
+  if (functions === undefined) return
+  const resolver = resolveRouteFunction(resource, path, route.resolve.function, functions, issues)
+  if (resolver === undefined) return
+  if (resolver.stateMutability !== "view" && resolver.stateMutability !== "pure") {
+    issues.push(routeAbiIssue(resource, `${path}.function`, "route resolver ABI function must be view or pure"))
+  }
+  diffNameSets({
+    expectedNames: resolver.inputs.map(input => input.name), actualNames: Object.keys(route.resolve.args),
+    onMissing: name => { issues.push(routeAbiIssue(resource, `${path}.args.${name}`, `missing resolver argument: ${name}`)) },
+    onUnexpected: name => { issues.push(routeAbiIssue(resource, `${path}.args.${name}`, `unexpected resolver argument: ${name}`)) },
+  })
+  for (const input of resolver.inputs) {
+    if (Object.hasOwn(route.resolve.args, input.name)) {
+      validateRouteArgValue(resource, `${path}.args.${input.name}`, input.name, route.resolve.args[input.name], input.abi, issues)
+    }
+  }
+  const target = abiFunctionOutputForExpression(resolver, route.call.target)
+  if (!isRecordObject(target) || target.type !== "address") {
+    issues.push(routeAbiIssue(resource, `routes.${route.name}.call.target`, "resolved write target must reference a scalar address ABI output"))
+  }
+  if (write === undefined) return
+  for (const input of write.inputs) {
+    const value = route.call.args[input.name]
+    if (typeof value !== "string" || expressionReference(value)?.root !== "outputs") continue
+    const output = abiFunctionOutputForExpression(resolver, value)
+    if (output === undefined) {
+      issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${input.name}`, `resolver output reference has no ABI output: ${value}`))
+    } else if (isRecordObject(output) && output.type !== input.type) {
+      issues.push(conformanceIssue({
+        rule: RULES.CAM_RESOLVER_ARGUMENT_ABI_MISMATCH, resource, path: `routes.${route.name}.call.args.${input.name}`,
+        message: `resolver output ABI type ${String(output.type)} does not match write argument ${input.name} type ${input.type}; direct resolver arguments require matching ABI type strings`,
+      }))
+    }
   }
 }
 

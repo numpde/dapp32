@@ -26,6 +26,10 @@ const host = {
 } as const
 const contractAddress = "0x0000000000000000000000000000000000000002" as Address
 const namespace = "contracts.App"
+const publicClient = {
+  async getChainId(): Promise<never> { assert.fail("static write preparation must not call RPC") },
+  async readContract(): Promise<never> { assert.fail("static write preparation must not read a contract") },
+}
 const payableAbi = [{
   type: "function",
   name: "fund",
@@ -41,8 +45,9 @@ const nonpayableAbi = [{
   outputs: [],
 }] as const satisfies Abi
 
-test("prepared CAM 1.2 calls disclose the resolved transaction value as inert data", () => {
-  const prepared = prepareViewerContractCall({
+test("prepared CAM 1.2 calls disclose the resolved transaction value as inert data", async () => {
+  const prepared = await prepareViewerContractCall({
+    publicClient,
     cam: writeCam({
       functionName: "fund",
       args: { memo: "escrow" },
@@ -69,8 +74,9 @@ test("prepared CAM 1.2 calls disclose the resolved transaction value as inert da
   })
 })
 
-test("prepared nonpayable calls retain the value-free call shape", () => {
-  const prepared = prepareViewerContractCall({
+test("prepared nonpayable calls retain the value-free call shape", async () => {
+  const prepared = await prepareViewerContractCall({
+    publicClient,
     cam: writeCam({
       functionName: "save",
       args: {},

@@ -10,12 +10,13 @@ import {
 
 test("owns the supported CAM version inventory", () => {
   assert.equal(CAM_VERSION, "1.2.0")
-  assert.deepEqual([...CAM_SUPPORTED_VERSIONS], ["1.2.0"])
+  assert.deepEqual([...CAM_SUPPORTED_VERSIONS], ["1.2.0", "1.3.0"])
   assert.equal(Object.isFrozen(CAM_SUPPORTED_VERSIONS), true)
 
   assert.equal(isCamVersion("1.0.0"), false)
   assert.equal(isCamVersion("1.1.0"), false)
   assert.equal(isCamVersion("1.2.0"), true)
+  assert.equal(isCamVersion("1.3.0"), true)
   assert.equal(isCamVersion(null), false)
 })
 

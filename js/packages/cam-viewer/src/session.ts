@@ -89,6 +89,7 @@ export function createCamViewerSession({
   let currentView: CurrentView | undefined
   const history: PreviousView[] = []
   let changingView = false
+  let writePreparationRevision = 0
   const documentHashes: Record<string, CamViewerDocumentHashStatus> = Object.create(null)
   const documentHashOperations = new Map<string, AbortController>()
 
@@ -122,6 +123,7 @@ export function createCamViewerSession({
   }
 
   async function load(): Promise<CamViewerLoadedSnapshot> {
+    writePreparationRevision += 1
     const loadedCam = await loadCamFromHost({
       publicClient,
       host: sessionHost,
@@ -163,6 +165,7 @@ export function createCamViewerSession({
   }
 
   async function back(): Promise<CamViewerLoadedSnapshot> {
+    writePreparationRevision += 1
     const current = assertLoaded()
     const previous = history.at(-1)
     if (previous === undefined) {
@@ -175,6 +178,7 @@ export function createCamViewerSession({
   }
 
   async function refresh(): Promise<CamViewerLoadedSnapshot> {
+    writePreparationRevision += 1
     const view = assertCurrentView()
     const refreshed = await resolveLoadedView(assertLoaded(), view.route, view.inputs, account)
     currentView = restoreDrafts(view, refreshed)
@@ -199,6 +203,7 @@ export function createCamViewerSession({
   }
 
   async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerLoadedSnapshot> {
+    writePreparationRevision += 1
     const view = currentView
     if (view === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded view")
@@ -368,20 +373,24 @@ export function createCamViewerSession({
       }
     }
 
-    return {
-      type: "contractCall",
-      call: prepareViewerContractCall({
-        cam: current.cam,
-        contracts: current.contracts,
-        host: sessionHost,
-        ...(account === undefined ? {} : { account }),
-        route: interpretation.route,
-        inputs: interpretation.inputs,
-      }),
+    const revision = ++writePreparationRevision
+    const call = await prepareViewerContractCall({
+      publicClient,
+      cam: current.cam,
+      contracts: current.contracts,
+      host: sessionHost,
+      ...(account === undefined ? {} : { account }),
+      route: interpretation.route,
+      inputs: interpretation.inputs,
+    })
+    if (revision !== writePreparationRevision) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot prepare write: the account or view changed while the resolver was running")
     }
+    return { type: "contractCall", call }
   }
 
   async function navigateLoaded(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
+    writePreparationRevision += 1
     const current = assertLoaded()
     const nextView = await resolveLoadedView(current, nextRoute, nextInputs, account)
 

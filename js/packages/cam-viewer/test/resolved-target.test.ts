@@ -1,24 +1,25 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { CamEvmError, sendCamContractCall, simulateCamContractCall } from "@cam/evm-viem"
-import type { CamReadContractRequest, CamSimulationClient, CamWalletClient } from "@cam/evm-viem"
+import type { CamPublicClient, CamSimulationClient, CamWalletClient } from "@cam/evm-viem"
 import { resolvedUiButtons } from "@cam/screen"
 import { createCamViewerSession, CamViewerError } from "../src/index.ts"
 import {
   configuredCollection, oldCollection, resolvedTargetBundle, resolvedTargetHash, makeStaticResolvedTargetDocument,
   resolvedTargetHost, resolvedTargetManager, resolvedTargetOwner, resolvedTargetRecipient,
   resolvedTargetSerial, resolvedTargetURI,
+  resolvedTargetManagerAbi,
 } from "../../../../tests/fixtures/cam/bike-resolved-target.mts"
 import { createMockCamPublicClient } from "../../../../tests/fixtures/cam/mock.mts"
 
-function harness(resolve: () => unknown | Promise<unknown> = () => [oldCollection, 17n], legacy = false) {
-  const bundle = resolvedTargetBundle(legacy ? makeStaticResolvedTargetDocument : undefined)
+function harness(resolve: () => unknown | Promise<unknown> = () => [oldCollection, 17n], legacy = false, managerAbi: unknown = resolvedTargetManagerAbi) {
+  const bundle = resolvedTargetBundle(legacy ? makeStaticResolvedTargetDocument : undefined, managerAbi)
   const mock = createMockCamPublicClient({ chainId: 31337, camURI: resolvedTargetURI,
     camHash: resolvedTargetHash(bundle.rootBytes), supportsCamInterface: true,
     addresses: { Manager: resolvedTargetManager, BikeNFT: configuredCollection },
     routeResults: { viewEntry: "Generic resolved target" },
   })
-  const reads: CamReadContractRequest[] = []
+  const reads: Parameters<CamPublicClient["readContract"]>[0][] = []
   const session = createCamViewerSession({
     host: resolvedTargetHost, account: { address: resolvedTargetOwner }, inputs: {},
     publicClient: { getChainId: mock.getChainId, async readContract(request) {
@@ -33,6 +34,28 @@ function harness(resolve: () => unknown | Promise<unknown> = () => [oldCollectio
     },
   })
   return { session, reads }
+}
+
+for (const type of ["string", "bytes20"]) {
+  test(`viewer rejects resolver ABI ${type} targets even when their value looks like an address`, async () => {
+    const { session, reads } = harness(() => [oldCollection, 17n], false, [resolvedTargetManagerAbi[0], {
+      ...resolvedTargetManagerAbi[1], outputs: [{ name: "token", type }, { name: "tokenId", type: "uint256" }],
+    }])
+    const action = await actionFor(session)
+    await assert.rejects(() => session.dispatchAction(action), error => error instanceof CamEvmError && /scalar address/.test(error.message))
+    assert.equal(reads.filter(read => read.functionName === "tokenReference").length, 0, "ABI rejection precedes resolver RPC")
+  })
+}
+
+for (const stateMutability of ["nonpayable", "payable"]) {
+  test(`viewer rejects a ${stateMutability} resolver before any resolver RPC`, async () => {
+    const { session, reads } = harness(() => [oldCollection, 17n], false, [resolvedTargetManagerAbi[0], {
+      ...resolvedTargetManagerAbi[1], stateMutability,
+    }])
+    const action = await actionFor(session)
+    await assert.rejects(() => session.dispatchAction(action), error => error instanceof CamEvmError && /view or pure/.test(error.message))
+    assert.equal(reads.filter(read => read.functionName === "tokenReference").length, 0)
+  })
 }
 async function actionFor(session: ReturnType<typeof harness>["session"]) {
   const loaded = await session.load()

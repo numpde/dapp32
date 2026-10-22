@@ -13,6 +13,8 @@ import {
   collectCamResourceDeclarationFacts,
   collectCamRootFact,
   collectCamRouteInputsFact,
+  collectCamRouteResolutionFact,
+  collectCamRouteExpressionDiagnostics,
   createStringMap,
   hasOwn,
   isCamRouteKind,
@@ -28,6 +30,7 @@ import type {
 } from "./types.ts"
 import type {
   CamFactDiagnostic,
+  CamVersion,
   CamNamespaceFact,
   CamResourceDeclarationFact,
   CamRootFact,
@@ -40,7 +43,9 @@ const ROUTES_NAMESPACE_KEYS = new Set(["type"])
 const UI_NAMESPACE_KEYS = new Set(["type", "uri", "integrity"])
 const BASE_ROUTE_KEYS = new Set(["kind", "inputs", "call", "then"])
 const WRITE_VALUE_ROUTE_KEYS = new Set([...BASE_ROUTE_KEYS, "value"])
+const RESOLVED_WRITE_ROUTE_KEYS = new Set([...WRITE_VALUE_ROUTE_KEYS, "resolve"])
 const INVOCATION_KEYS = new Set(["namespace", "function", "args"])
+const TARGET_INVOCATION_KEYS = new Set([...INVOCATION_KEYS, "target"])
 
 export function parseCam(input: unknown): CamDocument {
   const root = parseRootFact(input)
@@ -52,7 +57,7 @@ export function parseCam(input: unknown): CamDocument {
     throw new CamError("CAM_INVALID_FIELD", "CAM protocol resource declaration is missing", "protocol")
   }
   const namespaces = parseNamespaces(root)
-  const routes = parseRoutes(requiredRecord(root.value.routes, "routes"), namespaces)
+  const routes = parseRoutes(requiredRecord(root.value.routes, "routes"), namespaces, root.version)
   const entry = requiredNonEmptyString(root.value.entry, "entry")
 
   if (!hasOwn(routes, entry)) {
@@ -157,6 +162,7 @@ function parseResourceDeclaration(fact: CamNamespaceFact): CamResourceDeclaratio
 function parseRoutes(
   source: Record<string, unknown>,
   namespaces: Record<string, CamNamespace>,
+  version: CamVersion,
 ): Record<string, CamRoute> {
   const routes = createStringMap<CamRoute>()
 
@@ -168,16 +174,33 @@ function parseRoutes(
     const path = `routes.${name}`
     const route = requiredRecord(value, path)
     const kind = parseRouteKind(route.kind, `${path}.kind`)
-    rejectUnknownCamFields(route, routeKeys(kind), path)
+    rejectUnknownCamFields(route, routeKeys(kind, version), path)
 
-    const call = parseInvocation(route.call, `${path}.call`, namespaces, CAM_ROUTE_CALL_NAMESPACE_TYPES)
+    const inputs = parseInputNames(route.inputs, `${path}.inputs`, name)
+    const resolution = collectCamRouteResolutionFact({
+      resource: "CAM root", path, route, version,
+      namespaceTypes: namespaceTypeMap(namespaces), declaredInputs: new Set(inputs),
+    })
+    const resolutionDiagnostic = resolution.diagnostics[0]
+    if (resolutionDiagnostic !== undefined) throw camErrorFromFactDiagnostic(resolutionDiagnostic)
+
+    const call = parseInvocation(route.call, `${path}.call`, namespaces, CAM_ROUTE_CALL_NAMESPACE_TYPES, resolution.value !== undefined)
     const then = parseInvocation(
       route.then,
       `${path}.then`,
       namespaces,
       camRouteThenNamespaceTypes(kind),
     )
-    const inputs = parseInputNames(route.inputs, `${path}.inputs`, name)
+    if (resolution.value !== undefined) {
+      for (const [value, field, allowOutputs] of [[call.args, "call.args", true], [then.args, "then.args", false], [route.value, "value", false]] as const) {
+        const diagnostic = collectCamRouteExpressionDiagnostics({
+          resource: "CAM root", path: `${path}.${field}`, value,
+          declaredInputs: new Set(inputs), allowOutputs,
+          outputUnavailableMessage: "resolver outputs are available only to the final write target and arguments",
+        })[0]
+        if (diagnostic !== undefined) throw camErrorFromFactDiagnostic(diagnostic)
+      }
+    }
 
     if (kind === "read") {
       routes[name] = {
@@ -194,6 +217,10 @@ function parseRoutes(
       inputs,
       call,
       then,
+      ...(resolution.value === undefined ? {} : {
+        resolve: parseInvocation(route.resolve, `${path}.resolve`, namespaces, CAM_ROUTE_CALL_NAMESPACE_TYPES),
+        call: { ...call, target: resolution.value.target },
+      }),
       ...(hasOwn(route, "value")
         ? { value: parseExpressionPayload(route.value, `${path}.value`) }
         : {}),
@@ -203,8 +230,8 @@ function parseRoutes(
   return routes
 }
 
-function routeKeys(kind: CamRoute["kind"]): ReadonlySet<string> {
-  return kind === "write" ? WRITE_VALUE_ROUTE_KEYS : BASE_ROUTE_KEYS
+function routeKeys(kind: CamRoute["kind"], version: CamVersion): ReadonlySet<string> {
+  return kind === "write" ? version === "1.3.0" ? RESOLVED_WRITE_ROUTE_KEYS : WRITE_VALUE_ROUTE_KEYS : BASE_ROUTE_KEYS
 }
 
 function parseRouteKind(value: unknown, path: string): CamRoute["kind"] {
@@ -239,9 +266,10 @@ function parseInvocation(
   path: string,
   namespaces: Record<string, CamNamespace>,
   allowedNamespaceTypes: ReadonlySet<CamNamespace["type"]>,
+  allowTarget?: boolean,
 ): CamInvocation {
   const source = requiredRecord(value, path)
-  rejectUnknownCamFields(source, INVOCATION_KEYS, path)
+  rejectUnknownCamFields(source, allowTarget === true ? TARGET_INVOCATION_KEYS : INVOCATION_KEYS, path)
   const result = collectCamInvocationFact({
     resource: "CAM root",
     path,
@@ -249,6 +277,7 @@ function parseInvocation(
     namespaceTypes: namespaceTypeMap(namespaces),
     allowedNamespaceTypes,
     purpose: path.endsWith(".call") ? "route call" : "route continuation",
+    allowTarget: allowTarget === true,
   })
   const diagnostic = result.diagnostics[0]
   if (diagnostic !== undefined) {
@@ -326,6 +355,8 @@ function camErrorFromFactDiagnostic(diagnostic: CamFactDiagnostic): CamError {
     case "CAM_FACT_INVOCATION_FUNCTION_INVALID":
     case "CAM_FACT_INVOCATION_ARGS_INVALID":
     case "CAM_FACT_INVOCATION_ARG_NAME_INVALID":
+    case "CAM_FACT_INVOCATION_FIELD_UNKNOWN":
+    case "CAM_FACT_ROUTE_RESOLUTION_INVALID":
     case "CAM_FACT_ROUTE_INPUTS_NOT_ARRAY":
     case "CAM_FACT_ROUTE_INPUT_NAME_INVALID":
     case "CAM_FACT_ROUTE_INPUT_NAME_DUPLICATE":

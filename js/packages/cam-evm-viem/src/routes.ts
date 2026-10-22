@@ -1,4 +1,4 @@
-import { resolveRouteCall } from "@cam/core"
+import { resolveRouteCall, resolveRouteResolver } from "@cam/core"
 import {
   createStringMap,
   isAbiAddressValue,
@@ -10,7 +10,7 @@ import {
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
 } from "@cam/protocol"
-import type { CamDocument } from "@cam/core"
+import type { CamDocument, CamResolvedInvocation } from "@cam/core"
 import type { AbiIntegerType, AbiParameterNameIssue, CamRuntimeContext, InertValue, NamedAbiParameter } from "@cam/protocol"
 import { isAddress } from "viem"
 import type { Abi, AbiFunction, AbiParameter, Address } from "viem"
@@ -33,14 +33,34 @@ export async function callCamRoute({
   route,
   context,
 }: CallCamRouteOptions): Promise<RouteResult> {
-  await assertClientChain(publicClient, context.host)
-
   const routeDeclaration = cam.routes[route]
   if (routeDeclaration === undefined || routeDeclaration.kind !== "read") {
     throw new CamEvmError("CAM_ROUTE_INVALID_KIND", `CAM route must be declared as read before it can be called: ${route}`)
   }
 
   const routeCall = resolveRouteCall(cam, route, context)
+  return await readCamInvocation({ publicClient, contracts, context, route, routeCall })
+}
+
+export async function callCamRouteResolver(options: CallCamRouteOptions): Promise<RouteResult> {
+  const { cam, route, context } = options
+  const declaration = cam.routes[route]
+  if (declaration?.kind !== "write" || declaration.resolve === undefined || declaration.call.target === undefined) {
+    throw new CamEvmError("CAM_ROUTE_INVALID_KIND", `CAM write route must declare a resolver and target: ${route}`)
+  }
+  const targetOutputIndex = Number(declaration.call.target.slice("$outputs.".length))
+  return await readCamInvocation({
+    ...options, route: `${route}.resolve`, routeCall: resolveRouteResolver(cam, route, context), targetOutputIndex,
+  })
+}
+
+async function readCamInvocation({
+  publicClient, contracts, context, route, routeCall, targetOutputIndex,
+}: Omit<CallCamRouteOptions, "cam"> & {
+  readonly routeCall: CamResolvedInvocation
+  readonly targetOutputIndex?: number
+}): Promise<RouteResult> {
+  await assertClientChain(publicClient, context.host)
   const contract = contracts[routeCall.namespace]
 
   if (contract === undefined) {
@@ -50,6 +70,9 @@ export async function callCamRoute({
     )
   }
   const routeFunction = assertRouteFunctionAbi(contract.abi, routeCall.function)
+  if (targetOutputIndex !== undefined && routeFunction.outputs[targetOutputIndex]?.type !== "address") {
+    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM resolver target must reference a scalar address ABI output: ${route}`)
+  }
   const args = normalizeAbiArgs({
     inputs: abiFunctionInputs(routeFunction, "CAM_ROUTE_INVALID_ARGUMENT"),
     args: routeCall.args,
@@ -72,7 +95,11 @@ export async function callCamRoute({
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
   }
 
-  return normalizeRouteResult(raw, route, routeFunctionOutputs(routeFunction, route))
+  const result = normalizeRouteResult(raw, route, routeFunctionOutputs(routeFunction, route))
+  if (targetOutputIndex !== undefined && result.values[targetOutputIndex] === "0x0000000000000000000000000000000000000000") {
+    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM resolver returned the zero address for the write target: ${route}`)
+  }
+  return result
 }
 
 type CallCamRouteOptions = {

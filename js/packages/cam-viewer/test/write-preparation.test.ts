@@ -18,10 +18,15 @@ const account = {
   address: "0x0000000000000000000000000000000000000aCc" as Address,
 }
 const contractAddress = "0x00000000000000000000000000000000000000a0" as Address
+const publicClient = {
+  async getChainId(): Promise<never> { assert.fail("static write preparation must not call RPC") },
+  async readContract(): Promise<never> { assert.fail("static write preparation must not read a contract") },
+}
 
-test("prepareViewerContractCall prepares a write route call", () => {
+test("prepareViewerContractCall prepares a write route call", async () => {
   const contracts = resolvedContracts()
-  const call = prepareViewerContractCall({
+  const call = await prepareViewerContractCall({
+    publicClient,
     cam: camDocument(),
     contracts,
     host,
@@ -47,9 +52,10 @@ test("prepareViewerContractCall prepares a write route call", () => {
   assert.deepEqual(call.abi, toInertValue(contracts["contracts.App"]?.abi))
 })
 
-test("prepareViewerContractCall rejects missing routes", () => {
-  assert.throws(
+test("prepareViewerContractCall rejects missing routes", async () => {
+  await assert.rejects(
     () => prepareViewerContractCall({
+      publicClient,
       cam: camDocument(),
       contracts: resolvedContracts(),
       host,
@@ -62,9 +68,10 @@ test("prepareViewerContractCall rejects missing routes", () => {
   )
 })
 
-test("prepareViewerContractCall rejects read routes", () => {
-  assert.throws(
+test("prepareViewerContractCall rejects read routes", async () => {
+  await assert.rejects(
     () => prepareViewerContractCall({
+      publicClient,
       cam: camDocument(),
       contracts: resolvedContracts(),
       host,
@@ -79,9 +86,10 @@ test("prepareViewerContractCall rejects read routes", () => {
   )
 })
 
-test("prepareViewerContractCall rejects account-required write routes without an account", () => {
-  assert.throws(
+test("prepareViewerContractCall rejects account-required write routes without an account", async () => {
+  await assert.rejects(
     () => prepareViewerContractCall({
+      publicClient,
       cam: camDocument(),
       contracts: resolvedContracts(),
       host,
@@ -96,8 +104,9 @@ test("prepareViewerContractCall rejects account-required write routes without an
   )
 })
 
-test("prepareViewerContractCall accepts account-required write routes with an account", () => {
-  const call = prepareViewerContractCall({
+test("prepareViewerContractCall accepts account-required write routes with an account", async () => {
+  const call = await prepareViewerContractCall({
+    publicClient,
     cam: camDocument(),
     contracts: resolvedContracts(),
     host,
@@ -117,9 +126,10 @@ test("prepareViewerContractCall accepts account-required write routes with an ac
   }))
 })
 
-test("prepareViewerContractCall propagates route call resolver failures", () => {
-  assert.throws(
+test("prepareViewerContractCall propagates route call resolver failures", async () => {
+  await assert.rejects(
     () => prepareViewerContractCall({
+      publicClient,
       cam: camDocument(),
       contracts: resolvedContracts(),
       host,
@@ -132,9 +142,10 @@ test("prepareViewerContractCall propagates route call resolver failures", () => 
   )
 })
 
-test("prepareViewerContractCall rejects non-contract call namespaces", () => {
-  assert.throws(
+test("prepareViewerContractCall rejects non-contract call namespaces", async () => {
+  await assert.rejects(
     () => prepareViewerContractCall({
+      publicClient,
       cam: camWithWriteCallNamespace("ui"),
       contracts: resolvedContracts(),
       host,
@@ -149,9 +160,10 @@ test("prepareViewerContractCall rejects non-contract call namespaces", () => {
   )
 })
 
-test("prepareViewerContractCall rejects unresolved contract namespaces", () => {
-  assert.throws(
+test("prepareViewerContractCall rejects unresolved contract namespaces", async () => {
+  await assert.rejects(
     () => prepareViewerContractCall({
+      publicClient,
       cam: camDocument(),
       contracts: {},
       host,
@@ -166,10 +178,11 @@ test("prepareViewerContractCall rejects unresolved contract namespaces", () => {
   )
 })
 
-test("prepareViewerContractCall clones prepared payload data", () => {
+test("prepareViewerContractCall clones prepared payload data", async () => {
   const contracts = resolvedContracts()
   const cam = camDocument()
-  const first = prepareViewerContractCall({
+  const first = await prepareViewerContractCall({
+    publicClient,
     cam,
     contracts,
     host,
@@ -189,7 +202,8 @@ test("prepareViewerContractCall clones prepared payload data", () => {
   ;(first.args as Record<string, unknown>).serialNumber = "MUTATED"
   ;(first.then.args as Record<string, unknown>).serialNumber = "MUTATED"
 
-  const second = prepareViewerContractCall({
+  const second = await prepareViewerContractCall({
+    publicClient,
     cam,
     contracts,
     host,
@@ -209,15 +223,16 @@ test("prepareViewerContractCall clones prepared payload data", () => {
   }))
 })
 
-test("prepareViewerContractCall rejects non-cloneable contract ABIs", () => {
+test("prepareViewerContractCall rejects non-cloneable contract ABIs", async () => {
   const contracts = resolvedContracts()
   const abi = contracts["contracts.App"]?.abi as Abi
   const cyclic: Record<string, unknown> = {}
   cyclic.self = cyclic
   ;(abi[0] as Record<string, unknown>).outputs = [cyclic]
 
-  assert.throws(
+  await assert.rejects(
     () => prepareViewerContractCall({
+      publicClient,
       cam: camDocument(),
       contracts,
       host,
@@ -234,8 +249,9 @@ test("prepareViewerContractCall rejects non-cloneable contract ABIs", () => {
   )
 })
 
-test("prepareViewerContractCall resolves continuations with the route context", () => {
-  const call = prepareViewerContractCall({
+test("prepareViewerContractCall resolves continuations with the route context", async () => {
+  const call = await prepareViewerContractCall({
+    publicClient,
     cam: camDocument(),
     contracts: resolvedContracts(),
     host,

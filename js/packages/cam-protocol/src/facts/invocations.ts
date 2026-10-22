@@ -1,6 +1,7 @@
 import {
   isRecordObject,
 } from "../json.ts"
+import { collectCamRouteExpressionDiagnostics } from "./route-expressions.ts"
 import type {
   CamNamespaceType,
 } from "../manifest.ts"
@@ -19,6 +20,58 @@ export type CamInvocationFact = {
   readonly args: Record<string, unknown>
 }
 
+export type CamRouteResolutionFact = {
+  readonly resolve: CamInvocationFact
+  readonly target: string
+}
+
+export function collectCamRouteResolutionFact({
+  resource, path, route, version, namespaceTypes, declaredInputs,
+}: {
+  readonly resource: string
+  readonly path: string
+  readonly route: Record<string, unknown>
+  readonly version: unknown
+  readonly namespaceTypes: ReadonlyMap<string, CamNamespaceType>
+  readonly declaredInputs: ReadonlySet<string>
+}): CamFactResult<CamRouteResolutionFact> {
+  const diagnostics: CamFactDiagnostic[] = []
+  const hasResolver = Object.hasOwn(route, "resolve")
+  const call = isRecordObject(route.call) ? route.call : undefined
+  const hasTarget = call !== undefined && Object.hasOwn(call, "target")
+  function invalid(field: string, message: string): void {
+    diagnostics.push(camFactDiagnostic({ code: "CAM_FACT_ROUTE_RESOLUTION_INVALID", resource, path: `${path}.${field}`, message }))
+  }
+  if (!hasResolver && !hasTarget) return { diagnostics }
+  if (version !== "1.3.0" || route.kind !== "write") {
+    invalid(hasResolver ? "resolve" : "call.target", "resolved targets require a CAM 1.3 write route")
+    return { diagnostics }
+  }
+  if (!hasResolver) {
+    invalid("call.target", "write call target requires a resolver")
+    return { diagnostics }
+  }
+  const target = call?.target
+  if (typeof target !== "string" || !/^\$outputs\.(0|[1-9][0-9]*)$/.test(target)) {
+    invalid("call.target", "resolved write target must directly reference one positional resolver address output")
+  }
+  const result = collectCamInvocationFact({
+    resource, path: `${path}.resolve`, invocation: route.resolve, namespaceTypes,
+    allowedNamespaceTypes: new Set(["contract"]), purpose: "route resolver",
+  })
+  diagnostics.push(...result.diagnostics)
+  const resolve = result.value
+  if (resolve !== undefined) {
+    if (resolve.function.startsWith("$")) invalid("resolve.function", "route resolver function must be a static function name or signature")
+    diagnostics.push(...collectCamRouteExpressionDiagnostics({
+      resource, path: `${path}.resolve.args`, value: resolve.args, declaredInputs,
+      allowOutputs: false, outputUnavailableMessage: "resolver arguments cannot reference outputs before the resolver runs",
+    }))
+  }
+  if (diagnostics.length !== 0 || resolve === undefined || typeof target !== "string") return { diagnostics }
+  return { value: { resolve, target }, diagnostics }
+}
+
 export function collectCamInvocationFact({
   resource,
   path,
@@ -26,6 +79,7 @@ export function collectCamInvocationFact({
   namespaceTypes,
   allowedNamespaceTypes,
   purpose,
+  allowTarget,
 }: {
   readonly resource: string
   readonly path: string
@@ -33,6 +87,7 @@ export function collectCamInvocationFact({
   readonly namespaceTypes: ReadonlyMap<string, CamNamespaceType>
   readonly allowedNamespaceTypes: ReadonlySet<CamNamespaceType>
   readonly purpose: string
+  readonly allowTarget?: boolean
 }): CamFactResult<CamInvocationFact> {
   const diagnostics: CamFactDiagnostic[] = []
   if (!isRecordObject(invocation)) {
@@ -43,6 +98,14 @@ export function collectCamInvocationFact({
       message: `${purpose} must be an object`,
     }))
     return { diagnostics }
+  }
+
+  for (const key of Object.keys(invocation)) {
+    if (["namespace", "function", "args"].includes(key) || allowTarget === true && key === "target") continue
+    diagnostics.push(invocationDiagnostic({
+      code: "CAM_FACT_INVOCATION_FIELD_UNKNOWN", resource, path: `${path}.${key}`,
+      message: `${purpose} field is not allowed: ${key}`,
+    }))
   }
 
   const functionName = invocation.function
@@ -137,6 +200,7 @@ function invocationDiagnostic({
     | "CAM_FACT_INVOCATION_FUNCTION_INVALID"
     | "CAM_FACT_INVOCATION_ARGS_INVALID"
     | "CAM_FACT_INVOCATION_ARG_NAME_INVALID"
+    | "CAM_FACT_INVOCATION_FIELD_UNKNOWN"
   readonly resource: string
   readonly path: string
   readonly message: string

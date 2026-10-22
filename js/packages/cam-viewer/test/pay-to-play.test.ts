@@ -19,6 +19,10 @@ const invoiceHash: Hex = `0x${"ab".repeat(32)}`
 const zero: Address = "0x0000000000000000000000000000000000000000"
 const directory = new URL("../../../../dapps/pay-to-play/cam/", import.meta.url)
 const uri = "https://example.test/pay-to-play/main.json"
+const preparationClient = {
+  async getChainId(): Promise<never> { assert.fail("static write preparation must not call RPC") },
+  async readContract(): Promise<never> { assert.fail("static write preparation must not read a contract") },
+}
 
 async function fixture() {
   const root = new Uint8Array(await readFile(new URL("main.json", directory)))
@@ -85,8 +89,8 @@ test("sender-owned payment writes always continue to the acting wallet's positio
       ? { channelId: "1", voucherKey }
       : route === "move" ? { channelId: "1", targetId: "0" } : { channelId: "1", amount: "20" }
     const options = { cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
-    assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...inputs, customer: other } }))
-    const call = prepareViewerContractCall({ ...options, inputs })
+    await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...inputs, customer: other } }))
+    const call = await prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs })
     assert.deepEqual(call.then, toInertValue({ namespace: "routes", function: "position", args: { customer, channelId: "1" } }))
   }
 })
@@ -94,7 +98,7 @@ test("sender-owned payment writes always continue to the acting wallet's positio
 test("fund writes bind one requested native amount as both ABI argument and transaction value", async () => {
   const { cam, abi } = await fixture()
   for (const amount of ["23", "0"]) {
-    const prepared = prepareViewerContractCall({
+    const prepared = await prepareViewerContractCall({ publicClient: preparationClient,
       cam,
       contracts: { "contracts.PayToPlay": { address: contract, abi } },
       host,
@@ -175,7 +179,7 @@ test("every write captures its explicit affected balance when prepared", async (
     withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", invoiceHash, signature: "0x" },
     setPayee: { customer: other, channelId: "1", payee: customer },
   })) {
-    const prepared = prepareViewerContractCall({ cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route, inputs: toInertValue(inputs) as InertRecord })
+    const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route, inputs: toInertValue(inputs) as InertRecord })
     await session.load()
     await session.setAccount({ address: other })
     assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "position", args: { customer: ["withdraw", "collect", "setPayee"].includes(route) ? other : customer, channelId: "1" } }))
@@ -188,7 +192,7 @@ test("every write captures its explicit affected balance when prepared", async (
 
 test("channel creation continues to a current lookup without predicting a created ID", async () => {
   const { cam, abi, session, chainState } = await fixture()
-  const prepared = prepareViewerContractCall({ cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route: "createChannel", inputs: { payee: other, claimPeriod: "60" } })
+  const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route: "createChannel", inputs: { payee: other, claimPeriod: "60" } })
   assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "channelLookup", args: {} }))
   await session.load()
   chainState.channelCount = 5n
@@ -292,11 +296,11 @@ test("recovery writes bind the appropriate owner and never accept executor-selec
     refund: { customer: other, channelId: "1" },
   })) {
     const options = { cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
-    const prepared = prepareViewerContractCall({ ...options, inputs: toInertValue(inputs) as InertRecord })
+    const prepared = await prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: toInertValue(inputs) as InertRecord })
     const senderOwned = route === "renewPosition" || route === "setRefundRecipient"
     assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "recovery", args: { customer: senderOwned ? customer : other, channelId: "1" } }))
-    if (senderOwned) assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...inputs, customer: other } }))
-    if (route === "refund") assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...inputs, recipient: voucherKey } }))
+    if (senderOwned) await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...inputs, customer: other } }))
+    if (route === "refund") await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...inputs, recipient: voucherKey } }))
   }
 })
 
@@ -357,17 +361,17 @@ test("collection preparation requires an exact bytes32 reference and preserves t
     account: { address: other }, route: "collect",
   }
   const base = { customer, channelId: "1", cumulativeTotal: "20", signature: "0xabcd" }
-  assert.throws(() => prepareViewerContractCall({ ...options, inputs: base }))
+  await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: base }))
   for (const invalid of ["", "0x", "0x12", `0x${"ab".repeat(31)}`, `0x${"ab".repeat(33)}`, `0x${"zz".repeat(32)}`]) {
-    assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...base, invoiceHash: invalid } }))
+    await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...base, invoiceHash: invalid } }))
   }
-  const prepared = prepareViewerContractCall({ ...options, inputs: { ...base, invoiceHash } })
+  const prepared = await prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...base, invoiceHash } })
   assert.equal(prepared.function, "collect")
   assert.deepEqual(prepared.args, toInertValue({
     customer, channelId: "1", cumulativeTotal: "20", invoiceHash, signature: "0xabcd",
   }))
   assert.deepEqual(prepared.then.args, toInertValue({ customer, channelId: "1" }))
-  assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...base, invoiceHash, payee: other } }))
+  await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...base, invoiceHash, payee: other } }))
 })
 
 test("invoice-reference drafts survive refresh but are cleared by wallet changes", async () => {

@@ -20,6 +20,13 @@ test("CAM 1.3 accepts one bounded resolver and includes the final owner in accou
   assert.equal(parsed.routes.transferComponent.kind, "write")
 })
 
+test("account preflight includes account references used only by the resolver", () => {
+  const source = document()
+  source.routes.transferComponent.call.args.from = "0x0000000000000000000000000000000000000002"
+  source.routes.transferComponent.resolve.args.serialNumber = "$account.address"
+  assert.equal(routeRequiresAccount(parseCam(source), "transferComponent"), true)
+})
+
 test("CAM 1.2 static writes retain their meaning and cannot acquire resolved targets", () => {
   const source = document()
   source.cam = "1.2.0"
@@ -42,6 +49,8 @@ for (const [name, mutate] of [
   ["resolver target override", (r: Record<string, unknown>) => { (r.resolve as Record<string, unknown>).target = "$inputs.to" }],
   ["resolver depending on prior outputs", (r: Record<string, unknown>) => { (r.resolve as Record<string, unknown>).args = { serialNumber: "$outputs.0" } }],
   ["unbound target input", (r: Record<string, unknown>) => { (r.call as Record<string, unknown>).target = "$inputs.to" }],
+  ["nested target output", (r: Record<string, unknown>) => { (r.call as Record<string, unknown>).target = "$outputs.0.address" }],
+  ["resolver without target", (r: Record<string, unknown>) => { delete (r.call as Record<string, unknown>).target }],
 ] as const) {
   test(`CAM 1.3 rejects ${name} at the route boundary, not the version gate`, () => {
     const source = document()

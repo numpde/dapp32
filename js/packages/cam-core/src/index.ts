@@ -19,5 +19,6 @@ export { createContext } from "./context.ts"
 export {
   routeRequiresAccount,
   resolveRouteCall,
+  resolveRouteResolver,
   resolveRouteThen,
 } from "./routes.ts"

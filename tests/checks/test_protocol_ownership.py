@@ -343,6 +343,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
             "../../../js/packages/cam-protocol/src/json.ts",
             "../../../js/packages/cam-protocol/src/manifest.ts",
             "../../../js/packages/cam-protocol/src/resources.ts",
+            "../../../js/packages/cam-protocol/src/versions.ts",
         }
         failures: list[str] = []
 

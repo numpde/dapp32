@@ -5,10 +5,12 @@ import {
 } from "@cam/core"
 import {
   validateCamContractCall,
+  callCamRouteResolver,
+  requireEvmAddress,
 } from "@cam/evm-viem"
 import { isCamNamespaceNameForType } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
-import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
+import type { CamHost, CamPublicClient, ResolvedCamContract } from "@cam/evm-viem"
 import type { InertRecord } from "@cam/protocol"
 
 import { CamViewerError } from "./errors.ts"
@@ -19,7 +21,8 @@ import type {
   CamViewerPreparedContractCall,
 } from "./types.ts"
 
-export function prepareViewerContractCall({
+export async function prepareViewerContractCall({
+  publicClient,
   cam,
   contracts,
   host,
@@ -27,13 +30,14 @@ export function prepareViewerContractCall({
   route,
   inputs,
 }: {
+  readonly publicClient: CamPublicClient
   readonly cam: CamDocument
   readonly contracts: Record<string, ResolvedCamContract>
   readonly host: CamHost
   readonly account?: CamViewerAccount
   readonly route: string
   readonly inputs: InertRecord
-}): CamViewerPreparedContractCall {
+}): Promise<CamViewerPreparedContractCall> {
   const routeDeclaration = cam.routes[route]
   if (routeDeclaration === undefined) {
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route does not exist: ${route}`)
@@ -53,7 +57,10 @@ export function prepareViewerContractCall({
     inputs,
     outputs: [],
   })
-  const call = resolveRouteCall(cam, route, context)
+  const outputs = routeDeclaration.resolve === undefined ? [] : (await callCamRouteResolver({
+    publicClient, cam, contracts, route, context,
+  })).values
+  const call = resolveRouteCall(cam, route, { ...context, outputs })
   if (!isCamNamespaceNameForType(call.namespace, "contract")) {
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route must call a contract namespace: ${route}`)
   }
@@ -61,10 +68,13 @@ export function prepareViewerContractCall({
   if (contract === undefined) {
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action references unresolved namespace: ${call.namespace}`)
   }
+  if (call.target !== undefined && typeof call.target !== "string") {
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot prepare write: the resolved target is not an address string")
+  }
 
   const prepared: CamViewerPreparedContractCall = {
     route,
-    address: contract.address,
+    address: call.target === undefined ? contract.address : requireEvmAddress(call.target, "resolved write target"),
     abi: cloneViewerData(contract.abi, "contract.abi"),
     function: call.function,
     args: cloneViewerData(call.args, "call.args"),

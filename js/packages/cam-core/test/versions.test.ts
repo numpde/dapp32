@@ -13,7 +13,7 @@ import {
 function camDocument(version: unknown): Record<string, unknown> {
   return {
     cam: version,
-    ...(version === "1.2.0" ? { protocol: { uri: "./protocol.html", integrity: "sha256:fixture" } } : {}),
+    protocol: { uri: "./protocol.html", integrity: "sha256:fixture" },
     entry: "entry",
     namespaces: {
       "contracts.App": {

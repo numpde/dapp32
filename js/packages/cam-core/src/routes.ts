@@ -20,6 +20,9 @@ export function resolveRouteCall(
     namespace: route.call.namespace,
     function: route.call.function,
     args: resolveArgs(route.call.args, context),
+    ...(route.kind === "write" && route.call.target !== undefined
+      ? { target: resolveExpressionValue(route.call.target, context, `routes.${routeName}.call.target`) }
+      : {}),
   }
   if (route.kind === "read" || route.value === undefined) {
     return call
@@ -28,6 +31,19 @@ export function resolveRouteCall(
   return {
     ...call,
     value: resolveExpressionValue(route.value, context, `routes.${routeName}.value`),
+  }
+}
+
+export function resolveRouteResolver(cam: CamDocument, routeName: string, context: CamRuntimeContext): CamResolvedInvocation {
+  const route = routeForName(cam, routeName)
+  assertRouteInputs(route, routeName, context)
+  if (route.kind !== "write" || route.resolve === undefined) {
+    throw new CamError("CAM_INVALID_FIELD", `write route has no resolver: ${routeName}`, `routes.${routeName}.resolve`)
+  }
+  return {
+    namespace: route.resolve.namespace,
+    function: route.resolve.function,
+    args: resolveArgs(route.resolve.args, { ...context, outputs: [] }),
   }
 }
 
@@ -54,6 +70,7 @@ export function routeRequiresAccount(cam: CamDocument, routeName: string): boole
   const surfaces: readonly InertValue[] = [
     route.call.args,
     route.then.args,
+    ...(route.kind === "write" && route.resolve !== undefined ? [route.resolve.args] : []),
     ...(route.kind === "write" && route.value !== undefined ? [route.value] : []),
   ]
   return surfaces.some((value) =>
