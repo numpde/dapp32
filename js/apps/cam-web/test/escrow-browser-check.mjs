@@ -219,7 +219,7 @@ async function clickButton(label) {
   assert(events.includes('click'), `${label} received no browser click (${events.join(', ')})`)
 }
 async function feedback(kind) {
-  return evaluate(`(() => { const node = ${kind === 'notice' ? "[...document.querySelectorAll('.notice')].at(-1)" : "document.querySelector('.prepared-call')"}; if (!node) return null; const r=node.getBoundingClientRect(); return {text:node.innerText, diagnostic:node.parentElement.querySelector('details code')?.textContent, role:node.getAttribute('role'), top:r.top,bottom:r.bottom,height:innerHeight, focus:node.contains(document.activeElement), active:document.activeElement?.tagName} })()`)
+  return evaluate(`(() => { const node = ${kind === 'notice' ? "[...document.querySelectorAll('.notice')].at(-1)" : "document.querySelector('.prepared-call')"}; if (!node) return null; const r=node.getBoundingClientRect(); return {text:node.querySelector('.feedback-message')?.innerText??node.innerText, diagnostic:node.querySelector('.feedback-diagnostic')?.textContent, role:node.getAttribute('role'), top:r.top,bottom:r.bottom,height:innerHeight, focus:node.contains(document.activeElement), active:document.activeElement?.tagName} })()`)
 }
 async function waitFor(predicate, label, failOnViewerError) {
   let lastState
@@ -751,7 +751,7 @@ try {
     await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.diagnostic || ''), 'decoded prepare rejection')
     const rejected = await feedback('notice')
     assert(!rejected.text.includes('InvalidPartyConfiguration'), 'primary explanation exposes the contract diagnostic')
-    assert(await evaluate(`(() => { const details=[...document.querySelectorAll('p.notice')].at(-1).parentElement.querySelector('details'); if(details.open) return false; details.querySelector('summary').click(); return details.open&&details.innerText.includes('InvalidPartyConfiguration') })()`), 'technical details are closed initially and can be opened')
+    assert(await evaluate(`(() => { const notice=[...document.querySelectorAll('.notice')].at(-1); return !notice.querySelector('details')&&notice.querySelector('.feedback-diagnostic').innerText.includes('InvalidPartyConfiguration') })()`), 'the contract rejection is visible without opening a disclosure')
     assert(rejected.role === 'alert' || rejected.role === 'status', 'prepare rejection is not announced')
     assert(rejected.top >= 0 && rejected.top < rejected.height && rejected.bottom > 0, 'prepare rejection is outside the viewport')
     assert.equal(await field('agreementRef'), draft.agreementRef, 'prepare rejection discarded draft')
@@ -759,7 +759,7 @@ try {
   })
 
   await browserCase('notice messages preserve long hashes and URLs without narrow overflow', async () => {
-    const before = await evaluate(`(()=>{const notice=document.querySelector('p.notice');if(!notice)throw Error('Expected rendered notice');return {width:innerWidth,height:innerHeight,text:notice.textContent,role:notice.getAttribute('role')}})()`)
+    const before = await evaluate(`(()=>{const notice=document.querySelector('.notice');if(!notice)throw Error('Expected rendered notice');return {width:innerWidth,height:innerHeight,text:notice.querySelector('.feedback-message').textContent,role:notice.getAttribute('role')}})()`)
     try {
       for (const width of [320, 390]) {
         await call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId)
@@ -767,14 +767,14 @@ try {
           ['status', `Transaction confirmed in block 8. Transaction hash: 0x${'1'.repeat(64)}.`],
           ['alert', `Cannot complete request to https://example.test/${'a'.repeat(512)}`],
         ]) {
-          const layout = await evaluate(`(()=>{const notice=document.querySelector('p.notice');notice.textContent=${JSON.stringify(message)};notice.setAttribute('role',${JSON.stringify(role)});const bounds=notice.getBoundingClientRect();return {text:notice.textContent,page:document.documentElement.scrollWidth,viewport:innerWidth,client:notice.clientWidth,scroll:notice.scrollWidth,left:bounds.left,right:bounds.right}})()`)
+          const layout = await evaluate(`(()=>{const notice=document.querySelector('.notice');notice.querySelector('.feedback-message').textContent=${JSON.stringify(message)};notice.setAttribute('role',${JSON.stringify(role)});const bounds=notice.getBoundingClientRect();return {text:notice.querySelector('.feedback-message').textContent,page:document.documentElement.scrollWidth,viewport:innerWidth,client:notice.clientWidth,scroll:notice.scrollWidth,left:bounds.left,right:bounds.right}})()`)
           assert.equal(layout.text, message, `${role} notice lost the complete value`)
           assert(layout.page <= layout.viewport, `${role} notice overflows the document at ${width}px`)
           assert(layout.scroll <= layout.client && layout.left >= 0 && layout.right <= layout.viewport, `${role} notice clips its value at ${width}px`)
         }
       }
     } finally {
-      await evaluate(`(()=>{const notice=document.querySelector('p.notice');notice.textContent=${JSON.stringify(before.text)};const role=${JSON.stringify(before.role)};if(role===null)notice.removeAttribute('role');else notice.setAttribute('role',role)})()`)
+      await evaluate(`(()=>{const notice=document.querySelector('.notice');notice.querySelector('.feedback-message').textContent=${JSON.stringify(before.text)};const role=${JSON.stringify(before.role)};if(role===null)notice.removeAttribute('role');else notice.setAttribute('role',role)})()`)
       await call('Emulation.setDeviceMetricsOverride', { width: before.width, height: before.height, deviceScaleFactor: 1, mobile: false }, sessionId)
     }
   })

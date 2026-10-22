@@ -178,11 +178,12 @@ function installFixtureWallet(options) {
       if (!closed && revision === factsRevision) renderFacts(facts)
     } catch (error) {
       if (closed || revision !== factsRevision) return
-      const message = element('p', error.message)
-      message.setAttribute('role', 'alert')
-      const details = document.createElement('details')
-      details.append(element('summary', 'Technical details'), element('code', typeof error.diagnostic === 'string' ? error.diagnostic : error.message))
-      factsContent.replaceChildren(message, details)
+      const report = document.createElement('div')
+      report.className = 'fixture-facts-error'
+      report.setAttribute('role', 'alert')
+      report.append(element('p', error.message))
+      if (typeof error.diagnostic === 'string' && error.diagnostic !== error.message) report.append(element('code', error.diagnostic))
+      factsContent.replaceChildren(report)
     } finally {
       if (!closed && revision === factsRevision) factsRefresh.disabled = false
     }
@@ -248,6 +249,8 @@ function installFixtureWallet(options) {
       #local-fixture-facts code, #local-fixture-facts p, #local-fixture-facts strong { overflow-wrap: anywhere; }
       #local-fixture-facts a { color: #154e83; }
       #local-fixture-facts h3 { font-size: 1em; margin-block: 8px; }
+      #local-fixture-facts .fixture-facts-error { border-inline-start: 3px solid #a32424; padding: 8px 12px; background: #fff4f0; }
+      #local-fixture-facts .fixture-facts-error code { display: block; font-size: 0.875em; margin-block-start: 8px; }
     `
     const label = document.createElement('label')
     label.textContent = 'Local test wallet · chain 31337 · account '

@@ -12,7 +12,8 @@ export function failureReport(error: unknown, explanation?: string): FailureRepo
     catch { /* An untrusted prototype or message accessor cannot replace the diagnostic. */ }
   }
   const message = typeof primary === "string" ? viewerErrorMessage(primary) : "Cannot complete this operation."
-  return { message, ...(diagnostic === message ? {} : { diagnostic }) }
+  const detail = diagnostic.startsWith(`${message}: `) ? diagnostic.slice(message.length + 2) : diagnostic
+  return { message, ...(detail === message ? {} : { diagnostic: detail }) }
 }
 
 export function actionFailure(error: unknown, label: unknown): FailureReport {
