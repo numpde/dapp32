@@ -11,20 +11,6 @@
       },
       "children": [
         {
-          "element": "Status",
-          "props": {
-            "label": "Registry paused",
-            "value": "$view.paused"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Component token paused",
-            "value": "$view.componentTokenPaused"
-          }
-        },
-        {
           "element": "Include",
           "call": {
             "namespace": "ui",
@@ -33,6 +19,28 @@
               "view": "$view"
             }
           }
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Contract status"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Registry paused",
+                "value": "$view.paused"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Component token paused",
+                "value": "$view.componentTokenPaused"
+              }
+            }
+          ]
         }
       ]
     },
@@ -43,94 +51,118 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "newRegistration",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Text",
+          "element": "Screen",
           "props": {
-            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial, then choose Look up component to find it or Check registration to check whether it can be registered."
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Address being viewed",
-            "address": "$view.account"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Registrar role",
-            "value": "$view.canRegister"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Account info URI is an optional public profile or contact-document location for the account sending the update. Enter an empty value to clear it."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Account info URI"
+            "title": "Navigate"
           },
-          "state": {
-            "key": "accountInfo",
-            "defaultValue": "$view.accountInfo"
-          },
-          "enabledWhen": {
-            "member": "setAccountInfo",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "setAccountInfo",
-            "args": {
-              "view": "$view"
+          "children": [
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "newRegistration",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "TextField",
+          "element": "Screen",
           "props": {
-            "label": "Serial number to look up"
+            "title": "Find a component"
           },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial, then choose Look up component to find it or Check registration to check whether it can be registered."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Serial number to look up"
+              },
+              "state": {
+                "key": "serialNumber",
+                "defaultValue": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "lookupComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openRegister",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            }
+          ]
         },
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupComponent",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Account profile"
+          },
+          "children": [
+            {
+              "element": "Address",
+              "props": {
+                "label": "Address being viewed",
+                "address": "$view.account"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Registrar role",
+                "value": "$view.canRegister"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Account info URI is an optional public profile or contact-document location for the account sending the update. Enter an empty value to clear it."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Account info URI"
+              },
+              "state": {
+                "key": "accountInfo",
+                "defaultValue": "$view.accountInfo"
+              },
+              "enabledWhen": {
+                "member": "setAccountInfo",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "setAccountInfo",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openRegister",
-            "args": {
-              "view": "$view"
-            }
-          }
+          ]
         }
       ]
     },
@@ -141,60 +173,76 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openEntry",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "newRegistration",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Text",
+          "element": "Screen",
           "props": {
-            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Serial number to look up"
+            "title": "Navigate"
           },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
+          "children": [
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openEntry",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "newRegistration",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            }
+          ]
         },
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupComponent",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Find a component"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Serial number to look up"
+              },
+              "state": {
+                "key": "serialNumber",
+                "defaultValue": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "lookupComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openRegister",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openRegister",
-            "args": {
-              "view": "$view"
-            }
-          }
+          ]
         }
       ]
     },
@@ -205,67 +253,83 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openEntry",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "newRegistration",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Text",
+          "element": "Screen",
           "props": {
-            "text": "No component is registered for this exact serial in this registry. Check the serial, contract and network before registering."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Serial number to look up"
+            "title": "Navigate"
           },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
+          "children": [
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openEntry",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "newRegistration",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            }
+          ]
         },
         {
-          "element": "Status",
+          "element": "Screen",
           "props": {
-            "label": "Registered",
-            "value": false
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupComponent",
-            "args": {
-              "view": "$view"
+            "title": "Find a component"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "No component is registered for this exact serial in this registry. Check the serial, contract and network before registering."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Serial number to look up"
+              },
+              "state": {
+                "key": "serialNumber",
+                "defaultValue": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Registered",
+                "value": false
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "lookupComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openRegister",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openRegister",
-            "args": {
-              "view": "$view"
-            }
-          }
+          ]
         }
       ]
     },
@@ -276,360 +340,433 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openEntry",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Navigate"
+          },
+          "children": [
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openEntry",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "newRegistration",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "newRegistration",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Component details"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Loaded component serial",
+                "value": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Registry status",
+                "value": "$view.statusId"
+              }
+            },
+            {
+              "element": "Address",
+              "props": {
+                "label": "Owner",
+                "address": "$view.owner"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Owner's public info URI",
+                "value": "$view.ownerInfo"
+              }
+            },
+            {
+              "element": "Screen",
+              "props": {
+                "title": "Access for viewed account"
+              },
+              "children": [
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Authority of address being viewed",
+                    "value": "$view.authorityId"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Delegation active",
+                    "value": "$view.delegationActive"
+                  }
+                },
+                {
+                  "element": "Address",
+                  "props": {
+                    "label": "Delegation grantor",
+                    "address": "$view.delegationGrantor"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Delegation capabilities",
+                    "value": "$view.delegationCapabilities"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Delegation expiry (Unix seconds)",
+                    "value": "$view.delegationValidUntil"
+                  }
+                }
+              ]
+            },
+            {
+              "element": "Screen",
+              "props": {
+                "title": "Registration details"
+              },
+              "children": [
+                {
+                  "element": "Address",
+                  "props": {
+                    "label": "Registered by",
+                    "address": "$view.registrar"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Serial hash",
+                    "value": "$view.serialHash"
+                  }
+                }
+              ]
             }
-          }
+          ]
         },
         {
-          "element": "Status",
+          "element": "Screen",
           "props": {
-            "label": "Loaded component serial",
-            "value": "$view.serialNumber"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Component writes below affect this loaded serial. Editing the lookup field does not change that target; use Look up component to load another record."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Serial number to look up"
+            "title": "NFT details"
           },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupComponent",
-            "args": {
-              "view": "$view"
+          "children": [
+            {
+              "element": "Nft",
+              "props": {
+                "contractAddress": "$view.tokenContract",
+                "tokenId": "$view.tokenId",
+                "metadataURI": "$view.tokenURI"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below, then review the update."
+              }
+            },
+            {
+              "element": "NftMetadataField",
+              "props": {
+                "label": "Edit NFT details"
+              },
+              "state": {
+                "key": "tokenURI",
+                "defaultValue": "$view.tokenURI"
+              },
+              "enabledWhen": {
+                "member": "updateComponentMetadata",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "updateComponentMetadata",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Status",
+          "element": "Screen",
           "props": {
-            "label": "Registry status",
-            "value": "$view.statusId"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Out of service",
-            "value": "$view.inactive"
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Owner",
-            "address": "$view.owner"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Owner's public info URI",
-            "value": "$view.ownerInfo"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Authority of address being viewed",
-            "value": "$view.authorityId"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Delegation active",
-            "value": "$view.delegationActive"
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Delegation grantor",
-            "address": "$view.delegationGrantor"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Delegation capabilities",
-            "value": "$view.delegationCapabilities"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Delegation expiry (Unix seconds)",
-            "value": "$view.delegationValidUntil"
-          }
-        },
-        {
-          "element": "Nft",
-          "props": {
-            "contractAddress": "$view.tokenContract",
-            "tokenId": "$view.tokenId",
-            "metadataURI": "$view.tokenURI"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Token URI",
-            "value": "$view.tokenURI"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Serial hash",
-            "value": "$view.serialHash"
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Registered by",
-            "address": "$view.registrar"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report."
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Workshop grants permit selected registry updates. They do not approve NFT transfers. Grants expire and are permanently invalidated by a change of owner, even if the NFT later returns."
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Current missing report URI",
-            "value": "$view.missingReportURI"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below, then review the update."
-          }
-        },
-        {
-          "element": "NftMetadataField",
-          "props": {
-            "label": "NFT details"
+            "title": "Missing reports"
           },
-          "state": {
-            "key": "tokenURI",
-            "defaultValue": "$view.tokenURI"
-          },
-          "enabledWhen": {
-            "member": "updateComponentMetadata",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "updateComponentMetadata",
-            "args": {
-              "view": "$view"
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report."
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Current missing report URI",
+                "value": "$view.missingReportURI"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Publish the missing report and enter its nonempty URI. Confirmation changes an active component to missing and stores this report URI."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Missing report URI"
+              },
+              "state": {
+                "key": "reportURI",
+                "defaultValue": ""
+              },
+              "enabledWhen": {
+                "member": "markComponentMissing",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "markComponentMissing",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Publish the explanation for resolving the report and enter its nonempty URI. Confirmation clears the report and records the resolution URI in the transaction event. It does not change whether the component is out of service."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Resolution URI"
+              },
+              "state": {
+                "key": "resolutionURI",
+                "defaultValue": ""
+              },
+              "enabledWhen": {
+                "member": "clearComponentMissing",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "clearComponentMissing",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Text",
+          "element": "Screen",
           "props": {
-            "text": "Publish the missing report and enter its nonempty URI. Confirmation changes an active component to missing and stores this report URI."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Missing report URI"
+            "title": "Service state"
           },
-          "state": {
-            "key": "reportURI",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "markComponentMissing",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "markComponentMissing",
-            "args": {
-              "view": "$view"
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Out of service",
+                "value": "$view.inactive"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Only the current owner can take a component out of service or reactivate it. Metadata corrections and ordinary NFT transfers remain available in either state."
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "decommissionComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "reactivateComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Text",
+          "element": "Screen",
           "props": {
-            "text": "Publish the explanation for resolving the report and enter its nonempty URI. Confirmation clears the report and records the resolution URI in the transaction event. It does not change whether the component is out of service."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Resolution URI"
+            "title": "Workshop access"
           },
-          "state": {
-            "key": "resolutionURI",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "clearComponentMissing",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "clearComponentMissing",
-            "args": {
-              "view": "$view"
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Workshop grants permit selected registry updates. They do not approve NFT transfers. Grants expire and are permanently invalidated by a change of owner, even if the NFT later returns."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Enter a workshop address and choose an access duration to inspect its grant and preview an expiry. This registry does not enumerate every workshop grant."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Workshop address"
+              },
+              "state": {
+                "key": "delegate",
+                "defaultValue": ""
+              },
+              "enabledWhen": {
+                "member": "delegation",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "DurationField",
+              "props": {
+                "label": "Workshop access duration (required)",
+                "min": "1",
+                "max": "$view.maxDelegationDuration"
+              },
+              "state": {
+                "key": "duration",
+                "defaultValue": ""
+              },
+              "enabledWhen": {
+                "member": "delegation",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openDelegation",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Text",
+          "element": "Screen",
           "props": {
-            "text": "Only the current owner can take a component out of service or reactivate it. Metadata corrections and ordinary NFT transfers remain available in either state."
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "decommissionComponent",
-            "args": {
-              "view": "$view"
+            "title": "Transfer ownership"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Handover transfers the loaded component NFT directly. It does not settle payment or prove physical delivery or recipient consent. Check the recipient carefully; contract recipients must accept ERC-721 NFTs. Missing reports and out-of-service status remain attached to the record."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Recipient NFT owner"
+              },
+              "state": {
+                "key": "to",
+                "defaultValue": ""
+              },
+              "enabledWhen": {
+                "member": "transferComponent",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "transferComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "reactivateComponent",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Find another component"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Enter the exact serial to load another component. Case and spaces matter."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Serial number to look up"
+              },
+              "state": {
+                "key": "serialNumber",
+                "defaultValue": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "lookupComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Enter a workshop address and choose an access duration to inspect its grant and preview an expiry. This registry does not enumerate every workshop grant."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Workshop address"
-          },
-          "state": {
-            "key": "delegate",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "delegation",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "DurationField",
-          "props": {
-            "label": "Workshop access duration (required)",
-            "min": "1",
-            "max": "$view.maxDelegationDuration"
-          },
-          "state": {
-            "key": "duration",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "delegation",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openDelegation",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Handover transfers the loaded component NFT directly. It does not settle payment or prove physical delivery or recipient consent. Check the recipient carefully; contract recipients must accept ERC-721 NFTs. Missing reports and out-of-service status remain attached to the record."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Recipient NFT owner"
-          },
-          "state": {
-            "key": "to",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "transferComponent",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "transferComponent",
-            "args": {
-              "view": "$view"
-            }
-          }
+          ]
         }
       ]
     },
@@ -899,130 +1036,161 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openEntry",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Navigate"
+          },
+          "children": [
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openEntry",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Text",
+          "element": "Screen",
           "props": {
-            "text": "A registrar sends registration; the initial NFT owner may be a different account. The serial must be unused in this registry. Registration creates an active record and mints its component NFT to that owner."
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Address being viewed",
-            "address": "$view.account"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Registrar role",
-            "value": "$view.canRegister"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Component already exists",
-            "value": "$view.exists"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Serial number"
+            "title": "Check a serial"
           },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "To check an edited serial, choose Look up component. If it is unused and registration is available, choose Check registration in the lookup result. Registration preparation is disabled when the contracts are paused, the record exists or the viewed account lacks the registrar role."
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Initial NFT owner is required: 0x followed by 40 hexadecimal characters, other than the zero address. The recipient must accept an ERC-721 NFT; contract recipients need the ERC-721 receiver interface."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Initial NFT owner"
-          },
-          "state": {
-            "key": "owner",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "registerComponent",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below. Registration mints the NFT using the selected document URI."
-          }
-        },
-        {
-          "element": "NftMetadataField",
-          "props": {
-            "label": "NFT details"
-          },
-          "state": {
-            "key": "tokenURI",
-            "defaultValue": "$view.tokenURI"
-          },
-          "enabledWhen": {
-            "member": "registerComponent",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Component token contract",
-            "address": "$view.componentsAddress"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "registerComponent",
-            "args": {
-              "view": "$view"
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Serial number"
+              },
+              "state": {
+                "key": "serialNumber",
+                "defaultValue": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "To check an edited serial, choose Look up component. If it is unused and registration is available, choose Check registration in the lookup result. Registration preparation is disabled when the contracts are paused, the record exists or the viewed account lacks the registrar role."
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "lookupComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupComponent",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Register component"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "A registrar sends registration; the initial NFT owner may be a different account. The serial must be unused in this registry. Registration creates an active record and mints its component NFT to that owner."
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Serial checked for registration",
+                "value": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Address",
+              "props": {
+                "label": "Address being viewed",
+                "address": "$view.account"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Registrar role",
+                "value": "$view.canRegister"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Component already exists",
+                "value": "$view.exists"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Initial NFT owner is required: 0x followed by 40 hexadecimal characters, other than the zero address. The recipient must accept an ERC-721 NFT; contract recipients need the ERC-721 receiver interface."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Initial NFT owner"
+              },
+              "state": {
+                "key": "owner",
+                "defaultValue": ""
+              },
+              "enabledWhen": {
+                "member": "registerComponent",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below. Registration mints the NFT using the selected document URI."
+              }
+            },
+            {
+              "element": "NftMetadataField",
+              "props": {
+                "label": "NFT details"
+              },
+              "state": {
+                "key": "tokenURI",
+                "defaultValue": "$view.tokenURI"
+              },
+              "enabledWhen": {
+                "member": "registerComponent",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Address",
+              "props": {
+                "label": "Component token contract",
+                "address": "$view.componentsAddress"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "registerComponent",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
-          }
+          ]
         }
       ]
     },
@@ -1134,253 +1302,285 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openEntry",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Navigate"
+          },
+          "children": [
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openEntry",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "newRegistration",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Back to loaded component"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "component",
+                "args": {
+                  "serialNumber": "$view.serialNumber"
+                }
+              },
+              "enabledWhen": {
+                "member": "lookupComponent",
+                "in": "$view.actions"
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "newRegistration",
-            "args": {
-              "view": "$view"
+          "element": "Screen",
+          "props": {
+            "title": "Inspected workshop grant"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Loaded component serial",
+                "value": "$view.serialNumber"
+              }
+            },
+            {
+              "element": "Address",
+              "props": {
+                "label": "Owner",
+                "address": "$view.owner"
+              }
+            },
+            {
+              "element": "Address",
+              "props": {
+                "label": "Workshop",
+                "address": "$view.delegate"
+              }
+            },
+            {
+              "element": "Address",
+              "props": {
+                "label": "Delegation grantor",
+                "address": "$view.delegationGrantor"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Delegation capabilities",
+                "value": "$view.delegationCapabilities"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Delegation expiry (Unix seconds)",
+                "value": "$view.delegationValidUntil"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Delegation active",
+                "value": "$view.delegationActive"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Workshop grants allow registry updates only. They do not approve NFT transfers. A change of owner permanently invalidates the grant."
+              }
             }
-          }
+          ]
         },
         {
-          "element": "Button",
+          "element": "Screen",
           "props": {
-            "label": "Back to loaded component"
+            "title": "Inspect a workshop"
           },
-          "call": {
-            "namespace": "routes",
-            "function": "component",
-            "args": {
-              "serialNumber": "$view.serialNumber"
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Inspect a workshop grant by address. Editing the address or duration does not change the inspected grant or its previewed expiry until you preview again."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Workshop address"
+              },
+              "state": {
+                "key": "delegate",
+                "defaultValue": "$view.delegate"
+              },
+              "enabledWhen": {
+                "member": "delegation",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "DurationField",
+              "props": {
+                "label": "Workshop access duration",
+                "min": "1",
+                "max": "$view.maxDelegationDuration"
+              },
+              "state": {
+                "key": "duration",
+                "defaultValue": "$view.duration"
+              },
+              "enabledWhen": {
+                "member": "delegation",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openDelegation",
+                "args": {
+                  "view": "$view"
+                }
+              }
             }
+          ]
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Change workshop permissions"
           },
-          "enabledWhen": {
-            "member": "lookupComponent",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Loaded component serial",
-            "value": "$view.serialNumber"
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Owner",
-            "address": "$view.owner"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Inspect a workshop grant by address. Editing the address or duration does not change the inspected grant or its previewed expiry until you preview again."
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Workshop",
-            "address": "$view.delegate"
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Delegation grantor",
-            "address": "$view.delegationGrantor"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Delegation capabilities",
-            "value": "$view.delegationCapabilities"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Delegation expiry (Unix seconds)",
-            "value": "$view.delegationValidUntil"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Delegation active",
-            "value": "$view.delegationActive"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Workshop grants allow registry updates only. They do not approve NFT transfers. A change of owner permanently invalidates the grant."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Workshop address"
-          },
-          "state": {
-            "key": "delegate",
-            "defaultValue": "$view.delegate"
-          },
-          "enabledWhen": {
-            "member": "delegation",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "DurationField",
-          "props": {
-            "label": "Workshop access duration",
-            "min": "1",
-            "max": "$view.maxDelegationDuration"
-          },
-          "state": {
-            "key": "duration",
-            "defaultValue": "$view.duration"
-          },
-          "enabledWhen": {
-            "member": "delegation",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openDelegation",
-            "args": {
-              "view": "$view"
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Previewed expiry (Unix seconds)",
+                "value": "$view.validUntil"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Each preset replaces the workshop's existing permissions and expiry with the selected permissions and previewed expiry shown above. Preview again after changing the workshop or duration. Revocation targets the inspected workshop."
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Set metadata update permission"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "setComponentDelegate",
+                "args": {
+                  "serialNumber": "$view.serialNumber",
+                  "delegate": "$view.delegate",
+                  "capabilities": "1",
+                  "validUntil": "$view.validUntil"
+                }
+              },
+              "enabledWhen": {
+                "member": "setComponentDelegate",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Set permission to report missing"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "setComponentDelegate",
+                "args": {
+                  "serialNumber": "$view.serialNumber",
+                  "delegate": "$view.delegate",
+                  "capabilities": "2",
+                  "validUntil": "$view.validUntil"
+                }
+              },
+              "enabledWhen": {
+                "member": "setComponentDelegate",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Set permission to resolve missing reports"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "setComponentDelegate",
+                "args": {
+                  "serialNumber": "$view.serialNumber",
+                  "delegate": "$view.delegate",
+                  "capabilities": "4",
+                  "validUntil": "$view.validUntil"
+                }
+              },
+              "enabledWhen": {
+                "member": "setComponentDelegate",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Set all workshop permissions"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "setComponentDelegate",
+                "args": {
+                  "serialNumber": "$view.serialNumber",
+                  "delegate": "$view.delegate",
+                  "capabilities": "7",
+                  "validUntil": "$view.validUntil"
+                }
+              },
+              "enabledWhen": {
+                "member": "setComponentDelegate",
+                "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Revoke workshop access"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "revokeComponentDelegate",
+                "args": {
+                  "serialNumber": "$view.serialNumber",
+                  "delegate": "$view.delegate"
+                }
+              },
+              "enabledWhen": {
+                "member": "revokeComponentDelegate",
+                "in": "$view.actions"
+              }
             }
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Previewed expiry (Unix seconds)",
-            "value": "$view.validUntil"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Each preset replaces the workshop's existing permissions and expiry with the selected permissions and previewed expiry shown above. Preview again after changing the workshop or duration. Revocation targets the inspected workshop."
-          }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "Set metadata update permission"
-          },
-          "call": {
-            "namespace": "routes",
-            "function": "setComponentDelegate",
-            "args": {
-              "serialNumber": "$view.serialNumber",
-              "delegate": "$view.delegate",
-              "capabilities": "1",
-              "validUntil": "$view.validUntil"
-            }
-          },
-          "enabledWhen": {
-            "member": "setComponentDelegate",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "Set permission to report missing"
-          },
-          "call": {
-            "namespace": "routes",
-            "function": "setComponentDelegate",
-            "args": {
-              "serialNumber": "$view.serialNumber",
-              "delegate": "$view.delegate",
-              "capabilities": "2",
-              "validUntil": "$view.validUntil"
-            }
-          },
-          "enabledWhen": {
-            "member": "setComponentDelegate",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "Set permission to resolve missing reports"
-          },
-          "call": {
-            "namespace": "routes",
-            "function": "setComponentDelegate",
-            "args": {
-              "serialNumber": "$view.serialNumber",
-              "delegate": "$view.delegate",
-              "capabilities": "4",
-              "validUntil": "$view.validUntil"
-            }
-          },
-          "enabledWhen": {
-            "member": "setComponentDelegate",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "Set all workshop permissions"
-          },
-          "call": {
-            "namespace": "routes",
-            "function": "setComponentDelegate",
-            "args": {
-              "serialNumber": "$view.serialNumber",
-              "delegate": "$view.delegate",
-              "capabilities": "7",
-              "validUntil": "$view.validUntil"
-            }
-          },
-          "enabledWhen": {
-            "member": "setComponentDelegate",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "Revoke workshop access"
-          },
-          "call": {
-            "namespace": "routes",
-            "function": "revokeComponentDelegate",
-            "args": {
-              "serialNumber": "$view.serialNumber",
-              "delegate": "$view.delegate"
-            }
-          },
-          "enabledWhen": {
-            "member": "revokeComponentDelegate",
-            "in": "$view.actions"
-          }
+          ]
         }
       ]
     },

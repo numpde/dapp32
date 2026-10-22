@@ -16,6 +16,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
   try {
     await call('Page.navigate', { url: fixture.href })
     await wait(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`)
+    assert(await evaluate(`(() => { const group=document.querySelector('section[aria-label="Fixture actions"]');return group?.querySelector('h2')?.textContent==='Fixture actions'&&!!group.querySelector('input[name="draft"]')&&group.querySelectorAll('.action-button').length===6 })()`), 'a declared group keeps its heading, inputs and commands together')
     assert(await evaluate(`
       [...document.querySelectorAll('button')].every(button =>
         button.type === 'button' && !button.hasAttribute('href') && !button.hasAttribute('role'))

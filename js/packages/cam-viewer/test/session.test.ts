@@ -398,9 +398,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
 
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.resolvedUi.element, "Screen")
-  assert.equal(snapshot.resolvedUi.children[0]?.element, "Status")
-  assert.equal(snapshot.resolvedUi.children[0]?.props.label, "Registry paused")
-  assert.equal(snapshot.resolvedUi.children[0]?.props.value, false)
+  assert.equal(resolvedStatusValue(snapshot.resolvedUi, "Registry paused"), false)
   assert.ok(snapshot.resolvedUi.children.some(node => node.element === "Fragment"))
   assert.deepEqual(snapshot.values, toInertValue([
     {
@@ -514,9 +512,16 @@ for (const operation of ["Back", "Refresh"] as const) test(`${operation} preserv
   const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
   const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
   const nodes = mutableRecord(ui.nodes)
-  const entryChildren = mutableRecord(nodes.entry).children as Record<string, unknown>[]
-  const serialField = entryChildren.find((child) => child.element === "TextField"
-    && mutableRecord(child.state).key === "serialNumber")
+  const pending = [...mutableRecord(nodes.entry).children as Record<string, unknown>[]]
+  let serialField: Record<string, unknown> | undefined
+  while (pending.length > 0) {
+    const child = pending.pop()!
+    if (child.element === "TextField" && mutableRecord(child.state).key === "serialNumber") {
+      serialField = child
+      break
+    }
+    if (Array.isArray(child.children)) pending.push(...child.children)
+  }
   assert.ok(serialField)
   const membership = { member: "lookupComponent", in: "$view.actions" }
   serialField.enabledWhen = membership

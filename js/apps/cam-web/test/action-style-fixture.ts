@@ -30,8 +30,10 @@ function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCa
 function render(): void {
   const snapshot: CamViewerLoadedSnapshot = { canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "" }, values: [], uiURI: "fixture", documentHashes: { document: { status: "pending", source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Status", props: { label: "Before actions", value: "Before" }, children: [] },
-    { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },
-    ...actions.map(item => ({ element: "Button" as const, props: { label: item.label }, call: { namespace: "routes", function: item.route, args: {} }, children: [] as const, ...("disabled" in item ? { disabled: item.disabled } : {}) })),
+    { element: "Screen", props: { title: "Fixture actions" }, children: [
+      { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },
+      ...actions.map(item => ({ element: "Button" as const, props: { label: item.label }, call: { namespace: "routes", function: item.route, args: {} }, children: [] as const, ...("disabled" in item ? { disabled: item.disabled } : {}) })),
+    ] },
     { element: "DocumentHashField", props: { label: "Document", algorithm: "sha256", sourceURI: "https://example.test/document" }, state: { key: "document" }, children: [] },
     { element: "Status", props: { label: "Timestamp", value: "100", format: "timestampSeconds" }, formattedValue: "1970-01-01 00:01:40 UTC (100 Unix seconds)", children: [] },
     { element: "Status", props: { label: "After actions", value: "After" }, children: [] },

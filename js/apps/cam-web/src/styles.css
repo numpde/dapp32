@@ -85,7 +85,6 @@ h1 {
 
 .key-value {
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
   gap: 12px;
   align-items: baseline;
 }
@@ -140,7 +139,7 @@ dd,
 .error-feedback > .feedback-message { margin: 0; color: var(--ink); font-weight: 600; }
 .feedback-diagnostic { display: block; margin-block-start: 8px; color: var(--muted); font-size: 0.875em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .nft-identity, .nft-attributes { margin-block: 8px; }
-.nft-identity > div, .nft-attributes > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; padding-block: 6px; }
+.nft-identity > div, .nft-attributes > div { display: grid; gap: 12px; padding-block: 6px; }
 .nft-identity dt, .nft-attributes dt { color: var(--muted); }
 .nft-identity dd, .nft-attributes dd { margin: 0; }
 .nft-preview { margin-block: 16px; overflow-wrap: anywhere; }
@@ -173,6 +172,17 @@ dd,
   border: 0;
   padding: 16px;
 }
+
+.ui-section { min-width: 0; display: flow-root; padding-block: 20px; border-top: 1px solid var(--line); }
+.ui-section:first-child { padding-block-start: 0; border-top: 0; }
+.ui-section > :is(h2, h3, h4, h5, h6) { margin: 0 0 12px; font-size: 1.05rem; line-height: 1.3; }
+.ui-section > * + * { margin-block-start: 10px; }
+.ui-section > .key-value + .key-value { margin-block-start: 0; }
+.ui-section > .text-row { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+.ui-section > .action-button { margin-inline-end: 8px; vertical-align: top; }
+.ui-section .ui-section { margin-block-start: 16px; padding: 0 0 0 16px; border-top: 0; border-inline-start: 2px solid var(--line); }
+.ui-section .ui-section > :is(h3, h4, h5, h6) { font-size: 0.95rem; }
+.ui-section > :is(.field, fieldset) { margin-block-start: 16px; }
 
 .panel {
   display: grid;
@@ -263,8 +273,11 @@ button:focus-visible,
   color: var(--ink);
 }
 
-.key-value {
+.key-value, .nft-identity > div, .nft-attributes > div {
   grid-template-columns: minmax(150px, 240px) minmax(0, 1fr);
+}
+
+.key-value {
   padding: 6px 0;
   border-top: 1px solid var(--line);
 }
@@ -311,7 +324,9 @@ button:focus-visible,
 
 @media (max-width: 760px) {
   .connection,
-  .key-value {
+  .key-value,
+  .nft-identity > div,
+  .nft-attributes > div {
     grid-template-columns: 1fr;
   }
 

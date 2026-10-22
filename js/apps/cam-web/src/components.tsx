@@ -117,7 +117,7 @@ export function UiView({
         </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView root scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -170,6 +170,8 @@ export function PreparedCallView({
 
 function UiNodeView({
   node,
+  root = false,
+  headingLevel = 2,
   actionKind,
   scopeKey,
   state,
@@ -183,6 +185,8 @@ function UiNodeView({
   onCancelDocumentHash,
 }: {
   readonly node: ResolvedUiNode
+  readonly root?: boolean
+  readonly headingLevel?: number
   readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
   readonly scopeKey: string
   readonly state: Record<string, InertValue>
@@ -197,14 +201,16 @@ function UiNodeView({
 }): ReactElement {
   switch (node.element) {
     case "Screen":
-    case "Fragment":
-      return (
-        <>
-          {node.children.map((child, index) => (
-            <UiNodeView key={index} scopeKey={scopeKey} node={child} actionKind={actionKind} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
-          ))}
-        </>
-      )
+    case "Fragment": {
+      const titled = node.element === "Screen" && !root
+      const children = node.children.map((child, index) => (
+        <UiNodeView key={index} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+      ))
+      if (!titled) return <>{children}</>
+      const title = displayText(stringProp(node.props, "title"))
+      const Heading = `h${headingLevel}` as "h2" | "h3" | "h4" | "h5" | "h6"
+      return <section className="ui-section" aria-label={title}><Heading>{title}</Heading>{children}</section>
+    }
     case "Text":
       return <p className="text-row">{displayText(stringProp(node.props, "text"))}</p>
     case "TextField": {

@@ -210,7 +210,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <table>
 <thead><tr><th>Element</th><th>Required structure and props</th><th>Other rules and behavior</th></tr></thead>
 <tbody>
-<tr><td><code>Screen</code></td><td><code>props.title</code>, <code>children</code></td><td>View container.</td></tr>
+<tr><td><code>Screen</code></td><td><code>props.title</code>, <code>children</code></td><td>Titled container. The root title names the view; nested containers group related content under headings. Nesting does not create navigation routes.</td></tr>
 <tr><td><code>Fragment</code></td><td><code>children</code></td><td>Groups children without a title.</td></tr>
 <tr><td><code>Text</code></td><td><code>props.text</code></td><td>Text display.</td></tr>
 <tr><td><code>Address</code></td><td><code>props.label</code>, <code>props.address</code></td><td>Address resolves to <code>0x</code> plus 40 hex digits.</td></tr>
