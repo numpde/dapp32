@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { HttpRequestError, sha256 } from "viem"
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, HttpRequestError, sha256 } from "viem"
 import { isRecordObject } from "@cam/protocol"
 import { createCamViewerSession, viewerErrorMessage } from "@cam/viewer"
 import { BIKE_ACCOUNT_ADDRESS, BIKE_CAM_URI, BIKE_UI_URI, bikeHost, bikeContractAddresses } from "../../../../tests/fixtures/cam/bike.mts"
@@ -9,6 +9,63 @@ import { bikeResourceBytes, createMockCamPublicClient, createMockResourceLoader,
 import { CamEvmError, validateCamContractCall } from "@cam/evm-viem"
 
 import { actionFailure, failureReport, UserFacingError } from "../src/errors.ts"
+
+test("web failure reports render SDK prose without escaped layout whitespace or broken punctuation", () => {
+  const reason = "The workshop permission expired. Ask the owner to renew it."
+  const abi = [{ type: "function", name: "setAccountInfo", stateMutability: "nonpayable", inputs: [], outputs: [] }] as const
+  const revert = new ContractFunctionRevertedError({ abi, functionName: "setAccountInfo", message: reason })
+  const sdk = new ContractFunctionExecutionError(revert, { abi, functionName: "setAccountInfo" })
+  const report = failureReport(new Error("The request was rejected.", { cause: sdk }), "Transaction not sent.")
+
+  assert.match(report.diagnostic!, /setAccountInfo/)
+  assert.match(report.diagnostic!, /reverted/)
+  assert.equal(report.diagnostic!.split(reason).length - 1, 1)
+  assert.doesNotMatch(report.diagnostic!, /\\u000[ad9]|\.:|:\s*:/)
+  assert.match(report.diagnostic!, /The request was rejected\. The contract/)
+  assert.match(viewerErrorMessage(sdk), /\\u000a/, "terminal callers retain control-safe escaped newlines")
+})
+
+test("web diagnostics normalize layout whitespace but preserve unsafe controls and distinct overlapping reasons", () => {
+  const report = failureReport(new Error("Lookup failed.\r\nTry\tagain.", { cause: new Error("Lookup failed. The upstream returned an incomplete response.\u001b[2J") }))
+  assert.match(report.diagnostic!, /Lookup failed\. Try again\./)
+  assert.match(report.diagnostic!, /upstream returned an incomplete response/)
+  assert.match(report.diagnostic!, /\\u001b\[2J/)
+  assert.doesNotMatch(report.diagnostic!, /[\u0000-\u001f\u007f]|\\u000[ad9]|\.:/)
+})
+
+test("cause composition preserves distinct evidence and avoids extra punctuation after sentence endings", () => {
+  for (const ending of [".", "?", "!", '."', ":"]) {
+    const visible = viewerErrorMessage(new Error(`Provider rejected the request${ending}`, { cause: new Error("The account is locked.") }))
+    assert(visible.includes(`${ending} The account`))
+    assert.doesNotMatch(visible, /\.:|\?:|!:|::/)
+  }
+  assert.equal(viewerErrorMessage(new Error("Operation: setAccountInfo", { cause: new Error("Operation") })), "Operation: setAccountInfo: Operation")
+  assert.equal(viewerErrorMessage(new Error("Same reason", { cause: new Error("Same reason") })), "Same reason")
+})
+
+test("web SDK failures retain safe reasons without flattened signed request evidence", () => {
+  const cause = new HttpRequestError({ url: "https://example.test/rpc?api_key=fixture-api-key", body: { method: "eth_sendRawTransaction", params: ["fixture-private-signature"] }, details: "Connection closed.\nThe response was not received." })
+  const report = failureReport(new Error("Cannot confirm submission.", { cause }))
+  assert.match(report.diagnostic!, /HTTP request failed/)
+  assert.match(report.diagnostic!, /Connection closed\. The response was not received\./)
+  assert.doesNotMatch(JSON.stringify(report), /fixture-private-signature|fixture-api-key|Request body|\\\\u000a|\.:/)
+})
+
+test("structured provider diagnostics retain sanitized causes without serializing unrelated provider data", () => {
+  const error = {
+    message: "Local wallet submission failed.",
+    data: {
+      submission: "unknown",
+      diagnostic: "Upstream disconnected.\nhttps://example.test/rpc?token=fixture-diagnostic-token \u001b[2J",
+      rawTransaction: "fixture-private-signature",
+    },
+  }
+  const report = failureReport(error)
+  assert.match(report.diagnostic!, /Local wallet submission failed\. Upstream disconnected/)
+  assert.match(report.diagnostic!, /example.test\/rpc/)
+  assert.match(report.diagnostic!, /\\u001b/)
+  assert.doesNotMatch(JSON.stringify(report), /fixture-diagnostic-token|fixture-private-signature|rawTransaction/)
+})
 
 test("viewerErrorMessage gives blank thrown values a readable diagnostic", () => {
   const emptyStringification = { toString: () => "" }
@@ -357,6 +414,27 @@ test("UI failure reports separate owned explanations from arbitrary causes", () 
   assert.equal(failureReport(new UserFacingError("Choose a file.")).diagnostic, undefined)
   assert.equal(failureReport(new Error("ABI_INTERNAL"), "Cannot open this view.").message, "Cannot open this view.")
   assert.equal(failureReport(error, "Transaction confirmed; refreshing the view failed.").message, "Transaction confirmed; refreshing the view failed.")
+})
+
+test("owned summaries project their cause without depending on rendered punctuation", () => {
+  for (const message of ["Cannot read this document; choose another file", "Cannot read this document.", "Cannot read this document:"]) {
+    const error = new UserFacingError(message, { cause: new Error("stream interrupted") })
+    assert.deepEqual(failureReport(error), { message, diagnostic: "stream interrupted" })
+    assert.deepEqual(failureReport(error, message), { message, diagnostic: "stream interrupted" })
+    assert.deepEqual(failureReport(new UserFacingError(message)), { message })
+  }
+  const error = new Error("Cannot read this document; choose another file", { cause: new Error("stream interrupted") })
+  assert.equal(failureReport(error, error.message).diagnostic, viewerErrorMessage(error), "an explicit explanation does not authorize removing context from an arbitrary error")
+  assert.deepEqual(failureReport(new Error("Cannot read this document."), "Cannot read this document."), { message: "Cannot read this document." })
+})
+
+test("hostile owned-error cause access cannot replace the safe operation diagnostic", () => {
+  const error = new UserFacingError("Cannot read this document.")
+  Object.defineProperty(error, "cause", { get() { throw new Error("hostile cause accessor") } })
+  const report = failureReport(error)
+  assert.equal(report.message, error.message)
+  assert.equal(report.diagnostic, undefined)
+  assert.doesNotMatch(JSON.stringify(report), /hostile cause accessor/)
 })
 
 test("UI summaries and details share credential redaction and text bounds", () => {

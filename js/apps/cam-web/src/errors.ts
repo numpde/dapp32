@@ -5,15 +5,17 @@ export class UserFacingError extends Error {}
 export type FailureReport = { readonly message: string; readonly diagnostic?: string }
 
 export function failureReport(error: unknown, explanation?: string): FailureReport {
-  const diagnostic = viewerErrorMessage(error)
+  let diagnostic: string | undefined = viewerErrorMessage(error, { whitespace: "collapse" })
   let primary = explanation
-  if (primary === undefined) {
-    try { if (error instanceof UserFacingError) primary = error.message }
-    catch { /* An untrusted prototype or message accessor cannot replace the diagnostic. */ }
-  }
-  const message = typeof primary === "string" ? viewerErrorMessage(primary) : "Cannot complete this operation."
-  const detail = diagnostic.startsWith(`${message}: `) ? diagnostic.slice(message.length + 2) : diagnostic
-  return { message, ...(detail === message ? {} : { diagnostic: detail }) }
+  try {
+    if (error instanceof UserFacingError && (explanation === undefined || explanation === error.message)) {
+      primary = error.message
+      const cause = error.cause
+      diagnostic = cause === undefined ? undefined : viewerErrorMessage(cause, { whitespace: "collapse" })
+    }
+  } catch { /* Untrusted prototypes and accessors cannot replace the original diagnostic. */ }
+  const message = typeof primary === "string" ? viewerErrorMessage(primary, { whitespace: "collapse" }) : "Cannot complete this operation."
+  return { message, ...(diagnostic === undefined || diagnostic === message ? {} : { diagnostic }) }
 }
 
 export function actionFailure(error: unknown, label: unknown): FailureReport {

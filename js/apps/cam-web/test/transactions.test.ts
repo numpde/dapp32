@@ -260,6 +260,35 @@ test("proven wallet rejection remains distinct from uncertain submission through
   }
 })
 
+test("provider evidence that broadcasting never started stays distinct from an unknown submission", async () => {
+  for (const submission of ["not-submitted", "unknown"]) {
+    const providerFailure = { code: -32099, message: "Local fixture submission failed", data: { submission } }
+    const cause = new Error("Wallet contract call failed", { cause: providerFailure })
+    await assert.rejects(submitPreparedContractCall({
+      ports: { ...recordingPorts([]), async send() { throw cause } },
+      publicClient: testPublicClient(), walletAddress, startup: testStartup(), call: testCall(), shouldContinue: () => true,
+    }), error => {
+      if (submission === "not-submitted") assert.equal(error, cause)
+      else assert(error instanceof Error && /may have been sent/i.test(error.message) && error.cause === cause)
+      return true
+    })
+  }
+})
+
+test("unrecognized provider metadata cannot prove that broadcasting never started", async () => {
+  const unreadable = { code: -32099, get data(): never { throw new Error("unreadable submission metadata") } }
+  for (const providerFailure of [
+    unreadable,
+    { code: -32603, data: { submission: "not-submitted" } },
+    { code: -32099, data: { submission: "rejected" } },
+  ]) {
+    await assert.rejects(submitPreparedContractCall({
+      ports: { ...recordingPorts([]), async send() { throw providerFailure } },
+      publicClient: testPublicClient(), walletAddress, startup: testStartup(), call: testCall(), shouldContinue: () => true,
+    }), error => error instanceof Error && error.cause === providerFailure && /may have been sent/i.test(error.message))
+  }
+})
+
 test("unreadable or cyclic provider failures remain uncertain without losing the original cause", async () => {
   const cyclic: { cause?: unknown } = {}
   cyclic.cause = cyclic

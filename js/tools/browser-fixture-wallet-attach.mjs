@@ -5,7 +5,7 @@ import { requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from 
 import { viewerErrorMessage } from '@cam/viewer'
 import { createFixtureFactsReader } from './browser-fixture-facts.mjs'
 import { assertFixtureWalletDeployment, verifyFixtureWalletDeployment, fixtureWalletTransaction, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
-import { createCdpCommands, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
+import { createCdpCommands, fixtureSubmissionFailure, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
 
 let phase = 'validating app account configuration'
 async function main() {
@@ -89,7 +89,6 @@ async function main() {
     let result
     let ok = false
     let ownsSubmission = false
-    let submissionStarted = false
     try {
       assert(document.shouldContinue() && !busy, 'Fixture wallet document is stopped or submitting')
       assert.equal(request.method, 'eth_sendTransaction')
@@ -100,14 +99,13 @@ async function main() {
       const transaction = fixtureWalletTransaction({ tx, account, chain, config, grants })
       busy = true; ownsSubmission = true
       await assertTab()
-      submissionStarted = true
       result = await submitFixtureTransaction({ wallet: wallets[request.role], publicClient, transaction, assertChain: async () => {
         await assertTab(); await assertChain()
         await assertFixtureWalletDeployment({ manifest: await readManifest(), expectedManifest, expectedContracts, readBinding })
       }, shouldContinue: document.shouldContinue })
       if (result === undefined) return
       ok = true
-    } catch { result = { code: -32603, message: submissionStarted ? 'Local fixture submission failed; it may have been broadcast. Check chain state before retrying.' : 'Transaction rejected by the local fixture grant; nothing was submitted.' } }
+    } catch (cause) { result = fixtureSubmissionFailure(cause, 'not-submitted') }
     finally { if (ownsSubmission) busy = false }
     await document.resolve(request.id, ok, result)
   }

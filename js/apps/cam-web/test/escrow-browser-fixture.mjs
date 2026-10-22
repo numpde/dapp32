@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { checkDeploymentFacts } from './deployment-facts-browser-check.mjs'
 import { privateKeyToAccount } from 'viem/accounts'
+import { viewerErrorMessage } from '@cam/viewer'
 
 export class BrowserFixtureError extends Error {}
 
@@ -71,8 +72,29 @@ export async function finishDisplayFixture({ call, evaluate, viewerURL, failures
 }
 
 export function lostBroadcastReply() {
-  // Invalid input invites the wallet SDK to try a second submission method.
-  return { code: -32603, message: 'Fixture transport reply lost after broadcast' }
+  return fixtureSubmissionFailure(new Error('Fixture transport reply lost after broadcast'), 'unknown')
+}
+
+class FixtureSubmissionError extends Error {
+  constructor(cause, submission) {
+    const failure = fixtureSubmissionFailure(cause, submission)
+    super(failure.message, { cause })
+    this.code = failure.code
+    this.data = failure.data
+  }
+}
+
+export function fixtureSubmissionFailure(cause, submission) {
+  if (cause instanceof FixtureSubmissionError) return { code: cause.code, message: cause.message, data: cause.data }
+  return {
+    // -32603 is interpreted as a contract revert by viem. Invalid-input codes
+    // can make it submit through a second method. This is a fixture server error.
+    code: -32099,
+    message: submission === 'not-submitted'
+      ? 'The local fixture did not submit the transaction.'
+      : 'The local fixture could not confirm transaction submission.',
+    data: { submission, diagnostic: viewerErrorMessage(cause, { whitespace: 'collapse' }) },
+  }
 }
 
 export function fixtureAccount(fixture, name, repeatedByte) {
@@ -84,16 +106,22 @@ export function fixtureAccount(fixture, name, repeatedByte) {
 }
 
 export async function submitFixtureTransaction({ wallet, publicClient, transaction, assertChain, shouldContinue }) {
-  if (!shouldContinue()) return undefined
-  const prepared = await wallet.prepareTransactionRequest(transaction)
-  if (!shouldContinue()) return undefined
-  await assertChain()
-  if (!shouldContinue()) return undefined
-  const signed = await wallet.signTransaction(prepared)
-  if (!shouldContinue()) return undefined
-  await assertChain()
-  if (!shouldContinue()) return undefined
-  return publicClient.sendRawTransaction({ serializedTransaction: signed })
+  let submission = 'not-submitted'
+  try {
+    if (!shouldContinue()) return undefined
+    const prepared = await wallet.prepareTransactionRequest(transaction)
+    if (!shouldContinue()) return undefined
+    await assertChain()
+    if (!shouldContinue()) return undefined
+    const signed = await wallet.signTransaction(prepared)
+    if (!shouldContinue()) return undefined
+    await assertChain()
+    if (!shouldContinue()) return undefined
+    submission = 'unknown'
+    return await publicClient.sendRawTransaction({ serializedTransaction: signed })
+  } catch (cause) {
+    throw new FixtureSubmissionError(cause, submission)
+  }
 }
 
 export function createCdpCommands({ socket, runDeadline, now }) {

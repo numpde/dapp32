@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { createPublicClient, createWalletClient, http, sha256, parseAbi, toHex } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
-import { checkFixtureWalletToolbar, createCdpCommands, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { checkFixtureWalletToolbar, createCdpCommands, fixtureSubmissionFailure, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import walletConfig from './escrow-fixture-wallet.mjs'
 
@@ -140,9 +140,9 @@ async function bridge(request, owner, ownerSession) {
         result = lostBroadcastReply()
       }
     }
-  } catch {
+  } catch (cause) {
     ok = false
-    result = { code: -32602, message: 'Fixture provider rejected an unsupported request' }
+    result = fixtureSubmissionFailure(cause, 'not-submitted')
   }
   if (!owner.closed) await call('Runtime.evaluate', { expression: `window.__fixtureResolve(${JSON.stringify(request.id)},${ok},${JSON.stringify(result)})` }, ownerSession)
 }

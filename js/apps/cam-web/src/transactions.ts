@@ -104,10 +104,12 @@ function classifySubmissionFailure(error: unknown): unknown {
   const seen = new Set<object>()
   let current = error
   try {
-    while (typeof current === "object" && current !== null && !seen.has(current)) {
+    while (typeof current === "object" && current !== null && !seen.has(current) && seen.size < 32) {
       seen.add(current)
-      const failure = current as { readonly code?: unknown; readonly cause?: unknown }
+      const failure = current as { readonly code?: unknown; readonly cause?: unknown; readonly data?: unknown }
       if (failure.code === 4001) return error
+      if (failure.code === -32099 && typeof failure.data === "object" && failure.data !== null
+        && (failure.data as { readonly submission?: unknown }).submission === "not-submitted") return error
       current = failure.cause
     }
   } catch {

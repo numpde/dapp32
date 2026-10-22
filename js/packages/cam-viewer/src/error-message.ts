@@ -2,7 +2,7 @@ const MAX_ERROR_TEXT_LENGTH = 500
 const MAX_ERROR_MESSAGE_LENGTH = 2_000
 const MAX_ERROR_CAUSES = 32
 
-export function viewerErrorMessage(error: unknown, options?: { readonly includeStack?: boolean }): string {
+export function viewerErrorMessage(error: unknown, options?: { readonly includeStack?: boolean; readonly whitespace?: "collapse" }): string {
   const parts: string[] = []
   const stacks: string[] = []
   const seen = new Set<object>()
@@ -13,20 +13,26 @@ export function viewerErrorMessage(error: unknown, options?: { readonly includeS
       seen.add(current)
     }
     if (typeof current !== "object" && typeof current !== "function") {
-      appendDiagnostic(parts, diagnosticText(safeString(current, "unprintable error")))
+      appendDiagnostic(parts, diagnosticText(safeString(current, "unprintable error"), options?.whitespace))
     }
-    const shortMessage = readableErrorString(current, "shortMessage")
-    appendDiagnostic(parts, shortMessage === undefined ? readableErrorString(current, "message") : shortMessage)
+    const shortMessage = readableErrorString(current, "shortMessage", options?.whitespace)
+    appendDiagnostic(parts, shortMessage === undefined ? readableErrorString(current, "message", options?.whitespace) : shortMessage)
     appendDiagnostic(parts, errorCustomRevert(current))
-    appendDiagnostic(parts, readableErrorString(current, "reason"))
-    appendDiagnostic(parts, readableErrorString(current, "details"))
+    const reason = readableErrorString(current, "reason", options?.whitespace)
+    if (reason !== undefined && !shortMessage?.includes(reason)) appendDiagnostic(parts, reason)
+    appendDiagnostic(parts, readableErrorString(current, "details", options?.whitespace))
+    appendDiagnostic(parts, readableErrorString(errorProperty(current, "data"), "diagnostic", options?.whitespace))
     if (options?.includeStack === true) appendDiagnostic(stacks, errorStackTail(current))
     current = errorCause(current)
     if (depth === MAX_ERROR_CAUSES - 1 && current !== undefined) appendDiagnostic(parts, "Cause chain truncated.")
   }
-  let diagnostic = parts.join(": ")
+  let diagnostic = parts.reduce((previous, part) => {
+    if (previous.length === 0) return part
+    const separator = /[.!?:]["')\]]?$/u.test(previous) ? " " : ": "
+    return `${previous}${separator}${part}`
+  }, "")
   if (parts.length === 0) {
-    const fallback = diagnosticText(safeString(error, "unprintable error"))
+    const fallback = diagnosticText(safeString(error, "unprintable error"), options?.whitespace)
     diagnostic = fallback.trim().length === 0 ? "The error did not include a readable message." : fallback
   }
   const message = stacks.length === 0 ? diagnostic : `${diagnostic}\nStack:\n${stacks.join("\n")}`
@@ -34,11 +40,12 @@ export function viewerErrorMessage(error: unknown, options?: { readonly includeS
 }
 
 function appendDiagnostic(parts: string[], text: string | undefined): void {
-  if (text !== undefined && text.trim().length > 0 && !parts.some(part => part.includes(text))) parts.push(text)
+  if (text !== undefined && text.trim().length > 0 && !parts.includes(text)) parts.push(text)
 }
 
-function diagnosticText(value: string): string {
-  return escapeDiagnosticText(redactDiagnosticText(value))
+function diagnosticText(value: string, whitespace?: "collapse"): string {
+  const redacted = redactDiagnosticText(value)
+  return escapeDiagnosticText(whitespace === "collapse" ? redacted.replace(/[\r\n\t]+[ \t]*/gu, " ") : redacted)
 }
 
 function redactDiagnosticText(value: string): string {
@@ -104,9 +111,9 @@ function errorCustomRevert(error: unknown): string | undefined {
   return diagnosticText(`${errorName}(${argumentsText})`)
 }
 
-function readableErrorString(error: unknown, key: string): string | undefined {
+function readableErrorString(error: unknown, key: string, whitespace?: "collapse"): string | undefined {
   const value = errorProperty(error, key)
-  return typeof value === "string" && value.trim().length > 0 ? diagnosticText(value) : undefined
+  return typeof value === "string" && value.trim().length > 0 ? diagnosticText(value, whitespace) : undefined
 }
 
 function errorProperty(error: unknown, key: string): unknown {

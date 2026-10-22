@@ -213,7 +213,7 @@ function installFixtureWallet(options) {
       if (request === undefined) return
       pending.delete(id)
       if (ok) request.resolve(value)
-      else request.reject(Object.assign(failure(value.message, value.code), { diagnostic: value.diagnostic }))
+      else request.reject(Object.assign(failure(value.message, value.code), { diagnostic: value.diagnostic, data: value.data }))
     },
     shutdown() {
       if (closed) return

@@ -455,9 +455,9 @@ export function App(): ReactElement {
           : `Transaction submitted, but confirmation could not be checked. Check its status before sending another transaction. Transaction hash: ${submittedTxHash}.`), "error", ownsInteraction())
       } else if (error instanceof SubmissionOutcomeUnknownError) {
         if (ownsInteraction()) setPreparedCall(undefined)
-        reportTransaction(failureReport(error, "The transaction may have been sent, but the wallet did not return a transaction hash. Check your wallet before trying again."), "error", ownsInteraction())
+        reportTransaction(failureReport(error.cause, "The transaction may have been sent, but the wallet did not return a transaction hash. Check your wallet before trying again."), "error", ownsInteraction())
       } else {
-        showError(failureReport(error, "Transaction not sent. The wallet request was rejected or a check before submission failed. Review the details before trying again."), true)
+        showError(failureReport(error, "Transaction not sent."), true)
       }
     } finally {
       sendingRef.current = false

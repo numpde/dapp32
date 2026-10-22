@@ -25,6 +25,18 @@ function descendants(node) { return [node, ...node.children.flatMap(descendants)
 const text = node => descendants(node).map(item => item.textContent).join(' ')
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
+test('fixture provider retains safe submission evidence across the browser bridge', async () => {
+  const { owner, sent } = install(undefined, false)
+  await owner.provider.request({ method: 'eth_requestAccounts' })
+  const pending = owner.provider.request({ method: 'eth_sendTransaction', params: [{ from: address }] })
+  const failure = { code: -32099, message: 'Transaction was not submitted.', data: { submission: 'not-submitted', diagnostic: 'CAM manifest hash changed' } }
+  owner.resolve(sent.at(-1).id, false, failure)
+  await assert.rejects(pending, error => {
+    assert.deepEqual(error.data, failure.data)
+    return true
+  })
+})
+
 test('deployment panel loads on demand, suppresses old-account replies and preserves link connection settings', async () => {
   const { owner, sent, elements, location } = install(undefined, true)
   const bar = elements.get('local-fixture-wallet')

@@ -1,12 +1,70 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createWalletClient, custom, HttpRequestError } from 'viem'
+import { createWalletClient, custom, HttpRequestError, parseAbi } from 'viem'
 import { createCdpCommands, fixtureAccount, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import * as fixture from './escrow-browser-fixture.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
 import { checkNftMetadata } from './nft-metadata-browser-check.mjs'
 import { checkStartupErrors } from './error-reporting-browser-check.mjs'
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
+
+for (const failedPhase of ['preparation', 'deployment before signing', 'signing', 'deployment before broadcast', 'broadcast']) {
+  test(`fixture ${failedPhase} failure reports the actual submission boundary and preserves its cause`, async () => {
+    const cause = new Error('CAM manifest hash changed')
+    const effects = []
+    let checks = 0
+    async function phase(name) { effects.push(name); if (name === failedPhase) throw cause }
+    await assert.rejects(submitFixtureTransaction({
+      wallet: {
+        prepareTransactionRequest: async () => { await phase('preparation'); return {} },
+        signTransaction: async () => { await phase('signing'); return 'signed' },
+      },
+      publicClient: { sendRawTransaction: async () => { await phase('broadcast'); return 'hash' } },
+      assertChain: async () => phase(++checks === 1 ? 'deployment before signing' : 'deployment before broadcast'),
+      shouldContinue: () => true,
+      transaction: {},
+    }), error => {
+      assert.equal(error.cause, cause)
+      assert.equal(error.data.submission, failedPhase === 'broadcast' ? 'unknown' : 'not-submitted')
+      assert.match(error.data.diagnostic, /CAM manifest hash changed/)
+      return true
+    })
+    assert.equal(effects.at(-1), failedPhase, 'a failed phase must stop all later effects')
+  })
+}
+
+test('actual wallet contract writes preserve fixture evidence without inventing a revert or submitting twice', async () => {
+  assert.equal(typeof fixture.fixtureSubmissionFailure, 'function')
+  for (const submission of ['not-submitted', 'unknown']) {
+    const effects = []
+    const providerFailure = fixture.fixtureSubmissionFailure(new Error('CAM manifest hash changed'), submission)
+    const wallet = createWalletClient({ transport: custom({ request: async ({ method }) => {
+      effects.push(method)
+      throw providerFailure
+    } }, { retryCount: 0 }) })
+    await assert.rejects(wallet.writeContract({
+      account: `0x${'11'.repeat(20)}`, chain: null,
+      address: `0x${'22'.repeat(20)}`, abi: parseAbi(['function update(bytes32 digest)']),
+      functionName: 'update', args: [`0x${'33'.repeat(32)}`],
+    }), error => {
+      assert(!error.shortMessage.includes('reverted'), 'fixture processing failure is not evidence of a contract revert')
+      let current = error
+      while (current !== providerFailure && current !== undefined) current = current.cause
+      assert.equal(current, providerFailure)
+      return true
+    })
+    assert.deepEqual(effects, ['eth_sendTransaction'])
+  }
+})
+
+test('fixture failure diagnostics retain transport evidence without signed request bodies', () => {
+  assert.equal(typeof fixture.fixtureSubmissionFailure, 'function')
+  const signed = 'SIGNED_TRANSACTION_MUST_NOT_CROSS_THE_BRIDGE'
+  const cause = new HttpRequestError({ url: 'http://fixture.invalid/rpc', body: { method: 'eth_sendRawTransaction', params: [signed] }, details: 'Connection closed' })
+  const failure = fixture.fixtureSubmissionFailure(cause, 'unknown')
+  assert.match(failure.data.diagnostic, /Connection closed/)
+  assert(!JSON.stringify(failure).includes(signed))
+})
 
 test('wallet toolbar check preserves its failure and attempts page cleanup if viewport restoration fails', async () => {
   const primary = new Error('viewport change failed')

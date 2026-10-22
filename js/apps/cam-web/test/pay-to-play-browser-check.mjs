@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
-import { browserFixtureFailureDetails, checkFixtureWalletToolbar, createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { browserFixtureFailureDetails, checkFixtureWalletToolbar, createCdpCommands, fixtureSubmissionFailure, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from '../../../tools/pay-to-play-vouchers/protocol.ts'
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
@@ -133,8 +133,8 @@ async function bridge(request) {
     sent++
     lastHash = result
     ok = true
-  } catch {
-    result = { code: -32602, message: 'Fixture provider rejected an unsupported payment-channel transaction' }
+  } catch (cause) {
+    result = fixtureSubmissionFailure(cause, 'not-submitted')
   }
   if (open) await evaluate(`window.__fixtureWallet.resolve(${JSON.stringify(request.id)},${ok},${JSON.stringify(result)})`)
 }
