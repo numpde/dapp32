@@ -48,27 +48,28 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
 }): ReactElement {
   const preview = useNftResource<InertRecord>()
   return <section className="nft-row" aria-label="NFT">
-    {preview.resource.status !== "ready" ? <p className="nft-placeholder">NFT preview</p> : null}
-    <dl className="nft-identity"><div><dt>NFT contract</dt><dd>{contractAddress}</dd></div><div><dt>Token ID</dt><dd>{tokenId}</dd></div>
-      {metadataURI !== undefined && metadataURI !== "" ? <div><dt>Metadata URI</dt><dd>{metadataURI}</dd></div> : null}
-    </dl>
-    {metadataURI !== undefined && metadataURI !== "" ? <>
+    {preview.resource.status === "ready" ? <NftMetadataPreview metadata={preview.resource.value} baseURI={metadataURI} loadImage /> : <p className="nft-placeholder">NFT preview</p>}
+    <ResourceFeedback resource={preview.resource} />
+    {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-source-controls">
+      <dl className="nft-identity"><div><dt>Metadata URI</dt><dd>{metadataURI}</dd></div></dl>
       <div className="nft-actions"><button className="button-quiet" type="button" disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal)) }}>Load NFT</button>
         {preview.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={preview.cancel}>Cancel loading</button> : null}</div>
-      <ResourceFeedback resource={preview.resource} />
-      {preview.resource.status === "ready" ? <NftMetadataPreview metadata={preview.resource.value} baseURI={metadataURI} loadImage /> : null}
-    </> : null}
+    </div> : null}
+    <dl className="nft-identity"><div><dt>NFT contract</dt><dd>{contractAddress}</dd></div><div><dt>Token ID</dt><dd>{tokenId}</dd></div></dl>
   </section>
 }
 
 export function NftMetadataPreview({ metadata, baseURI, loadImage = false }: { readonly metadata: InertRecord; readonly baseURI: string | undefined; readonly loadImage?: boolean }): ReactElement {
   const attributes = Array.isArray(metadata.attributes) ? metadata.attributes : []
   return <section className="nft-preview" aria-label="Metadata preview">
+    {typeof metadata.image === "string" && metadata.image !== "" ? <NftImage key={JSON.stringify([baseURI, metadata.image])} uri={metadata.image} baseURI={baseURI} autoLoad={loadImage} alt={typeof metadata.name === "string" ? metadata.name : "NFT image"} /> : null}
+    <div className="nft-preview-summary">
     {typeof metadata.name === "string" && metadata.name !== "" ? <h3>{metadata.name}</h3> : null}
     {typeof metadata.description === "string" && metadata.description !== "" ? <p>{metadata.description}</p> : null}
-    {typeof metadata.image === "string" && metadata.image !== "" ? <NftImage key={JSON.stringify([baseURI, metadata.image])} uri={metadata.image} baseURI={baseURI} autoLoad={loadImage} alt={typeof metadata.name === "string" ? metadata.name : "NFT image"} /> : null}
     <dl className="nft-attributes">{attributes.map((attribute, index) => isRecordObject(attribute) && typeof attribute.trait_type === "string" && (typeof attribute.value === "string" || typeof attribute.value === "number" || typeof attribute.value === "boolean")
       ? <div key={index}><dt>{attribute.trait_type}</dt><dd>{String(attribute.value)}</dd></div> : null)}</dl>
+    </div>
+    {typeof metadata.image === "string" && metadata.image !== "" ? <p className="field-hint">Image source: <code className="nft-source">{metadata.image}</code></p> : null}
   </section>
 }
 
@@ -88,7 +89,6 @@ function NftImage({ uri, baseURI, alt, autoLoad }: { readonly uri: string; reado
     return () => URL.revokeObjectURL(url)
   }, [image.resource])
   return <div className="nft-image">
-    <p className="field-hint">Image source: <code className="nft-source">{uri}</code></p>
     {!embedded && (!autoLoad || image.resource.status !== "ready" || decodeFailed) ? <div className="nft-actions">{!autoLoad || image.resource.status !== "pending" ? <button className="button-quiet" type="button" disabled={image.resource.status === "pending"} onClick={() => { setDecodeFailed(false); void image.run(signal => loadNftImage(uri, baseURI, signal)) }}>Load image</button> : null}
       {image.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={image.cancel}>Cancel loading</button> : null}</div> : null}
     <ResourceFeedback resource={image.resource} />

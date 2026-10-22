@@ -40,6 +40,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     await wait(`!!document.querySelector('.nft-row .nft-preview h3')`)
     assert(await evaluate(`!!document.querySelector('section.nft-row[aria-label="NFT"] .nft-preview')&&!document.querySelector('.nft-row .nft-placeholder')`), 'loaded content replaces the placeholder within the same NFT area')
     await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
+    assert(await evaluate(`(() => { const preview=document.querySelector('.nft-row .nft-preview');const sources=document.querySelector('.nft-row .nft-source-controls');const identity=document.querySelector('.nft-row > .nft-identity');return !!sources&&preview.getBoundingClientRect().bottom<=sources.getBoundingClientRect().top+1&&sources.getBoundingClientRect().bottom<=identity.getBoundingClientRect().top+1 })()`), 'loaded content leads the preview, followed by its source controls and token identity')
     assert(await evaluate(`window.nftFixture.requests.length===1&&window.nftFixture.requests[0]===window.nftFixture.metadata.image`), 'loading an NFT fetches and decodes its image without a second action')
 
     await click(`${editor} summary`, 'Prepare JSON for hosting')
