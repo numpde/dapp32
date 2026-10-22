@@ -59,11 +59,13 @@ The registrar sends the transaction; the initial NFT owner may be another
 account. Token metadata, missing reports and resolutions use nonempty URIs.
 The metadata field offers a local JSON editor for name, description, image URL,
 attributes and other JSON fields. Load an existing document to revise it, or
-prepare a new one. Display, copy and download are separate from publication:
-host the downloaded JSON and enter its URI, or explicitly use its data URI.
-Registration and metadata updates submit exactly the URI shown in the field.
-Editing an applied JSON draft clears its generated URI until it is applied
-again; editing a draft does not change a manually entered URI.
+prepare a new one. Choose **Hosted JSON** to enter a published document location,
+or **Embed JSON** to store the JSON itself on chain. Each tab has a **Use** button
+to select its draft; changing tabs preserves the selection. The exact selected
+URI is available under **URI to submit**. Copying or downloading does not select
+or publish a document. Registration and metadata updates use the selected URI.
+Editing a selected hosted URI or applied embedded draft clears that selection
+until you apply it again. JSON edits preserve a selected hosted URI.
 
 The generic NFT viewer receives this URI from the contract projection. Choose
 **Load metadata** to view the document. Embedded image data URIs display

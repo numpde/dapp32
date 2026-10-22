@@ -378,13 +378,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "The token metadata URI is stored on chain. Enter a published JSON location, or prepare metadata below and explicitly use its data URI. Review the URI before sending the update."
+            "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below, then review the update."
           }
         },
         {
           "element": "NftMetadataField",
           "props": {
-            "label": "Token metadata"
+            "label": "NFT details"
           },
           "state": {
             "key": "tokenURI",
@@ -906,13 +906,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "Prepare the token metadata or enter a published metadata URI. Registration mints the NFT using the URI shown below; downloading JSON alone does not register it."
+            "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below. Registration mints the NFT using the selected document URI."
           }
         },
         {
           "element": "NftMetadataField",
           "props": {
-            "label": "Token metadata"
+            "label": "NFT details"
           },
           "state": {
             "key": "tokenURI",

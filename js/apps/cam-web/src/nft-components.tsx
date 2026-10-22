@@ -108,12 +108,17 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
   const id = useId()
+  const embeddedSelection = /^data:/i.test(value)
+  const [mode, setMode] = useState<"hosted" | "embedded">(embeddedSelection ? "embedded" : "hosted")
+  const [hostedURI, setHostedURI] = useState(embeddedSelection ? "" : value)
+  const tabs = useRef<(HTMLButtonElement | null)[]>([])
   const [text, setText] = useState("{}")
   const [appliedURI, setAppliedURI] = useState<string | undefined>(undefined)
   const [feedback, setFeedback] = useState("")
   const [baseURI, setBaseURI] = useState<string | undefined>(undefined)
   const loading = useNftResource<string>()
   const draft = metadataDraft(text)
+  const hostedIsEmbedded = /^data:/i.test(hostedURI)
   const relativeImage = !("error" in draft) && typeof draft.metadata.image === "string" && draft.metadata.image !== "" && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(draft.metadata.image)
   useEffect(() => { loading.cancel() }, [value, disabled])
   function editDraft(next: string): void {
@@ -138,14 +143,10 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
     link.download = "nft-metadata.json"
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 0)
-    setFeedback("JSON download requested. Publish it, then enter its metadata URI above.")
+    setFeedback("JSON download requested. Host the file, then enter its URI in Hosted JSON.")
   }
-  return <fieldset className="nft-editor" disabled={disabled}>
-    <legend>{label}</legend>
-    <label className="field"><span>Token metadata URI</span><input name={name} value={value} onChange={event => { setAppliedURI(undefined); onInput(name, event.currentTarget.value) }} /></label>
-    <details><summary>Prepare metadata JSON</summary>
-      <p className="field-hint">Enter an image URL and metadata, then download the JSON for hosting or use its data URI. Downloading and copying do not publish or mint anything.</p>
-      <button className="button-quiet" type="button" disabled={value === "" || loading.resource.status === "pending"} onClick={() => { void loading.run(async signal => serializeNftMetadata(await loadNftMetadata(value, signal))).then(json => { if (json !== undefined) { setBaseURI(value); editDraft(json) } }) }}>Load from current URI</button>
+  const editor = <>
+      <button className="button-quiet" type="button" disabled={value === "" || loading.resource.status === "pending"} onClick={() => { void loading.run(async signal => serializeNftMetadata(await loadNftMetadata(value, signal))).then(json => { if (json !== undefined) { setBaseURI(value); editDraft(json) } }) }}>Load selected metadata</button>
       <ResourceFeedback resource={loading.resource} />
       {(["name", "description", "image"] as const).map(key => <label className="field" key={key}><span>{key === "image" ? "Image URL" : key === "name" ? "Name" : "Description"}</span><input name={`${name}.metadata.${key}`} maxLength={NFT_METADATA_MAX_BYTES} disabled={"error" in draft} value={"error" in draft || typeof draft.metadata[key] !== "string" ? "" : draft.metadata[key] as string}
         onChange={event => { if (!("error" in draft)) editDraft(JSON.stringify({ ...draft.metadata, [key]: event.currentTarget.value }, null, 2)) }} /></label>)}
@@ -153,13 +154,42 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
       {"error" in draft ? <p className="field-error" role="alert">{draft.error}</p> : <>
         <NftMetadataPreview metadata={draft.metadata} baseURI={baseURI} />
         <div className="nft-actions"><button className="button-quiet" type="button" onClick={() => { void copy(draft.json) }}>Copy JSON</button><button className="button-quiet" type="button" onClick={download}>Download JSON</button></div>
-        <details><summary>Data URI</summary><p className="field-hint">This contains the JSON itself. Storing it on chain increases transaction size. Image URLs remain separate references.</p>
-          {relativeImage ? <p className="field-error" role="alert">Use an absolute image URL before applying this metadata as a data URI.</p> : null}
-          <label className="field"><span>Generated data URI</span><textarea readOnly value={draft.uri} /></label>
-          <div className="nft-actions"><button className="button-quiet" type="button" onClick={() => { void copy(draft.uri) }}>Copy data URI</button><button className="button-quiet" type="button" disabled={relativeImage} onClick={() => { setAppliedURI(draft.uri); onInput(name, draft.uri); setFeedback("Data URI selected. Editing this JSON will clear the selected URI until you apply it again.") }}>Use data URI</button></div>
-        </details>
       </>}
+  </>
+  return <fieldset className="nft-editor" disabled={disabled}>
+    <legend>{label}</legend>
+    <p className="nft-selection" role="status">{value === "" ? "No metadata selected for submission." : embeddedSelection ? "Selected for submission: embedded URI." : "Selected for submission: hosted URI."}</p>
+    <p className="field-hint">Choose “Use…” to select a draft for the transaction. Editing an applied draft clears that choice; switching tabs preserves it. Send the transaction separately.</p>
+    <div className="nft-tabs" role="tablist" aria-label={`${label} source`}>
+      {(["hosted", "embedded"] as const).map((tab, index) => <button key={tab} ref={node => { tabs.current[index] = node }} id={`${id}-${tab}-tab`} type="button" role="tab" aria-selected={mode === tab} aria-controls={`${id}-${tab}-panel`} tabIndex={mode === tab ? 0 : -1} onClick={() => setMode(tab)} onKeyDown={event => {
+        let next: number
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") next = 1 - index
+        else if (event.key === "Home") next = 0
+        else if (event.key === "End") next = 1
+        else return
+        event.preventDefault()
+        setMode(next === 0 ? "hosted" : "embedded")
+        tabs.current[next]?.focus()
+      }}>{tab === "hosted" ? "Hosted JSON" : "Embed JSON"}</button>)}
+    </div>
+    <section id={`${id}-hosted-panel`} role="tabpanel" aria-labelledby={`${id}-hosted-tab`} hidden={mode !== "hosted"} tabIndex={0}>
+      {mode === "hosted" ? <>
+        <p className="field-hint">Host the JSON document and enter its location. You can prepare and download the file below.</p>
+        <label className="field"><span>Hosted metadata URI</span><input name={name} value={hostedURI} aria-invalid={hostedIsEmbedded} aria-describedby={hostedIsEmbedded ? `${id}-hosted-error` : undefined} onChange={event => { if (value === hostedURI && event.currentTarget.value !== hostedURI) onInput(name, ""); setHostedURI(event.currentTarget.value); setFeedback("") }} /></label>
+        {hostedIsEmbedded ? <p id={`${id}-hosted-error`} className="field-error" role="alert">This URI contains the document itself. Choose Embed JSON to prepare an embedded document, or enter the location of a hosted JSON file.</p> : null}
+        <button className="button-quiet" type="button" disabled={hostedURI === "" || hostedIsEmbedded} onClick={() => { setAppliedURI(undefined); onInput(name, hostedURI); setFeedback("") }}>Use hosted JSON</button>
+        <details className="nft-hosted-draft"><summary>Prepare JSON for hosting</summary>{editor}</details>
+      </> : null}
+    </section>
+    <section id={`${id}-embedded-panel`} role="tabpanel" aria-labelledby={`${id}-embedded-tab`} hidden={mode !== "embedded"} tabIndex={0}>
+      {mode === "embedded" ? <>
+        <p className="field-hint">Store the JSON itself on chain instead of hosting a JSON file. This increases transaction size; external image URLs remain separate.</p>
+        {editor}
+        {relativeImage ? <p className="field-error" role="alert">Use an absolute image URL before embedding this JSON.</p> : null}
+        <button className="button-quiet" type="button" disabled={relativeImage || "error" in draft} onClick={() => { if (!("error" in draft)) { setAppliedURI(draft.uri); onInput(name, draft.uri); setFeedback("") } }}>Use embedded JSON</button>
+      </> : null}
+    </section>
+    {value !== "" ? <details><summary>URI to submit</summary><label className="field"><span>Selected URI</span><textarea readOnly value={value} /></label><button className="button-quiet" type="button" onClick={() => { void copy(value) }}>Copy URI</button></details> : null}
       <p id={`${id}-feedback`} role="status">{feedback}</p>
-    </details>
   </fieldset>
 }
