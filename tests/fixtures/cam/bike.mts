@@ -40,6 +40,8 @@ export const BIKE_UNKNOWN_SERIAL_HASH = "0x2222222222222222222222222222222222222
 export const BIKE_TOKEN_ID = BigInt(BIKE_SERIAL_HASH)
 export const BIKE_UNKNOWN_TOKEN_ID = BigInt(BIKE_UNKNOWN_SERIAL_HASH)
 
+// Retired is retained only for the unchanged terminal backend's legacy input.
+// It is not an alias for reversible inactivity and remains read-only.
 export type BikeComponentFixtureStatus = "active" | "missing" | "retired"
 
 export const bikeHost = {
@@ -67,10 +69,11 @@ export function bikeRouteResults(
   serialNumber: string,
   account: string,
   status: BikeComponentFixtureStatus,
+  inactive?: boolean,
 ): Record<string, unknown> {
   return {
     [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(account),
-    [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber, account, status),
+    [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber, account, status, inactive),
     [BIKE_VIEW_REGISTER]: bikeRegisterRouteResult(serialNumber, account),
   }
 }
@@ -122,6 +125,7 @@ export function bikeComponentRouteResult(
   serialNumber: string,
   account: string,
   status: BikeComponentFixtureStatus,
+  inactive?: boolean,
 ): Record<string, unknown> {
   const exists = serialNumber === BIKE_SERIAL_NUMBER
   const empty = serialNumber.length === 0
@@ -131,8 +135,12 @@ export function bikeComponentRouteResult(
   const isRetired = exists && status === "retired"
 
   return {
-    viewId: empty ? "component.empty" : exists ? componentViewId(status) : "component.notFound",
-    actions: exists ? componentActions(canAct, status) : lookupAndRegisterActions(account),
+    viewId: empty ? "component.empty" : exists ? (inactive && !isRetired ? "component.inactive" : componentViewId(status)) : "component.notFound",
+    actions: exists ? componentActions(canAct, status, inactive ?? false) : lookupAndRegisterActions(account),
+    // Supplying this argument opts into the proposed independent lifecycle
+    // projection. Omission preserves the checked-in ABI shape: its strict tuple
+    // normalizer rejects extra fields rather than silently dropping them.
+    ...(inactive === undefined ? {} : { inactive: exists && !isRetired && inactive }),
     account,
     paused: false,
     canRegister: bikeCanRegister(account),
@@ -152,7 +160,7 @@ export function bikeComponentRouteResult(
     registeredAt: exists ? 1n : 0n,
     updatedAt: exists ? 2n : 0n,
     serialNumber,
-    permissions: canAct ? 15n : 0n,
+    permissions: canAct && !isRetired ? 7n : 0n,
     isOwner: canAct,
     authorityId: canAct ? "owner" : "none",
     delegationGrantor: BIKE_ZERO_ADDRESS,
@@ -163,7 +171,10 @@ export function bikeComponentRouteResult(
     canUpdateMetadata: canAct && !isRetired,
     canMarkMissing: canAct && isActive,
     canClearMissing: canAct && isMissing,
-    canRetire: canAct && isActive,
+    // Current ABI scaffolding: retirement is never an offered owner action.
+    // Inactivity is independent of statusId/missingReportURI; explicit lifecycle
+    // fixtures above expose it without changing the checked-in public ABI.
+    canRetire: false,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }
 }
@@ -251,16 +262,17 @@ function registerReadyActions(): string[] {
   return ["registerComponent", "lookupComponent"]
 }
 
-function componentActions(canAct: boolean, status: BikeComponentFixtureStatus): string[] {
+function componentActions(canAct: boolean, status: BikeComponentFixtureStatus, inactive: boolean): string[] {
   if (!canAct || status === "retired") {
     return lookupOnlyActions()
   }
 
-  if (status === "missing") {
-    return ["lookupComponent", "updateComponentMetadata", "clearComponentMissing"]
-  }
-
-  return ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"]
+  return [
+    "lookupComponent", "updateComponentMetadata",
+    status === "missing" ? "clearComponentMissing" : "markComponentMissing",
+    inactive ? "reactivateComponent" : "decommissionComponent",
+    "delegation", "transferComponent",
+  ]
 }
 
 function componentViewId(status: BikeComponentFixtureStatus): string {

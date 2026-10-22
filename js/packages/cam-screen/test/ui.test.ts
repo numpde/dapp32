@@ -478,7 +478,7 @@ test("queries resolved UI buttons and input names deterministically", () => {
     props: {},
     call: {
       namespace: "routes",
-      function: "retireComponent",
+      function: "decommissionComponent",
       args: {},
     },
   }

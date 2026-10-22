@@ -47,7 +47,7 @@ import {
   bikeRegisterRouteResult,
   bikeRouteResults,
 } from "../../../../tests/fixtures/cam/bike.mts"
-import { bikeManagerAbi } from "../../../../tests/fixtures/cam/bike-resources.mts"
+import { bikeManagerAbi, bikeUiAbi } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import {
   bikeResourceBytes,
   createMockCamPublicClient,
@@ -65,18 +65,28 @@ const BIKE_REGISTRATION_TOKEN_URI = "fixture://bike-nft/tokens/session-registrat
 const NO_RESOURCE_OVERRIDES = {}
 
 test("bike availability keeps component writes and their fields visible across authority and lifecycle changes", async () => {
+  // These scenarios explicitly opt into independent inactivity. Require the
+  // real publication first so an obsolete ABI fails with the feature gap,
+  // rather than an incidental unexpected-tuple-field normalization error.
+  const componentAbi = bikeUiAbi.find(entry => entry.type === "function" && entry.name === BIKE_VIEW_COMPONENT)
+  assert.ok(componentAbi)
+  assert.ok(Array.isArray(componentAbi.outputs))
+  const fields = componentAbi.outputs[0]?.components
+  assert.ok(Array.isArray(fields))
+  assert.ok(fields.some(field => field.name === "inactive" && field.type === "bool"), "published viewComponent ABI must expose independent inactive: bool")
   for (const scenario of [
-    { name: "active owner", status: "active", account: userAddress },
-    { name: "missing owner", status: "missing", account: userAddress },
-    { name: "retired owner", status: "retired", account: userAddress },
-    { name: "other account", status: "active", account: otherUserAddress },
-    { name: "manager paused", status: "active", account: userAddress, paused: true },
-    { name: "token paused", status: "active", account: userAddress, tokenPaused: true },
+    { name: "active owner", status: "active", inactive: false, account: userAddress },
+    { name: "missing owner", status: "missing", inactive: false, account: userAddress },
+    { name: "inactive owner", status: "active", inactive: true, account: userAddress },
+    { name: "inactive missing owner", status: "missing", inactive: true, account: userAddress },
+    { name: "other account", status: "active", inactive: false, account: otherUserAddress },
+    { name: "manager paused", status: "active", inactive: false, account: userAddress, paused: true },
+    { name: "token paused", status: "active", inactive: false, account: userAddress, tokenPaused: true },
   ] as const) {
-    const projection = bikeComponentRouteResult(BIKE_SERIAL_NUMBER, scenario.account, scenario.status)
-    if ("paused" in scenario) Object.assign(projection, { paused: true, actions: ["lookupComponent"] })
+    const projection = bikeComponentRouteResult(BIKE_SERIAL_NUMBER, scenario.account, scenario.status, scenario.inactive)
+    if ("paused" in scenario) Object.assign(projection, { paused: true, actions: ["lookupComponent", "delegation", "transferComponent"] })
     if ("tokenPaused" in scenario) Object.assign(projection, {
-      componentTokenPaused: true, actions: ["lookupComponent", "markComponentMissing", "retireComponent"],
+      componentTokenPaused: true, actions: ["lookupComponent", "markComponentMissing", "decommissionComponent", "delegation"],
     })
     const routeResults = { ...bikeRouteResults(BIKE_SERIAL_NUMBER, scenario.account, scenario.status), [BIKE_VIEW_COMPONENT]: projection }
     const session = createSession(sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })) }))
@@ -85,7 +95,8 @@ test("bike availability keeps component writes and their fields visible across a
     const snapshot = await session.navigate("component", { serialNumber: BIKE_SERIAL_NUMBER })
     const actions = projection.actions as string[]
     const buttons = resolvedUiButtons(snapshot.resolvedUi)
-    for (const action of ["updateComponentMetadata", "markComponentMissing", "clearComponentMissing", "retireComponent"]) {
+    assert.equal(buttons.some(node => node.call.function === "retireComponent" && !node.disabled), false, scenario.name)
+    for (const action of ["updateComponentMetadata", "markComponentMissing", "clearComponentMissing", "decommissionComponent", "reactivateComponent", "delegation", "transferComponent"]) {
       const button = buttons.find(node => node.call.function === action)
       assert.ok(button, `${scenario.name}: ${action} must remain visible`)
       assert.equal(button.disabled === true, !actions.includes(action), `${scenario.name}: ${action} availability`)
@@ -216,28 +227,33 @@ test("bike fixture covers unpaused fixture projection cases", () => {
   })
   assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "active"), {
     viewId: "component.active",
-    actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"],
+    actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "decommissionComponent", "delegation", "transferComponent"],
+    permissions: 7n,
     serialHash: BIKE_SERIAL_HASH,
     tokenId: BIKE_TOKEN_ID,
   })
   assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "missing"), {
     viewId: "component.missing",
-    actions: ["lookupComponent", "updateComponentMetadata", "clearComponentMissing"],
+    actions: ["lookupComponent", "updateComponentMetadata", "clearComponentMissing", "decommissionComponent", "delegation", "transferComponent"],
     statusId: "missing",
     missingReportURI: BIKE_MISSING_REPORT_URI,
     canMarkMissing: false,
     canClearMissing: true,
     canRetire: false,
   })
-  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "retired"), {
-    viewId: "component.retired",
-    actions: ["lookupComponent"],
-    statusId: "retired",
-    canUpdateMetadata: false,
-    canMarkMissing: false,
-    canClearMissing: false,
-    canRetire: false,
-  })
+  for (const status of ["active", "missing"] as const) {
+    assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, status, true), {
+      viewId: "component.inactive",
+      actions: ["lookupComponent", "updateComponentMetadata", status === "missing" ? "clearComponentMissing" : "markComponentMissing", "reactivateComponent", "delegation", "transferComponent"],
+      statusId: status,
+      inactive: true,
+      missingReportURI: status === "missing" ? BIKE_MISSING_REPORT_URI : "",
+      canUpdateMetadata: true,
+      canMarkMissing: status === "active",
+      canClearMissing: status === "missing",
+      canRetire: false,
+    })
+  }
   assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, otherUserAddress, "active"), {
     viewId: "component.active",
     actions: ["lookupComponent"],

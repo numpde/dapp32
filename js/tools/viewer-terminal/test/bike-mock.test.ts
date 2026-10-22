@@ -13,9 +13,8 @@ import type { DebugEvent } from "../types.ts"
 
 test("bike mock backend keeps lifecycle controls visible and disables unavailable actions", async () => {
   for (const [status, enabledActions] of [
-    ["active", ["component", "updateComponentMetadata", "markComponentMissing", "retireComponent"]],
-    ["missing", ["component", "updateComponentMetadata", "clearComponentMissing"]],
-    ["retired", ["component"]],
+    ["active", ["component", "updateComponentMetadata", "markComponentMissing", "decommissionComponent", "delegation", "transferComponent"]],
+    ["missing", ["component", "updateComponentMetadata", "clearComponentMissing", "decommissionComponent", "delegation", "transferComponent"]],
   ] as const) {
     const component = await loadBikeMockComponent(status)
     const buttons = resolvedUiButtons(component.resolvedUi)
@@ -24,7 +23,10 @@ test("bike mock backend keeps lifecycle controls visible and disables unavailabl
       "updateComponentMetadata",
       "markComponentMissing",
       "clearComponentMissing",
-      "retireComponent",
+      "decommissionComponent",
+      "reactivateComponent",
+      "delegation",
+      "transferComponent",
     ], status)
     assert.deepEqual(
       buttons.filter((button) => !button.disabled).map((button) => button.call.function),
@@ -36,7 +38,7 @@ test("bike mock backend keeps lifecycle controls visible and disables unavailabl
   }
 })
 
-test("bike mock backend env selects active by default and validates explicit statuses", async () => {
+test("bike mock backend env retains legacy retired input compatibility without reinterpreting it as inactive", async () => {
   const active = await createTerminalBackendFromEnv({
     CAM_VIEWER_BACKEND: "mock",
     CAM_VIEWER_MOCK: "bike-nft",
@@ -51,6 +53,13 @@ test("bike mock backend env selects active by default and validates explicit sta
     CAM_VIEWER_BIKE_MOCK_COMPONENT_STATUS: "retired",
   })
   assert.equal(retired.description, "offline bike NFT fixture (retired component)")
+  // This old terminal selector is not the new reversible lifecycle. In
+  // particular, accepting it must never offer reactivation or successful retire.
+  const legacy = await loadBikeMockComponent("retired")
+  assert.deepEqual(
+    resolvedUiButtons(legacy.resolvedUi).filter(button => !button.disabled).map(button => button.call.function),
+    ["component"],
+  )
 
   await assert.rejects(
     () => createTerminalBackendFromEnv({

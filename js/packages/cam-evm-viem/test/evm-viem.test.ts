@@ -394,7 +394,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
   assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
   assert.deepEqual(result.values[0], toInertValue({
     viewId: "component.active",
-    actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"],
+    actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "decommissionComponent", "delegation", "transferComponent"],
     account: userAddress,
     paused: false,
     canRegister: true,
@@ -412,7 +412,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     registeredAt: "1",
     updatedAt: "2",
     serialNumber: BIKE_SERIAL_NUMBER,
-    permissions: "15",
+    permissions: "7",
     isOwner: true,
     authorityId: "owner",
     delegationGrantor: BIKE_ZERO_ADDRESS,
@@ -423,7 +423,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     canUpdateMetadata: true,
     canMarkMissing: true,
     canClearMissing: false,
-    canRetire: true,
+    canRetire: false,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }))
 })
