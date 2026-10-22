@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { collectFixtureFacts } from '../../../tools/browser-fixture-facts.mjs'
+import { collectFixtureFacts, createFixtureFactsReader } from '../../../tools/browser-fixture-facts.mjs'
 import bike from './bike-nft-fixture-wallet.mjs'
 import escrow from './escrow-fixture-wallet.mjs'
 import payments from './pay-to-play-fixture-wallet.mjs'
@@ -115,4 +115,44 @@ test('the total deadline rejects a stalled refresh and late reads cannot start m
   release(1n)
   await new Promise(resolve => setImmediate(resolve))
   assert.equal(scans, 0)
+})
+
+test('inspection work stays single-flight and only the newest waiting account is read', async () => {
+  let release
+  const accountsRead = []
+  const service = createFixtureFactsReader({
+    client: { getBlockNumber: async () => 1n }, contracts: {}, validate: async () => {},
+    config: { async collectFacts({ account }) { accountsRead.push(account); if (account === 'first') await new Promise(resolve => { release = resolve }); return { rows: [] } } },
+  })
+  const first = service.read('first')
+  const firstRejected = assert.rejects(first, /superseded/i)
+  await new Promise(resolve => setImmediate(resolve))
+  const middle = service.read('middle')
+  const middleRejected = assert.rejects(middle, /superseded/i)
+  const latest = service.read('latest')
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(accountsRead, ['first'], 'new requests must not overlap an active read')
+  release()
+  await Promise.all([firstRejected, middleRejected])
+  assert.deepEqual((await latest).rows, [])
+  assert.deepEqual(accountsRead, ['first', 'latest'], 'superseded queued work must never start')
+  service.stop()
+  await assert.rejects(service.read('after stop'), /stopped/i)
+})
+
+test('superseding an inspection stops its RPC reads at the next checkpoint', async () => {
+  let release
+  const calls = []
+  const service = createFixtureFactsReader({
+    contracts: {}, validate: async () => {},
+    client: { getBlockNumber: () => new Promise(resolve => { release = resolve }) },
+    config: { async collectFacts() { calls.push('collect'); return { rows: [] } } },
+  })
+  const old = assert.rejects(service.read('old'), /superseded/i)
+  await new Promise(resolve => setImmediate(resolve))
+  const latest = assert.rejects(service.read('latest'), /stopped/i)
+  service.stop()
+  release(1n)
+  await Promise.all([old, latest])
+  assert.deepEqual(calls, [], 'obsolete inspections cannot proceed from discovery to hydration')
 })

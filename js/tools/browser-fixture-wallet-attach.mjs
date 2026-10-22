@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from '@cam/protocol'
 import { viewerErrorMessage } from '@cam/viewer'
-import { collectFixtureFacts } from './browser-fixture-facts.mjs'
+import { createFixtureFactsReader } from './browser-fixture-facts.mjs'
 import { assertFixtureWalletDeployment, verifyFixtureWalletDeployment, fixtureWalletTransaction, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
 import { createCdpCommands, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
 
@@ -73,6 +73,17 @@ async function main() {
     const url = new URL(info.url)
     assert.equal(url.origin, viewer.origin); assert.equal(url.searchParams.get('host')?.toLowerCase(), root.toLowerCase()); assert.equal(url.searchParams.get('chainId'), 'eip155:31337')
   }
+  const factsReader = createFixtureFactsReader({
+    client: publicClient, config, contracts: inspectionContracts,
+    validate: async signal => {
+      signal.throwIfAborted()
+      await assertTab()
+      signal.throwIfAborted()
+      await assertChain()
+      signal.throwIfAborted()
+      await assertFixtureWalletDeployment({ manifest: await readManifest(), expectedManifest, expectedContracts, readBinding: name => { signal.throwIfAborted(); return readBinding(name) } })
+    },
+  })
   async function bridge(request, executionContextId) {
     const document = fixtureDocumentRequest({ executionContextId, documents, isOpen: () => open, call })
     let result
@@ -107,9 +118,7 @@ async function main() {
       assert.equal(request.method, 'fixture_facts')
       assert.deepEqual(request.params, [])
       assert(Object.hasOwn(accounts, request.role), 'Unknown fixture account')
-      await assertTab(); await assertChain()
-      await assertFixtureWalletDeployment({ manifest: await readManifest(), expectedManifest, expectedContracts, readBinding })
-      const facts = await collectFixtureFacts({ client: publicClient, config, contracts: inspectionContracts, account: accounts[request.role].address })
+      const facts = await factsReader.read(accounts[request.role].address)
       await document.resolve(request.id, true, facts)
     } catch (error) {
       await document.resolve(request.id, false, { code: -32603, message: 'Cannot load deployment facts. Check the local fixture and try Refresh.', diagnostic: viewerErrorMessage(error) })
@@ -153,7 +162,7 @@ async function main() {
   } catch (failure) {
     primaryFailure = failure
   } finally {
-    await finishFixtureAttachment({ stopSubmissions: () => { open = false }, wallet: installed, pending, commands, socket, primaryFailure })
+    await finishFixtureAttachment({ stopSubmissions: () => { open = false; factsReader.stop() }, wallet: installed, pending, commands, socket, primaryFailure })
   }
 }
 main().catch(failure => {
