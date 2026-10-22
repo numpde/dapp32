@@ -31,12 +31,12 @@ const context = {
 test("rendered actions retain only their own direct state bindings through Includes", () => {
   const ui = parseUi({ ui: UI_VERSION, nodes: {
     app: { requires: [], element: "Fragment", children: [
-      { element: "Include", call: { namespace: "ui", function: "action", args: { value: "$state.serialNumber", target: "inspect" } } },
-      { element: "Include", call: { namespace: "ui", function: "action", args: { value: "$state.serialNumber", target: "update" } } },
+      { element: "Include", call: { namespace: "ui", function: "action", args: { view: { value: "$state.serialNumber", target: "inspect" } } } },
+      { element: "Include", call: { namespace: "ui", function: "action", args: { view: { value: "$state.serialNumber", target: "update" } } } },
     ] },
-    action: { requires: ["value", "target"], element: "Button", props: { label: "Inspect" }, call: {
-      namespace: "routes", function: "$target", args: {
-        direct: "$state.serialNumber", parameter: "$value", nested: { value: "$state.serialNumber" }, literal: "ABC123",
+    action: { requires: ["view"], element: "Button", props: { label: "Inspect" }, call: {
+      namespace: "routes", function: "$view.target", args: {
+        direct: "$state.serialNumber", parameter: "$view.value", nested: { value: "$state.serialNumber" }, literal: "ABC123",
       },
     } },
     unrendered: { requires: [], element: "Button", props: { label: "Other" }, call: {

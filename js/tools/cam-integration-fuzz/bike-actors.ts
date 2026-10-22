@@ -99,7 +99,7 @@ async function main(): Promise<void> {
     assertResolvedSnapshot(await session.setAccount({ address: next }))
     emit({ event: "bike_actor_selected", account: next })
   }
-  async function dispatch(route: string, patch: InertRecord = {}, capabilities?: string): Promise<CamViewerPreparedContractCall | undefined> {
+  async function dispatch(route: string, patch: InertRecord, capabilities?: string): Promise<CamViewerPreparedContractCall | undefined> {
     const snapshot = session.updateState(patch)
     assertResolvedSnapshot(snapshot)
     const buttons = resolvedUiButtons(snapshot.resolvedUi).filter(button => button.disabled !== true && button.call.function === route && (capabilities === undefined || button.call.args.capabilities === capabilities))

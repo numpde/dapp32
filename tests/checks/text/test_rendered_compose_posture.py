@@ -1112,7 +1112,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             "tools/cam-integration-fuzz/runner.ts",
         )
         bike_command = compose_command_text(bike)
-        self.assertIn('if [ "${CAM_INTEGRATION_WRITE_MODE}" = local-fixture ]; then', bike_command)
+        self.assertIn('if [ "$${CAM_INTEGRATION_WRITE_MODE}" = local-fixture ]; then', bike_command)
         self.assertIn("node --experimental-strip-types tools/cam-integration-fuzz/bike-actors.ts", bike_command)
         self.assertIn("node --input-type=module", bike_command)
         self.assertEqual(bike_command, compose_command_text(bike_writes))

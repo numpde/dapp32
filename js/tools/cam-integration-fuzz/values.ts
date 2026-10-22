@@ -151,10 +151,11 @@ function directStateTypes(
   // Include parameter flow and nested expressions remain outside this generator.
   for (const button of buttons) {
     if (button.disabled === true) continue
+    if (button.directStateBindings === undefined) continue
     const route = routes[button.call.function]
     if (route === undefined) continue
     const inputTypes = directRouteInputTypes(route, contracts)
-    for (const [input, key] of Object.entries(button.directStateBindings ?? {})) {
+    for (const [input, key] of Object.entries(button.directStateBindings)) {
       const type = inputTypes.get(input)
       if (renderedKeys.has(key) && type !== undefined) bindType(types, key, type)
     }

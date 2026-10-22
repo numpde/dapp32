@@ -5,11 +5,10 @@ ownership change, and direct ERC-721 handover through the checked-in CAM 1.3.0
 publication. This note defines the product laws and the boundaries exercised
 by the contract, protocol, adapter, viewer, and publication tests.
 
-The full Docker-backed Solidity lane passed all 82 Bike tests; the JS suite
-passed 832 tests and repository checks passed 316 tests. Publication and tool
-checks listed below also passed. The live fresh-chain Bike campaign passed 16
-steps, including transfers, workshop grants, and missing reports. A browser
-journey and full public-release qualification remain outstanding.
+The current Docker-backed JS, repository, and integration-tool checks passed,
+as did the isolated fresh-chain Bike write campaign. Solidity sources are
+unchanged; the earlier 82-test qualification was not rerun. A browser journey
+and full public-release qualification remain outstanding.
 
 ## Product laws
 
@@ -73,43 +72,41 @@ collection configured for future registrations.
 - Existing wallet tests retain account/network/cancellation coverage; added
   retry/receipt tests distinguish submitted, pending, rejected, and reverted.
 
-Recorded baseline qualification at `e931fb8b` (before the generator fixes below):
+Current qualification covers the working tree based on `477f9228` with the four
+follow-up audit fixes. All four lanes exited successfully:
 
-- `make dapps/tests`: all 82 Bike Solidity unit/scenario and invariant tests.
-- `make js/tests`: 832 JS tests.
+- `make js/tests`: 833 JS tests.
 - `make tests/checks`: 316 repository checks.
-- `make dapps/format/check`, `make cam/conformance/check`,
-  `make bike-nft/release/check`, `make viewer/terminal/check`, and
-  `make cam/integration/fuzz/check`.
-- The repaired integration generator passed 27 focused tests and six hygiene
-  checks; its scope changes received independent review.
-- The live fresh-chain Bike integration campaign passed 16 steps, including
-  transfers, workshop grants, and missing reports. Its generated address inputs
-  used the acting account, so these transfers/grants did not establish a
-  distinct-buyer handover or independent workshop authority.
+- `make cam/integration/fuzz/check`: 33 tests.
+- `make bike-nft/local/integration/fuzz/fixture-writes/run`: the deterministic seller/buyer/mechanic
+  campaign and the 16-step generic walker, with 15 successful receipts across
+  both campaigns. Cleanup verified no fixture containers, networks, or volumes
+  remained.
 
-The local write lane now runs a separate deterministic seller/buyer/mechanic
-campaign before the generic random walk. It uses three distinct signing
-accounts, verifies a real ownership change, proves the old seller and workshop
-lose write authority through decoded onchain reverts, and exercises the new
-owner's write authority. Funding and signing are restricted to the private Bike
-Anvil service. The generic walker remains single-account; it does not claim this
-multi-actor evidence itself.
+The earlier qualification at `e931fb8b` passed all 82 Bike Solidity
+unit/scenario and invariant tests through `make dapps/tests`. Solidity sources
+are unchanged, and that lane was not rerun for the current qualification.
+`make dapps/format/check`, `make cam/conformance/check`,
+`make bike-nft/release/check`, and `make viewer/terminal/check` also retain their
+earlier baseline results; they were not rerun in this qualification.
+
+The local write lane runs the deterministic seller/buyer/mechanic campaign
+before the generic random walk. Three distinct signing accounts establish a
+real ownership change to the buyer. Actual contract `eth_call` results decoded
+as `Unauthorized` prove the old seller and mechanic lose write authority; the
+campaign also exercises the new owner's write authority. Funding and signing
+are restricted to the private Bike Anvil service. The generic walker remains
+single-account; the separate deterministic campaign supplies the distinct-actor
+evidence.
 
 Input inference now consumes direct state bindings from actual enabled rendered
 actions, not unrelated nodes in the UI document. Focused regressions cover shared
 route/state-key names across separate screens, legitimate same-screen conflicts,
 disabled actions, and Include instances.
 
-These latest fixes and the distinct-actor campaign have not been executed in
-the authoring environment: the Docker-backed check is blocked by missing locked
-npm dependencies, and Docker Engine is unavailable. Static review and whitespace
-checks are not runtime qualification. Rerun the supported lanes before treating
-the baseline counts above as qualification of the updated code.
-
 The Foundry scenarios deploy real contracts inside the test VM. Adapter and
-viewer tests use controlled RPC fixtures. The live campaign adds bounded
-evidence from 16 steps against a fresh local chain. These checks do not
-establish a completed browser wallet journey or full public release ceremony.
-Run the remaining full repository and documented browser/release journeys
-before claiming those qualifications.
+viewer tests use controlled RPC fixtures. The fresh-chain campaigns add bounded
+evidence from the isolated local deployment. These checks do not establish a
+completed browser wallet journey or full public release ceremony. Run the
+remaining full repository and documented browser/release journeys before
+claiming those qualifications.
