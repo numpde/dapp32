@@ -48,9 +48,10 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
 }): ReactElement {
   const preview = useNftResource<InertRecord>()
   return <div className="nft-row">
-    <dl className="nft-identity"><div><dt>NFT contract</dt><dd>{contractAddress}</dd></div><div><dt>Token ID</dt><dd>{tokenId}</dd></div></dl>
+    <dl className="nft-identity"><div><dt>NFT contract</dt><dd>{contractAddress}</dd></div><div><dt>Token ID</dt><dd>{tokenId}</dd></div>
+      {metadataURI !== undefined && metadataURI !== "" ? <div><dt>Metadata URI</dt><dd>{metadataURI}</dd></div> : null}
+    </dl>
     {metadataURI !== undefined && metadataURI !== "" ? <>
-      <label className="field"><span>Metadata URI</span><input readOnly value={metadataURI} /></label>
       <div className="nft-actions"><button className="button-quiet" type="button" disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal)) }}>Load metadata</button>
         {preview.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={preview.cancel}>Cancel loading</button> : null}</div>
       <ResourceFeedback resource={preview.resource} />
