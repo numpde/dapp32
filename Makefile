@@ -569,8 +569,8 @@ help:
 	  '  make pay-to-play/live/browser/check            Send signed local transactions and test payment/recovery workflows.' \
 	  '    These two checks change demo state and spend local test coins on gas.' \
 	  '  make viewer/local/fixture-wallet/attach        Sign and send transactions requested by an existing demo tab.' \
-	  '    For attach, also set FIXTURE_WALLET_APP=escrow or pay-to-play, CDP_TARGET_ID to that existing tab ID,' \
-	  '    and EXPECTED_CONTRACT_ADDRESS to the payment/escrow contract address. Keep attach running.' \
+	  '    For attach, set FIXTURE_WALLET_APP=escrow, pay-to-play or bike-nft and CDP_TARGET_ID to that existing tab ID.' \
+	  '    EXPECTED_CONTRACT_ADDRESSES is a JSON object mapping every granted namespace to its address. Keep attach running.' \
 	  '    The app README gives the contract binding and full browser setup commands.' \
 	  '    Confirming a Send prompt in the browser immediately signs and submits that local transaction.' \
 	  '    Find tab IDs at the debugging origin /json/list. The signer is for local chain 31337 only.' \
@@ -1930,7 +1930,7 @@ viewer/local/fixture-wallet/attach:
 	FIXTURE_WALLET_APP="$${FIXTURE_WALLET_APP:?Set FIXTURE_WALLET_APP}" CDP_TARGET_ID="$${CDP_TARGET_ID:?Set CDP_TARGET_ID}" \
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
-	EXPECTED_CONTRACT_ADDRESS="$${EXPECTED_CONTRACT_ADDRESS:?Set EXPECTED_CONTRACT_ADDRESS}" \
+	EXPECTED_CONTRACT_ADDRESSES="$${EXPECTED_CONTRACT_ADDRESSES:?Set EXPECTED_CONTRACT_ADDRESSES}" \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/browser-fixture-wallet.yml run --build --rm --no-deps -T browser-fixture-wallet
 export REFUND_CONFIG_FILE RPC_URL_FILE REFUND_PRIVATE_KEY_FILE REFUND_STATE_DIR
 .PHONY: pay-to-play/local/recovery/run pay-to-play/refunds/check pay-to-play/refunds/plan pay-to-play/refunds/run

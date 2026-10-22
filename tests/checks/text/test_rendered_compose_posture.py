@@ -282,7 +282,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
                 "CDP_TARGET_ID": "00000000000000000000000000000001",
                 "FIXTURE_WALLET_APP": "pay-to-play",
-                "EXPECTED_CONTRACT_ADDRESS": "0x0000000000000000000000000000000000000001",
+                "EXPECTED_CONTRACT_ADDRESSES": '{"PayToPlay":"0x0000000000000000000000000000000000000001"}',
                 "CDP_ORIGIN": "http://127.0.0.1:9222",
                 "COMPOSE_PROJECT_NAME": "dapps-check",
                 "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",

@@ -663,7 +663,7 @@ make viewer/local/fixture-wallet/attach \
   FIXTURE_WALLET_APP=pay-to-play CDP_TARGET_ID='<existing-tab-id>' \
   CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='<printed viewer URL>' \
   EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json \
-  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESS=0x...
+  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESSES='{"PayToPlay":"0x..."}'
 ```
 
 The attachment verifies the tab/origin/host/chain/manifest/contract and refuses

@@ -74,7 +74,7 @@ const accounts = fixtureWalletAccounts(walletConfig.accounts)
 const voucherSigner = privateKeyToAccount(`0x${'55'.repeat(32)}`)
 assert.equal(viewer.searchParams.get('account').toLowerCase(), accounts.admin.address.toLowerCase())
 assert.equal((await publicClient.readContract({ address: payments, abi, functionName: 'owner' })).toLowerCase(), accounts.admin.address.toLowerCase())
-const selectors = fixtureFunctionSelectors(abi, walletConfig.functions)
+const selectors = fixtureFunctionSelectors(abi, walletConfig.contracts.PayToPlay)
 const wallets = Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, createWalletClient({ account, chain, transport: http(rpcURL.href, { timeout: 10_000, retryCount: 0 }) })]))
 let sent = 0
 let attempts = 0

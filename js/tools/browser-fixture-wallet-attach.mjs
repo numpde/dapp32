@@ -1,14 +1,14 @@
 // Foreground local-fixture signer for one operator-selected existing browser tab.
 import assert from 'node:assert/strict'
-import { createPublicClient, createWalletClient, http, parseAbi, sha256 } from 'viem'
+import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from '@cam/protocol'
-import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
+import { assertFixtureWalletDeployment, verifyFixtureWalletDeployment, fixtureWalletTransaction, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
 import { createCdpCommands, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
 
 let phase = 'validating app account configuration'
 async function main() {
   const app = process.env.FIXTURE_WALLET_APP
-  assert(['pay-to-play', 'escrow'].includes(app), 'FIXTURE_WALLET_APP must select an explicit app fixture')
+  assert(['pay-to-play', 'escrow', 'bike-nft'].includes(app), 'FIXTURE_WALLET_APP must select an explicit app fixture')
   const config = (await import(`../apps/cam-web/test/${app}-fixture-wallet.mjs`)).default
   let accounts
   try { accounts = fixtureWalletAccounts(config.accounts) } catch (error) { process.stderr.write(`Cannot configure the fixture wallet: ${error.message}\n`); process.exitCode = 1; return }
@@ -25,8 +25,7 @@ async function main() {
   assert.equal(viewer.searchParams.get('chainId'), 'eip155:31337')
   const root = viewer.searchParams.get('host')
   assert(/^0x[0-9a-fA-F]{40}$/.test(root), 'VIEWER_URL must name a CAM host')
-  const expectedTarget = process.env.EXPECTED_CONTRACT_ADDRESS
-  assert(/^0x[0-9a-fA-F]{40}$/.test(expectedTarget), 'EXPECTED_CONTRACT_ADDRESS must pin the deployed app contract')
+  const expectedContracts = JSON.parse(process.env.EXPECTED_CONTRACT_ADDRESSES)
   const targetId = process.env.CDP_TARGET_ID
   assert(/^[A-Fa-f0-9]{32}$/.test(targetId), 'CDP_TARGET_ID must select one existing tab')
   const rpcURL = localURL(viewer.searchParams.get('rpcUrl'), 'Viewer RPC')
@@ -41,23 +40,10 @@ async function main() {
   async function assertChain() { assert.equal(await publicClient.getChainId(), 31337, 'RPC must remain fixture chain 31337') }
   await assertChain()
   const rootABI = parseAbi(['function camManifest() view returns ((string uri,bytes32 sha256Digest))', 'function contractAddress(string) view returns (address)'])
-  const manifest = await publicClient.readContract({ address: root, abi: rootABI, functionName: 'camManifest' })
-  assert.equal(manifest.uri, process.env.EXPECTED_CAM_URI)
-  assert.equal(manifest.sha256Digest.toLowerCase(), process.env.EXPECTED_CAM_HASH?.toLowerCase())
-  requireSameHttpOrigin(manifest.uri, viewer.origin, 'CAM manifest')
-  const rootBytes = await bytes(manifest.uri)
-  assert.equal(sha256(rootBytes), manifest.sha256Digest)
-  const cam = JSON.parse(new TextDecoder().decode(rootBytes))
-  const declaration = cam.namespaces[`contracts.${config.contract}`]
-  assert.equal(declaration.type, 'contract')
-  const abiURL = new URL(declaration.abiURI, manifest.uri)
-  requireSameHttpOrigin(abiURL.href, viewer.origin, 'App ABI')
-  const abiBytes = await bytes(abiURL)
-  assert.equal('sha256:'+sha256(abiBytes), declaration.integrity)
-  const abi = JSON.parse(new TextDecoder().decode(abiBytes))
-  const binding = await publicClient.readContract({ address: root, abi: rootABI, functionName: 'contractAddress', args: [config.contract] })
-  assert.equal(binding.toLowerCase(), expectedTarget.toLowerCase(), 'CAM binding must match the explicit app target')
-  const selectors = fixtureFunctionSelectors(abi, config.functions)
+  const readManifest = () => publicClient.readContract({ address: root, abi: rootABI, functionName: 'camManifest' })
+  const readBinding = namespace => publicClient.readContract({ address: root, abi: rootABI, functionName: 'contractAddress', args: [namespace] })
+  const expectedManifest = { uri: process.env.EXPECTED_CAM_URI, sha256Digest: process.env.EXPECTED_CAM_HASH }
+  const grants = await verifyFixtureWalletDeployment({ config, expectedContracts, manifest: await readManifest(), expectedManifest, origin: viewer.origin, readBytes: bytes, readBinding, readCode: address => publicClient.getCode({ address }) })
   const wallets = Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, createWalletClient({ account, chain, transport: http(rpcURL.href, { timeout: 10000, retryCount: 0 }) })]))
   phase = 'connecting to the selected existing browser tab'
   const version = JSON.parse(new TextDecoder().decode(await bytes(new URL('/json/version', cdp))))
@@ -97,18 +83,14 @@ async function main() {
       assert.equal(request.params.length, 1)
       const account = accounts[request.role]
       const tx = request.params[0]
-      assert(Object.keys(tx).every(key => ['from', 'to', 'data', 'value', 'gas'].includes(key)))
-      assert.equal(tx.from.toLowerCase(), account.address.toLowerCase())
-      assert.equal(tx.to.toLowerCase(), binding.toLowerCase())
-      assert(/^0x[0-9a-fA-F]+$/.test(tx.data) && tx.data.length <= config.maxCallBytes && selectors.has(tx.data.slice(0, 10).toLowerCase()))
-      let value = 0n
-      if (tx.value !== undefined) value = BigInt(tx.value)
-      assert(value >= 0n && value <= config.maxValue)
-      if (tx.gas !== undefined) assert(BigInt(tx.gas) > 0n && BigInt(tx.gas) <= config.maxGas)
+      const transaction = fixtureWalletTransaction({ tx, account, chain, config, grants })
       busy = true; ownsSubmission = true
       await assertTab()
       submissionStarted = true
-      result = await submitFixtureTransaction({ wallet: wallets[request.role], publicClient, transaction: { account, chain, to: binding, data: tx.data, value, gas: config.maxGas }, assertChain: async () => { await assertTab(); await assertChain() }, shouldContinue: document.shouldContinue })
+      result = await submitFixtureTransaction({ wallet: wallets[request.role], publicClient, transaction, assertChain: async () => {
+        await assertTab(); await assertChain()
+        await assertFixtureWalletDeployment({ manifest: await readManifest(), expectedManifest, expectedContracts, readBinding })
+      }, shouldContinue: document.shouldContinue })
       if (result === undefined) return
       ok = true
     } catch { result = { code: -32603, message: submissionStarted ? 'Local fixture submission failed; it may have been broadcast. Check chain state before retrying.' : 'Transaction rejected by the local fixture grant; nothing was submitted.' } }

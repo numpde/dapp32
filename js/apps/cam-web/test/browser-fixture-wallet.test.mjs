@@ -43,7 +43,7 @@ test('fixture function grants resolve against their checked-in app ABIs', () => 
   ]
   for (const app of apps) {
     const abi = JSON.parse(readFileSync(new URL(app.abiPath, import.meta.url), 'utf8'))
-    assert.doesNotThrow(() => fixtureFunctionSelectors(abi, app.config.functions), `${app.name} fixture grant`)
+    assert.doesNotThrow(() => fixtureFunctionSelectors(abi, app.config.contracts[app.name === 'Escrow' ? 'CamEscrow' : 'PayToPlay']), `${app.name} fixture grant`)
   }
 })
 test('fixture function selectors reject missing, overloaded, and duplicate ABI declarations', () => {
@@ -249,4 +249,146 @@ test('attachment finalization closes its submission gate and transports while re
     pending: [],
   }), error => error instanceof AggregateError && error.errors.includes(primary) && error.errors.includes(cleanup))
   assert.deepEqual(effects, ['stop submissions', 'dispose', 'close commands', 'close socket'])
+})
+
+test('all browser fixture configs resolve only their explicit checked-in write grants', async () => {
+  const apps = [
+    ['escrow', escrowWalletConfig], ['pay-to-play', payToPlayWalletConfig],
+    ['bike-nft', (await import('./bike-nft-fixture-wallet.mjs')).default],
+  ]
+  for (const [app, config] of apps) {
+    const accounts = fixtureWalletAccounts(config.accounts)
+    const source = fixtureWalletSource({ accounts: Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, account.address])), initialRole: config.initialRole })
+    for (const supplied of Object.values(config.accounts)) assert(!source.includes(supplied.privateKey))
+    for (const [namespace, functions] of Object.entries(config.contracts)) {
+      const abi = JSON.parse(readFileSync(new URL(`../../../../dapps/${app}/cam/abi/${namespace}.json`, import.meta.url), 'utf8'))
+      assert.equal(fixtureFunctionSelectors(abi, functions).size, functions.length)
+    }
+  }
+  assert(escrowWalletConfig.contracts.CamEscrow.includes('approveAgreement'))
+  const bike = apps[2][1]
+  assert.deepEqual(Object.keys(bike.accounts), ['seller', 'mechanic', 'buyer'])
+  assert.equal(bike.maxValue, 0n)
+  assert.deepEqual(bike.contracts.BicycleComponents, ['safeTransferFrom(address,address,uint256)'])
+})
+
+test('exact function signatures select only the requested overload and reject read grants', () => {
+  const transfer = fn('safeTransferFrom', [{ name: 'from', type: 'address' }, { name: 'to', type: 'address' }, { name: 'tokenId', type: 'uint256' }])
+  const overload = { ...transfer, inputs: [...transfer.inputs, { name: 'data', type: 'bytes' }] }
+  assert.deepEqual([...fixtureFunctionSelectors([transfer, overload], ['safeTransferFrom(address,address,uint256)'])], [toFunctionSelector(transfer)])
+  assert.throws(() => fixtureFunctionSelectors([transfer, overload], ['safeTransferFrom']), /exactly once/)
+  assert.throws(() => fixtureFunctionSelectors([{ ...transfer, stateMutability: 'view' }], ['safeTransferFrom']), /write/)
+})
+
+async function verifiedFixture(overrides) {
+  const { corruptABI, abiOrigin, ...deploymentOverrides } = { corruptABI: false, abiOrigin: 'http://127.0.0.1', ...overrides }
+  const { sha256 } = await import('viem')
+  const { verifyFixtureWalletDeployment } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const managerABI = [fn('register', [{ name: 'id', type: 'uint256' }])]
+  const collectionABI = [fn('transfer', [{ name: 'id', type: 'uint256' }])]
+  const encode = value => new TextEncoder().encode(JSON.stringify(value))
+  const abiBytes = { 'http://127.0.0.1/Manager.json': encode(managerABI), 'http://127.0.0.1/Collection.json': encode(collectionABI) }
+  const manifestBytes = encode({ namespaces: Object.fromEntries(Object.entries(abiBytes).map(([uri, bytes]) => [`contracts.${uri.endsWith('Manager.json') ? 'Manager' : 'Collection'}`, { type: 'contract', abiURI: uri.replace('http://127.0.0.1', abiOrigin), integrity: 'sha256:'+sha256(bytes) }])) })
+  const manifest = { uri: 'http://127.0.0.1/main.json', sha256Digest: sha256(manifestBytes) }
+  const config = { contracts: { Manager: ['register'], Collection: ['transfer'] }, maxValue: 0n, maxGas: 100000n, maxCalldataHexLength: 100 }
+  const grants = await verifyFixtureWalletDeployment({ config, expectedContracts: { Manager: address, Collection: other }, manifest, expectedManifest: manifest, origin: 'http://127.0.0.1', readBytes: async uri => uri === manifest.uri ? manifestBytes : corruptABI ? encode([]) : abiBytes[uri], readBinding: async name => name === 'Manager' ? address : other, readCode: async () => '0x6000', ...deploymentOverrides })
+  return { grants, config, managerABI, collectionABI }
+}
+
+test('deployment verification rejects changed manifest, ABI, binding, missing and extra pins', async () => {
+  await verifiedFixture({})
+  for (const overrides of [
+    { expectedManifest: { uri: 'http://127.0.0.1/main.json', sha256Digest: '0x'+'00'.repeat(32) } },
+    { readBinding: async () => address },
+    { readBytes: async () => new TextEncoder().encode('{}') },
+    { corruptABI: true },
+    { abiOrigin: 'http://different.test' },
+    { expectedContracts: { Manager: address } },
+    { expectedContracts: { Manager: address, Collection: other, Extra: address } },
+    { expectedContracts: { Manager: address, Collection: 'bad' } },
+    { expectedContracts: { Manager: address, Collection: address } },
+    { expectedContracts: { Manager: address, Collection: '0x'+'00'.repeat(20) } },
+    { readCode: async () => '0x' },
+    { readCode: async () => undefined },
+  ]) await assert.rejects(verifiedFixture(overrides))
+})
+
+test('destination-specific transaction authorization rejects every invalid request before signing', async () => {
+  const { encodeFunctionData } = await import('viem')
+  const { fixtureWalletTransaction } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const { submitFixtureTransaction } = await import('./escrow-browser-fixture.mjs')
+  const { grants, config, managerABI, collectionABI } = await verifiedFixture({})
+  const account = { address }
+  const chain = { id: 31337 }
+  const managerData = encodeFunctionData({ abi: managerABI, functionName: 'register', args: [1n] })
+  const collectionData = encodeFunctionData({ abi: collectionABI, functionName: 'transfer', args: [1n] })
+  const valid = { from: address, to: other, data: collectionData }
+  const effects = []
+  async function send(tx) {
+    const transaction = fixtureWalletTransaction({ tx, account, chain, config, grants })
+    return submitFixtureTransaction({ transaction, wallet: { prepareTransactionRequest: async request => { effects.push(request); return request }, signTransaction: async () => { effects.push('sign'); return 'signed' } }, publicClient: { sendRawTransaction: async () => 'hash' }, assertChain: async () => {}, shouldContinue: () => true })
+  }
+  for (const invalid of [
+    { ...valid, to: address }, { ...valid, data: managerData },
+    { ...valid, to: '0x'+'33'.repeat(20) }, { ...valid, from: other },
+    { ...valid, value: '0x1' }, { ...valid, value: '-1' },
+    { ...valid, gas: '0x0' }, { ...valid, gas: '0x186a1' },
+    { ...valid, data: collectionData+'0' }, { ...valid, data: collectionData+'00' }, { ...valid, data: collectionData.slice(0, 10) },
+    { ...valid, data: collectionData+'00'.repeat(100) }, { ...valid, nonce: '0x0' },
+  ]) await assert.rejects(send(invalid))
+  assert.deepEqual(effects, [])
+  assert.equal(await send(valid), 'hash')
+  assert.equal(effects[0].to, other)
+  assert.equal(effects[0].gas, config.maxGas)
+  assert.equal(effects[0].value, 0n)
+  assert.equal(effects[1], 'sign')
+  assert.equal(await send({ from: address, to: address, data: managerData }), 'hash')
+})
+
+for (const drift of ['manifest', 'binding']) {
+  for (const when of ['before signing', 'before broadcasting']) {
+    test(`${drift} drift ${when} stops the next irreversible fixture operation`, async () => {
+      const { assertFixtureWalletDeployment } = await import('../../../tools/browser-fixture-wallet.mjs')
+      const { submitFixtureTransaction } = await import('./escrow-browser-fixture.mjs')
+      const effects = []
+      const expectedManifest = { uri: 'http://127.0.0.1/main.json', sha256Digest: '0x'+'11'.repeat(32) }
+      let changed = false
+      const verify = () => assertFixtureWalletDeployment({
+        expectedManifest, manifest: changed && drift === 'manifest' ? { ...expectedManifest, sha256Digest: '0x'+'22'.repeat(32) } : expectedManifest,
+        expectedContracts: { Manager: address }, readBinding: async () => changed && drift === 'binding' ? other : address,
+      })
+      await verify()
+      await assert.rejects(submitFixtureTransaction({
+        transaction: {},
+        wallet: {
+          async prepareTransactionRequest() { effects.push('prepare'); if (when === 'before signing') changed = true; return {} },
+          async signTransaction() { effects.push('sign'); changed = true; return 'signed' },
+        },
+        publicClient: { async sendRawTransaction() { effects.push('send'); return 'hash' } },
+        assertChain: verify, shouldContinue: () => true,
+      }))
+      assert.deepEqual(effects, when === 'before signing' ? ['prepare'] : ['prepare', 'sign'])
+    })
+  }
+}
+
+test('nonpayable calls reject native value even when the app permits payable calls', async () => {
+  const { encodeFunctionData } = await import('viem')
+  const { fixtureWalletTransaction } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const { grants, config, managerABI } = await verifiedFixture({})
+  const tx = { from: address, to: address, data: encodeFunctionData({ abi: managerABI, functionName: 'register', args: [1n] }), value: '0x1' }
+  assert.throws(() => fixtureWalletTransaction({ tx, account: { address }, chain: { id: 31337 }, config: { ...config, maxValue: 10n }, grants }), /Nonpayable/)
+})
+
+test('payable grants accept their exact value and calldata limits and reject larger values', async () => {
+  const { encodeFunctionData } = await import('viem')
+  const { fixtureWalletTransaction } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const abi = [{ ...fn('fund', [{ name: 'id', type: 'uint256' }]), stateMutability: 'payable' }]
+  const data = encodeFunctionData({ abi, functionName: 'fund', args: [1n] })
+  const grants = new Map([[other, { address: other, abi, selectors: fixtureFunctionSelectors(abi, ['fund']) }]])
+  const config = { maxValue: 10n, maxGas: 100000n, maxCalldataHexLength: data.length }
+  const tx = { from: address, to: other, data, value: '0xa', gas: '0x186a0' }
+  const authorize = supplied => fixtureWalletTransaction({ tx: supplied, account: { address }, chain: { id: 31337 }, config, grants })
+  assert.equal(authorize(tx).value, 10n)
+  assert.throws(() => authorize({ ...tx, value: '0xb' }), /value/)
 })

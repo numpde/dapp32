@@ -1,5 +1,7 @@
 import { privateKeyToAccount } from 'viem/accounts'
-import { toFunctionSelector } from 'viem'
+import assert from 'node:assert/strict'
+import { decodeFunctionData, encodeFunctionData, sha256, toFunctionSelector, toFunctionSignature } from 'viem'
+import { requireSameHttpOrigin } from '@cam/protocol'
 
 export function fixtureFunctionSelectors(abi, configuredNames) {
   const configured = new Set()
@@ -8,14 +10,72 @@ export function fixtureFunctionSelectors(abi, configuredNames) {
     if (configured.has(name)) throw new Error(`Fixture function grant repeats ${name}`)
     configured.add(name)
 
-    const matches = abi.filter(item => item.type === 'function' && item.name === name)
+    const matches = abi.filter(item => item.type === 'function' && (name.includes('(') ? toFunctionSignature(item) === name : item.name === name))
     if (matches.length !== 1) throw new Error(`Fixture ABI must declare granted function ${name} exactly once`)
+    if (!['payable', 'nonpayable'].includes(matches[0].stateMutability)) throw new Error(`Fixture function ${name} must be a write`)
 
     const selector = toFunctionSelector(matches[0])
     if (selectors.has(selector)) throw new Error(`Fixture ABI granted function ${name} shares a selector`)
     selectors.add(selector)
   }
   return selectors
+}
+
+// Recheck the pinned authority before signing and broadcasting; never refresh grants.
+export async function assertFixtureWalletDeployment({ manifest, expectedManifest, expectedContracts, readBinding }) {
+  assert.equal(manifest.uri, expectedManifest.uri, 'CAM manifest URI changed')
+  assert.equal(manifest.sha256Digest.toLowerCase(), expectedManifest.sha256Digest.toLowerCase(), 'CAM manifest hash changed')
+  for (const [namespace, address] of Object.entries(expectedContracts)) {
+    assert.equal((await readBinding(namespace)).toLowerCase(), address.toLowerCase(), `CAM binding for ${namespace} must match its explicit target`)
+  }
+}
+
+export async function verifyFixtureWalletDeployment({ config, expectedContracts, manifest, expectedManifest, origin, readBytes, readBinding, readCode }) {
+  assert.deepEqual(Object.keys(expectedContracts).sort(), Object.keys(config.contracts).sort(), 'Contract pins must exactly match fixture grants')
+  const addresses = new Set()
+  for (const address of Object.values(expectedContracts)) {
+    assert(typeof address === 'string' && /^0x[0-9a-fA-F]{40}$/.test(address) && !/^0x0{40}$/.test(address), 'Contract pins must be nonzero addresses')
+    assert(!addresses.has(address.toLowerCase()), 'Fixture targets must have distinct addresses')
+    addresses.add(address.toLowerCase())
+  }
+  await assertFixtureWalletDeployment({ manifest, expectedManifest, expectedContracts, readBinding })
+  requireSameHttpOrigin(manifest.uri, origin, 'CAM manifest')
+  const manifestBytes = await readBytes(manifest.uri)
+  assert.equal(sha256(manifestBytes), manifest.sha256Digest.toLowerCase(), 'CAM manifest bytes must match its hash')
+  const cam = JSON.parse(new TextDecoder().decode(manifestBytes))
+  const grants = new Map()
+  for (const [namespace, functions] of Object.entries(config.contracts)) {
+    const address = expectedContracts[namespace]
+    const declaration = cam.namespaces[`contracts.${namespace}`]
+    assert.equal(declaration.type, 'contract', 'Granted namespace must declare a contract')
+    const abiURL = new URL(declaration.abiURI, manifest.uri)
+    requireSameHttpOrigin(abiURL.href, origin, 'App ABI')
+    const abiBytes = await readBytes(abiURL.href)
+    assert.equal('sha256:'+sha256(abiBytes), declaration.integrity, 'App ABI bytes must match their integrity')
+    const abi = JSON.parse(new TextDecoder().decode(abiBytes))
+    const selectors = fixtureFunctionSelectors(abi, functions)
+    const code = await readCode(address)
+    assert(typeof code === 'string' && /^0x(?:[0-9a-fA-F]{2})+$/.test(code), 'Fixture target must contain deployed code')
+    const grantedABI = abi.filter(item => item.type === 'function' && functions.some(name => name.includes('(') ? toFunctionSignature(item) === name : item.name === name))
+    grants.set(address.toLowerCase(), { address, abi: grantedABI, selectors })
+  }
+  return grants
+}
+
+export function fixtureWalletTransaction({ tx, account, chain, config, grants }) {
+  assert(Object.keys(tx).every(key => ['from', 'to', 'data', 'value', 'gas'].includes(key)), 'Unsupported fixture transaction field')
+  assert.equal(tx.from.toLowerCase(), account.address.toLowerCase(), 'Transaction must use the selected fixture account')
+  const grant = grants.get(tx.to.toLowerCase())
+  assert(grant !== undefined, 'Transaction target is not granted')
+  assert(typeof tx.data === 'string' && /^0x(?:[0-9a-fA-F]{2})+$/.test(tx.data) && tx.data.length <= config.maxCalldataHexLength && grant.selectors.has(tx.data.slice(0, 10).toLowerCase()), 'Transaction calldata is not granted')
+  const decoded = decodeFunctionData({ abi: grant.abi, data: tx.data })
+  assert.equal(encodeFunctionData({ abi: grant.abi, ...decoded }).toLowerCase(), tx.data.toLowerCase(), 'Transaction calldata must be complete and canonical')
+  const value = tx.value === undefined ? 0n : BigInt(tx.value)
+  assert(value >= 0n && value <= config.maxValue, 'Transaction value exceeds the fixture grant')
+  const payable = grant.abi.some(item => item.type === 'function' && toFunctionSelector(item) === tx.data.slice(0, 10).toLowerCase() && item.stateMutability === 'payable')
+  assert(value === 0n || payable, 'Nonpayable fixture calls cannot send value')
+  if (tx.gas !== undefined) assert(BigInt(tx.gas) > 0n && BigInt(tx.gas) <= config.maxGas, 'Transaction gas exceeds the fixture grant')
+  return { account, chain, to: grant.address, data: tx.data, value, gas: config.maxGas }
 }
 
 // Keys belong to the fixture process. The injected provider receives addresses only.

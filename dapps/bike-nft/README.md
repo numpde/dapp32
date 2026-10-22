@@ -28,6 +28,31 @@ account. A write button prepares and simulates a call; **Send with wallet** requ
 its submission after review. On-chain roles and ownership determine
 whether the transaction can execute.
 
+To use the shared local fixture wallet in an existing CDP browser tab, keep this
+foreground attachment running alongside the demo:
+
+```sh
+make viewer/local/fixture-wallet/attach \
+  FIXTURE_WALLET_APP=bike-nft CDP_TARGET_ID='<existing-tab-id>' \
+  CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='<printed viewer URL>' \
+  EXPECTED_CAM_URI='<camManifest URI>' EXPECTED_CAM_HASH=0x... \
+  EXPECTED_CONTRACT_ADDRESSES='{"BicycleComponentManager":"0x...","BicycleComponents":"0x..."}'
+```
+
+Read the manifest URI and SHA-256 digest from `camManifest()` on the printed CAM
+host, and the two addresses from its `contractAddress(string)` bindings. Use the
+namespace names shown above without the `contracts.` prefix.
+
+Connect the app wallet after attachment. Its selector starts as **seller** and
+also offers **mechanic** and **buyer**, using the public `ba`, `bd` and `bc`
+repeated-byte fixture keys respectively. The seller is the local deployer.
+Manager writes and the three-argument `safeTransferFrom` are allowed only at
+their pinned destinations. Transfers to other collections are rejected.
+
+Attachment does not fund accounts. Before sending, arrange local fixture gas
+for mechanic and buyer separately. See the [shared wallet guide](../../js/tools/browser-fixture-wallet.html)
+for browser setup, deployment checks, confirmation and attachment lifecycle.
+
 Use the exact serial text, including case and spaces. To register an unused
 serial, choose **Look up component**, then **Check registration** when available.
 The registrar sends the transaction; the initial NFT owner may be another

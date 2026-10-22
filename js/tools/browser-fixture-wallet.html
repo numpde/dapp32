@@ -7,8 +7,8 @@
   FIXTURE_WALLET_APP=pay-to-play CDP_TARGET_ID=&lt;existing-tab-id&gt; \
   CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='&lt;viewer URL&gt;' \
   EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json \
-  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESS=0x...</pre>
-<p>Use <code>pay-to-play</code> or <code>escrow</code>. The tab, local origin, app host, chain 31337, manifest hash, ABI integrity and app contract address must match the supplied pins. The tool refuses a tab that already has a wallet. It does not start or stop the browser, app or chain.</p>
+  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESSES='{"PayToPlay":"0x..."}'</pre>
+<p>Use <code>pay-to-play</code>, <code>escrow</code> or <code>bike-nft</code>. Pin <code>PayToPlay</code> for payments, <code>CamEscrow</code> for escrow, or both <code>BicycleComponentManager</code> and <code>BicycleComponents</code> for Bike. The JSON object must contain exactly the configured signing targets. The tab, local origin, app host, chain 31337, manifest hash, ABI integrity and each deployed contract binding must match the supplied pins. The tool rechecks manifest identity and bindings before signing and broadcasting. It refuses a tab that already has a wallet. It does not start or stop the browser, app or chain.</p>
 <h2>Use the selector</h2>
 <p>Choose <strong>Connect wallet</strong> in the app after attachment. The selector chooses the active account; <strong>Reconnect wallet</strong> asks the app to connect again using that account. A transaction’s <strong>Send with wallet</strong> button asks for browser confirmation. Confirming signs and submits immediately using the selected public test account. Voucher signatures must still be created in a separate signer.</p>
 <p>Keep this foreground process running. Reloading the page resets the selector to the app’s configured initial account and requires connecting again. Ctrl-C removes the test wallet and selector and leaves the tab open. It rejects pending requests and prevents new signing or submission phases. A transaction already submitted cannot be undone. If the process is forcibly killed, reload the tab before attaching again so a leftover page wallet does not remain without its signing process.</p>
@@ -19,5 +19,5 @@
   settlementAgent: { address: '0x...', privateKey: '0x...' }
 }</pre>
 <p>Use only publicly known test private keys for disposable local chains. Private keys stay in the test process; the page receives account names, addresses and transaction responses. A pending request keeps the account it started with even if the selector changes. The tool does not unlock Anvil accounts.</p>
-<p>The app configuration limits contract functions, native value, gas and call size. These limits do not grant permissions that the contract denies. Pay-to-Play and escrow browser checks reuse this wallet with their own accounts, limits and test-owned transaction handling. It adds no wallet feature to the production viewer or CAM protocol.</p>
+<p>The app configuration grants functions separately for each destination and limits native value, gas and call size. These limits do not grant permissions that the contract denies. Bike selects seller, mechanic or buyer; manager writes and the three-argument NFT transfer are granted only at their respective pinned targets. Historical or other NFT collections need separate authorization. Accounts must already have local test coins for gas; attachment does not fund them. It adds no wallet feature to the production viewer or CAM protocol.</p>
 </html>

@@ -14,7 +14,7 @@ services:
       VIEWER_URL: "${VIEWER_URL:?Set the pinned local viewer URL}"
       EXPECTED_CAM_URI: "${EXPECTED_CAM_URI:?Set the pinned manifest URI}"
       EXPECTED_CAM_HASH: "${EXPECTED_CAM_HASH:?Set the pinned manifest hash}"
-      EXPECTED_CONTRACT_ADDRESS: "${EXPECTED_CONTRACT_ADDRESS:?Set the pinned app contract address}"
+      EXPECTED_CONTRACT_ADDRESSES: "${EXPECTED_CONTRACT_ADDRESSES:?Set JSON namespace-to-address pins for every signing target}"
     volumes:
       - type: bind
         source: ../js
