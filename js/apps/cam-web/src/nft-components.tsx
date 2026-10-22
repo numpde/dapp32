@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import type { ReactElement } from "react"
 import { isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
@@ -15,7 +15,7 @@ function useNftResource<T>() {
     pending.current?.abort()
     setResource({ status: "idle" })
   }
-  async function run(acquire: (signal: AbortSignal) => Promise<T>): Promise<T | undefined> {
+  const run = useCallback(async (acquire: (signal: AbortSignal) => Promise<T>): Promise<T | undefined> => {
     pending.current?.abort()
     const controller = new AbortController()
     pending.current = controller
@@ -29,7 +29,7 @@ function useNftResource<T>() {
       if (!controller.signal.aborted) setResource({ status: "failed", message: errorMessage(error) })
     }
     return undefined
-  }
+  }, [])
   return { resource, run, cancel }
 }
 
@@ -72,6 +72,10 @@ function NftImage({ uri, baseURI, alt }: { readonly uri: string; readonly baseUR
   const image = useNftResource<Blob>()
   const [source, setSource] = useState<{ readonly blob: Blob; readonly url: string } | undefined>(undefined)
   const [decodeFailed, setDecodeFailed] = useState(false)
+  const embedded = uri.startsWith("data:")
+  useEffect(() => {
+    if (embedded) void image.run(signal => loadNftImage(uri, baseURI, signal))
+  }, [embedded, uri, baseURI, image.run])
   useEffect(() => {
     if (image.resource.status !== "ready") return
     const blob = image.resource.value
@@ -81,8 +85,8 @@ function NftImage({ uri, baseURI, alt }: { readonly uri: string; readonly baseUR
   }, [image.resource])
   return <div className="nft-image">
     <p className="field-hint">Image source: <code className="nft-source">{uri}</code></p>
-    <div className="nft-actions"><button className="button-quiet" type="button" disabled={image.resource.status === "pending"} onClick={() => { setDecodeFailed(false); void image.run(signal => loadNftImage(uri, baseURI, signal)) }}>Load image</button>
-      {image.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={image.cancel}>Cancel loading</button> : null}</div>
+    {!embedded ? <div className="nft-actions"><button className="button-quiet" type="button" disabled={image.resource.status === "pending"} onClick={() => { setDecodeFailed(false); void image.run(signal => loadNftImage(uri, baseURI, signal)) }}>Load image</button>
+      {image.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={image.cancel}>Cancel loading</button> : null}</div> : null}
     <ResourceFeedback resource={image.resource} />
     {image.resource.status === "ready" && source?.blob === image.resource.value && !decodeFailed ? <img src={source.url} alt={alt || "NFT image"} onError={() => setDecodeFailed(true)} /> : null}
     {decodeFailed ? <p className="field-error" role="alert">Cannot display these image bytes. Use a valid PNG, JPEG, WebP or GIF image.</p> : null}

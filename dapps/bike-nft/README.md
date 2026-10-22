@@ -66,7 +66,8 @@ Editing an applied JSON draft clears its generated URI until it is applied
 again; editing a draft does not change a manually entered URI.
 
 The generic NFT viewer receives this URI from the contract projection. Choose
-**Load metadata**, then **Load image** to retrieve each resource. Preview accepts
+**Load metadata** to view the document. Embedded image data URIs display
+automatically; choose **Load image** to retrieve an HTTP(S) image. Preview accepts
 HTTP(S) and data URIs, bounded to 256 KiB for UTF-8 JSON and 4 MiB for PNG, JPEG,
 WebP or GIF images. Use an HTTP(S) gateway URL for other schemes such as IPFS.
 The browser must have CORS access. Neither component uploads files or changes

@@ -12,7 +12,7 @@ canvas.getContext("2d")!.fillRect(0, 0, 2, 2)
 const png = await canvas.convertToBlob({ type: "image/png" })
 const publishedURI = "https://nft.fixture.test/metadata.json"
 const metadata = { name: "Fixture NFT", description: "Prepared independently of minting", image: "https://nft.fixture.test/image.png", attributes: [{ trait_type: "Year", value: 2026, display_type: "number", extension: true }], extra: { retained: true } }
-const viewerURI = `data:application/json,${encodeURIComponent(JSON.stringify(metadata))}`
+let viewerURI = `data:application/json,${encodeURIComponent(JSON.stringify(metadata))}`
 const requests: string[] = []
 const copies: string[] = []
 const downloads: string[] = []
@@ -63,6 +63,7 @@ Object.assign(window, { nftFixture: { requests, copies, downloads, revoked, meta
   releaseMetadata() { hold = false; held?.(); held = undefined },
   response(text: string | undefined) { responseText = text },
   uri: () => tokenURI,
+  image(uri: string) { viewerURI = `data:application/json,${encodeURIComponent(JSON.stringify({ ...metadata, image: uri }))}`; render() },
   busy(value: boolean) { busy = value; render() },
   scope(kind: "account" | "route") { if (kind === "account") account = "0x0000000000000000000000000000000000000002"; else route = "another-view"; tokenURI = publishedURI; render() },
 } })
