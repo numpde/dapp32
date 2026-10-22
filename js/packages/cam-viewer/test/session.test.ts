@@ -313,16 +313,14 @@ test("bike fixture covers unpaused fixture projection cases", () => {
 })
 
 for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as const) {
-  test(`CAM 1.2 verifies the ${protocolCase} protocol resource before bindings, ABIs and UI`, async () => {
+  test(`CAM 1.3 verifies the ${protocolCase} protocol resource before bindings, ABIs and UI`, async () => {
     const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
     const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
-    cam.cam = CAM_VERSION
-    delete mutableRecord(cam.routes).transferComponent
     const protocolBytes = new Uint8Array(readFileSync(new URL("../../../../dapps/escrow/cam/protocol.html", import.meta.url)))
     mutableRecord(cam.protocol).integrity = sha256Integrity(protocolBytes)
     resources[BIKE_PROTOCOL_URI] = protocolBytes
     resources[camURI] = encodeJson(cam)
-    assert.equal(cam.cam, "1.2.0")
+    assert.equal(cam.cam, "1.3.0")
     const fixtureClient = createPublicClient(publicClientFixtureOptions({ camHash: fixtureDigest(resources[camURI]) }))
     const requests: string[] = []
     const publicClient: CamPublicClient = {

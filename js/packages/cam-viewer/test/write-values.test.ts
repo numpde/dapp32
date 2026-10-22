@@ -45,7 +45,7 @@ const nonpayableAbi = [{
   outputs: [],
 }] as const satisfies Abi
 
-test("prepared CAM 1.2 calls disclose the resolved transaction value as inert data", async () => {
+test("prepared CAM 1.3 calls disclose the resolved transaction value as inert data", async () => {
   const prepared = await prepareViewerContractCall({
     publicClient,
     cam: writeCam({

@@ -30,12 +30,6 @@ services:
       - ../tools/cam_resource_integrity.py:/work/tools/cam_resource_integrity.py:ro
       - ../tools/json_policy.py:/work/tools/json_policy.py:ro
       - type: bind
-        source: ../docs/reference/cam/1.2.0/index.html
-        target: /work/docs/reference/cam/1.2.0/index.html
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
         source: ../docs/reference/cam/1.3.0/index.html
         target: /work/docs/reference/cam/1.3.0/index.html
         read_only: true

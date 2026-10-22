@@ -2,7 +2,7 @@
 
 `CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept and submit committed work evidence. Client approval, timeout finalization, or an arbitrator decision closes the agreement and credits the beneficiary; that account must withdraw separately to receive the funds. The client may cancel before acceptance, dispute a submission, or receive refund credit after acceptance/work timeout or an arbitrator decision.
 
-This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.2 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, a local real-RPC vertical workflow, and explicit release deployment/verification lanes. It deliberately contains no generic CAM machine descriptor.
+This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.3 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, a local real-RPC vertical workflow, and explicit release deployment/verification lanes. It deliberately contains no generic CAM machine descriptor.
 
 ## Roles and trust
 
@@ -161,7 +161,7 @@ arbitrator acknowledgement: not required and not recorded on-chain
 
 The projection does not recalculate authorization, deadline expiry, acceptance readiness, or terminal transitions. It calls `availableActions(agreementId, actor)` and maps the returned enum values in their core-defined order. Creation remains a factory action and withdrawal remains an account-credit action; neither is represented as an agreement-machine transition.
 
-## CAM 1.2 bundle
+## CAM bundle
 
 `cam/main.json` declares two contract namespaces, the route namespace, and the UI resource. Generated ABI resources live under `cam/abi/`; their byte identities and the UI byte identity are pinned in the manifest.
 

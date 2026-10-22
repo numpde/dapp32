@@ -26,12 +26,11 @@ export type CamRouteResolutionFact = {
 }
 
 export function collectCamRouteResolutionFact({
-  resource, path, route, version, namespaceTypes, declaredInputs,
+  resource, path, route, namespaceTypes, declaredInputs,
 }: {
   readonly resource: string
   readonly path: string
   readonly route: Record<string, unknown>
-  readonly version: unknown
   readonly namespaceTypes: ReadonlyMap<string, CamNamespaceType>
   readonly declaredInputs: ReadonlySet<string>
 }): CamFactResult<CamRouteResolutionFact> {
@@ -43,8 +42,8 @@ export function collectCamRouteResolutionFact({
     diagnostics.push(camFactDiagnostic({ code: "CAM_FACT_ROUTE_RESOLUTION_INVALID", resource, path: `${path}.${field}`, message }))
   }
   if (!hasResolver && !hasTarget) return { diagnostics }
-  if (version !== "1.3.0" || route.kind !== "write") {
-    invalid(hasResolver ? "resolve" : "call.target", "resolved targets require a CAM 1.3 write route")
+  if (route.kind !== "write") {
+    invalid(hasResolver ? "resolve" : "call.target", "resolved targets require a write route")
     return { diagnostics }
   }
   if (!hasResolver) {

@@ -94,24 +94,24 @@ function validateWriteRoute(options: WriteRouteOptions) {
   })
 }
 
-test("CAM 1.2 accepts explicit value on payable writes", () => {
+test("CAM 1.3 accepts explicit value on payable writes", () => {
   assert.deepEqual(validateWriteRoute(writeRouteOptions({})), [])
   assert.deepEqual(validateWriteRoute(writeRouteOptions({ value: "0" })), [])
 })
 
-test("CAM 1.2 requires value for payable writes", () => {
+test("CAM 1.3 requires value for payable writes", () => {
   assert.deepEqual(issueLocations(validateWriteRoute(writeRouteOptions({ includeValue: false }))), [
     ["CAM_ROUTE_VALUE_MISMATCH", "routes.write.value"],
   ])
 })
 
-test("CAM 1.2 forbids value on nonpayable writes", () => {
+test("CAM 1.3 forbids value on nonpayable writes", () => {
   assert.deepEqual(issueLocations(validateWriteRoute(writeRouteOptions({ functionName: "save" }))), [
     ["CAM_ROUTE_VALUE_MISMATCH", "routes.write.value"],
   ])
 })
 
-test("CAM 1.2 checks known transaction values as uint256", () => {
+test("CAM 1.3 checks known transaction values as uint256", () => {
   for (const value of [
     "-1",
     "115792089237316195423570985008687907853269984665640564039457584007913129639936",
@@ -134,7 +134,7 @@ test("read routes reject value at the grammar boundary", () => {
   ])
 })
 
-test("CAM 1.2 validates transaction-value expression references", () => {
+test("CAM 1.3 validates transaction-value expression references", () => {
   assert.deepEqual(issueLocations(validateWriteRoute(writeRouteOptions({ value: "$outputs.0" }))), [
     ["CAM_ROUTE_EXPRESSION_INVALID", "routes.write.value"],
   ])

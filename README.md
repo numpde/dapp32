@@ -11,7 +11,7 @@ contracts that authorize them.
 
 Project overview: <https://numpde.github.io/dapp32/>
 
-Current software supports CAM 1.2.0 with UI 1.0.0: [protocol reference](docs/reference/cam/1.2.0/index.html). The [CAM 1.1.0 reference](docs/reference/cam/1.1.0/index.html) is retained as historical documentation only, including its CAM 1.0.0 compatibility description.
+Current software supports CAM 1.3.0 with UI 1.0.0: [protocol reference](https://numpde.github.io/dapp32/reference/cam/1.3.0/). Earlier reference versions remain available as historical documentation; current software rejects those manifest versions.
 
 ## Start here
 

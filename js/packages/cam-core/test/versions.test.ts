@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
-  CAM_SUPPORTED_VERSIONS,
+  CAM_VERSION,
 } from "@cam/protocol"
 
 import {
@@ -51,13 +51,11 @@ function camDocument(version: unknown): Record<string, unknown> {
   }
 }
 
-test("parseCam preserves every supported document version", () => {
-  for (const version of CAM_SUPPORTED_VERSIONS) {
-    assert.equal(parseCam(camDocument(version)).cam, version)
-  }
+test("parseCam preserves the current document version", () => {
+  assert.equal(parseCam(camDocument("1.3.0")).cam, "1.3.0")
 })
 
-test("parseCam still rejects versions outside the supported inventory", () => {
+test("parseCam rejects unsupported versions", () => {
   assert.throws(
     () => parseCam(camDocument("2.0.0")),
     (error) =>
@@ -68,8 +66,8 @@ test("parseCam still rejects versions outside the supported inventory", () => {
   )
 })
 
-test("parseCam rejects retired CAM 1.0 and 1.1 documents", () => {
-  for (const version of ["1.0.0", "1.1.0"]) {
+test("parseCam rejects retired CAM 1.0, 1.1, and 1.2 documents", () => {
+  for (const version of ["1.0.0", "1.1.0", "1.2.0"]) {
     assert.throws(
       () => parseCam(camDocument(version)),
       (error) =>
@@ -82,10 +80,10 @@ test("parseCam rejects retired CAM 1.0 and 1.1 documents", () => {
 })
 
 
-test("CAM 1.2 requires a closed protocol resource declaration with secondary URI policy", () => {
+test("CAM 1.3 requires a closed protocol resource declaration with secondary URI policy", () => {
   for (const protocol of [undefined, null, {}, { uri: "./protocol.html" }, { uri: "https://example.com/protocol", integrity: "sha256:fixture" }, { uri: "./protocol.html", integrity: "sha256:fixture", extra: true }]) {
-    assert.throws(() => parseCam({ ...camDocument("1.2.0"), protocol }), CamError)
+    assert.throws(() => parseCam({ ...camDocument(CAM_VERSION), protocol }), CamError)
   }
   const protocol = { uri: "./protocol.html", integrity: "sha256:fixture" }
-  assert.deepEqual(parseCam({ ...camDocument("1.2.0"), protocol }).protocol, protocol)
+  assert.deepEqual(parseCam({ ...camDocument(CAM_VERSION), protocol }).protocol, protocol)
 })

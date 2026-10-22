@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
-  CAM_SUPPORTED_VERSIONS,
   isRecordObject,
   parseJsonBytes,
 } from "@cam/protocol"
@@ -61,23 +60,21 @@ function rootDocument(version: unknown): Record<string, unknown> {
   }
 }
 
-test("bundle conformance accepts each supported CAM version", () => {
-  for (const version of CAM_SUPPORTED_VERSIONS) {
-    const bundle = minimalBundle()
-    const root = parseJsonBytes(bundle.rootBytes)
-    assert.equal(isRecordObject(root), true)
-    if (!isRecordObject(root)) continue
+test("bundle conformance accepts the current CAM version", () => {
+  const bundle = minimalBundle()
+  const root = parseJsonBytes(bundle.rootBytes)
+  assert.equal(isRecordObject(root), true)
+  if (!isRecordObject(root)) assert.fail("expected a CAM root object")
 
-    root.cam = version
-    assert.deepEqual(validateCamBundle({
-      ...bundle,
-      rootBytes: jsonBytes(root),
-    }), [])
-  }
+  root.cam = "1.3.0"
+  assert.deepEqual(validateCamBundle({
+    ...bundle,
+    rootBytes: jsonBytes(root),
+  }), [])
 })
 
 test("conformance rejects unsupported versions before route inventory", () => {
-  for (const rejectedVersion of ["1.0.0", "1.1.0", "2.0.0"]) {
+  for (const rejectedVersion of ["1.0.0", "1.1.0", "1.2.0", "2.0.0"]) {
     const root = rootDocument(rejectedVersion)
     const issues: CamConformanceIssue[] = []
     const version = validateRootManifest({

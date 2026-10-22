@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto"
 import { CAM_VERSION, UI_VERSION } from "../../../js/packages/cam-protocol/src/versions.ts"
 
-// Proposed CAM 1.3 boundary: one optional static read invocation on a write
+// CAM 1.3 boundary: one optional static read invocation on a write
 // route. Its outputs feed only that write's call.target and call.args. This is
-// untrusted publication input, deliberately not asserted to a future CAM type.
+// untrusted publication input, deliberately not asserted to a parsed CAM type.
 // No resolver lists, resolver targets, nested resolution, or write resolvers.
-export const resolvedTargetVersion = "1.3.0"
 export const resolvedTargetURI = "https://example.test/resolved-target/main.json"
 export const resolvedTargetHost = { chainId: "eip155:31337", address: "0x0000000000000000000000000000000000000001" } as const
 export const resolvedTargetOwner = "0x0000000000000000000000000000000000000002"
@@ -23,7 +22,7 @@ export const resolvedTargetNftAbi = [{ type: "function", name: "safeTransferFrom
 
 export function resolvedTargetDocument() {
   return {
-    cam: resolvedTargetVersion,
+    cam: CAM_VERSION,
     protocol: { uri: "./protocol.html", integrity: "" },
     entry: "entry",
     namespaces: {
@@ -69,9 +68,8 @@ export function resolvedTargetBundle(edit?: (document: ReturnType<typeof resolve
   return { rootURI: resolvedTargetURI, rootBytes: resolvedTargetBytes(document), resources }
 }
 
-// Positive legacy control: identical resource loading/UI/ABI harness, no new grammar.
+// Static-write control: identical resource loading/UI/ABI harness, no resolver.
 export function makeStaticResolvedTargetDocument(document: ReturnType<typeof resolvedTargetDocument>): void {
-  document.cam = CAM_VERSION
   delete (document.routes.transferComponent as Record<string, unknown>).resolve
   delete (document.routes.transferComponent.call as Record<string, unknown>).target
   document.routes.transferComponent.call.args.tokenId = "17"

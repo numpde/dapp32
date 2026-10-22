@@ -13,6 +13,8 @@ from tools.cam_resource_integrity import (
     CONTRACT_NAMESPACE_PREFIX,
     CamResourceIntegrityError,
     MAX_CAM_RESOURCE_BYTES,
+    PROTOCOL_REFERENCE_PATH,
+    PUBLICATION_CAM_VERSION,
     ROUTES_NAMESPACE,
     UI_NAMESPACE,
     refresh_manifest,
@@ -29,11 +31,12 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
     def test_refresh_rejects_missing_protocol_and_retired_cam_without_writes(self) -> None:
         missing = object()
         cases = (
-            ("missing protocol", "1.2.0", missing),
-            ("null protocol", "1.2.0", None),
+            ("missing protocol", protocol_document_version("CAM_VERSION"), missing),
+            ("null protocol", protocol_document_version("CAM_VERSION"), None),
             ("missing protocol on retired CAM", "1.1.0", missing),
             ("retired CAM 1.0 with protocol", "1.0.0", {"uri": "./protocol.html", "integrity": ZERO_SHA256}),
             ("retired CAM 1.1 with protocol", "1.1.0", {"uri": "./protocol.html", "integrity": ZERO_SHA256}),
+            ("retired CAM 1.2 with protocol", "1.2.0", {"uri": "./protocol.html", "integrity": ZERO_SHA256}),
             ("unsupported CAM 2.0 with protocol", "2.0.0", {"uri": "./protocol.html", "integrity": ZERO_SHA256}),
         )
         for label, version, protocol in cases:
@@ -77,7 +80,7 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 ui_path = manifest_path.parent / "ui.json"
                 ui_path.write_bytes(b"{}")
                 write_json(manifest_path, {
-                    "cam": "1.2.0",
+                    "cam": protocol_document_version("CAM_VERSION"),
                     "protocol": protocol,
                     "namespaces": {
                         "ui": {"type": "ui", "uri": "./ui.json", "integrity": ZERO_SHA256},
@@ -98,7 +101,8 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             protocol_path = manifest_path.parent / "protocol.html"
             protocol_path.write_bytes(b"previous protocol")
             manifest_path.write_text(
-                '{"cam":"1.2.0","protocol":{"uri":"./protocol.html","integrity":"'
+                '{"cam":' + json.dumps(protocol_document_version("CAM_VERSION"))
+                + ',"protocol":{"uri":"./protocol.html","integrity":"'
                 + ZERO_SHA256
                 + '"},"namespaces":{},"extension":{"nested":[1e400]}}',
                 encoding="utf-8",
@@ -125,7 +129,7 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 resource_path = manifest_path.parent / "ui.json"
                 resource_path.write_bytes(b"{}")
                 document = {
-                    "cam": "1.2.0",
+                    "cam": protocol_document_version("CAM_VERSION"),
                     "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
                     "namespaces": {"ui": {"type": "ui", "uri": "./ui.json", "integrity": ZERO_SHA256}},
                 }
@@ -186,7 +190,7 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             manifest_path.parent.mkdir()
             manifest_path.parent.joinpath("protocol.html").write_bytes(b"previous protocol")
             write_json(manifest_path, {
-                "cam": "1.2.0",
+                "cam": protocol_document_version("CAM_VERSION"),
                 "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
                 "namespaces": {"ui": {"type": "ui", "uri": "./protocol.html", "integrity": ZERO_SHA256}},
             })
@@ -203,51 +207,34 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             protocol_path = manifest_path.parent / "protocol.html"
             protocol_path.write_bytes(b"previous protocol")
             write_json(manifest_path, {
-                "cam": "1.2.0",
+                "cam": protocol_document_version("CAM_VERSION"),
                 "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
                 "namespaces": {},
             })
             manifest_before = manifest_path.read_bytes()
             canonical_path = Path(tmp) / "canonical.html"
             canonical_path.write_bytes(b"x" * (MAX_CAM_RESOURCE_BYTES + 1))
-            with patch.dict("tools.cam_resource_integrity.PROTOCOL_REFERENCE_PATHS", {"1.2.0": canonical_path}):
+            with patch("tools.cam_resource_integrity.PROTOCOL_REFERENCE_PATH", canonical_path):
                 with self.assertRaisesRegex(CamResourceIntegrityError, "protocol reference exceeds"):
                     refresh_manifest(manifest_path)
             self.assertEqual(manifest_before, manifest_path.read_bytes())
             self.assertEqual(b"previous protocol", protocol_path.read_bytes())
 
     def test_checked_in_protocol_copies_match_the_canonical_reference(self) -> None:
+        canonical = PROTOCOL_REFERENCE_PATH.read_bytes()
         for manifest_path in repo_path("dapps").glob("*/cam/main.json"):
             with self.subTest(manifest=manifest_path):
-                version = read_strict_json(manifest_path)["cam"]
-                self.assertIn(version, ("1.2.0", "1.3.0"))
-                canonical = repo_path(f"docs/reference/cam/{version}/index.html").read_bytes()
                 self.assertEqual(canonical, (manifest_path.parent / "protocol.html").read_bytes())
 
-    def test_refresh_selects_the_declared_version_even_when_another_reference_is_bundled(self) -> None:
-        for version, previous in (("1.2.0", "1.3.0"), ("1.3.0", "1.2.0")):
-            with self.subTest(version=version), TemporaryDirectory() as tmp:
-                manifest_path = Path(tmp) / "cam" / "main.json"
-                manifest_path.parent.mkdir()
-                protocol_path = manifest_path.parent / "protocol.html"
-                protocol_path.write_bytes(repo_path(f"docs/reference/cam/{previous}/index.html").read_bytes())
-                write_json(manifest_path, {
-                    "cam": version,
-                    "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
-                    "namespaces": {},
-                })
-
-                self.assertTrue(refresh_manifest(manifest_path))
-                canonical = repo_path(f"docs/reference/cam/{version}/index.html").read_bytes()
-                self.assertEqual(canonical, protocol_path.read_bytes())
-                self.assertEqual(
-                    "sha256:0x" + hashlib.sha256(canonical).hexdigest(),
-                    read_strict_json(manifest_path)["protocol"]["integrity"],
-                )
-                self.assertFalse(refresh_manifest(manifest_path))
+    def test_publication_version_matches_protocol_owner(self) -> None:
+        self.assertEqual(protocol_document_version("CAM_VERSION"), PUBLICATION_CAM_VERSION)
+        self.assertEqual(
+            repo_path(f"docs/reference/cam/{PUBLICATION_CAM_VERSION}/index.html"),
+            PROTOCOL_REFERENCE_PATH,
+        )
 
     def test_unsupported_version_cannot_choose_a_reference_or_change_outputs(self) -> None:
-        for version in ("1.3.1", "../1.3.0", "/tmp/reference", "2.0.0", None, [], {}):
+        for version in ("1.2.0", "1.3.1", "../1.3.0", "/tmp/reference", "2.0.0", None, [], {}):
             with self.subTest(version=version), TemporaryDirectory() as tmp:
                 manifest_path = Path(tmp) / "cam" / "main.json"
                 manifest_path.parent.mkdir()
@@ -260,7 +247,7 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 })
                 manifest_before = manifest_path.read_bytes()
 
-                with self.assertRaisesRegex(CamResourceIntegrityError, "CAM version.*1.2.0.*1.3.0"):
+                with self.assertRaisesRegex(CamResourceIntegrityError, "CAM version must be " + re.escape(PUBLICATION_CAM_VERSION)):
                     refresh_manifest(manifest_path)
 
                 self.assertEqual(manifest_before, manifest_path.read_bytes())
@@ -273,12 +260,12 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             protocol_path = manifest_path.parent / "protocol.html"
             protocol_path.write_bytes(b"stale protocol")
             write_json(manifest_path, {
-                "cam": "1.2.0",
+                "cam": protocol_document_version("CAM_VERSION"),
                 "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
                 "namespaces": {},
             })
             self.assertTrue(refresh_manifest(manifest_path))
-            canonical = repo_path("docs/reference/cam/1.2.0/index.html").read_bytes()
+            canonical = PROTOCOL_REFERENCE_PATH.read_bytes()
             self.assertEqual(canonical, protocol_path.read_bytes())
             self.assertEqual(
                 "sha256:0x" + hashlib.sha256(canonical).hexdigest(),

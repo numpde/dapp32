@@ -24,11 +24,8 @@ LOCAL_URI_PREFIX = "./"
 MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
 UI_NAMESPACE = "ui"
 ROUTES_NAMESPACE = "routes"
-REFERENCE_ROOT = Path(__file__).resolve().parent.parent / "docs/reference/cam"
-PROTOCOL_REFERENCE_PATHS = {
-    "1.2.0": REFERENCE_ROOT / "1.2.0/index.html",
-    "1.3.0": REFERENCE_ROOT / "1.3.0/index.html",
-}
+PUBLICATION_CAM_VERSION = "1.3.0"
+PROTOCOL_REFERENCE_PATH = Path(__file__).resolve().parent.parent / f"docs/reference/cam/{PUBLICATION_CAM_VERSION}/index.html"
 
 
 class CamResourceIntegrityError(ValueError):
@@ -73,11 +70,10 @@ def refresh_manifest(manifest_path: Path) -> bool:
     if not isinstance(document, dict):
         raise CamResourceIntegrityError(f"{manifest_path}: CAM manifest must be a JSON object")
     version = document.get("cam")
-    if not isinstance(version, str) or version not in PROTOCOL_REFERENCE_PATHS:
+    if version != PUBLICATION_CAM_VERSION:
         raise CamResourceIntegrityError(
-            f"{manifest_path}: cannot refresh publication: CAM version must be 1.2.0 or 1.3.0",
+            f"{manifest_path}: cannot refresh publication: CAM version must be {PUBLICATION_CAM_VERSION}",
         )
-    reference_path = PROTOCOL_REFERENCE_PATHS[version]
 
     protocol = document.get("protocol")
     if not isinstance(protocol, dict):
@@ -94,11 +90,11 @@ def refresh_manifest(manifest_path: Path) -> bool:
     changed = False
     protocol_copy: tuple[Path, bytes] | None = None
     protocol_path = local_resource_path(manifest_path, protocol["uri"], "protocol.uri")
-    with reference_path.open("rb") as canonical_file:
+    with PROTOCOL_REFERENCE_PATH.open("rb") as canonical_file:
         canonical_bytes = canonical_file.read(MAX_CAM_RESOURCE_BYTES + 1)
     if len(canonical_bytes) > MAX_CAM_RESOURCE_BYTES:
         raise CamResourceIntegrityError(
-            f"{reference_path}: protocol reference exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
+            f"{PROTOCOL_REFERENCE_PATH}: protocol reference exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
         )
     with protocol_path.open("rb") as protocol_file:
         existing_bytes = protocol_file.read(MAX_CAM_RESOURCE_BYTES + 1)

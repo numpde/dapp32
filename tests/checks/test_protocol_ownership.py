@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from .common import protocol_document_version, read_text, repo_path
+from tools.json_policy import read_strict_json
 
 
 MODULE_SPECIFIER_RE = re.compile(
@@ -28,6 +29,18 @@ PROTOCOL_FACT_EXPORT_RE = re.compile(
 
 
 class ProtocolOwnershipTest(unittest.TestCase):
+    def test_shipped_cam_manifests_declare_current_protocol_version(self) -> None:
+        current_version = protocol_document_version("CAM_VERSION")
+        manifests = sorted(repo_path("dapps").glob("*/cam/main.json"))
+        self.assertTrue(manifests, "no shipped CAM manifests discovered")
+        for manifest_path in manifests:
+            with self.subTest(manifest=manifest_path):
+                self.assertEqual(
+                    current_version,
+                    read_strict_json(manifest_path).get("cam"),
+                    f"{manifest_path}: shipped CAM manifests must declare CAM {current_version}",
+                )
+
     def test_protocol_code_has_single_owners_and_package_import_boundaries(self) -> None:
         failures: list[str] = []
         source_files = [*self.package_source_files(), *self.app_source_files()]

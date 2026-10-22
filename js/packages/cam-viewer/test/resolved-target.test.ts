@@ -12,8 +12,8 @@ import {
 } from "../../../../tests/fixtures/cam/bike-resolved-target.mts"
 import { createMockCamPublicClient } from "../../../../tests/fixtures/cam/mock.mts"
 
-function harness(resolve: () => unknown | Promise<unknown> = () => [oldCollection, 17n], legacy = false, managerAbi: unknown = resolvedTargetManagerAbi) {
-  const bundle = resolvedTargetBundle(legacy ? makeStaticResolvedTargetDocument : undefined, managerAbi)
+function harness(resolve: () => unknown | Promise<unknown> = () => [oldCollection, 17n], staticWrite = false, managerAbi: unknown = resolvedTargetManagerAbi) {
+  const bundle = resolvedTargetBundle(staticWrite ? makeStaticResolvedTargetDocument : undefined, managerAbi)
   const mock = createMockCamPublicClient({ chainId: 31337, camURI: resolvedTargetURI,
     camHash: resolvedTargetHash(bundle.rootBytes), supportsCamInterface: true,
     addresses: { Manager: resolvedTargetManager, BikeNFT: configuredCollection },
@@ -142,7 +142,7 @@ for (const change of ["account", "navigation"] as const) {
   })
 }
 
-test("CAM 1.2 control loads the same generic resources and prepares the static collection without resolution", async () => {
+test("CAM 1.3 static-write control loads the same generic resources and prepares the static collection without resolution", async () => {
   const { session, reads } = harness(undefined, true)
   const action = await actionFor(session)
   const result = await session.dispatchAction(action)

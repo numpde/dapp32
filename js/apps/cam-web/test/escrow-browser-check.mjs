@@ -51,7 +51,7 @@ assert(manifestResponse.ok, 'manifest request failed')
 const rootBytes = Buffer.from(await manifestResponse.arrayBuffer())
 assert.equal(`0x${createHash('sha256').update(rootBytes).digest('hex')}`, hash.toLowerCase(), 'served manifest SHA-256 differs')
 const rootDocument = JSON.parse(rootBytes.toString())
-assert.equal(rootDocument.cam, '1.2.0', 'browser fixture requires the current CAM version')
+assert.equal(rootDocument.cam, '1.3.0', 'browser fixture requires the current CAM version')
 const protocol = rootDocument.protocol
 assert(protocol && /^sha256:0x[0-9a-f]{64}$/.test(protocol.integrity), 'invalid CAM protocol reference')
 const protocolURL = url(new URL(protocol.uri, cam).href, 'CAM protocol URI', ['http:', 'https:'], false)

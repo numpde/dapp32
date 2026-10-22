@@ -15,7 +15,7 @@ for (const type of ["string", "bytes20", "uint160", "address[]", "tuple"]) {
     ] }
     const issues = validateCamBundle(resolvedTargetBundle(undefined, [resolvedTargetManagerAbi[0], resolver]))
     assert.ok(issues.length > 0)
-    assert.ok(!issues.some(issue => issue.rule === "CAM_MANIFEST_VERSION_INVALID"), "successor must reach ABI validation")
+    assert.ok(!issues.some(issue => issue.rule === "CAM_MANIFEST_VERSION_INVALID"), "current version must reach ABI validation")
     assert.ok(issues.some(issue => issue.path?.startsWith("routes.transferComponent") && /address|target/i.test(issue.message)), JSON.stringify(issues))
   })
 }
@@ -36,7 +36,7 @@ test("resolved token ID must be ABI-compatible with the final write input", () =
   assert.ok(issues.some(issue => issue.path?.startsWith("routes.transferComponent.call.args.tokenId")), JSON.stringify(issues))
 })
 
-test("CAM 1.2 positive control validates the same resource and overloaded ABI harness", () => {
+test("CAM 1.3 static-write control validates the same resource and overloaded ABI harness", () => {
   assert.deepEqual(validateCamBundle(resolvedTargetBundle(makeStaticResolvedTargetDocument)), [])
 })
 

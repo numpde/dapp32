@@ -102,7 +102,7 @@ function camDocument({
   }
 }
 
-test("CAM 1.2 parses and resolves write-route value expressions", () => {
+test("CAM 1.3 parses and resolves write-route value expressions", () => {
   const cam = parseCam(camDocument({
     value: "$inputs.amount",
     routeKind: "write",
@@ -144,7 +144,7 @@ test("write-route value participates in account preflight", () => {
   })).value, ACCOUNT)
 })
 
-test("CAM 1.2 rejects transaction value on read routes", () => {
+test("CAM 1.3 rejects transaction value on read routes", () => {
   assert.throws(
     () => parseCam(camDocument({
       value: "1",
@@ -154,6 +154,6 @@ test("CAM 1.2 rejects transaction value on read routes", () => {
       error instanceof CamError
       && error.code === "CAM_UNKNOWN_FIELD"
       && error.path === "routes.valueRoute.value"
-      && error.message === "routes.valueRoute.value: field is not allowed in CAM 1.2.0: value",
+      && error.message === "routes.valueRoute.value: field is not allowed in CAM 1.3.0: value",
   )
 })

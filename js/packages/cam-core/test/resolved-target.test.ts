@@ -3,7 +3,7 @@ import test from "node:test"
 import { CamError, parseCam, routeRequiresAccount } from "../src/index.ts"
 import { resolvedTargetDocument } from "../../../../tests/fixtures/cam/bike-resolved-target.mts"
 
-// Grammar assertions use unknown input, not fictional exported successor types.
+// Grammar assertions exercise untrusted publication input.
 function document() {
   const value = resolvedTargetDocument()
   value.protocol.integrity = "sha256:fixture"
@@ -27,16 +27,14 @@ test("account preflight includes account references used only by the resolver", 
   assert.equal(routeRequiresAccount(parseCam(source), "transferComponent"), true)
 })
 
-test("CAM 1.2 static writes retain their meaning and cannot acquire resolved targets", () => {
+test("CAM 1.3 static writes retain their meaning without resolved targets", () => {
   const source = document()
-  source.cam = "1.2.0"
-  assert.throws(() => parseCam(source), error => error instanceof CamError && error.path !== "cam" && /resolve|target/.test(error.message))
   const route = source.routes.transferComponent as Record<string, unknown>
   delete route.resolve
   delete (route.call as Record<string, unknown>).target
   source.routes.transferComponent.call.args.tokenId = "17"
   const parsed = parseCam(source)
-  assert.equal(parsed.cam, "1.2.0")
+  assert.equal(parsed.cam, "1.3.0")
   assert.equal(routeRequiresAccount(parsed, "transferComponent"), true)
 })
 

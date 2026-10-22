@@ -29,7 +29,7 @@ const AGREEMENT_TRANSITIONS = [
   "finalizeArbitrationTimeout",
 ] as const
 
-test("checked-in escrow CAM 1.2 bundle conforms", async () => {
+test("checked-in escrow CAM 1.3 bundle conforms", async () => {
   const bundle = await escrowBundle()
   assert.deepEqual(validateCamBundle(bundle), [])
 })

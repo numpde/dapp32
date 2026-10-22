@@ -1,4 +1,5 @@
 import {
+  CAM_VERSION,
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
   collectCamInvocationFact,
@@ -41,8 +42,7 @@ export type DeclaredRoute = {
 }
 
 const BASE_ROUTE_FIELDS: ReadonlySet<string> = new Set(["kind", "inputs", "call", "then"])
-const WRITE_VALUE_ROUTE_FIELDS: ReadonlySet<string> = new Set([...BASE_ROUTE_FIELDS, "value"])
-const RESOLVED_WRITE_ROUTE_FIELDS: ReadonlySet<string> = new Set([...WRITE_VALUE_ROUTE_FIELDS, "resolve"])
+const WRITE_ROUTE_FIELDS: ReadonlySet<string> = new Set([...BASE_ROUTE_FIELDS, "value", "resolve"])
 
 const RULES = conformanceRules({
   CAM_ENTRY_ROUTE_INVALID: {
@@ -95,7 +95,7 @@ export function validateRouteDeclarations({
 
   const namespaceTypes = new Map(namespaces.map((namespace) => [namespace.name, namespace.type]))
   validateEntryRoute(resource, root.entry, root.routes, issues)
-  return validateRoutes(resource, root.routes, namespaceTypes, root.cam, issues)
+  return validateRoutes(resource, root.routes, namespaceTypes, issues)
 }
 
 function validateEntryRoute(
@@ -127,7 +127,6 @@ function validateRoutes(
   resource: string,
   routes: Record<string, unknown>,
   namespaces: ReadonlyMap<string, CamNamespaceType>,
-  version: unknown,
   issues: CamConformanceIssue[],
 ): readonly DeclaredRoute[] {
   const declaredRoutes: DeclaredRoute[] = []
@@ -144,13 +143,13 @@ function validateRoutes(
     const inputs = validateRouteInputList(resource, routeName, route.inputs, issues)
     if (inputs === undefined) continue
     const resolution = collectCamRouteResolutionFact({
-      resource, path: `routes.${routeName}`, route, version, namespaceTypes: namespaces,
+      resource, path: `routes.${routeName}`, route, namespaceTypes: namespaces,
       declaredInputs: new Set(inputs),
     })
     for (const diagnostic of resolution.diagnostics) issues.push(invocationFactDiagnosticIssue(diagnostic))
     const invocations = validateRouteInvocations(resource, routeName, route, namespaces, issues, resolution.value !== undefined)
     if (kind !== undefined) {
-      validateRouteFields(resource, routeName, route, kind, version, issues)
+      validateRouteFields(resource, routeName, route, kind, issues)
     }
     if (kind !== undefined && invocations !== undefined) {
       const value = routeValue(route, kind)
@@ -185,18 +184,15 @@ function validateRouteFields(
   routeName: string,
   route: Record<string, unknown>,
   kind: CamRouteKind,
-  version: unknown,
   issues: CamConformanceIssue[],
 ): void {
-  const allowed = kind === "write"
-    ? version === "1.3.0" ? RESOLVED_WRITE_ROUTE_FIELDS : WRITE_VALUE_ROUTE_FIELDS
-    : BASE_ROUTE_FIELDS
+  const allowed = kind === "write" ? WRITE_ROUTE_FIELDS : BASE_ROUTE_FIELDS
   for (const field of Object.keys(route)) {
     if (allowed.has(field)) continue
     issues.push(routeDeclarationIssue(
       resource,
       `routes.${routeName}.${field}`,
-      `field is not allowed in CAM ${String(version)}: ${field}`,
+      `field is not allowed in CAM ${CAM_VERSION}: ${field}`,
     ))
   }
 }

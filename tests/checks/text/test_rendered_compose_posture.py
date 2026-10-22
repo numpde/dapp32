@@ -15,6 +15,7 @@ from ..common import (
     compose_service,
     compose_volume,
     docker_compose_command,
+    protocol_document_version,
     read_text,
     rendered_compose_config,
     repo_path,
@@ -239,7 +240,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIsNotNone(first_party_roots)
         assert first_party_roots is not None
         self.assertIn("docs", first_party_roots.group(1).split())
-        self.assertIn("! -f docs/reference/cam/1.2.0/index.html", makefile)
+        self.assertIn(f"! -f docs/reference/cam/{protocol_document_version('CAM_VERSION')}/index.html", makefile)
         refresh_recipe = makefile.split("\ncam/integrity/refresh:\n", 1)[1].split("\n\n", 1)[0]
         self.assertLess(refresh_recipe.index("$(LANE_GUARD)"), refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"))
         self.assertLess(refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"), refresh_recipe.index("$(DOCKER_COMPOSE)"))
@@ -782,13 +783,16 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_hardened(cam_integrity)
         self.assertEqual("none", cam_integrity.get("network_mode"))
         self.assertEqual(True, compose_volume(cam_integrity, "/work/dapps").get("read_only"))
-        for version in ("1.2.0", "1.3.0"):
-            reference_path = f"docs/reference/cam/{version}/index.html"
-            reference_mount = compose_volume(cam_integrity, f"/work/{reference_path}")
-            self.assertEqual(str(repo_path(reference_path)), reference_mount["source"])
-            self.assertIs(reference_mount.get("read_only"), True)
-            # Compose omits the false default when normalizing long-form binds.
-            self.assertIsNot(reference_mount["bind"].get("create_host_path"), True)
+        reference_path = f"docs/reference/cam/{protocol_document_version('CAM_VERSION')}/index.html"
+        reference_mount = compose_volume(cam_integrity, f"/work/{reference_path}")
+        self.assertEqual(str(repo_path(reference_path)), reference_mount["source"])
+        self.assertIs(reference_mount.get("read_only"), True)
+        # Compose omits the false default when normalizing long-form binds.
+        self.assertIsNot(reference_mount["bind"].get("create_host_path"), True)
+        self.assertEqual(
+            [f"/work/{reference_path}"],
+            [mount["target"] for mount in cam_integrity["volumes"] if mount["target"].startswith("/work/docs/reference/cam/")],
+        )
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "cam" / "main.json").is_file():
                 manifest_mount = compose_volume(cam_integrity, f"/work/dapps/{dapp_dir.name}/cam/main.json")

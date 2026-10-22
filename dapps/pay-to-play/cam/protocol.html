@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CAM 1.2.0 reference — Experimental draft</title>
+  <title>CAM 1.3.0 reference — Experimental draft</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.6; }
     body { max-width: 62rem; margin: auto; padding: 1rem clamp(.75rem, 4vw, 3rem) 4rem; }
@@ -23,15 +23,15 @@
 <body>
 <a class="skip" href="#main">Skip to reference</a>
 <header>
-  <h1>Contract Application Manifest (CAM) 1.2.0</h1>
-  <p><strong>Experimental draft.</strong> Document format versions: CAM <code>1.2.0</code>, UI <code>1.0.0</code>. Revision: 2026-10-15. Documentation revisions do not change these format versions.</p>
+  <h1>Contract Application Manifest (CAM) 1.3.0</h1>
+  <p><strong>Experimental draft.</strong> Document format versions: CAM <code>1.3.0</code>, UI <code>1.0.0</code>. Revision: 2026-10-22. Documentation revisions do not change these format versions.</p>
 </header>
 <main id="main">
 <section id="model">
 <h2>CAM model</h2>
 <p>A CAM application is advertised by a deployed contract, called the <strong>CAM host contract</strong>. To load the application, an agent or viewer needs the chain ID of the network hosting that contract and its deployed address. The agent or viewer calls <code>camManifest()</code> on that contract to obtain one coherent manifest URI and SHA-256 digest; <code>ICamApp</code> defines these discovery methods. The repository's EVM adapter validates the URI, asks its supplied resource loader for manifest bytes, and checks their SHA-256 digest before JSON parsing. The manifest declares ABI/UI resources, contract calls, and continuations. The agent or viewer uses the parsed routes and arguments to prepare requested contract calls.</p>
 <p>The manifest joins each <code>contracts.Name</code> namespace to an ABI resource. This repository's EVM profile resolves <code>Name</code> to a destination address through the host contract's <code>contractAddress(string)</code> binding API. That resolver belongs to the <code>ICamApp</code> interface together with the paired manifest getter. The manifest's <code>ui</code> namespace selects a UI resource; its <code>routes</code> namespace selects routes declared in the same manifest. Mutable address bindings are outside the manifest hash.</p>
-<p>Each route joins one contract call to a next invocation. A read exposes normalized results as <code>$outputs</code> while resolving its continuation arguments for a named UI node. A write prepares a transaction and names another route to follow after success. The agent or viewer prepares requests; called contracts enforce their business rules. An agent can inspect the resolved UI and action model without drawing an interface, while following the declared read-to-UI handoff.</p>
+<p>Each route joins one contract call to a next invocation. A read exposes normalized results as <code>$outputs</code> while resolving its continuation arguments for a named UI node. A write prepares a transaction and names another route to follow after success. It may first read one host-bound contract to resolve the transaction destination and arguments. The agent or viewer prepares requests; called contracts enforce their business rules. An agent can inspect the resolved UI and action model without drawing an interface, while following the declared read-to-UI handoff.</p>
 <p>A bundle author supplies the manifest and ABI/UI resource bytes under their declared URIs. For publication, the author makes those resources available through a chosen transport. The authorized <code>CamRoot</code> owner advertises the manifest URI/hash and configures address bindings through separate transactions; the owner need not be the bundle author. Editing resource bytes does not update <code>CamRoot</code>'s stored hash.</p>
 <p>Document rules govern the manifest/UI graph. EVM profile rules describe this repository's <code>@cam/evm-viem</code> adapter; UI resolution describes <code>@cam/screen</code>. Viewer policies describe the <code>@cam/viewer</code> session library and the web viewer that uses it. Conformance checks inspect supplied bundles for publication defects, without establishing live state, account authority, or transaction success.</p>
 </section>
@@ -44,6 +44,7 @@
 <li><a href="#loading">Resolve and verify a bundle</a></li>
 <li><a href="#graph">Interpret the manifest graph</a></li>
 <li><a href="#evm">Bind EVM calls and results</a></li>
+<li><a href="#resolved-target">Resolve a write destination</a></li>
 <li><a href="#expressions">Resolve expressions and handoffs</a></li>
 <li><a href="#ui">Interpret UI 1.0.0</a></li>
 <li><a href="#execution">Execute and report outcomes</a></li>
@@ -77,7 +78,7 @@ function contractAddress(string contractName) external view returns (address);</
 <ol>
 <li>Check that the RPC client is on the selected chain, then call <code>supportsInterface(0xb6a5fc7c)</code> on the host. Require boolean <code>true</code>; a failed read or any other return value blocks loading.</li>
 <li>Read <code>camManifest()</code> from that host. Validate the returned URI against the <a href="#loading">resource profile</a> and the caller's fetch admission, load bounded bytes, and compare SHA-256 of those exact bytes with <code>sha256Digest</code>. A mismatch blocks parsing.</li>
-<li>Decode the authenticated manifest as strict JSON, rejecting invalid UTF-8 and duplicate object keys. CAM 1.2 requires a top-level <code>protocol</code> object with exactly <code>uri</code> and <code>integrity</code> fields, for example <code>protocol: {"uri": "./protocol.html", "integrity": "sha256:0x…"}</code>. The integrity string is the literal prefix <code>sha256:0x</code> followed by 64 lowercase hexadecimal digest digits.</li>
+<li>Decode the authenticated manifest as strict JSON, rejecting invalid UTF-8 and duplicate object keys. CAM 1.3 requires a top-level <code>protocol</code> object with exactly <code>uri</code> and <code>integrity</code> fields, for example <code>protocol: {"uri": "./protocol.html", "integrity": "sha256:0x…"}</code>. The integrity string is the literal prefix <code>sha256:0x</code> followed by 64 lowercase hexadecimal digest digits.</li>
 <li>Resolve <code>protocol.uri</code>: <code>./…</code> is relative to the original manifest URI's directory, dropping its query and fragment; supported <code>ipfs://CID/…</code> uses an admitted IPFS transport. Apply the resource profile and caller's admission before fetching bounded bytes. Compare SHA-256 of the exact protocol bytes with the digest in <code>protocol.integrity</code>, and stop on mismatch.</li>
 <li>Read the authenticated protocol document to learn how to validate the manifest graph, load and authenticate declared ABI/UI resources, resolve <a href="#bindings">address bindings</a>, and proceed to workflow execution.</li>
 </ol>
@@ -85,7 +86,7 @@ function contractAddress(string contractName) external view returns (address);</
 <section id="loading">
 <h2>Resolve and verify a bundle</h2>
 <p>The <a href="#bootstrap">bootstrap sequence</a> uses the URI and loader policies below. ABI and UI declarations use the same integrity spelling and exact-byte verification as the protocol resource.</p>
-<p>The repository publishes this versioned reference at <code>docs/reference/cam/1.2.0/index.html</code> and copies those exact bytes into each dapp bundle as <code>protocol.html</code>. The manifest pins the bundled copy. Refresh publication digests after editing resources; serve the protocol file alongside the manifest, ABI and UI files.</p>
+<p>The repository publishes this versioned reference at <code>docs/reference/cam/1.3.0/index.html</code> and copies those exact bytes into bundles declaring CAM 1.3.0 as <code>protocol.html</code>. The manifest pins the bundled copy. Refresh publication digests after editing resources; serve the protocol file alongside the manifest, ABI and UI files.</p>
 <table>
 <thead><tr><th>URI site</th><th>Accepted form</th></tr></thead>
 <tbody>
@@ -103,15 +104,15 @@ function contractAddress(string contractName) external view returns (address);</
 </section>
 <section id="graph">
 <h2>Interpret the manifest graph</h2>
-<p>The CAM 1.2 top-level manifest has exactly <code>cam</code>, <code>protocol</code>, <code>entry</code>, <code>namespaces</code>, and <code>routes</code>. Its <code>cam</code> value is <code>"1.2.0"</code>. <code>entry</code> names an existing route. Unknown structural fields are rejected at the manifest, namespace, route, and invocation boundaries so unsupported declarations fail instead of being silently ignored.</p>
+<p>The CAM 1.3 top-level manifest has exactly <code>cam</code>, <code>protocol</code>, <code>entry</code>, <code>namespaces</code>, and <code>routes</code>. Its <code>cam</code> value is <code>"1.3.0"</code>. <code>entry</code> names an existing route. Unknown structural fields are rejected at the manifest, namespace, route, and invocation boundaries so unsupported declarations fail instead of being silently ignored.</p>
 <table>
 <thead><tr><th>Namespace</th><th>Declaration</th><th>Invocation target</th></tr></thead>
 <tbody>
-<tr><td><code>contracts.Name</code></td><td><code>type: "contract"</code>, <code>abiURI</code>, <code>integrity</code>. Name matches <code>[A-Za-z_][A-Za-z0-9_]*</code>.</td><td>A function in the declared ABI, at the host-bound address.</td></tr>
+<tr><td><code>contracts.Name</code></td><td><code>type: "contract"</code>, <code>abiURI</code>, <code>integrity</code>. Name matches <code>[A-Za-z_][A-Za-z0-9_]*</code>.</td><td>A function in the declared ABI, at the host-bound address unless a write declares a <a href="#resolved-target">resolved target</a>.</td></tr>
 <tr><td><code>ui</code></td><td><code>type: "ui"</code>, <code>uri</code>, <code>integrity</code>.</td><td>A named node in that UI document.</td></tr>
 <tr><td><code>routes</code></td><td><code>type: "routes"</code>; no resource fields.</td><td>A route declared in this manifest.</td></tr>
 </tbody></table>
-<p>Invocations have exactly <code>{"namespace":"…","function":"…","args":{…}}</code>. The namespace must be declared with an allowed type for that edge. In CAM routes, <code>function</code> is a nonempty literal string; argument values may contain expressions recursively. Route names and invocation argument keys need only be nonempty strings, unlike input identifiers.</p>
+<p>Invocations have exactly <code>{"namespace":"…","function":"…","args":{…}}</code>, except that a write with <code>resolve</code> must add <code>target</code> to its final <code>call</code>. The namespace must be declared with an allowed type for that edge. In CAM routes, <code>function</code> is a nonempty literal string; argument values may contain expressions recursively. Route names and invocation argument keys need only be nonempty strings, unlike input identifiers.</p>
 <p>A route has <code>kind</code>, <code>inputs</code>, <code>call</code>, and <code>then</code>. <code>inputs</code> is its exact callable interface: an array of unique names matching the <a href="#expressions">expression identifier grammar</a>. Resolving either invocation rejects missing or extra inputs, including unused inputs. This catches mismatched caller parameters before the call is made.</p>
 <table>
 <thead><tr><th>Route kind</th><th><code>call</code> edge</th><th><code>then</code> edge</th></tr></thead>
@@ -120,8 +121,8 @@ function contractAddress(string contractName) external view returns (address);</
 <tr><td><code>write</code></td><td>A contract namespace, targeting a <code>nonpayable</code>/<code>payable</code> function.</td><td>The routes namespace, targeting another route.</td></tr>
 </tbody></table>
 <p>The namespace joins in this table are manifest-parser rules for <code>route.call</code> and <code>route.then</code>. ABI mutability is checked separately by the EVM adapter against the loaded ABI. Parsing the manifest alone does not inspect an ABI or deployed code.</p>
-<p><code>then</code> is the continuation descriptor. During a read, the repository's viewer session starts the call with empty outputs, then resolves <code>then.args</code> against the normalized results. The author selects which <code>$outputs</code> values reach the UI node. The session's write preparation resolves both descriptors with empty outputs. The <code>@cam/core</code> route helpers instead resolve the context supplied by their caller.</p>
-<p>Repository conformance checks diagnose <code>$outputs</code> references in <code>route.call.args</code>, <code>route.value</code>, and write-route <code>then.args</code>; read-route <code>then.args</code> may select them. Accepting expression syntax does not establish that a reference is usable at that phase.</p>
+<p><code>then</code> is the continuation descriptor. During a read, the repository's viewer session starts the call with empty outputs, then resolves <code>then.args</code> against the normalized results. The author selects which <code>$outputs</code> values reach the UI node. For static writes, the session resolves both descriptors with empty outputs. A resolved write supplies its read outputs only while resolving the final target and call arguments; its continuation still resolves with empty outputs. The <code>@cam/core</code> route helpers instead resolve the context supplied by their caller.</p>
+<p>Read-route <code>then.args</code> and resolved write <code>call.args</code> may select <code>$outputs</code>. Resolver arguments, static <code>call.args</code>, <code>route.value</code>, and write-route <code>then.args</code> cannot use them. Conformance checks diagnose references at unavailable phases; accepting expression syntax alone does not establish that a reference can resolve.</p>
 <p>Document parsing and conformance permit a write-to-write continuation. The viewer session does not reject that destination during first-write preparation. If the first transaction succeeds, the web viewer then requests navigation, which rejects the next write route; the web viewer reports transaction success with a view-refresh failure. That failure does not roll back the first transaction. Supporting another write requires an agent or viewer to prepare and authorize it; no declaration automatically submits a second transaction.</p>
 </section>
 <section id="evm">
@@ -145,6 +146,36 @@ function contractAddress(string contractName) external view returns (address);</
 <p>Write routes may declare <code>value</code>, separate from <code>call.args</code>. It resolves as a literal or expression to a decimal uint256 value in native base units. Payable targets require an explicit value, including <code>"0"</code>, so omitting an amount cannot silently default to zero. Nonpayable targets reject any declared value, including zero. Read routes reject the field.</p>
 <p>No unit conversion or token transfer is implied. An amount passed as an ABI argument remains an argument; transferring tokens remains a contract operation. Writes have no modeled ABI return values in route context.</p>
 </section>
+<section id="resolved-target">
+<h2>Resolve a write destination</h2>
+<p>A write route may declare one <code>resolve</code> invocation when its destination belongs to a particular record. For example, a registry can retain an older NFT collection address for an existing record while binding a newer collection for future registrations. Resolving the record's collection prepares a direct NFT transfer to the correct contract.</p>
+<p><code>resolve</code> has exactly <code>namespace</code>, <code>function</code>, and <code>args</code>. Its namespace is a declared, static contract namespace resolved through the host binding. Its function is a literal name or signature for a <code>view</code> or <code>pure</code> ABI function. Arguments can use the route's inputs, host, and account; they cannot refer to prior outputs. The resolver has no target override, nested resolver, list of invocations, or continuation.</p>
+<p>The final <code>call</code> retains its own static contract namespace and function. That namespace supplies the verified ABI. Its required <code>target</code> is exactly <code>"$outputs.N"</code>, where N is one positional resolver output index. The selected ABI output must be scalar <code>address</code>, and its returned value must be a valid nonzero address. Literal addresses, editable-input references, tuple fields, arrays, and address-looking strings with another ABI type cannot select the destination. A <code>target</code> without <code>resolve</code> is invalid.</p>
+<p>Normalize the resolver result against its ABI before resolving <code>call.args</code>. Those arguments can select other resolver outputs and must satisfy the final function's ABI inputs. Resolver outputs are available only to <code>call.target</code> and <code>call.args</code>. Neither the route's native <code>value</code> nor <code>then.args</code> can use them. The write itself still supplies no modeled outputs.</p>
+<p><strong>Conformance limit:</strong> the publication checker compares complete direct output arguments using exact ABI type-string equality. It does not infer safe conversions or compare tuple components. Outputs nested inside constructed arguments and concrete resolved values remain checked against the final function's ABI at runtime.</p>
+<p>The route below assumes a host-bound <code>Registry</code> whose <code>tokenReference(string serialNumber)</code> returns <code>(address collection, uint256 tokenId)</code>, and a <code>Collection</code> namespace declaring the ERC-721 transfer ABI. Both namespaces must be declared and bound at load. The collection binding supplies the ABI namespace's ordinary address; this write replaces that destination with the record's returned collection.</p>
+<pre id="resolved-target-route"><code>"transferComponent": {
+  "kind": "write",
+  "inputs": ["serialNumber", "to"],
+  "resolve": {
+    "namespace": "contracts.Registry", "function": "tokenReference",
+    "args": { "serialNumber": "$inputs.serialNumber" }
+  },
+  "call": {
+    "namespace": "contracts.Collection", "target": "$outputs.0",
+    "function": "safeTransferFrom(address,address,uint256)",
+    "args": {
+      "from": "$account.address", "to": "$inputs.to", "tokenId": "$outputs.1"
+    }
+  },
+  "then": {
+    "namespace": "routes", "function": "component",
+    "args": { "serialNumber": "$inputs.serialNumber" }
+  }
+}</code></pre>
+<p><strong>Preparation and review:</strong> the repository's viewer runs the resolver once when the action is requested, then captures the destination, selected function, arguments, native value, and continuation in the prepared call. Simulation and submission consume that call without rerunning the resolver or substituting the current namespace binding. An account or view change while resolution is pending invalidates its result. A failed read, invalid result, or invalid target blocks preparation; there is no fallback to the namespace's configured address.</p>
+<p><strong>Trust boundary:</strong> a host-bound resolver is the declared source of the destination, not proof that the destination's code implements the ABI or that the action is authorized. Review the actual prepared address and calldata. The resolver read, simulation, and transaction execute at different times; freezing the prepared call does not freeze chain state or guarantee transaction success.</p>
+</section>
 <section id="expressions">
 <h2>Resolve expressions and handoffs</h2>
 <p>Expression strings select supplied context values. They occupy the whole string and resolve recursively within argument arrays and objects, without changing keys. A single leading <code>$</code> starts a reference; <code>$$</code> escapes one dollar sign. Other strings remain literal. There is no arithmetic, interpolation, operator-object DSL, JavaScript evaluation, or resource fetch in this mechanism.</p>
@@ -160,7 +191,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <tr><td><code>$host</code></td><td>Selected CAM host contract's <code>chainId</code> and <code>address</code>.</td></tr>
 <tr><td><code>$account</code></td><td>Optional account with <code>address</code>. Absent accounts cannot resolve references. Also see <a href="#read-results">the independent RPC caller behavior</a>.</td></tr>
 <tr><td><code>$inputs</code></td><td>Current route's exact inputs.</td></tr>
-<tr><td><code>$outputs</code></td><td>Call results supplied in context; the viewer session starts calls and write preparation with an empty array.</td></tr>
+<tr><td><code>$outputs</code></td><td>Normalized read results for a read continuation, or resolver results for a resolved write's target and arguments. Other write phases have an empty array.</td></tr>
 <tr><td><code>$state</code></td><td>UI-local editable values, available during UI resolution.</td></tr>
 <tr><td><code>$view</code></td><td>The value supplied as a named UI node's <code>view</code> argument; any inert value. It is separate from the resolved UI tree and editable state.</td></tr>
 </tbody></table>
@@ -179,7 +210,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <table>
 <thead><tr><th>Element</th><th>Required structure and props</th><th>Other rules and behavior</th></tr></thead>
 <tbody>
-<tr><td><code>Screen</code></td><td><code>props.title</code>, <code>children</code></td><td>View container.</td></tr>
+<tr><td><code>Screen</code></td><td><code>props.title</code>, <code>children</code></td><td>Titled container. The root title names the view; nested containers group related content under headings. Nesting does not create navigation routes.</td></tr>
 <tr><td><code>Fragment</code></td><td><code>children</code></td><td>Groups children without a title.</td></tr>
 <tr><td><code>Text</code></td><td><code>props.text</code></td><td>Text display.</td></tr>
 <tr><td><code>Address</code></td><td><code>props.label</code>, <code>props.address</code></td><td>Address resolves to <code>0x</code> plus 40 hex digits.</td></tr>
@@ -194,7 +225,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <tr><td><code>Include</code></td><td><code>call</code> into <code>ui</code></td><td>Composes selected named nodes.</td></tr>
 <tr><td><code>Button</code></td><td><code>props.label</code>, <code>call</code> into <code>routes</code></td><td><code>enabledWhen</code>; describes a route action for an agent or viewer to invoke.</td></tr>
 </tbody></table></div>
-<p><code>Nft</code> may declare string <code>props.metadataURI</code>, usually supplied by a contract read through <code>$view</code>. It does not infer ERC-721 versus ERC-1155 or make another contract call. The web viewer loads metadata after a user action. Embedded image data URIs display automatically; HTTP(S) images require a separate user action. It accepts HTTP(S) and data URIs, with limits of 256 KiB for UTF-8 JSON and 4 MiB for PNG, JPEG, WebP or GIF bytes. Other schemes need a directly readable HTTP(S) URL. Browser CORS failures remain local preview errors. These requests are separate from contract-anchored CAM resource loading.</p>
+<p><code>Nft</code> may declare string <code>props.metadataURI</code>, usually supplied by a contract read through <code>$view</code>. It does not infer ERC-721 versus ERC-1155 or make another contract call. Loading a preview in the web viewer loads metadata and then its image, without a second action. The metadata editor displays embedded image data URIs automatically; fetching an external draft image requires a user action. It accepts HTTP(S) and data URIs, with limits of 256 KiB for UTF-8 JSON and 4 MiB for PNG, JPEG, WebP or GIF bytes. Other schemes need a directly readable HTTP(S) URL. Browser CORS failures remain local preview errors. These requests are separate from contract-anchored CAM resource loading.</p>
 <p><code>NftMetadataField</code> binds one URI passed to a route. The web viewer offers Hosted JSON and Embed JSON tabs, with separate local URI and JSON drafts. Tabs preserve the selected URI; each source has an explicit Use action. The selected URI is shown under URI to submit. Editing preserves extension fields and attribute values. Copying or downloading does not select, publish or mint anything. Embedded JSON uses a data URI and increases transaction size; external image URLs remain separate references. Editing an applied embedded draft clears its generated URI until reapplication. JSON edits leave a selected hosted URI unchanged; editing the selected hosted URI clears that selection until reapplication.</p>
 <p><code>Status</code> with <code>stringList</code> requires an array of strings. <code>bytes</code>/<code>durationSeconds</code>/<code>timestampSeconds</code> require unsigned decimal integer strings or safe nonnegative integer numbers. Unformatted value presentation belongs to the viewer. Timestamps display UTC and exact Unix seconds; integers beyond the UTC calendar range retain their exact seconds with an explicit range message. Zero means the Unix epoch unless the app declares a nonempty string <code>zeroText</code>; the renderer never infers absence from a field name. Timestamp formatting does not determine transaction readiness.</p>
 <p><strong>Publication policy:</strong> conformance follows statically known reference types through route/UI handoffs. For <code>Nft.tokenId</code>, known references must supply an integer or string; boolean, tuple, or array references receive a diagnostic. This check does not restrict literals at that site. The UI runtime accepts any inert token ID, with no contract call implied.</p>
@@ -221,13 +252,13 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <section id="execution">
 <h2>Execute and report outcomes</h2>
 <p>The repository's viewer session starts a read with the selected CAM host contract identity, optional account, exact inputs, and empty outputs. Through the core and EVM helpers, the session resolves and ABI-checks the call, requests RPC execution without committed transaction effects, normalizes the result, then resolves <code>then.args</code> with those outputs. Failed calls and invalid results cannot produce an ordinary successful UI view.</p>
-<p>The session's write preparation resolves the contract call and continuation with empty outputs. An agent or viewer may request simulation as an RPC trial against current node state, without committed effects. Wallet submission returns a transaction hash; successful included execution can apply contract changes. Reverted execution does not apply the attempted contract changes. Neither a simulation nor a hash establishes successful confirmation.</p>
+<p>The session's write preparation either resolves a static call with empty outputs or runs the declared resolver and resolves the final call from its normalized outputs. The continuation always resolves with empty outputs. The prepared call captures the destination and arguments for review; simulation and submission do not rerun resolution. An agent or viewer may request simulation as an RPC trial against current node state, without committed effects. Wallet submission returns a transaction hash; successful included execution can apply contract changes. Reverted execution does not apply the attempted contract changes. Neither a simulation nor a hash establishes successful confirmation.</p>
 <p>The repository's web viewer waits for a successful receipt, then requests session navigation to the route named by the prepared write continuation. Successful read navigation refreshes the UI. The web viewer reports a rejected write-route destination or failed refresh separately from the already successful transaction; that UI failure does not roll back transaction effects.</p>
-<p>Agents and viewers choose confirmation, timeout, replacement, reorg, and stale-interaction policy. An application also decides when an account change requires rereading caller-dependent results and whether drafts or prepared calls remain usable. CAM does not prescribe these policies. A timeout or uncertain submission is not proof of failure; resolve wallet/chain status before retrying a consequential write.</p>
+<p>Agents and viewers choose confirmation, timeout, replacement, reorg, and stale-interaction policy. An application also decides when an account change requires rereading caller-dependent results and whether drafts or prepared calls remain usable. CAM does not prescribe confirmation or wallet policies. The repository viewer rejects in-flight resolved-write preparations after an account or view change. A timeout or uncertain submission is not proof of failure; resolve wallet/chain status before retrying a consequential write.</p>
 </section>
 <section id="example">
 <h2>Worked route and UI example</h2>
-<p>The first code block is a partial manifest containing only <code>namespaces</code> and <code>routes</code>. A complete manifest also supplies <code>cam: "1.2.0"</code>, the <a href="#bootstrap">authenticated <code>protocol: {uri, integrity}</code> declaration</a>, and <code>entry: "show"</code> selecting the route used here; see the <a href="#graph">manifest graph rules</a>.</p>
+<p>The first code block is a partial manifest containing only <code>namespaces</code> and <code>routes</code>. A complete manifest also supplies <code>cam: "1.3.0"</code>, the <a href="#bootstrap">authenticated <code>protocol: {uri, integrity}</code> declaration</a>, and <code>entry: "show"</code> selecting the route used here; see the <a href="#graph">manifest graph rules</a>.</p>
 <p>Assume a <code>CamRoot</code> host binds <code>Registry</code> with <code>labelOf(uint256 itemId) view returns (string)</code> and <code>setLabel(uint256 itemId, string label) nonpayable</code>. The manifest joins that ABI to an editor UI and routes <code>show</code>/<code>save</code>. The registry contract owns edit authorization.</p>
 <p>The digests below match the exact UTF-8 text in the resource code blocks, without an added trailing newline. Changed resource whitespace requires new digests.</p>
 <pre id="example-cam"><code>{
@@ -308,7 +339,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 </section>
 <section id="provenance">
 <h2>Evidence and limits</h2>
-<p>This experimental revision accompanies the CAM 1.2 implementation. The source links below follow the main branch and may change; the manifest integrity field authenticates the exact bundled reference bytes.</p>
+<p>This experimental revision documents CAM 1.3.0 with UI 1.0.0. The source links below follow the main branch and may change; the manifest integrity field authenticates the exact bundled reference bytes.</p>
 <ul>
 <li><a href="https://raw.githubusercontent.com/numpde/dapp32/main/dapps/cam/src/ICamApp.sol">ICamApp contract interface</a> and <a href="https://raw.githubusercontent.com/numpde/dapp32/main/dapps/cam/src/CamRoot.sol">CamRoot host and bindings</a>.</li>
 <li><a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-protocol/src/versions.ts">Wire versions</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-core/src/validate.ts">CAM parser</a>, and <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-core/test/core.test.ts">core route and parser tests</a>.</li>
