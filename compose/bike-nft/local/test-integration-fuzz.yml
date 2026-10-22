@@ -86,6 +86,9 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
       }
       writeFileSync(requiredEnv("CAM_INTEGRATION_DESCRIPTOR_PATH"), JSON.stringify(descriptor, null, 2) + "\n")
       JS
+      if [ "$${CAM_INTEGRATION_WRITE_MODE}" = local-fixture ]; then
+        node --experimental-strip-types tools/cam-integration-fuzz/bike-actors.ts
+      fi
       node --experimental-strip-types tools/cam-integration-fuzz/runner.ts
 
 services:
@@ -101,3 +104,7 @@ services:
       <<: *bike_nft_integration_fuzz_environment
       CAM_INTEGRATION_WRITE_MODE: local-fixture
       CAM_INTEGRATION_PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"
+      # Deliberately public, local-only buyer/workshop keys. The actor scenario
+      # funds them only on this private Bike Anvil service; NEVER use real keys.
+      BIKE_FIXTURE_BUYER_PRIVATE_KEY: "0xbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc"
+      BIKE_FIXTURE_MECHANIC_PRIVATE_KEY: "0xbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd"

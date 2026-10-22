@@ -519,6 +519,11 @@ class RenderedComposePostureTest(unittest.TestCase):
                 ANVIL_DEV_PRIVATE_KEY,
             ),
         }
+        for name, byte in (("BIKE_FIXTURE_BUYER_PRIVATE_KEY", "bc"), ("BIKE_FIXTURE_MECHANIC_PRIVATE_KEY", "bd")):
+            expected_fixture_keys.add((
+                makefile_compose_unit("TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES"),
+                "test-integration-fuzz-with-writes-bike-nft", name, "0x" + byte * 32,
+            ))
         for unit_name in (
             "ESCROW_LOCAL_SCENARIO_COMPOSE_FILES",
             "ESCROW_VIEWER_TERMINAL_COMPOSE_FILES",
@@ -1097,6 +1102,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         writes_environment = compose_mapping(bike_writes, "environment")
         self.assertEqual("local-fixture", writes_environment["CAM_INTEGRATION_WRITE_MODE"])
         self.assertEqual(ANVIL_DEV_PRIVATE_KEY, writes_environment["CAM_INTEGRATION_PRIVATE_KEY"])
+        for name, byte in (("BIKE_FIXTURE_BUYER_PRIVATE_KEY", "bc"), ("BIKE_FIXTURE_MECHANIC_PRIVATE_KEY", "bd")):
+            self.assertNotIn(name, environment)
+            self.assertEqual("0x" + byte * 32, writes_environment[name])
         self.assertNotIn("PRIVATE_KEY", writes_environment)
         self.assert_js_tool_command(
             bike,
@@ -1104,6 +1112,8 @@ class RenderedComposePostureTest(unittest.TestCase):
             "tools/cam-integration-fuzz/runner.ts",
         )
         bike_command = compose_command_text(bike)
+        self.assertIn('if [ "${CAM_INTEGRATION_WRITE_MODE}" = local-fixture ]; then', bike_command)
+        self.assertIn("node --experimental-strip-types tools/cam-integration-fuzz/bike-actors.ts", bike_command)
         self.assertIn("node --input-type=module", bike_command)
         self.assertEqual(bike_command, compose_command_text(bike_writes))
 

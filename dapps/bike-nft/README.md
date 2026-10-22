@@ -4,6 +4,15 @@ Bike NFT publishes its manager workflow through CAM while keeping token ownershi
 
 ## Try the local workflow
 
+`make bike-nft/local/integration/fuzz/fixture-writes/run` runs a deterministic
+three-signer scenario before the seeded random walk: seller registration,
+workshop delegation and metadata update, NFT handover to a distinct buyer,
+loss of seller/workshop authority (including on-chain `Unauthorized`
+simulations), and a buyer metadata update. It uses deliberately public demo
+keys funded only on the private disposable Bike Anvil service. A successful
+scenario emits `bike_actor_ok`; the subsequent generic random walker remains
+single-account and does not itself establish distinct-actor coverage.
+
 From the repository root, install the locked dependencies with `make dapps/deps/install` and
 `make js/deps/install`, then choose one demo. Each demo deploys a fresh disposable fixture before
 starting its viewer:

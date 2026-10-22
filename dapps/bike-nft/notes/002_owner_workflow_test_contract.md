@@ -73,7 +73,7 @@ collection configured for future registrations.
 - Existing wallet tests retain account/network/cancellation coverage; added
   retry/receipt tests distinguish submitted, pending, rejected, and reverted.
 
-Passed qualification:
+Recorded baseline qualification at `e931fb8b` (before the generator fixes below):
 
 - `make dapps/tests`: all 82 Bike Solidity unit/scenario and invariant tests.
 - `make js/tests`: 832 JS tests.
@@ -84,7 +84,28 @@ Passed qualification:
 - The repaired integration generator passed 27 focused tests and six hygiene
   checks; its scope changes received independent review.
 - The live fresh-chain Bike integration campaign passed 16 steps, including
-  transfers, workshop grants, and missing reports.
+  transfers, workshop grants, and missing reports. Its generated address inputs
+  used the acting account, so these transfers/grants did not establish a
+  distinct-buyer handover or independent workshop authority.
+
+The local write lane now runs a separate deterministic seller/buyer/mechanic
+campaign before the generic random walk. It uses three distinct signing
+accounts, verifies a real ownership change, proves the old seller and workshop
+lose write authority through decoded onchain reverts, and exercises the new
+owner's write authority. Funding and signing are restricted to the private Bike
+Anvil service. The generic walker remains single-account; it does not claim this
+multi-actor evidence itself.
+
+Input inference now consumes direct state bindings from actual enabled rendered
+actions, not unrelated nodes in the UI document. Focused regressions cover shared
+route/state-key names across separate screens, legitimate same-screen conflicts,
+disabled actions, and Include instances.
+
+These latest fixes and the distinct-actor campaign have not been executed in
+the authoring environment: the Docker-backed check is blocked by missing locked
+npm dependencies, and Docker Engine is unavailable. Static review and whitespace
+checks are not runtime qualification. Rerun the supported lanes before treating
+the baseline counts above as qualification of the updated code.
 
 The Foundry scenarios deploy real contracts inside the test VM. Adapter and
 viewer tests use controlled RPC fixtures. The live campaign adds bounded
