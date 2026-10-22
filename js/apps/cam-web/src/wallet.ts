@@ -109,7 +109,7 @@ export function walletLabel(wallet: WalletState): string {
     case "unavailable":
       return "Unavailable"
     case "disconnected":
-      return "Disconnected"
+      return "Not connected"
     case "connected":
       return shortenAddress(wallet.address)
   }

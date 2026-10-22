@@ -55,10 +55,6 @@ button:not(.timestamp-options):not(:disabled):active {
 }
 
 .topbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
   margin-bottom: 18px;
 }
 
@@ -78,21 +74,29 @@ h1 {
 
 .connection {
   display: grid;
-  gap: 8px;
-  min-width: min(340px, 100%);
-  padding: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 16px 24px;
+  margin-bottom: 20px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
 }
 
-.connection div,
 .key-value {
   display: grid;
   grid-template-columns: 140px minmax(0, 1fr);
   gap: 12px;
   align-items: baseline;
 }
+
+.connection-account, .connection-wallet { min-width: 0; }
+.connection-account dd, .connection-wallet dd { margin-top: 4px; }
+.connection-account code { font-size: 1.1rem; }
+.connection .wallet-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.connection-facts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 24px; padding-top: 12px; border-top: 1px solid var(--line); }
+.connection-facts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.connection-facts dd { font-size: 0.82rem; color: var(--muted); }
 
 dt {
   color: var(--muted);
@@ -192,10 +196,6 @@ dd,
   border: 1px solid color-mix(in srgb, var(--accent), var(--line) 55%);
   border-radius: 8px;
   background: #eef6f4;
-}
-
-.wallet-button {
-  margin-bottom: 14px;
 }
 
 .prepared-call {
@@ -310,17 +310,11 @@ button:focus-visible,
 }
 
 @media (max-width: 760px) {
-  .topbar,
-  .connection div,
+  .connection,
   .key-value {
     grid-template-columns: 1fr;
   }
 
-  .topbar {
-    display: grid;
-  }
-
-  .connection div,
   .key-value {
     gap: 4px;
   }

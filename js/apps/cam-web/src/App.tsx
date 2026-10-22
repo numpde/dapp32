@@ -647,26 +647,24 @@ export function App(): ReactElement {
         <div>
           <h1>{headerTitle(loadState)}</h1>
         </div>
-        {loadState.status !== "ready" ? null : (
-          <ConnectionSummary
-            chainId={loadState.runtime.startup.chainId}
-            host={loadState.runtime.startup.host}
-            account={currentViewerAccount(loadState)}
-            wallet={walletLabel(wallet)}
-          />
-        )}
       </header>
-
-      <p className="field-hint">Selected account is the address being viewed. The app shows which actions are available to that address, even if you don’t control it. Initially, the address comes from the page link.</p>
-      <p className="field-hint">Connect wallet switches the page to your wallet’s active account. The page follows account changes in the wallet. Connecting or switching accounts clears any transaction review.</p>
-      <p className="field-hint">To send a transaction, connect your wallet, review the transaction, then choose Send with wallet to request signing and submission.</p>
-
-      {wallet.status === "unavailable" ? (
-        <p className="notice">No wallet was detected in this tab.</p>
-      ) : (
-        <button className="wallet-button" type="button" disabled={loadState.status !== "ready" || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
-          {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
-        </button>
+      {loadState.status !== "ready" ? null : (
+        <ConnectionSummary
+          chainId={loadState.runtime.startup.chainId}
+          host={loadState.runtime.startup.host}
+          account={currentViewerAccount(loadState)}
+          wallet={walletRefreshing ? "Updating account…" : walletLabel(wallet)}
+          walletHint={wallet.status === "unavailable"
+            ? "No wallet detected. You can still view the app."
+            : wallet.status === "connected"
+              ? "Switching wallet accounts updates Viewing as and clears the transaction review."
+              : "Connecting changes Viewing as to your wallet’s active account. You’ll need to review any transaction again."}
+          walletAction={wallet.status === "unavailable" ? null : (
+            <button className="wallet-button" type="button" disabled={changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
+              {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
+            </button>
+          )}
+        />
       )}
 
       {notice === undefined ? null : (

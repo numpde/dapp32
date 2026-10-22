@@ -25,12 +25,6 @@
           }
         },
         {
-          "element": "Text",
-          "props": {
-            "text": "The address being viewed selects the available actions. Connecting a wallet changes the viewed address to its connected account. Write actions prepare a transaction for review; send it separately with your wallet and wait for confirmation."
-          }
-        },
-        {
           "element": "Include",
           "call": {
             "namespace": "ui",

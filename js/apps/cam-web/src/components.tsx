@@ -39,31 +39,34 @@ export function ConnectionSummary({
   host,
   account,
   wallet,
+  walletAction,
+  walletHint,
 }: {
   readonly chainId: string
   readonly host: string
   readonly account: string
   readonly wallet: string
+  readonly walletAction: ReactElement | null
+  readonly walletHint: string
 }): ReactElement {
   return (
-    <dl className="connection">
-      <div>
-        <dt>Chain</dt>
-        <dd>{chainId}</dd>
+    <section className="connection" aria-label="Account and wallet">
+      <div className="connection-account">
+        <dl><dt>Viewing as</dt><dd><code title={account}>{shortenAddress(account)}</code></dd></dl>
+        <p className="field-hint">Shows the actions available to this address.</p>
       </div>
-      <div>
-        <dt>App host</dt>
-        <dd>{shortenAddress(host)}</dd>
+      <div className="connection-wallet">
+        <div className="wallet-controls">
+          <dl><dt>Wallet</dt><dd role="status">{wallet}</dd></dl>
+          {walletAction}
+        </div>
+        <p className="field-hint">{walletHint}</p>
       </div>
-      <div>
-        <dt>Selected account</dt>
-        <dd>{shortenAddress(account)}</dd>
-      </div>
-      <div>
-        <dt>Connected wallet</dt>
-        <dd>{wallet}</dd>
-      </div>
-    </dl>
+      <dl className="connection-facts">
+        <div><dt>Chain</dt><dd>{chainId}</dd></div>
+        <div><dt>CAM contract</dt><dd><code title={host}>{shortenAddress(host)}</code></dd></div>
+      </dl>
+    </section>
   )
 }
 
