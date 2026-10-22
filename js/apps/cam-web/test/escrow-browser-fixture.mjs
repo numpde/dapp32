@@ -1,5 +1,6 @@
 // Owns local acceptance-runner keys, submission effects and CDP command lifetime.
 import assert from 'node:assert/strict'
+import { checkDeploymentFacts } from './deployment-facts-browser-check.mjs'
 import { privateKeyToAccount } from 'viem/accounts'
 
 export class BrowserFixtureError extends Error {}
@@ -30,6 +31,7 @@ export async function checkFixtureWalletToolbar({ call, evaluate }) {
   }
   if (failures.length === 1) throw failures[0]
   if (failures.length > 1) throw new AggregateError(failures, 'Wallet toolbar check and restoration failures')
+  if (await evaluate(`!!document.getElementById('local-fixture-facts')`) === true) return await checkDeploymentFacts({ call, evaluate })
 }
 
 export function browserFixtureFailureDetails(error) {

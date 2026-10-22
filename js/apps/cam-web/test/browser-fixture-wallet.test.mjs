@@ -9,17 +9,80 @@ import payToPlayWalletConfig from './pay-to-play-fixture-wallet.mjs'
 const address = `0x${'11'.repeat(20)}`
 const other = `0x${'22'.repeat(20)}`
 const fn = (name, inputs) => ({ type: 'function', name, inputs, outputs: [], stateMutability: 'nonpayable' })
-function install(existing) {
+function install(existing, deploymentFacts) {
   const sent = []
   const elements = new Map()
-  const make = () => ({ style: {}, children: [], append(...children) { this.children.push(...children) }, remove() { elements.delete(this.id) }, addEventListener(name, fn) { this[name] = fn } })
+  const make = tag => ({ tagName: tag.toUpperCase(), style: {}, children: [], attributes: new Map(), append(...children) { this.children.push(...children) }, replaceChildren(...children) { this.children = children }, setAttribute(key, value) { this.attributes.set(key, value) }, getAttribute(key) { return this.attributes.get(key) }, remove() { elements.delete(this.id) }, addEventListener(name, fn) { this[name] = fn } })
   const document = { readyState: 'complete', createElement: make, getElementById: id => elements.get(id), body: { prepend(element) { elements.set(element.id, element) } } }
   const window = { ethereum: existing, fixtureWalletBridge: text => sent.push(JSON.parse(text)) }
-  const href = 'http://127.0.0.1:5175/?host='+address+'&chainId=eip155:31337'
-  const sandbox = { window, document, location: { href }, URL, Map, Set, Error, Object, Promise, JSON, confirm: () => true }
-  vm.runInNewContext(fixtureWalletSource({ accounts: { alice: address, bob: other }, initialRole: 'alice', origin: 'http://127.0.0.1:5175', host: address, confirmTransactions: false }), sandbox)
+  const href = 'http://127.0.0.1:5175/?host='+address+'&chainId=eip155:31337&account='+address+'&rpcUrl=http%3A%2F%2F127.0.0.1%3A5175%2Frpc'
+  const sandbox = { window, document, location: { href }, URL, URLSearchParams, Map, Set, Error, Object, Promise, JSON, confirm: () => true }
+  vm.runInNewContext(fixtureWalletSource({ accounts: { alice: address, bob: other }, initialRole: 'alice', origin: 'http://127.0.0.1:5175', host: address, confirmTransactions: false, deploymentFacts }), sandbox)
   return { window, owner: window.__fixtureWallet, sent, elements }
 }
+
+function descendants(node) { return [node, ...node.children.flatMap(descendants)] }
+const text = node => descendants(node).map(item => item.textContent).join(' ')
+const tick = () => new Promise(resolve => setImmediate(resolve))
+
+test('deployment panel loads on demand, suppresses old-account replies and preserves link connection settings', async () => {
+  const { owner, sent, elements } = install(undefined, true)
+  const bar = elements.get('local-fixture-wallet')
+  const panel = descendants(bar).find(node => node.tagName === 'DETAILS')
+  assert(panel, 'deployment facts have their own disclosure')
+  assert.equal(sent.length, 0, 'collapsed panel makes no fact requests')
+  panel.open = true
+  panel.ontoggle()
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].method, 'fixture_facts')
+  owner.setRole('bob')
+  assert.equal(sent.length, 2)
+  assert.equal(sent[1].role, 'bob')
+  const facts = { title: 'Records', description: 'Current facts', blockNumber: '12', rows: [{ label: 'FRAME & # 01', values: [other], route: 'component', inputs: { serialNumber: 'FRAME & # 01' }, linkLabel: 'Open component →' }] }
+  owner.resolve(sent[1].id, true, facts)
+  await tick()
+  assert(text(panel).includes('FRAME & # 01'))
+  const link = descendants(panel).find(node => node.tagName === 'A')
+  const href = new URL(link.href)
+  assert.equal(href.searchParams.get('account'), address)
+  assert.equal(href.searchParams.get('host'), address)
+  assert.equal(href.searchParams.get('rpcUrl'), 'http://127.0.0.1:5175/rpc')
+  assert.equal(new URLSearchParams(href.hash.slice(1)).get('serialNumber'), 'FRAME & # 01')
+  owner.resolve(sent[0].id, true, { ...facts, rows: [{ ...facts.rows[0], label: 'obsolete account fact' }] })
+  await tick()
+  assert(!text(panel).includes('obsolete account fact'))
+  const refresh = descendants(panel).find(node => node.tagName === 'BUTTON')
+  refresh.onclick()
+  assert(refresh.disabled)
+  assert(!descendants(panel).some(node => node.tagName === 'A'), 'refresh removes stale navigation links')
+  owner.resolve(sent.at(-1).id, false, { code: -32603, message: 'Cannot load deployment facts.', diagnostic: 'fixture RPC unavailable' })
+  await tick()
+  assert.match(text(panel), /Cannot load deployment facts.*fixture RPC unavailable/)
+  assert(!refresh.disabled)
+  refresh.onclick()
+  const closedRequest = sent.at(-1).id
+  panel.open = false
+  panel.ontoggle()
+  owner.resolve(closedRequest, true, facts)
+  await tick()
+  assert(!descendants(panel).some(node => node.tagName === 'A'), 'closed panels ignore late record replies')
+  panel.open = true
+  panel.ontoggle()
+  owner.resolve(sent.at(-1).id, true, { ...facts, rows: [] })
+  await tick()
+  assert.match(text(panel), /No records found/)
+  refresh.onclick()
+  owner.shutdown()
+  await tick()
+  assert(!elements.has('local-fixture-wallet'))
+  await assert.rejects(owner.provider.request({ method: 'fixture_facts' }), /stopped/)
+})
+
+test('fact collection is not exposed as a wallet RPC method', async () => {
+  const { owner } = install(undefined, true)
+  await assert.rejects(owner.provider.request({ method: 'fixture_facts' }), /Unsupported/)
+  owner.shutdown()
+})
 test('address/key mismatch fails without revealing either key', () => {
   const privateKey = `0x${'ba'.repeat(32)}`
   assert.throws(() => fixtureWalletAccounts({ alice: { address, privateKey } }), error => !String(error).includes(privateKey) && /match/.test(error.message))

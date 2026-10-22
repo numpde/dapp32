@@ -1,5 +1,14 @@
 // Public accounts for the disposable PayToPlay Anvil fixture only.
 export default {
+  async collectFacts({ read, account, limit }) {
+    const count = await read('PayToPlay', 'channelCount', [])
+    const rows = []
+    for (let id = count - 1n; id >= 0n && rows.length < limit; id--) {
+      const channel = await read('PayToPlay', 'channel', [id])
+      rows.push({ label: id === 0n ? 'Channel 0 · reserve (no payments)' : `Channel ${id}`, values: [`Payee: ${channel.payee}`, `Claim period: ${channel.claimPeriod} seconds`, `Channel escrow: ${channel.escrowTotal} wei`, channel.closeAt === 0n ? 'No channel closure scheduled' : `Channel closure: ${channel.closeAt} Unix seconds`], route: 'position', inputs: { customer: account, channelId: id.toString() }, linkLabel: 'View selected account’s balance →' })
+    }
+    return { title: 'Pay-to-Play channels', description: `Showing ${rows.length} of ${count} channels, newest first. Links open the selected wallet account’s balance.`, rows }
+  },
   initialRole: 'customer',
   accounts: {
     admin: { address: '0xfe7854Bc8cA79FBE9DC94Dfdaf8c10E5C6deCAB7', privateKey: `0x${'ba'.repeat(32)}` },

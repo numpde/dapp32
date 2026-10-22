@@ -57,7 +57,8 @@ export async function verifyFixtureWalletDeployment({ config, expectedContracts,
     const code = await readCode(address)
     assert(typeof code === 'string' && /^0x(?:[0-9a-fA-F]{2})+$/.test(code), 'Fixture target must contain deployed code')
     const grantedABI = abi.filter(item => item.type === 'function' && functions.some(name => name.includes('(') ? toFunctionSignature(item) === name : item.name === name))
-    grants.set(address.toLowerCase(), { address, abi: grantedABI, selectors })
+    const inspectionABI = abi.filter(item => item.type === 'event' || item.type === 'function' && ['view', 'pure'].includes(item.stateMutability))
+    grants.set(address.toLowerCase(), { address, abi: grantedABI, selectors, inspectionABI })
   }
   return grants
 }
@@ -95,7 +96,7 @@ export function fixtureWalletSource(options) {
   for (const address of Object.values(options.accounts)) {
     if (typeof address !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error('Browser fixture accounts must contain addresses only')
   }
-  const browserOptions = { accounts: options.accounts, initialRole: options.initialRole, origin: options.origin, host: options.host, confirmTransactions: options.confirmTransactions }
+  const browserOptions = { accounts: options.accounts, initialRole: options.initialRole, origin: options.origin, host: options.host, confirmTransactions: options.confirmTransactions, deploymentFacts: options.deploymentFacts === true }
   return `(${installFixtureWallet.toString()})(${JSON.stringify(browserOptions)})`
 }
 
@@ -116,6 +117,10 @@ function installFixtureWallet(options) {
   const listeners = new Map()
   let select
   let accountLabel
+  let factsPanel
+  let factsContent
+  let factsRefresh
+  let factsRevision = 0
   const failure = (message, code) => Object.assign(new Error(message), { code })
   function emit(event, value) {
     const subscribers = listeners.get(event)
@@ -130,6 +135,59 @@ function installFixtureWallet(options) {
     if (select !== undefined) select.value = role
     if (accountLabel !== undefined) accountLabel.textContent = addresses[role]
     emit('accountsChanged', [addresses[role]])
+    if (factsPanel?.open) void refreshFacts()
+  }
+  function requestBridge(method, params) {
+    const id = ++next
+    const requestedRole = role
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject })
+      try { window.fixtureWalletBridge(JSON.stringify({ id, role: requestedRole, method, params })) } catch { pending.delete(id); reject(failure('Fixture wallet bridge unavailable', 4900)) }
+    })
+  }
+  function element(tag, text) {
+    const node = document.createElement(tag)
+    node.textContent = text
+    return node
+  }
+  function renderFacts(facts) {
+    const status = element('p', `Checked at block ${facts.blockNumber}. ${facts.rows.length} records. ${facts.description}`)
+    status.setAttribute('role', 'status')
+    factsContent.replaceChildren(element('h3', facts.title), status)
+    if (facts.scope !== undefined) factsContent.append(element('p', facts.scope))
+    if (facts.rows.length === 0) factsContent.append(element('p', 'No records found in this search.'))
+    for (const row of facts.rows) {
+      const item = document.createElement('section')
+      item.append(element('strong', row.label))
+      for (const value of row.values) item.append(element('p', value))
+      const link = element('a', row.linkLabel)
+      const url = new URL(location.href)
+      url.hash = new URLSearchParams({ route: row.route, ...row.inputs }).toString()
+      link.href = url.href
+      item.append(link)
+      factsContent.append(item)
+    }
+  }
+  async function refreshFacts() {
+    if (closed || !factsPanel.open) return
+    const revision = ++factsRevision
+    factsRefresh.disabled = true
+    const loading = element('p', 'Loading deployment facts…')
+    loading.setAttribute('role', 'status')
+    factsContent.replaceChildren(loading)
+    try {
+      const facts = await requestBridge('fixture_facts', [])
+      if (!closed && revision === factsRevision) renderFacts(facts)
+    } catch (error) {
+      if (closed || revision !== factsRevision) return
+      const message = element('p', error.message)
+      message.setAttribute('role', 'alert')
+      const details = document.createElement('details')
+      details.append(element('summary', 'Technical details'), element('code', typeof error.diagnostic === 'string' ? error.diagnostic : error.message))
+      factsContent.replaceChildren(message, details)
+    } finally {
+      if (!closed && revision === factsRevision) factsRefresh.disabled = false
+    }
   }
   const provider = {
     request: async ({ method, params }) => {
@@ -142,12 +200,7 @@ function installFixtureWallet(options) {
       if (chainId !== '0x7a69') throw failure('Fixture wallet is not on chain 31337', 4901)
       if (!connected || params?.length !== 1 || params[0]?.from?.toLowerCase() !== addresses[role].toLowerCase()) throw failure('Transaction must use the selected fixture account', -32602)
       if (options.confirmTransactions && !confirm(`Send this local test transaction as ${role} on chain 31337? Confirming submits it immediately.`)) throw failure('Fixture transaction cancelled', 4001)
-      const id = ++next
-      const requestedRole = role
-      return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject })
-        try { window.fixtureWalletBridge(JSON.stringify({ id, role: requestedRole, method, params })) } catch { pending.delete(id); reject(failure('Fixture wallet bridge unavailable', 4900)) }
-      })
+      return requestBridge(method, params)
     },
     on(event, fn) { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event).add(fn); return provider },
     removeListener(event, fn) { listeners.get(event)?.delete(fn); return provider },
@@ -161,11 +214,12 @@ function installFixtureWallet(options) {
       if (request === undefined) return
       pending.delete(id)
       if (ok) request.resolve(value)
-      else request.reject(failure(value.message, value.code))
+      else request.reject(Object.assign(failure(value.message, value.code), { diagnostic: value.diagnostic }))
     },
     shutdown() {
       if (closed) return
       closed = true
+      factsRevision++
       for (const request of pending.values()) request.reject(failure('Fixture wallet stopped', 4900))
       pending.clear()
       try { emit('accountsChanged', []) } finally {
@@ -188,6 +242,14 @@ function installFixtureWallet(options) {
       html { overflow: hidden; }
       body { margin: 0; height: 100dvh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); }
       body > #root { grid-row: 2; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; }
+      #local-fixture-facts { flex: 1 1 100%; min-width: 0; }
+      #local-fixture-facts summary { cursor: pointer; }
+      #local-fixture-facts > div { max-height: 40dvh; overflow: auto; overscroll-behavior: contain; }
+      #local-fixture-facts section { border-top: 1px solid #b9a777; padding-block: 8px; }
+      #local-fixture-facts p { margin-block: 4px; }
+      #local-fixture-facts code, #local-fixture-facts p, #local-fixture-facts strong { overflow-wrap: anywhere; }
+      #local-fixture-facts a { color: #154e83; }
+      #local-fixture-facts h3 { font-size: 1em; margin-block: 8px; }
     `
     const label = document.createElement('label')
     label.textContent = 'Local test wallet · chain 31337 · account '
@@ -203,6 +265,22 @@ function installFixtureWallet(options) {
     const explanation = document.createElement('span')
     explanation.textContent = options.confirmTransactions ? 'Public test accounts. Confirming a send submits immediately on this local chain.' : 'Local test accounts. The test process submits transactions.'
     bar.append(layout, label, accountLabel, explanation)
+    if (options.deploymentFacts) {
+      factsPanel = document.createElement('details')
+      factsPanel.id = 'local-fixture-facts'
+      factsRefresh = element('button', 'Refresh')
+      factsRefresh.type = 'button'
+      factsRefresh.onclick = () => { void refreshFacts() }
+      factsContent = document.createElement('div')
+      const scroll = document.createElement('div')
+      scroll.append(factsRefresh, factsContent)
+      factsPanel.append(element('summary', 'Local deployment'), scroll)
+      factsPanel.ontoggle = () => {
+        if (factsPanel.open) void refreshFacts()
+        else { factsRevision++; factsContent.replaceChildren(); factsRefresh.disabled = false }
+      }
+      bar.append(factsPanel)
+    }
     document.body.prepend(bar)
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', toolbar, { once: true })

@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
 import { requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from '@cam/protocol'
+import { viewerErrorMessage } from '@cam/viewer'
+import { collectFixtureFacts } from './browser-fixture-facts.mjs'
 import { assertFixtureWalletDeployment, verifyFixtureWalletDeployment, fixtureWalletTransaction, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
 import { createCdpCommands, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
 
@@ -44,6 +46,7 @@ async function main() {
   const readBinding = namespace => publicClient.readContract({ address: root, abi: rootABI, functionName: 'contractAddress', args: [namespace] })
   const expectedManifest = { uri: process.env.EXPECTED_CAM_URI, sha256Digest: process.env.EXPECTED_CAM_HASH }
   const grants = await verifyFixtureWalletDeployment({ config, expectedContracts, manifest: await readManifest(), expectedManifest, origin: viewer.origin, readBytes: bytes, readBinding, readCode: address => publicClient.getCode({ address }) })
+  const inspectionContracts = Object.fromEntries(Object.entries(expectedContracts).map(([name, address]) => [name, { address, abi: grants.get(address.toLowerCase()).inspectionABI }]))
   const wallets = Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, createWalletClient({ account, chain, transport: http(rpcURL.href, { timeout: 10000, retryCount: 0 }) })]))
   phase = 'connecting to the selected existing browser tab'
   const version = JSON.parse(new TextDecoder().decode(await bytes(new URL('/json/version', cdp))))
@@ -97,6 +100,21 @@ async function main() {
     finally { if (ownsSubmission) busy = false }
     await document.resolve(request.id, ok, result)
   }
+  async function inspect(request, executionContextId) {
+    const document = fixtureDocumentRequest({ executionContextId, documents, isOpen: () => open, call })
+    try {
+      assert(document.shouldContinue(), 'Fixture document is no longer active')
+      assert.equal(request.method, 'fixture_facts')
+      assert.deepEqual(request.params, [])
+      assert(Object.hasOwn(accounts, request.role), 'Unknown fixture account')
+      await assertTab(); await assertChain()
+      await assertFixtureWalletDeployment({ manifest: await readManifest(), expectedManifest, expectedContracts, readBinding })
+      const facts = await collectFixtureFacts({ client: publicClient, config, contracts: inspectionContracts, account: accounts[request.role].address })
+      await document.resolve(request.id, true, facts)
+    } catch (error) {
+      await document.resolve(request.id, false, { code: -32603, message: 'Cannot load deployment facts. Check the local fixture and try Refresh.', diagnostic: viewerErrorMessage(error) })
+    }
+  }
   socket.addEventListener('message', event => {
     const message = JSON.parse(event.data)
     if (message.id) { commands.receive(message); return }
@@ -107,14 +125,16 @@ async function main() {
     }
     if (message.method === 'Target.detachedFromTarget' && message.params.sessionId === session) { stop(); return }
     if (message.sessionId !== session || message.method !== 'Runtime.bindingCalled' || message.params.name !== 'fixtureWalletBridge') return
-    const task = bridge(JSON.parse(message.params.payload), message.params.executionContextId); pending.add(task); task.finally(() => pending.delete(task)).catch(() => {})
+    const request = JSON.parse(message.params.payload)
+    const task = request.method === 'fixture_facts' ? inspect(request, message.params.executionContextId) : bridge(request, message.params.executionContextId)
+    pending.add(task); task.finally(() => pending.delete(task)).catch(() => {})
   })
   try {
     await assertTab()
     session = (await call('Target.attachToTarget', { targetId, flatten: true })).sessionId
     await call('Page.enable', {}); await call('Runtime.enable', {})
     phase = 'installing the fixture provider (an existing wallet must be removed first)'
-    try { installed = await installFixtureWalletInTarget(call, fixtureWalletSource({ accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])), initialRole: config.initialRole, origin: viewer.origin, host: root, confirmTransactions: true })) } catch (installationFailure) {
+    try { installed = await installFixtureWalletInTarget(call, fixtureWalletSource({ accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])), initialRole: config.initialRole, origin: viewer.origin, host: root, confirmTransactions: true, deploymentFacts: true })) } catch (installationFailure) {
       if (installationFailure instanceof AggregateError) process.stderr.write(installationFailure.message+'\n')
       throw installationFailure
     }

@@ -34,5 +34,5 @@ services:
       - -eu
       - -c
       - |
-        npm run build -w @cam/protocol
+        npm run build:packages
         exec node /work/js/tools/browser-fixture-wallet-attach.mjs

@@ -1,5 +1,14 @@
 // Public accounts for the disposable Bike Anvil fixture only.
 export default {
+  async collectFacts({ read, latestEvents }) {
+    const rows = []
+    for (const serialNumber of await latestEvents('BicycleComponentManager', 'ComponentRegistered', 'serialNumber')) {
+      const component = await read('BicycleComponentManager', 'componentBySerial', [serialNumber])
+      const inactive = await read('BicycleComponentManager', 'inactiveStatus', [serialNumber])
+      rows.push({ label: serialNumber, values: [`Token ID: ${component.tokenId}`, `Owner: ${component.owner}`, component.status === 2 ? 'Missing' : 'No missing report', inactive ? 'Out of service' : 'In service'], route: 'component', inputs: { serialNumber }, linkLabel: 'Open component →' })
+    }
+    return { title: 'Registered bike components', description: 'Serial strings, current owners and service status.', rows }
+  },
   initialRole: 'seller',
   accounts: {
     seller: { address: '0xfe7854Bc8cA79FBE9DC94Dfdaf8c10E5C6deCAB7', privateKey: `0x${'ba'.repeat(32)}` },
