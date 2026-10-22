@@ -657,7 +657,9 @@ export function App(): ReactElement {
         )}
       </header>
 
-      <p className="field-hint">Before wallet connection, Selected account comes from the page link. Connecting a wallet selects its active address; the selected account is used to check actions. Send with wallet asks the connected wallet to sign and submit the transaction.</p>
+      <p className="field-hint">Selected account is the address being viewed. The app shows which actions are available to that address, even if you don’t control it. Initially, the address comes from the page link.</p>
+      <p className="field-hint">Connect wallet switches the page to your wallet’s active account. The page follows account changes in the wallet. Connecting or switching accounts clears any transaction review.</p>
+      <p className="field-hint">To send a transaction, connect your wallet, review the transaction, then choose Send with wallet to request signing and submission.</p>
 
       {wallet.status === "unavailable" ? (
         <p className="notice">No wallet was detected in this tab.</p>
