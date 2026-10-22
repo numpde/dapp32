@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dapp32 - Contract-defined workflows</title>
-  <meta name="description" content="dapp32 lets contracts point to JSON workflow documents that a generic viewer can render and apps or agents can drive through a TypeScript library.">
+  <meta name="description" content="Describe an EVM app’s workflow in JSON for a reusable graphical viewer and a TypeScript library used by apps and agents.">
   <link rel="stylesheet" href="site.css">
   <script>
     (function () {
@@ -35,16 +35,16 @@
   <header>
     <div class="shell hero">
       <div>
-        <h1>A contract points to its workflow</h1>
+        <h1>One workflow for people and agents</h1>
         <p class="lede">
-          dapp32 lets an Ethereum contract publish the location and hash of a CAM
-          manifest: a JSON workflow document stored outside the blockchain.
-          It describes the dapp's screens, contract reads, inputs, and wallet
-          actions. A graphical viewer lets people follow the workflow;
-          a TypeScript library lets apps or agents drive it without a graphical
-          interface. Developers can run the open dapp32 viewer,
-          embed it, or use a hosted viewer they trust instead of building a
-          whole custom frontend.
+          dapp32 lets an app author describe screens, inputs, contract calls and
+          their next steps in JSON, using the Contract Application Manifest
+          (CAM) format. A deployed contract publishes where to find that
+          description and its hash. Given the chain and that contract’s address,
+          the dapp32 viewer can load the workflow and render its screens; a
+          TypeScript library lets apps and agents inspect the same workflow and
+          prepare contract calls without a browser. You write the app-specific
+          workflow; dapp32 supplies the reusable viewer and library.
         </p>
         <div class="actions">
           <a class="button primary" href="examples/">Example apps</a>
@@ -109,20 +109,22 @@
     </section>
 
     <section id="problem" class="narrow">
-      <h2>Why this matters</h2>
+      <h2>Why not just build a website?</h2>
       <p>
-        Smart contracts enforce dapp rules, but the workflow a human or agent
-        follows is usually encoded in a custom website: what to display, what to
-        collect from the user, what a button does, and what should happen after
-        a transaction. Every team rebuilds that UI layer even when the contract
-        already knows the relevant state and permissions.
+        An ABI describes callable functions. A CAM workflow also declares which
+        inputs a screen collects, how an action uses those inputs in a contract
+        call, and what follows the call. Another compatible viewer or agent can
+        discover that description from the contract, without opening the app’s
+        website.
       </p>
       <p>
-        dapp32 puts that workflow description in a manifest referenced by the
-        contract. A generic viewer validates the manifest and renders its UI.
-        The same workflow is available through the TypeScript
-        <code>CamViewerSession</code> library for an app or agent to drive.
-        This library interface does not provide an HTTP service.
+        A custom website can provide all of this. dapp32 lets you reuse its form
+        rendering, contract-call preparation and workflow navigation instead of
+        implementing them for each app. You still design the workflow; dapp32
+        does not infer an application from an ABI. Use the generic viewer when
+        its controls fit, or build a custom interface for a different experience
+        or service integration. A custom interface can also use the TypeScript
+        library.
       </p>
     </section>
 
@@ -151,9 +153,10 @@
           <h3>Small UI model</h3>
           <p>
             The UI resource describes portable nodes such as text, fields,
-            addresses, status rows, NFT references, includes, and actions. Those
-            nodes can become graphical controls or a minimal machine interface,
-            not an app-specific runtime every project must rebuild.
+            addresses, status rows, NFT references, includes, and actions. The
+            viewer renders these nodes as controls. Apps and agents can inspect
+            the resolved screens and action descriptions through the TypeScript
+            library.
           </p>
         </article>
       </div>
