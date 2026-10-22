@@ -35,6 +35,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../docs/reference/cam/1.3.0/index.html
+        target: /work/docs/reference/cam/1.3.0/index.html
+        read_only: true
+        bind:
+          create_host_path: false
       - ../dapps/bike-nft/cam/main.json:/work/dapps/bike-nft/cam/main.json:rw
       - ../dapps/escrow/cam/main.json:/work/dapps/escrow/cam/main.json:rw
       - type: bind

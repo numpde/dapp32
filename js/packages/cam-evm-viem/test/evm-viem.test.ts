@@ -32,6 +32,7 @@ import {
   BIKE_CAM_URI as camDocumentURI,
   BIKE_PROTOCOL_URI,
   BIKE_COMPONENTS_ADDRESS,
+  BIKE_COMPONENTS_ABI_URI,
   BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_MANAGER_CONTRACT,
@@ -58,6 +59,7 @@ import {
 import {
   bikeCamJson as camJson,
   bikeProtocolBytes,
+  bikeComponentsAbiBytes,
   bikeManagerAbiBytes as managerAbiBytes,
   bikeManagerAbi as managerAbiJson,
   bikeUiAbiBytes as uiAbiBytes,
@@ -284,11 +286,13 @@ test("resolveCamContracts resolves namespaced contracts through CamRoot", async 
     addresses: {
       [BIKE_UI_CONTRACT]: uiAddress,
       [BIKE_MANAGER_CONTRACT]: managerAddress,
+      BicycleComponents: BIKE_COMPONENTS_ADDRESS,
     },
   }))
   const resources = createResourceLoader({
     [uiAbiURI]: uiAbiBytes,
     [managerAbiURI]: managerAbiBytes,
+    [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
   })
 
   const contracts = await resolveCamContracts({
@@ -312,6 +316,7 @@ test("resolveCamContracts rejects invalid bindings and ABI resource load failure
         addresses: {
           [BIKE_UI_CONTRACT]: "not-an-address" as Address,
           [BIKE_MANAGER_CONTRACT]: managerAddress,
+          BicycleComponents: BIKE_COMPONENTS_ADDRESS,
         },
       })),
       host,
@@ -320,6 +325,7 @@ test("resolveCamContracts rejects invalid bindings and ABI resource load failure
       loadResource: createResourceLoader({
         [uiAbiURI]: uiAbiBytes,
         [managerAbiURI]: managerAbiBytes,
+        [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
       }),
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_CONTRACT_INVALID",
@@ -332,6 +338,7 @@ test("resolveCamContracts rejects invalid bindings and ABI resource load failure
         addresses: {
           [BIKE_UI_CONTRACT]: uiAddress,
           [BIKE_MANAGER_CONTRACT]: managerAddress,
+          BicycleComponents: BIKE_COMPONENTS_ADDRESS,
         },
       })),
       host,
@@ -340,6 +347,7 @@ test("resolveCamContracts rejects invalid bindings and ABI resource load failure
       loadResource: createResourceLoader({
         [uiAbiURI]: oversizedAbiBytes,
         [managerAbiURI]: managerAbiBytes,
+        [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
       }),
     }),
     (error) => error instanceof CamEvmError
@@ -419,11 +427,13 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     delegationCapabilities: "0",
     delegationValidUntil: "0",
     delegationActive: false,
+    maxDelegationDuration: "31536000",
     componentTokenPaused: false,
     canUpdateMetadata: true,
     canMarkMissing: true,
     canClearMissing: false,
-    canRetire: false,
+    inactive: false,
+    canTransfer: true,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }))
 })
@@ -1440,6 +1450,7 @@ async function resolveContractsWithUiAbi(abiBytes: Uint8Array) {
       addresses: {
         [BIKE_UI_CONTRACT]: uiAddress,
         [BIKE_MANAGER_CONTRACT]: managerAddress,
+        BicycleComponents: BIKE_COMPONENTS_ADDRESS,
       },
     })),
     host,
@@ -1448,6 +1459,7 @@ async function resolveContractsWithUiAbi(abiBytes: Uint8Array) {
     loadResource: createResourceLoader({
       [uiAbiURI]: abiBytes,
       [managerAbiURI]: managerAbiBytes,
+      [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
     }),
   })
 }

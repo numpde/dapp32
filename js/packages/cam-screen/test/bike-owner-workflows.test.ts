@@ -10,8 +10,13 @@ import { BUYER, WORKSHOP, OTHER_WORKSHOP, PREVIEW_EXPIRY, ownerComponentView, wo
 
 const context: UiRuntimeContext = { host: bikeHost, account: { address: BIKE_ACCOUNT_ADDRESS }, inputs: {}, outputs: [], state: {} }
 const ui = () => parseUi(parseJsonBytes(bikeUiBytes))
-const args = (view: unknown): InertRecord => ({ view: toInertValue(view) })
-const render = (view: unknown) => resolveInitialUiNode(ui(), "app", args(view), context)
+function args(view: Record<string, unknown>): InertRecord {
+  const normalized = Object.fromEntries(Object.entries(view).map(([name, value]) => [
+    name, typeof value === "bigint" ? value.toString() : value,
+  ]))
+  return { view: toInertValue(normalized) }
+}
+const render = (view: Record<string, unknown>) => resolveInitialUiNode(ui(), "app", args(view), context)
 
 function button(node: ResolvedUiNode, route: string) {
   const found = resolvedUiButtons(node).find(candidate => candidate.call.function === route)
@@ -35,6 +40,28 @@ test("owner opens a specific workshop lookup without replacing the loaded compon
   assert.equal(lookup.call.args.delegate, OTHER_WORKSHOP)
 })
 
+test("a short workshop cap requires an explicit duration and bounds the first preview", () => {
+  const view = ownerComponentView({ maxDelegationDuration: 1800n })
+  const initial = render(view)
+  const duration = field(initial.resolvedUi, "duration")
+  assert.ok(duration.element === "DurationField")
+  assert.equal(initial.state.duration, null, "the owner must choose a duration")
+  assert.equal(button(initial.resolvedUi, "delegation").call.args.duration, null)
+  assert.equal(duration.props.min, "1")
+  assert.equal(duration.props.max, "1800", "the first form uses the configured cap")
+
+  const selected = resolveUiNode(ui(), "app", args(view), {
+    ...context, state: { ...initial.state, delegate: WORKSHOP, duration: "1800" },
+  })
+  assert.equal(button(selected, "delegation").call.args.duration, "1800")
+  const tooLong = resolveUiNode(ui(), "app", args(view), {
+    ...context, state: { ...initial.state, delegate: WORKSHOP, duration: "1801" },
+  })
+  const rejected = field(tooLong, "duration")
+  assert.ok(rejected.element === "DurationField")
+  assert.equal(rejected.draft.issue, "aboveMax")
+})
+
 test("workshop permissions are named bounded presets, never raw masks or retirement", () => {
   const { resolvedUi } = render(workshopView())
   const grants = resolvedUiButtons(resolvedUi).filter(candidate => candidate.call.function === "setComponentDelegate")
@@ -48,6 +75,11 @@ test("workshop permissions are named bounded presets, never raw masks or retirem
   forEachResolvedUiNode(resolvedUi, node => {
     if ("state" in node) assert.ok(!["capabilities", "validUntil"].includes(node.state.key), "no raw bitmask or Unix-expiry input")
   })
+  let replacementExplained = false
+  forEachResolvedUiNode(resolvedUi, node => {
+    if (node.element === "Text" && /replace.*permissions.*expiry/i.test(String(node.props.text))) replacementExplained = true
+  })
+  assert.ok(replacementExplained, "setting a preset replaces the existing permissions and expiry")
 })
 
 test("workshop duration is human-readable and previews an exact onchain expiry", () => {

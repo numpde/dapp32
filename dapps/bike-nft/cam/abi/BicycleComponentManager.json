@@ -56,19 +56,6 @@
   },
   {
     "type": "function",
-    "name": "CAP_RETIRE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "CAP_UPDATE_METADATA",
     "inputs": [],
     "outputs": [
@@ -253,30 +240,6 @@
         "name": "actor",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "canRetire",
-    "inputs": [
-      {
-        "name": "actor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
       }
     ],
     "outputs": [
@@ -590,6 +553,19 @@
   },
   {
     "type": "function",
+    "name": "decommissionComponent",
+    "inputs": [
+      {
+        "name": "serialNumber",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "defaultAdmin",
     "inputs": [],
     "outputs": [
@@ -677,6 +653,25 @@
         "name": "account",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "inactiveStatus",
+    "inputs": [
+      {
+        "name": "serialNumber",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "outputs": [
@@ -871,6 +866,19 @@
   },
   {
     "type": "function",
+    "name": "reactivateComponent",
+    "inputs": [
+      {
+        "name": "serialNumber",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "registerComponent",
     "inputs": [
       {
@@ -916,19 +924,6 @@
         "name": "account",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "retireComponent",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
       }
     ],
     "outputs": [],
@@ -1208,6 +1203,31 @@
         "type": "uint48",
         "indexed": false,
         "internalType": "uint48"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ComponentLifecycleUpdated",
+    "inputs": [
+      {
+        "name": "serialHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "owner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "inactive",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false

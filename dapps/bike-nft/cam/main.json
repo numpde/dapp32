@@ -1,20 +1,20 @@
 {
-  "cam": "1.2.0",
+  "cam": "1.3.0",
   "protocol": {
     "uri": "./protocol.html",
-    "integrity": "sha256:0x059e61f6f8c5578e3ba11a03ebb2ab6c579710e4e50956974901d65e53d154cb"
+    "integrity": "sha256:0xd210b2c74000a3a97ed904a03ee881e519f7120e5bbf033cd33a91c582c8fd47"
   },
   "entry": "entry",
   "namespaces": {
     "contracts.BicycleComponentManagerUI": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManagerUI.json",
-      "integrity": "sha256:0x27a16e7ea597a34bf3158a06dfa3f21b04e461df269f4cbbd2269de48ef59348"
+      "integrity": "sha256:0x78a595fde6f3895807e847397f2a2104e010c391b665ccb6b64367f4803d4ad8"
     },
     "contracts.BicycleComponentManager": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManager.json",
-      "integrity": "sha256:0xb527349030bedd520ac6dba32168cd20ad82328268b060bcb7c0d858b23cfac6"
+      "integrity": "sha256:0xd606d2efaf24d73345d28130a3be5cd72fddc6ce16cdc4b5a22f90185d3094ad"
     },
     "routes": {
       "type": "routes"
@@ -22,7 +22,12 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x29b9f09fa1c6951f53f465825c59158ae15dac060e66df930d5634d89d8389ca"
+      "integrity": "sha256:0x90e27fb784ca52eca9d598126a35f957d884421f39b9158bbed71c827f125b20"
+    },
+    "contracts.BicycleComponents": {
+      "type": "contract",
+      "abiURI": "./abi/BicycleComponents.json",
+      "integrity": "sha256:0xcce561123ad1fbd72e4e9bb5ac1019d0ec7b00147873b05abb0d2e1801056e53"
     }
   },
   "routes": {
@@ -194,16 +199,140 @@
         }
       }
     },
-    "retireComponent": {
+    "decommissionComponent": {
       "kind": "write",
       "inputs": [
         "serialNumber"
       ],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
-        "function": "retireComponent",
+        "function": "decommissionComponent",
         "args": {
           "serialNumber": "$inputs.serialNumber"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
+      }
+    },
+    "reactivateComponent": {
+      "kind": "write",
+      "inputs": [
+        "serialNumber"
+      ],
+      "call": {
+        "namespace": "contracts.BicycleComponentManager",
+        "function": "reactivateComponent",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
+      }
+    },
+    "delegation": {
+      "kind": "read",
+      "inputs": [
+        "serialNumber",
+        "delegate",
+        "duration"
+      ],
+      "call": {
+        "namespace": "contracts.BicycleComponentManagerUI",
+        "function": "viewDelegation",
+        "args": {
+          "serialNumber": "$inputs.serialNumber",
+          "delegate": "$inputs.delegate",
+          "account": "$account.address",
+          "duration": "$inputs.duration"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "setComponentDelegate": {
+      "kind": "write",
+      "inputs": [
+        "serialNumber",
+        "delegate",
+        "capabilities",
+        "validUntil"
+      ],
+      "call": {
+        "namespace": "contracts.BicycleComponentManager",
+        "function": "setComponentDelegate",
+        "args": {
+          "serialNumber": "$inputs.serialNumber",
+          "delegate": "$inputs.delegate",
+          "capabilities": "$inputs.capabilities",
+          "validUntil": "$inputs.validUntil"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
+      }
+    },
+    "revokeComponentDelegate": {
+      "kind": "write",
+      "inputs": [
+        "serialNumber",
+        "delegate"
+      ],
+      "call": {
+        "namespace": "contracts.BicycleComponentManager",
+        "function": "revokeComponentDelegate",
+        "args": {
+          "serialNumber": "$inputs.serialNumber",
+          "delegate": "$inputs.delegate"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
+      }
+    },
+    "transferComponent": {
+      "kind": "write",
+      "inputs": [
+        "serialNumber",
+        "to"
+      ],
+      "resolve": {
+        "namespace": "contracts.BicycleComponentManager",
+        "function": "tokenReference",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
+      },
+      "call": {
+        "namespace": "contracts.BicycleComponents",
+        "target": "$outputs.0",
+        "function": "safeTransferFrom(address,address,uint256)",
+        "args": {
+          "from": "$account.address",
+          "to": "$inputs.to",
+          "tokenId": "$outputs.1"
         }
       },
       "then": {

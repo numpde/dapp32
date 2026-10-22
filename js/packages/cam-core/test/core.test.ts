@@ -19,6 +19,7 @@ import {
 import type { CamDocument } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS,
+  BIKE_COMPONENTS_NAMESPACE,
   BIKE_HOST_ADDRESS,
   BIKE_HOST_CHAIN_ID,
   BIKE_MANAGER_NAMESPACE,
@@ -606,15 +607,19 @@ test("parseCam and protocol facts share root namespace resource declaration mean
   const managerNamespace = cam.namespaces[BIKE_MANAGER_NAMESPACE]
   const uiContractNamespace = cam.namespaces[BIKE_UI_NAMESPACE]
   const uiNamespace = cam.namespaces.ui
+  const componentsNamespace = cam.namespaces[BIKE_COMPONENTS_NAMESPACE]
   if (managerNamespace.type !== "contract") throw new Error("bike manager namespace must be a contract")
   if (uiContractNamespace.type !== "contract") throw new Error("bike UI contract namespace must be a contract")
   if (uiNamespace.type !== "ui") throw new Error("bike UI namespace must be ui")
+  if (componentsNamespace.type !== "contract") throw new Error("bike components namespace must be a contract")
   const managerFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_MANAGER_NAMESPACE)
   const uiContractFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_UI_NAMESPACE)
   const uiFact = namespaceResult.namespaces.find((namespace) => namespace.name === "ui")
+  const componentsFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_COMPONENTS_NAMESPACE)
   if (managerFact === undefined) throw new Error("bike manager namespace fact must exist")
   if (uiContractFact === undefined) throw new Error("bike UI contract namespace fact must exist")
   if (uiFact === undefined) throw new Error("bike UI namespace fact must exist")
+  if (componentsFact === undefined) throw new Error("bike components namespace fact must exist")
   assert.deepEqual(
     resourceResult.declarations.map((declaration) => ({
       namespace: declaration.namespace,
@@ -648,6 +653,14 @@ test("parseCam and protocol facts share root namespace resource declaration mean
         integrity: uiNamespace.integrity,
         uriPath: `${uiFact.path}.uri`,
         integrityPath: `${uiFact.path}.integrity`,
+      },
+      {
+        namespace: BIKE_COMPONENTS_NAMESPACE,
+        namespaceType: "contract",
+        uri: componentsNamespace.abiURI,
+        integrity: componentsNamespace.integrity,
+        uriPath: `${componentsFact.path}.abiURI`,
+        integrityPath: `${componentsFact.path}.integrity`,
       },
     ],
   )

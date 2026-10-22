@@ -2,7 +2,7 @@
 
 `cam/main.json` is the contract-published root document. It pins secondary CAM
 resources with `sha256:0x...` integrity fields. The versioned reference under
-`docs/reference/cam/1.2.0/` owns the bundled protocol bytes. This tool validates
+`docs/reference/cam/<version>/` owns the bundled protocol bytes. This tool validates
 each manifest's local resources before writing its protocol copy and refreshed
 pins, so protocol, generated ABI, and UI edits share one refresh path.
 """
@@ -24,7 +24,11 @@ LOCAL_URI_PREFIX = "./"
 MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
 UI_NAMESPACE = "ui"
 ROUTES_NAMESPACE = "routes"
-PROTOCOL_REFERENCE_PATH = Path(__file__).resolve().parent.parent / "docs/reference/cam/1.2.0/index.html"
+REFERENCE_ROOT = Path(__file__).resolve().parent.parent / "docs/reference/cam"
+PROTOCOL_REFERENCE_PATHS = {
+    "1.2.0": REFERENCE_ROOT / "1.2.0/index.html",
+    "1.3.0": REFERENCE_ROOT / "1.3.0/index.html",
+}
 
 
 class CamResourceIntegrityError(ValueError):
@@ -68,8 +72,12 @@ def refresh_manifest(manifest_path: Path) -> bool:
         raise CamResourceIntegrityError(f"{manifest_path}: invalid JSON: {error}") from error
     if not isinstance(document, dict):
         raise CamResourceIntegrityError(f"{manifest_path}: CAM manifest must be a JSON object")
-    if document.get("cam") != "1.2.0":
-        raise CamResourceIntegrityError(f"{manifest_path}: CAM version must be 1.2.0 for repository publication")
+    version = document.get("cam")
+    if not isinstance(version, str) or version not in PROTOCOL_REFERENCE_PATHS:
+        raise CamResourceIntegrityError(
+            f"{manifest_path}: cannot refresh publication: CAM version must be 1.2.0 or 1.3.0",
+        )
+    reference_path = PROTOCOL_REFERENCE_PATHS[version]
 
     protocol = document.get("protocol")
     if not isinstance(protocol, dict):
@@ -86,11 +94,11 @@ def refresh_manifest(manifest_path: Path) -> bool:
     changed = False
     protocol_copy: tuple[Path, bytes] | None = None
     protocol_path = local_resource_path(manifest_path, protocol["uri"], "protocol.uri")
-    with PROTOCOL_REFERENCE_PATH.open("rb") as canonical_file:
+    with reference_path.open("rb") as canonical_file:
         canonical_bytes = canonical_file.read(MAX_CAM_RESOURCE_BYTES + 1)
     if len(canonical_bytes) > MAX_CAM_RESOURCE_BYTES:
         raise CamResourceIntegrityError(
-            f"{PROTOCOL_REFERENCE_PATH}: protocol reference exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
+            f"{reference_path}: protocol reference exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
         )
     with protocol_path.open("rb") as protocol_file:
         existing_bytes = protocol_file.read(MAX_CAM_RESOURCE_BYTES + 1)

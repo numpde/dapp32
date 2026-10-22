@@ -183,6 +183,11 @@
             "internalType": "bool"
           },
           {
+            "name": "maxDelegationDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
             "name": "componentTokenPaused",
             "type": "bool",
             "internalType": "bool"
@@ -203,7 +208,12 @@
             "internalType": "bool"
           },
           {
-            "name": "canRetire",
+            "name": "inactive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canTransfer",
             "type": "bool",
             "internalType": "bool"
           },
@@ -211,6 +221,122 @@
             "name": "componentsAddress",
             "type": "address",
             "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "viewDelegation",
+    "inputs": [
+      {
+        "name": "serialNumber",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "delegate",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "duration",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "view_",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.DelegationView",
+        "components": [
+          {
+            "name": "viewId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentTokenPaused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "delegate",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationGrantor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationCapabilities",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "delegationValidUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "delegationActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "duration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "maxDelegationDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "validUntil",
+            "type": "uint48",
+            "internalType": "uint48"
           }
         ]
       }
@@ -364,6 +490,11 @@
             "internalType": "bool"
           },
           {
+            "name": "maxDelegationDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
             "name": "componentTokenPaused",
             "type": "bool",
             "internalType": "bool"
@@ -384,7 +515,12 @@
             "internalType": "bool"
           },
           {
-            "name": "canRetire",
+            "name": "inactive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canTransfer",
             "type": "bool",
             "internalType": "bool"
           },
@@ -550,6 +686,11 @@
             "internalType": "bool"
           },
           {
+            "name": "maxDelegationDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
             "name": "componentTokenPaused",
             "type": "bool",
             "internalType": "bool"
@@ -570,7 +711,12 @@
             "internalType": "bool"
           },
           {
-            "name": "canRetire",
+            "name": "inactive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canTransfer",
             "type": "bool",
             "internalType": "bool"
           },
@@ -591,6 +737,22 @@
   },
   {
     "type": "error",
+    "name": "InvalidDelegationDuration",
+    "inputs": [
+      {
+        "name": "duration",
+        "type": "uint48",
+        "internalType": "uint48"
+      },
+      {
+        "name": "maxDuration",
+        "type": "uint48",
+        "internalType": "uint48"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ManagerHasNoCode",
     "inputs": [
       {
@@ -608,6 +770,17 @@
         "name": "managerAddress",
         "type": "address",
         "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "TimestampOutOfRange",
+    "inputs": [
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

@@ -272,6 +272,13 @@
           }
         },
         {
+          "element": "Status",
+          "props": {
+            "label": "Out of service",
+            "value": "$view.inactive"
+          }
+        },
+        {
           "element": "Address",
           "props": {
             "label": "Owner",
@@ -351,13 +358,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "Active means registered with no open missing report. Missing means a report is open. Retired is permanent: metadata updates and missing-report changes are no longer allowed through this registry. It does not burn the NFT or prevent ordinary token transfers."
+            "text": "Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report."
           }
         },
         {
           "element": "Text",
           "props": {
-            "text": "Authority and delegation describe the address being viewed. Capability values combine 1 for metadata, 2 for reporting missing, 4 for resolving a report and 8 for retirement. Zero delegation values mean no active delegation in this view. A delegation expires or stops applying when its grantor is no longer the token owner."
+            "text": "Workshop grants permit selected registry updates. They do not approve NFT transfers. Grants expire and are permanently invalidated by a change of owner, even if the NFT later returns."
           }
         },
         {
@@ -430,7 +437,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Publish the explanation for resolving the report and enter its nonempty URI. Confirmation returns a missing component to active, clears the current report URI and records the resolution URI in the transaction event."
+            "text": "Publish the explanation for resolving the report and enter its nonempty URI. Confirmation clears the report and records the resolution URI in the transaction event. It does not change whether the component is out of service."
           }
         },
         {
@@ -460,14 +467,100 @@
         {
           "element": "Text",
           "props": {
-            "text": "Retirement is permanent. Resolve any open missing report first. Retired components cannot have their metadata updated, be reported missing or return to active status through this registry."
+            "text": "Only the current owner can take a component out of service or reactivate it. Metadata corrections and ordinary NFT transfers remain available in either state."
           }
         },
         {
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "retireComponent",
+            "function": "decommissionComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "reactivateComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Enter a workshop address and choose an access duration to inspect its grant and preview an expiry. This registry does not enumerate every workshop grant."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Workshop address"
+          },
+          "state": {
+            "key": "delegate",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "delegation",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "DurationField",
+          "props": {
+            "label": "Workshop access duration (required)",
+            "min": "1",
+            "max": "$view.maxDelegationDuration"
+          },
+          "state": {
+            "key": "duration",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "delegation",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openDelegation",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Handover transfers the loaded component NFT directly. It does not settle payment or prove physical delivery or recipient consent. Check the recipient carefully; contract recipients must accept ERC-721 NFTs. Missing reports and out-of-service status remain attached to the record."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Recipient NFT owner"
+          },
+          "state": {
+            "key": "to",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "transferComponent",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "transferComponent",
             "args": {
               "view": "$view"
             }
@@ -517,6 +610,12 @@
       ],
       "element": "Fragment",
       "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Legacy retired record: retirement was permanent in that deployment. This view is read-only and does not convert retirement into reversible inactivity."
+          }
+        },
         {
           "element": "Include",
           "call": {
@@ -728,26 +827,6 @@
         "in": "$view.actions"
       }
     },
-    "retireComponent": {
-      "requires": [
-        "view"
-      ],
-      "element": "Button",
-      "props": {
-        "label": "Review permanent retirement"
-      },
-      "call": {
-        "namespace": "routes",
-        "function": "retireComponent",
-        "args": {
-          "serialNumber": "$view.serialNumber"
-        }
-      },
-      "enabledWhen": {
-        "member": "retireComponent",
-        "in": "$view.actions"
-      }
-    },
     "register.form": {
       "requires": [
         "view"
@@ -868,6 +947,344 @@
             "args": {
               "view": "$view"
             }
+          }
+        }
+      ]
+    },
+    "decommissionComponent": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Review taking out of service"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "decommissionComponent",
+        "args": {
+          "serialNumber": "$view.serialNumber"
+        }
+      },
+      "enabledWhen": {
+        "member": "decommissionComponent",
+        "in": "$view.actions"
+      }
+    },
+    "reactivateComponent": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Review reactivation"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "reactivateComponent",
+        "args": {
+          "serialNumber": "$view.serialNumber"
+        }
+      },
+      "enabledWhen": {
+        "member": "reactivateComponent",
+        "in": "$view.actions"
+      }
+    },
+    "component.inactive": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.found",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "transferComponent": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Review NFT handover"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "transferComponent",
+        "args": {
+          "serialNumber": "$view.serialNumber",
+          "to": "$state.to"
+        }
+      },
+      "enabledWhen": {
+        "member": "transferComponent",
+        "in": "$view.actions"
+      }
+    },
+    "openDelegation": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Inspect workshop and preview expiry"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "delegation",
+        "args": {
+          "serialNumber": "$view.serialNumber",
+          "delegate": "$state.delegate",
+          "duration": "$state.duration"
+        }
+      },
+      "enabledWhen": {
+        "member": "delegation",
+        "in": "$view.actions"
+      }
+    },
+    "delegation": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Loaded component serial",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Owner",
+            "address": "$view.owner"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Inspect a workshop grant by address. Editing the address or duration does not change the inspected grant or its previewed expiry until you preview again."
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Workshop",
+            "address": "$view.delegate"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Delegation grantor",
+            "address": "$view.delegationGrantor"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Delegation capabilities",
+            "value": "$view.delegationCapabilities"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Delegation expiry (Unix seconds)",
+            "value": "$view.delegationValidUntil"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Delegation active",
+            "value": "$view.delegationActive"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Workshop grants allow registry updates only. They do not approve NFT transfers. A change of owner permanently invalidates the grant."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Workshop address"
+          },
+          "state": {
+            "key": "delegate",
+            "defaultValue": "$view.delegate"
+          },
+          "enabledWhen": {
+            "member": "delegation",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "DurationField",
+          "props": {
+            "label": "Workshop access duration",
+            "min": "1",
+            "max": "$view.maxDelegationDuration"
+          },
+          "state": {
+            "key": "duration",
+            "defaultValue": "$view.duration"
+          },
+          "enabledWhen": {
+            "member": "delegation",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openDelegation",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Previewed expiry (Unix seconds)",
+            "value": "$view.validUntil"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Each preset replaces the workshop's existing permissions and expiry with the selected permissions and previewed expiry shown above. Preview again after changing the workshop or duration. Revocation targets the inspected workshop."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Set metadata update permission"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setComponentDelegate",
+            "args": {
+              "serialNumber": "$view.serialNumber",
+              "delegate": "$view.delegate",
+              "capabilities": "1",
+              "validUntil": "$view.validUntil"
+            }
+          },
+          "enabledWhen": {
+            "member": "setComponentDelegate",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Set permission to report missing"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setComponentDelegate",
+            "args": {
+              "serialNumber": "$view.serialNumber",
+              "delegate": "$view.delegate",
+              "capabilities": "2",
+              "validUntil": "$view.validUntil"
+            }
+          },
+          "enabledWhen": {
+            "member": "setComponentDelegate",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Set permission to resolve missing reports"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setComponentDelegate",
+            "args": {
+              "serialNumber": "$view.serialNumber",
+              "delegate": "$view.delegate",
+              "capabilities": "4",
+              "validUntil": "$view.validUntil"
+            }
+          },
+          "enabledWhen": {
+            "member": "setComponentDelegate",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Set all workshop permissions"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setComponentDelegate",
+            "args": {
+              "serialNumber": "$view.serialNumber",
+              "delegate": "$view.delegate",
+              "capabilities": "7",
+              "validUntil": "$view.validUntil"
+            }
+          },
+          "enabledWhen": {
+            "member": "setComponentDelegate",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Revoke workshop access"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "revokeComponentDelegate",
+            "args": {
+              "serialNumber": "$view.serialNumber",
+              "delegate": "$view.delegate"
+            }
+          },
+          "enabledWhen": {
+            "member": "revokeComponentDelegate",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Back to loaded component"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "component",
+            "args": {
+              "serialNumber": "$view.serialNumber"
+            }
+          },
+          "enabledWhen": {
+            "member": "lookupComponent",
+            "in": "$view.actions"
           }
         }
       ]

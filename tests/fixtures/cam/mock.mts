@@ -4,6 +4,7 @@ import {
   BIKE_CAM_URI,
   BIKE_PROTOCOL_URI,
   BIKE_MANAGER_ABI_URI,
+  BIKE_COMPONENTS_ABI_URI,
   BIKE_UI_ABI_URI,
   BIKE_UI_URI,
 } from "./bike.mts"
@@ -11,6 +12,7 @@ import {
   bikeCamBytes,
   bikeProtocolBytes,
   bikeManagerAbiBytes,
+  bikeComponentsAbiBytes,
   bikeUiAbiBytes,
   bikeUiBytes,
 } from "./bike-resources.mts"
@@ -132,6 +134,7 @@ export function bikeResourceBytes(
     [BIKE_PROTOCOL_URI]: bikeProtocolBytes,
     [BIKE_UI_ABI_URI]: bikeUiAbiBytes,
     [BIKE_MANAGER_ABI_URI]: bikeManagerAbiBytes,
+    [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
     [BIKE_UI_URI]: bikeUiBytes,
     ...overrides,
   }

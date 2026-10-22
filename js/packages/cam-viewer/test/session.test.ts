@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
+import { readFileSync } from "node:fs"
 import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, InertValueError, toInertValue, UI_VERSION, type InertRecord, type InertValue } from "@cam/protocol"
@@ -239,7 +240,8 @@ test("bike fixture covers unpaused fixture projection cases", () => {
     missingReportURI: BIKE_MISSING_REPORT_URI,
     canMarkMissing: false,
     canClearMissing: true,
-    canRetire: false,
+    inactive: false,
+    canTransfer: true,
   })
   for (const status of ["active", "missing"] as const) {
     assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, status, true), {
@@ -251,7 +253,7 @@ test("bike fixture covers unpaused fixture projection cases", () => {
       canUpdateMetadata: true,
       canMarkMissing: status === "active",
       canClearMissing: status === "missing",
-      canRetire: false,
+      canTransfer: true,
     })
   }
   assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, otherUserAddress, "active"), {
@@ -261,7 +263,8 @@ test("bike fixture covers unpaused fixture projection cases", () => {
     isOwner: false,
     canUpdateMetadata: false,
     canMarkMissing: false,
-    canRetire: false,
+    inactive: false,
+    canTransfer: false,
   })
 
   assertBikeProjection(bikeEntryRouteResult(BIKE_ZERO_ADDRESS), {
@@ -312,8 +315,15 @@ test("bike fixture covers unpaused fixture projection cases", () => {
 for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as const) {
   test(`CAM 1.2 verifies the ${protocolCase} protocol resource before bindings, ABIs and UI`, async () => {
     const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
-    assert.equal(JSON.parse(new TextDecoder().decode(resources[camURI])).cam, "1.2.0")
-    const fixtureClient = createPublicClient(publicClientFixtureOptions({}))
+    const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+    cam.cam = CAM_VERSION
+    delete mutableRecord(cam.routes).transferComponent
+    const protocolBytes = new Uint8Array(readFileSync(new URL("../../../../dapps/escrow/cam/protocol.html", import.meta.url)))
+    mutableRecord(cam.protocol).integrity = sha256Integrity(protocolBytes)
+    resources[BIKE_PROTOCOL_URI] = protocolBytes
+    resources[camURI] = encodeJson(cam)
+    assert.equal(cam.cam, "1.2.0")
+    const fixtureClient = createPublicClient(publicClientFixtureOptions({ camHash: fixtureDigest(resources[camURI]) }))
     const requests: string[] = []
     const publicClient: CamPublicClient = {
       ...fixtureClient,
@@ -391,17 +401,20 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
       delegationCapabilities: "0",
       delegationValidUntil: "0",
       delegationActive: false,
+      maxDelegationDuration: "31536000",
       componentTokenPaused: false,
       canUpdateMetadata: false,
       canMarkMissing: false,
       canClearMissing: false,
-      canRetire: false,
+      inactive: false,
+      canTransfer: false,
       componentsAddress: BIKE_ZERO_ADDRESS,
     },
   ]))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     "supportsInterface",
     "camManifest",
+    "contractAddress",
     "contractAddress",
     "contractAddress",
     BIKE_VIEW_ENTRY,
@@ -707,7 +720,6 @@ function paymentPreparationSession(
   }
   const uiBytes = encodeJson(ui)
   const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
-  cam.cam = CAM_VERSION
   mutableRecord(cam.routes).payment = {
     kind: "write", inputs: ["payment"], ...(value === undefined ? {} : { value }), call: {
       namespace: "contracts.BicycleComponentManager", function: "testPayment", args: { payment: "$inputs.payment" },

@@ -55,9 +55,10 @@ export function workshopView(overrides: Record<string, unknown> = {}) {
 export function ownerWorkflowSessionOptions() {
   // Diagnose unpublished roadmap fields before the strict ABI normalizer could
   // turn a missing feature into a misleading "unexpected fixture property".
-  assertPublishedProjection("viewComponent", ownerComponentView(), ["inactive", "canTransfer"])
+  assertPublishedProjection("viewComponent", ownerComponentView(), ["inactive", "canTransfer", "maxDelegationDuration"])
   let owner: `0x${string}` = BIKE_ACCOUNT_ADDRESS
   let paused = false
+  let maxDelegationDuration = 2592000n
   const reads: { functionName: string; args?: readonly unknown[] }[] = []
   const base = createMockCamPublicClient({
     chainId: 31337, camURI: BIKE_CAM_URI, camHash: `0x${createHash("sha256").update(bikeCamBytes).digest("hex")}`, supportsCamInterface: true,
@@ -79,16 +80,24 @@ export function ownerWorkflowSessionOptions() {
           canUpdateMetadata: isOwner,
           canMarkMissing: isOwner,
           canClearMissing: false,
-          canRetire: false,
+          maxDelegationDuration,
           componentTokenPaused: paused,
           canTransfer: isOwner && !paused,
-          actions: isOwner && !paused ? ["lookupComponent", "delegation", "transferComponent"] : ["lookupComponent"],
+          actions: isOwner && !paused ? ["lookupComponent", "delegation", "transferComponent", "updateComponentMetadata"] : ["lookupComponent"],
         })
       }
       if (request.functionName === "viewDelegation") {
         assertAddress(request.address, BIKE_UI_ADDRESS)
         assertPublishedProjection("viewDelegation", workshopView(), ["delegate", "duration", "maxDelegationDuration", "validUntil"])
-        return workshopView({ delegate: request.args?.[1], account: request.args?.[2], duration: request.args?.[3] })
+        const duration = request.args?.[3]
+        assert.ok(typeof duration === "bigint")
+        return workshopView({
+          delegate: request.args?.[1], account: request.args?.[2],
+          delegationCapabilities: 1n,
+          delegationValidUntil: BigInt(PREVIEW_EXPIRY),
+          duration, maxDelegationDuration,
+          validUntil: 2000000000n + duration,
+        })
       }
       if (request.functionName === "tokenReference") {
         assertAddress(request.address, BIKE_MANAGER_ADDRESS)
@@ -100,7 +109,7 @@ export function ownerWorkflowSessionOptions() {
   }
   return {
     options: {
-      publicClient, host: bikeHost, account: { address: BIKE_ACCOUNT_ADDRESS }, route: "component", inputs: { serialNumber: BIKE_SERIAL_NUMBER },
+      publicClient, host: bikeHost, account: { address: BIKE_ACCOUNT_ADDRESS } as const, route: "component", inputs: { serialNumber: BIKE_SERIAL_NUMBER },
       async loadResource(uri: string): Promise<Uint8Array> {
         const prefix = BIKE_CAM_URI.slice(0, BIKE_CAM_URI.lastIndexOf("/") + 1)
         if (!uri.startsWith(prefix)) throw new Error(`Unexpected Bike test resource: ${uri}`)
@@ -112,6 +121,7 @@ export function ownerWorkflowSessionOptions() {
     reads,
     confirmTransfer() { owner = BUYER },
     pauseRecordToken() { paused = true },
+    setMaxDelegationDuration(duration: bigint) { maxDelegationDuration = duration },
   }
 }
 

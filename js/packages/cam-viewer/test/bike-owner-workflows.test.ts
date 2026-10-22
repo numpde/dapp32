@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { toInertValue } from "@cam/protocol"
+import { CamEvmError } from "@cam/evm-viem"
 import { resolvedUiButtons } from "@cam/screen"
 import { CamViewerError, createCamViewerSession } from "../src/index.ts"
 import type { CamViewerLoadedSnapshot } from "../src/index.ts"
@@ -19,6 +20,43 @@ function requireRoute(route: string) {
 }
 
 const staleAction = (error: unknown) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
+
+test("a thirty-minute workshop cap requires a chosen duration and rejects over-limit previews before RPC", async () => {
+  const fixture = ownerWorkflowSessionOptions()
+  fixture.setMaxDelegationDuration(1800n)
+  const session = createCamViewerSession(fixture.options)
+  const loaded = await session.load()
+  assert.equal(loaded.state.duration, null)
+  const selected = session.updateState({ delegate: WORKSHOP })
+  const invalidDuration = (error: unknown) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT"
+  await assert.rejects(() => session.dispatchAction(button(selected, "delegation")), invalidDuration)
+  const tooLong = session.updateState({ duration: "1801" })
+  assert.equal(tooLong.state.duration, null)
+  await assert.rejects(() => session.dispatchAction(button(tooLong, "delegation")), invalidDuration)
+  assert.equal(fixture.reads.filter(call => call.functionName === "viewDelegation").length, 0)
+
+  const valid = session.updateState({ duration: "1800" })
+  const result = await session.dispatchAction(button(valid, "delegation"))
+  assert.equal(result.type, "navigated")
+  if (result.type !== "navigated") assert.fail("chosen duration must open the workshop preview")
+  assert.equal((result.snapshot.values[0] as { maxDelegationDuration?: unknown }).maxDelegationDuration, "1800")
+  assert.equal((result.snapshot.values[0] as { validUntil?: unknown }).validUntil, "2000001800")
+  assert.equal(result.snapshot.state.duration, "1800", "the preview retains the chosen duration")
+  assert.deepEqual(fixture.reads.filter(call => call.functionName === "viewDelegation").map(call => call.args), [
+    [BIKE_SERIAL_NUMBER, WORKSHOP, BIKE_ACCOUNT_ADDRESS, 1800n],
+  ])
+})
+
+test("an unchosen workshop duration does not block metadata correction or NFT handover", async () => {
+  const fixture = ownerWorkflowSessionOptions()
+  const session = createCamViewerSession(fixture.options)
+  const loaded = await session.load()
+  assert.equal(loaded.state.duration, null)
+  const snapshot = session.updateState({ tokenURI: "fixture://corrected", to: BUYER })
+  assert.equal((await session.dispatchAction(button(snapshot, "updateComponentMetadata"))).type, "contractCall")
+  assert.equal((await session.dispatchAction(button(snapshot, "transferComponent"))).type, "contractCall")
+  assert.equal(fixture.reads.filter(call => call.functionName === "viewDelegation").length, 0)
+})
 
 test("published Bike delegation route inspects an arbitrary workshop independently of connected owner", async () => {
   requireRoute("delegation")

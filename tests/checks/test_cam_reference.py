@@ -68,7 +68,7 @@ class CamReferenceTests(unittest.TestCase):
                         self.assertIn(target.fragment, linked_document.ids, link)
 
     def test_worked_example_resource_bytes_match_manifest(self):
-        for version in ("1.1.0", "1.2.0"):
+        for version in ("1.1.0", "1.2.0", "1.3.0"):
             with self.subTest(version=version):
                 document = ReferenceHTML((REFERENCE / version / "index.html").read_text(encoding="utf-8"))
                 manifest = strict_json_loads(document.examples["example-cam"])

@@ -777,12 +777,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_hardened(cam_integrity)
         self.assertEqual("none", cam_integrity.get("network_mode"))
         self.assertEqual(True, compose_volume(cam_integrity, "/work/dapps").get("read_only"))
-        reference_path = "docs/reference/cam/1.2.0/index.html"
-        reference_mount = compose_volume(cam_integrity, f"/work/{reference_path}")
-        self.assertEqual(str(repo_path(reference_path)), reference_mount["source"])
-        self.assertIs(reference_mount.get("read_only"), True)
-        # Compose omits the false default when normalizing long-form binds.
-        self.assertIsNot(reference_mount["bind"].get("create_host_path"), True)
+        for version in ("1.2.0", "1.3.0"):
+            reference_path = f"docs/reference/cam/{version}/index.html"
+            reference_mount = compose_volume(cam_integrity, f"/work/{reference_path}")
+            self.assertEqual(str(repo_path(reference_path)), reference_mount["source"])
+            self.assertIs(reference_mount.get("read_only"), True)
+            # Compose omits the false default when normalizing long-form binds.
+            self.assertIsNot(reference_mount["bind"].get("create_host_path"), True)
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "cam" / "main.json").is_file():
                 manifest_mount = compose_volume(cam_integrity, f"/work/dapps/{dapp_dir.name}/cam/main.json")

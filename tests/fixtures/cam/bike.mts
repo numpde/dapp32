@@ -8,8 +8,10 @@ export const BIKE_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 export const BIKE_UI_CONTRACT = "BicycleComponentManagerUI"
 export const BIKE_MANAGER_CONTRACT = "BicycleComponentManager"
+export const BIKE_COMPONENTS_CONTRACT = "BicycleComponents"
 export const BIKE_UI_NAMESPACE = `contracts.${BIKE_UI_CONTRACT}`
 export const BIKE_MANAGER_NAMESPACE = `contracts.${BIKE_MANAGER_CONTRACT}`
+export const BIKE_COMPONENTS_NAMESPACE = `contracts.${BIKE_COMPONENTS_CONTRACT}`
 
 type BikeFixtureAddress = `0x${string}`
 
@@ -29,6 +31,7 @@ export const BIKE_PROTOCOL_URI = bikeResourceURI("./protocol.html")
 const BIKE_RELATIVE_UI_URI = "./ui.json"
 export const BIKE_UI_ABI_URI = bikeResourceURI(BIKE_RELATIVE_UI_ABI_URI)
 export const BIKE_MANAGER_ABI_URI = bikeResourceURI(BIKE_RELATIVE_MANAGER_ABI_URI)
+export const BIKE_COMPONENTS_ABI_URI = bikeResourceURI("./abi/BicycleComponents.json")
 export const BIKE_UI_URI = bikeResourceURI(BIKE_RELATIVE_UI_URI)
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
@@ -40,7 +43,7 @@ export const BIKE_UNKNOWN_SERIAL_HASH = "0x2222222222222222222222222222222222222
 export const BIKE_TOKEN_ID = BigInt(BIKE_SERIAL_HASH)
 export const BIKE_UNKNOWN_TOKEN_ID = BigInt(BIKE_UNKNOWN_SERIAL_HASH)
 
-// Retired is retained only for the unchanged terminal backend's legacy input.
+// Retired is retained only as legacy deployment input.
 // It is not an alias for reversible inactivity and remains read-only.
 export type BikeComponentFixtureStatus = "active" | "missing" | "retired"
 
@@ -52,7 +55,8 @@ export const bikeHost = {
 export const bikeContractAddresses = {
   [BIKE_UI_CONTRACT]: BIKE_UI_ADDRESS,
   [BIKE_MANAGER_CONTRACT]: BIKE_MANAGER_ADDRESS,
-} satisfies Record<typeof BIKE_UI_CONTRACT | typeof BIKE_MANAGER_CONTRACT, BikeFixtureAddress>
+  [BIKE_COMPONENTS_CONTRACT]: BIKE_COMPONENTS_ADDRESS,
+} satisfies Record<typeof BIKE_UI_CONTRACT | typeof BIKE_MANAGER_CONTRACT | typeof BIKE_COMPONENTS_CONTRACT, BikeFixtureAddress>
 
 export function bikeAddressForContract(name: string): BikeFixtureAddress {
   switch (name) {
@@ -60,6 +64,8 @@ export function bikeAddressForContract(name: string): BikeFixtureAddress {
       return BIKE_UI_ADDRESS
     case BIKE_MANAGER_CONTRACT:
       return BIKE_MANAGER_ADDRESS
+    case BIKE_COMPONENTS_CONTRACT:
+      return BIKE_COMPONENTS_ADDRESS
   }
 
   throw new Error(`unknown bike fixture contract: ${name}`)
@@ -112,11 +118,13 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
     delegationCapabilities: 0n,
     delegationValidUntil: 0n,
     delegationActive: false,
+    maxDelegationDuration: 31536000n,
     componentTokenPaused: false,
     canUpdateMetadata: false,
     canMarkMissing: false,
     canClearMissing: false,
-    canRetire: false,
+    inactive: false,
+    canTransfer: false,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }
 }
@@ -133,14 +141,11 @@ export function bikeComponentRouteResult(
   const isActive = exists && status === "active"
   const isMissing = exists && status === "missing"
   const isRetired = exists && status === "retired"
+  const isInactive = exists && !isRetired && inactive === true
 
   return {
-    viewId: empty ? "component.empty" : exists ? (inactive && !isRetired ? "component.inactive" : componentViewId(status)) : "component.notFound",
-    actions: exists ? componentActions(canAct, status, inactive ?? false) : lookupAndRegisterActions(account),
-    // Supplying this argument opts into the proposed independent lifecycle
-    // projection. Omission preserves the checked-in ABI shape: its strict tuple
-    // normalizer rejects extra fields rather than silently dropping them.
-    ...(inactive === undefined ? {} : { inactive: exists && !isRetired && inactive }),
+    viewId: empty ? "component.empty" : exists ? (isInactive ? "component.inactive" : componentViewId(status)) : "component.notFound",
+    actions: exists ? componentActions(canAct, status, isInactive) : lookupAndRegisterActions(account),
     account,
     paused: false,
     canRegister: bikeCanRegister(account),
@@ -167,14 +172,13 @@ export function bikeComponentRouteResult(
     delegationCapabilities: 0n,
     delegationValidUntil: 0n,
     delegationActive: false,
+    maxDelegationDuration: 31536000n,
     componentTokenPaused: false,
     canUpdateMetadata: canAct && !isRetired,
     canMarkMissing: canAct && isActive,
     canClearMissing: canAct && isMissing,
-    // Current ABI scaffolding: retirement is never an offered owner action.
-    // Inactivity is independent of statusId/missingReportURI; explicit lifecycle
-    // fixtures above expose it without changing the checked-in public ABI.
-    canRetire: false,
+    inactive: isInactive,
+    canTransfer: canAct && !isRetired,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }
 }
@@ -218,11 +222,13 @@ export function bikeRegisterRouteResult(
     delegationCapabilities: 0n,
     delegationValidUntil: 0n,
     delegationActive: false,
+    maxDelegationDuration: 31536000n,
     componentTokenPaused: false,
     canUpdateMetadata: false,
     canMarkMissing: false,
     canClearMissing: false,
-    canRetire: false,
+    inactive: false,
+    canTransfer: false,
   }
 }
 
