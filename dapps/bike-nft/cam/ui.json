@@ -49,6 +49,16 @@
       "element": "Fragment",
       "children": [
         {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "newRegistration",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
           "element": "Text",
           "props": {
             "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial, then choose Look up component to find it or Check registration to check whether it can be registered."
@@ -137,6 +147,26 @@
       "element": "Fragment",
       "children": [
         {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openEntry",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "newRegistration",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
           "element": "Text",
           "props": {
             "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
@@ -180,6 +210,26 @@
       ],
       "element": "Fragment",
       "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openEntry",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "newRegistration",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
         {
           "element": "Text",
           "props": {
@@ -231,6 +281,26 @@
       ],
       "element": "Fragment",
       "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openEntry",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "newRegistration",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
         {
           "element": "Status",
           "props": {
@@ -835,6 +905,16 @@
       "element": "Fragment",
       "children": [
         {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openEntry",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
           "element": "Text",
           "props": {
             "text": "A registrar sends registration; the initial NFT owner may be a different account. The serial must be unused in this registry. Registration creates an active record and mints its component NFT to that owner."
@@ -1060,6 +1140,43 @@
       "element": "Fragment",
       "children": [
         {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openEntry",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "newRegistration",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Back to loaded component"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "component",
+            "args": {
+              "serialNumber": "$view.serialNumber"
+            }
+          },
+          "enabledWhen": {
+            "member": "lookupComponent",
+            "in": "$view.actions"
+          }
+        },
+        {
           "element": "Status",
           "props": {
             "label": "Loaded component serial",
@@ -1270,25 +1387,38 @@
             "member": "revokeComponentDelegate",
             "in": "$view.actions"
           }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "Back to loaded component"
-          },
-          "call": {
-            "namespace": "routes",
-            "function": "component",
-            "args": {
-              "serialNumber": "$view.serialNumber"
-            }
-          },
-          "enabledWhen": {
-            "member": "lookupComponent",
-            "in": "$view.actions"
-          }
         }
       ]
+    },
+    "openEntry": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Account and component lookup"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "entry",
+        "args": {}
+      }
+    },
+    "newRegistration": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Register a component"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "register",
+        "args": {
+          "serialNumber": ""
+        }
+      }
     }
   }
 }

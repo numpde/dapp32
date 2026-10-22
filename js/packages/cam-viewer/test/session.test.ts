@@ -161,8 +161,8 @@ test("bike availability keeps entry account editing visible and matches the proj
     const snapshot = await session.setAccount({ address: scenario.account })
     const actions = projection.actions as string[]
     const buttons = resolvedUiButtons(snapshot.resolvedUi)
-    for (const [action, route] of [["lookupComponent", "component"], ["openRegister", "register"], ["setAccountInfo", "setAccountInfo"]]) {
-      const button = buttons.find(node => node.call.function === route)
+    for (const [action, label] of [["lookupComponent", "Look up component"], ["openRegister", "Check registration"], ["setAccountInfo", "Review account info update"]]) {
+      const button = buttons.find(node => node.props.label === label)
       assert.ok(button, `${scenario.name}: ${action} must remain visible`)
       assert.equal(button.disabled === true, !actions.includes(action), `${scenario.name}: ${action} availability`)
     }
@@ -360,6 +360,34 @@ for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as cons
     }
   })
 }
+
+test("Bike screen links navigate without a wallet and start registration with a fresh serial", async () => {
+  const publicClient = createPublicClient(publicClientFixtureOptions({
+    routeResults: {
+      ...bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active"),
+      [BIKE_VIEW_REGISTER]: bikeRegisterRouteResult("", userAddress),
+    },
+  }))
+  const session = createSession(sessionFixtureOptions({ publicClient }))
+  await session.load()
+  async function follow(label: string, route: string) {
+    const snapshot = session.snapshot()
+    assert.ok(snapshot.resolvedUi)
+    const button = resolvedUiButtons(snapshot.resolvedUi).find(button => button.props.label === label)
+    assert.ok(button, `screen offers ${label}`)
+    const result = await session.dispatchAction(button)
+    assert.equal(result.type, "navigated", "screen links must not prepare a transaction")
+    assert.equal(session.snapshot().route, route)
+  }
+  await follow("Register a component", "register")
+  assert.equal(session.snapshot().inputs.serialNumber, "")
+  await follow("Account and component lookup", "entry")
+  session.updateState({ serialNumber: BIKE_SERIAL_NUMBER })
+  await follow("Look up component", "component")
+  await follow("Register a component", "register")
+  assert.equal(session.snapshot().inputs.serialNumber, "", "new registration must not target the loaded NFT")
+  await follow("Account and component lookup", "entry")
+})
 
 test("load resolves host CAM, entry route, UI resource, and entry view", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
