@@ -1,162 +1,153 @@
-# Bicycle Registry V1 Permission Plan
+# Bicycle Registry V1 Permissions
 
-This plan targets the current V1 architecture:
+This note describes the current fresh-contract implementation and checked-in
+CAM 1.3.0 publication. See `002_owner_workflow_test_contract.md` for workflow
+qualification boundaries and the README for deployment and handoff policy.
+Previously deployed irreversible `Retired` records retain their original
+meaning; these workflows do not migrate them or introduce recovery authority.
+
+## Authority boundaries
 
 - `CamRoot` is the app entry point and CAM/address resolver.
-- `BicycleComponents` is a non-upgradeable ERC-721 collection with role-gated minting and metadata updates.
-- `BicycleComponentManager` is the registry/status/policy contract.
-- `BicycleComponentManagerUI` is read-only: it selects semantic CAM views/actions and aggregates view data.
-- Token transfers use standard ERC-721 transfer/approval methods directly on `BicycleComponents`.
-- Gas sponsorship, relayers, paymasters, bundlers, and frontends have no registry authority.
+- `BicycleComponents` is a non-upgradeable ERC-721 collection with role-gated
+  minting and token metadata updates.
+- `BicycleComponentManager` owns registry records, reports and delegation policy.
+- `BicycleComponentManagerUI` is read-only: it selects CAM views/actions and
+  aggregates data. It has no privileged role or write authority.
+- Registrars create records; their role grants no continuing owner authority.
+  Administrators have no fallback inside owner/delegate permission checks.
+- The calling account is the actor. Sponsorship, relayers, paymasters, bundlers
+  and frontends confer no registry authority. A viewed account is not a signer.
+- Standard ERC-721 ownership and approvals govern direct token transfers.
+  Missing reports and inactivity are registry facts, not transfer locks.
 
-## Core Principles
+## Administration
 
-1. No UI role. The UI contract is never a privileged caller of the manager.
-2. No admin fallback inside owner-level component permissions.
-3. Registrars create verified records; they do not control assets forever.
-4. Delegates get scoped, expiring capabilities granted by the current token owner.
-5. Delegations are valid only while the grantor remains the ERC-721 owner.
-6. Standard ERC-721 transfers are allowed in V1; manager status is registry truth, not a transfer gate.
-7. The account address is the actor. The signer, relayer, paymaster, bundler, and frontend are not authorization subjects.
-8. Recovery/dispute and transfer locks are V2 unless explicitly added to the token contract.
-
-## Global Ownership / Administration
-
-| Contract | Admin model | Notes |
+| Contract | Admin model | Scope |
 | --- | --- | --- |
-| `CamRoot` | `Ownable2Step` | Owner should be a Safe or timelock. Controls CAM URI/hash and contract address bindings. |
-| `BicycleComponents` | `AccessControl` | Non-upgradeable. Admin grants roles, but should not hold operational mint/metadata roles by default. |
-| `BicycleComponentManager` | `AccessControl` | Non-upgradeable V1. Admin manages registrars and configuration. |
-| `BicycleComponentManagerUI` | Immutable constructor wiring | Read-only route projection. No roles on the manager. No write authority. |
+| `CamRoot` | `Ownable2Step` | Owner updates CAM URI/hash and contract address bindings; ownership transfer requires acceptance. |
+| `BicycleComponents` | `AccessControlDefaultAdminRules` | Delayed default-admin handoff; ordinary operational roles are separate. |
+| `BicycleComponentManager` | `AccessControlDefaultAdminRules` | Delayed default-admin handoff; ordinary operational roles are separate. |
+| `BicycleComponentManagerUI` | Immutable constructor wiring | Read-only projection, no manager role. |
 
-## `CamRoot` Permissions
+The supported release lane gives the manager only the token mint and URI-setter
+roles, removes the deployer's ordinary roles, and requires separate root and
+two default-admin handoffs. Operational holders and nonzero admin delays are
+explicit release inputs, not owner-level exceptions. See README release policy.
+
+## `BicycleComponents` permissions
 
 | Function | Authorized actor | Notes |
 | --- | --- | --- |
-| `setCam(uri, hash)` | `owner()` | Updates the CAM served by the root. Prefer Safe/timelock owner. |
-| `setContractAddress(name, deployedAt)` | `owner()` | Sets/clears app contract address bindings. Passing `address(0)` clears. |
-| `transferOwnership(newOwner)` | `owner()` | Two-step via `Ownable2Step`; new owner must accept. |
+| `mint(to, tokenId, uri)` / `safeMint(to, tokenId, uri, data)` | `MINTER_ROLE` | Manager holds this role in the release lane; nonempty URI required. Safe mint checks the receiver. |
+| `setTokenURI(tokenId, uri)` | `TOKEN_URI_SETTER_ROLE` | Manager performs owner/delegate authorization before calling; nonempty URI required. |
+| `pause()` / `unpause()` | `PAUSER_ROLE` | Stops/resumes minting, token URI updates and transfers. |
+| `setBaseURI(uri)` / `setContractURI(uri)` | `CONFIGURER_ROLE` | Collection configuration; not blocked by token pause. |
+| `grantRole(...)` / `revokeRole(...)` | Role's admin | Ordinary roles use `DEFAULT_ADMIN_ROLE`; default-admin changes use the delayed handoff API. |
+| `transferFrom` / `safeTransferFrom` | Owner or authorized ERC-721 spender | Direct ERC-721 path, subject to token pause and receiver checks for safe transfers. |
+| `approve` | Owner or operator approved for all | Token-specific ERC-721 approval, not a workshop grant. |
+| `setApprovalForAll` | Token holder acting for their own account | Operator approval, not a workshop grant. |
 
-## `BicycleComponents` Permissions
-
-| Function | Authorized actor | Notes |
-| --- | --- | --- |
-| `mint(to, tokenId, uri)` | `MINTER_ROLE` | Granted to `BicycleComponentManager`; do not leave this on the deployment admin by default. |
-| `safeMint(to, tokenId, uri, data)` | `MINTER_ROLE` | Same, with receiver check. |
-| `setTokenURI(tokenId, uri)` | `TOKEN_URI_SETTER_ROLE` | Granted to `BicycleComponentManager`, which performs owner/delegate authorization first. |
-| `pause()` | `PAUSER_ROLE` | Emergency stop for mint/metadata operations and transfers. |
-| `unpause()` | `PAUSER_ROLE` | Same current role as pause; split this only with a deliberate governance change. |
-| `setBaseURI(uri)` | `CONFIGURER_ROLE` | Collection config only. |
-| `setContractURI(uri)` | `CONFIGURER_ROLE` | Collection metadata only. |
-| `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Prefer Safe/timelock. |
-| ERC-721 `transferFrom` / `safeTransferFrom` | Owner or ERC-721 approved operator | Standard ERC-721 transfer path in V1. |
-| ERC-721 `approve` / `setApprovalForAll` | Owner / approved operator | Standard ERC-721 approval path in V1. |
-
-## `BicycleComponentManager` Roles
-
-| Role | Purpose | V1 holder |
-| --- | --- | --- |
-| `DEFAULT_ADMIN_ROLE` | Grants/revokes manager roles | Safe or timelock |
-| `REGISTRAR_ROLE` | Creates verified component records | Shops, manufacturers, trusted operators; grant explicitly, not by constructor default |
-| `CONFIGURER_ROLE` | Configures the component token contract | Safe or timelock |
-| `PAUSER_ROLE` | Emergency pause of manager writes | Emergency Safe |
-
-Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not include `RECOVERY_ROLE` until recovery/dispute is implemented. Do not include `WITHDRAWER_ROLE` unless the manager collects fees.
-
-## `BicycleComponentManager` Function Permissions
+## `BicycleComponentManager` permissions
 
 | Function | Authorized actor | Notes |
 | --- | --- | --- |
-| `registerComponent(owner, serial, metadataURI)` | `REGISTRAR_ROLE` | Uses the configured component-token contract. Creates a verified record with a non-empty metadata URI. |
-| `setComponentsAddress(tokenContract)` | `CONFIGURER_ROLE` | Future registrations only. Does not reinterpret old records. |
-| `setMaxDelegationDuration(duration)` | `CONFIGURER_ROLE` | Caps owner-granted delegation windows. |
-| `setComponentMetadata(serial, uri)` | Current ERC-721 owner or `CAP_UPDATE_METADATA` delegate | Manager calls token `setTokenURI` after authorization. Empty metadata URIs are rejected at the manager boundary. |
-| `markComponentMissing(serial, reportURI)` | Current ERC-721 owner or `CAP_MARK_MISSING` delegate | Opens a missing report and emits the report URI. V1 stores missing status plus the active report URI; it does not block ERC-721 transfer unless token behavior later adds explicit transfer locks. |
-| `clearComponentMissing(serial, resolutionURI)` | Current ERC-721 owner or `CAP_CLEAR_MISSING` delegate | Resolves an open missing report and emits the resolution URI. Ordinary registrars should not resolve reports by role alone. |
-| `retireComponent(serial)` | Current ERC-721 owner or `CAP_RETIRE` delegate | Active components only. Resolve any missing report first so retirement does not leave an open report without a resolution event. Treat retirement as final/irreversible unless explicitly designed otherwise. |
-| `setComponentDelegate(serial, delegate, caps, validUntil)` | Current ERC-721 owner | Store `grantor = owner`. Delegation is valid only while `ownerOf(tokenContract, tokenId) == grantor`. |
-| `revokeComponentDelegate(serial, delegate)` | Current ERC-721 owner | Old-owner delegations are automatically ineffective after transfer. |
-| `setAccountInfo(uri)` | `msg.sender` only | Prefer no `account` parameter. If kept, require `account == msg.sender`. |
-| `pause()` | `PAUSER_ROLE` | Emergency stop for manager writes. |
-| `unpause()` | `PAUSER_ROLE` | Same current role as pause; split this only with a deliberate governance change. |
-| `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Registrar onboarding/removal. Prefer Safe/timelock. |
+| `registerComponent(owner, serialNumber, tokenURI_)` | `REGISTRAR_ROLE` | Creates a record and mints using the configured collection; nonempty serial and metadata URI required. |
+| `setComponentsAddress(tokenContract)` | `CONFIGURER_ROLE` | Changes future registrations only; existing records retain their collection and token ID. |
+| `setMaxDelegationDuration(duration)` | `CONFIGURER_ROLE` | Sets the positive maximum duration checked for new grants. |
+| `setComponentMetadata(serialNumber, tokenURI_)` | Current owner or `CAP_UPDATE_METADATA` delegate | Nonempty URI required; permitted while inactive or missing, subject to manager and recorded token pause. |
+| `markComponentMissing(serialNumber, reportURI)` | Current owner or `CAP_MARK_MISSING` delegate | Opens a report when not already missing; nonempty report URI required. |
+| `clearComponentMissing(serialNumber, resolutionURI)` | Current owner or `CAP_CLEAR_MISSING` delegate | Resolves an open report; nonempty resolution URI required. Registrar role alone is insufficient. |
+| `decommissionComponent(serialNumber)` | Current owner only | Sets the independent inactive flag; does not open or resolve a report. |
+| `reactivateComponent(serialNumber)` | Current owner only | Clears the inactive flag; does not open or resolve a report. |
+| `setComponentDelegate(serialNumber, delegate, capabilities, validUntil)` | Current owner only | Replaces that address's grant, capturing owner and ownership generation; nonzero delegate required. |
+| `revokeComponentDelegate(serialNumber, delegate)` | Current owner only | Deletes that address's grant; nonzero delegate required. |
+| `setAccountInfo(infoURI)` | Calling account | Changes only the caller's profile URI. |
+| `pause()` / `unpause()` | `PAUSER_ROLE` | Stops/resumes registry workflow writes, not direct token transfers. |
+| `grantRole(...)` / `revokeRole(...)` | Role's admin | Ordinary roles use `DEFAULT_ADMIN_ROLE`; default-admin changes use the delayed handoff API. |
 
-## Pause Projection
+Lifecycle writes require a registered nonempty serial. Inactivity is reversible
+and independent of the missing-report status. Metadata corrections, workshop
+permissions and ordinary transfers are not disabled by inactivity. There is no
+`retireComponent` write or retirement capability in the current implementation.
 
-Emergency pause is enforced by the manager write functions. The read-only UI
-projection also exposes `paused` and suppresses manager write actions while the
-manager is paused, so generic viewers do not advertise guaranteed-reverting
-manager calls.
+## Workshop capabilities and validity
 
-Component-token pause is a separate downstream boundary: the manager projects
-`componentTokenPaused` and the UI suppresses registration and component metadata
-writes while it is true. Manager-owned writes, such as report lifecycle updates
-and account info, remain available because they do not call the token.
-
-Prepared transactions are still subject to final execution checks. A token can
-pause after view resolution, wallet/RPC/account state can change, and direct
-contract calls bypass the CAM UI projection.
-
-## Delegation CAM Surface
-
-Delegation is contract-supported and projected in read views, but V1 CAM does
-not yet expose grant/revoke writes. That is intentional until the product has a
-clear, low-error UI for capability masks, expiry, and delegate addresses.
-Owners can still manage delegation by direct contract calls; generic CAM users
-should treat displayed delegation fields as current authority context, not as a
-complete delegation-management workflow.
-
-## Explicitly Out of V1
-
-| Feature | Reason |
+| Capability | Bit |
 | --- | --- |
-| `transferComponent(serial, to)` | Transfers are standard ERC-721 calls on the token contract. |
-| `CAP_TRANSFER` | Duplicates ERC-721 approvals in V1. Reconsider only if manager-mediated transfer returns. |
-| `claimComponent(...)` | Unverified claims need separate product semantics. Defer. |
-| Recovery/dispute hard transfer | Requires token-level transfer control or privileged transfer support. Defer to V2. |
-| ERC-5192 / transfer locks | Useful later, but not part of the simple V1 token. |
-| `upgradeToAndCall(...)` | V1 token and manager are non-upgradeable. |
-| AccessManager | Useful for larger multi-contract deployments, but overkill for V1. Safe/timelock + AccessControl is enough. |
-| UI write functions / UI role | UI contract is read-only route projection. |
-| Paymaster/relayer authorization | Gas sponsorship does not grant registry permissions. |
+| `CAP_UPDATE_METADATA` | 1 |
+| `CAP_MARK_MISSING` | 2 |
+| `CAP_CLEAR_MISSING` | 4 |
+| `VALID_CAPABILITY_MASK` (all supported permissions) | 7 |
 
-## Delegation Validity Rule
+New grants reject zero masks and any bits outside mask 7, including the former
+retirement bit 8. They require an expiry strictly after the chain timestamp and
+no further away than `maxDelegationDuration`. No workshop mask authorizes
+lifecycle changes, delegation management or NFT transfers.
 
-A delegation should not rely on transfer hooks or epoch bumps, because V1 permits direct ERC-721 transfers. Store the grantor and check current ownership every time:
+Each stored `Delegation` contains `grantor`, `capabilities`, `validUntil` and
+`ownershipGeneration`. Effective authority requires a nonzero grantor and
+capabilities, an unexpired grant, the grantor still being the recorded token's
+owner, and the recorded token's current `ownershipGeneration(tokenId)` matching
+the saved generation. Ownership equality alone is insufficient.
 
-```solidity
-struct Delegation {
-    address grantor;
-    uint64 capabilities;
-    uint48 validUntil;
-}
+Every actual ownership change increments the token generation through its
+ERC-721 update hook before receiver callbacks. Earlier grants remain invalid
+if the token returns to its former owner. Self-transfers preserve the generation;
+failed transfers roll back both ownership and generation changes. A current
+owner can explicitly issue a fresh grant after a transfer.
 
-function _hasCapability(uint256 recordId, address actor, uint64 capability) internal view returns (bool) {
-    Delegation memory d = delegations[recordId][actor];
-    if (d.grantor == address(0)) return false;
-    if (d.validUntil <= block.timestamp) return false;
-    if ((d.capabilities & capability) == 0) return false;
+The CAM exposes address-based workshop inspection, grant replacement and
+revocation. It does not enumerate all delegates. The UI offers named presets
+with masks 1, 2, 4 and 7. `viewDelegation(serialNumber, delegate, account, duration)`
+uses the chain clock to preview the exact `validUntil` passed to the existing
+grant write. It rejects zero/over-limit durations and timestamps/expiries outside
+uint48. The owner must refresh an expired preview; execution rechecks expiry and
+authority. Manager pause disables grant/revoke actions; collection pause does not.
 
-    ComponentRecord memory r = records[recordId];
-    return IERC721(r.tokenContract).ownerOf(r.tokenId) == d.grantor;
-}
-```
+## Direct handover through CAM 1.3.0
 
-## Lifecycle Report URI Rule
+The published `transferComponent` route is not a manager write. Its single
+read-only resolver calls `tokenReference(serialNumber)` on the host-bound
+manager and supplies the recorded collection address and token ID to the
+ERC-721 `safeTransferFrom(address,address,uint256)` call. The destination
+contract is a resolver output, not an editable collection input or the manager's
+collection configured for future registrations. The UI offers handover to the
+current owner when the recorded collection is unpaused.
 
-Missing and recovery report URIs are external references, not registry
-authority by themselves. The manager stores and projects the currently open
-missing report URI while a component is missing, clears it when a resolution URI
-is supplied, and emits both lifecycle events. It only rejects empty strings.
-Operators should prefer content-addressed or otherwise immutable URIs and an
-offchain schema for report/resolution documents. Indexers should pair each
-`ComponentReported` or `ComponentReportResolved` log with the adjacent
-`ComponentStatusUpdated` log from the same transaction.
+Handover conveys token ownership only: it supplies no payment escrow, recipient
+consent protocol, physical-delivery verification or recovery privilege. ERC-721
+approved spenders can still transfer through the token's ordinary API; workshop
+grants do not create that approval.
 
-## V2 Candidates
+## Pause boundaries
 
-- Transfer locks for `Missing`, `Disputed`, or `Retired` states.
-- ERC-5192 / ERC-6454 transferability standards.
-- Recovery/dispute state machine with delay.
-- Owner-consent signatures via EIP-712 / ERC-1271.
-- AccessManager if the deployed system grows across many contracts.
+Manager pause blocks registration, token metadata writes through the manager,
+missing-report changes, decommission/reactivate, grant/revoke and account-info
+writes. Its configuration and role administration are not pause-gated. The UI
+projects manager pause and omits unavailable workflow actions from its action
+list; the viewer can display their controls disabled.
+
+Token pause is separate. It blocks minting, token URI updates and direct
+transfers, but not ERC-721 approvals or collection configuration. Registration
+uses the configured collection's pause; an existing component's metadata and
+handover use its recorded collection's pause. Reports, lifecycle flags,
+delegation and account info remain writable during token pause if the manager
+is unpaused. Manager pause alone does not prevent token transfers.
+
+Read projections are not authorization. State can change after resolution or
+simulation, and direct callers bypass CAM presentation. Final onchain checks
+remain authoritative.
+
+## Report references and exclusions
+
+Report/resolution URIs are external references, not authority. The manager
+stores the currently open missing-report URI, clears it on resolution, and emits
+`ComponentReported` / `ComponentReportResolved` alongside the status update.
+Only nonempty strings are required; operators should prefer immutable references
+and an offchain document schema. Lifecycle inactivity neither clears nor alters
+these report references.
+
+This implementation provides no manager transfer privilege, transfer capability,
+recovery/dispute override, transfer lock, upgrade path, migration mechanism or UI
+write role. None is implied by CAM publication or registrar/admin status.
