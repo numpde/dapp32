@@ -30,7 +30,11 @@ def serve_fixture(upstream_path, ready, activity, release, overrides, stall_dns)
 
         def read(self, _limit):
             if self.request_id.startswith("block"):
-                release.wait(30)
+                deadline = time.monotonic() + 30
+                while not release.value:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("fixture response was not released")
+                    time.sleep(0.01)
             return json.dumps({"jsonrpc": "2.0", "id": self.request_id, "result": "0x2"}).encode()
 
         def getheaders(self):
@@ -66,7 +70,7 @@ def serve_fixture(upstream_path, ready, activity, release, overrides, stall_dns)
 
     def blocked_dns(*_args, **_kwargs):
         activity.send(("dns", os.getpid()))
-        release.wait(30)
+        time.sleep(30)
         return []
 
     proxy.Handler = FixtureHandler
@@ -87,7 +91,10 @@ class RpcProxyServerTest(unittest.TestCase):
         process_context = multiprocessing.get_context("fork")
         ready, ready_sender = process_context.Pipe(duplex=False)
         activity, activity_sender = process_context.Pipe(duplex=False)
-        release = process_context.Event()
+        # Workers and DNS children are deliberately killed in these tests. A
+        # shared condition can retain a dead waiter and hang its next notify;
+        # this one-byte flag owns no lock or acknowledgement from the worker.
+        release = process_context.RawValue("b", 0)
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as upstream:
             upstream.write("https://example.com/rpc")
             upstream.flush()
@@ -102,6 +109,7 @@ class RpcProxyServerTest(unittest.TestCase):
                 address = ready.recv()
                 yield address, activity, release, process
             finally:
+                release.value = 1
                 if process.is_alive():
                     process.terminate()
                 process.join(timeout=3)
@@ -110,7 +118,6 @@ class RpcProxyServerTest(unittest.TestCase):
                     process.join(timeout=1)
                 ready.close()
                 activity.close()
-                release.set()
 
     def next_activity(self, activity, kind):
         deadline = time.monotonic() + 3
@@ -147,7 +154,7 @@ class RpcProxyServerTest(unittest.TestCase):
             self.assertLess(time.monotonic(), deadline, "finished workers did not release capacity")
             # A response can reach the peer before its worker exits; give the
             # supervisor a turn to reap it instead of relying on that ordering.
-            multiprocessing.Event().wait(0.02)
+            time.sleep(0.02)
 
     def test_stalled_upstream_does_not_block_another_rpc_or_health_request(self):
         with self.server(stall_dns=False) as (address, activity, release, _process):
@@ -162,7 +169,7 @@ class RpcProxyServerTest(unittest.TestCase):
             self.assertEqual("ready", json.loads(body)["id"])
             self.assert_recovers(address)
 
-            release.set()
+            release.value = 1
             self.assertEqual(200, self.response(stalled)[0])
 
     def test_at_capacity_returns_503_without_forwarding_then_recovers(self):
@@ -181,7 +188,7 @@ class RpcProxyServerTest(unittest.TestCase):
             self.assertEqual("1", headers["Retry-After"])
             self.assertFalse(activity.poll(0.05), "overload was admitted to a worker")
 
-            release.set()
+            release.value = 1
             for connection in blocked:
                 self.assertEqual(200, self.response(connection)[0])
             self.assert_recovers(address)
@@ -212,6 +219,21 @@ class RpcProxyServerTest(unittest.TestCase):
             self.send_rpc(connection, "block-until-deadline")
             self.next_activity(activity, "upstream")
             self.assertEqual(504, self.response(connection)[0])
+            self.assert_recovers(address)
+
+    def test_client_deadline_bounds_a_longer_upstream_budget_after_dispatch(self):
+        with self.server(stall_dns=False, overrides={
+            "RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1",
+            "RPC_PROXY_REQUEST_TIMEOUT_SECONDS": "0.25",
+            "RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS": "2",
+        }) as (address, activity, _release, _process):
+            connection = self.connect(address)
+            self.send_rpc(connection, "block-past-client-deadline")
+            self.next_activity(activity, "upstream")
+            status, _, body = self.response(connection)
+            self.assertEqual(504, status)
+            self.assertIn(b"RPC request deadline exceeded", body)
+            self.assertNotIn(b"RPC upstream deadline exceeded", body)
             self.assert_recovers(address)
 
     def test_sigterm_stops_active_worker_and_its_dns_resolver(self):

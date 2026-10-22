@@ -22,6 +22,8 @@ LOCAL_GID ?= $(shell id -g)
 ALLOW_UPDATE ?= 0
 
 RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
+# Intentional default: isolate the persistent indexing proxy from Cast and
+# release services. Set a distinct project per chain when running several.
 RPC_INDEXER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-rpc-indexer
 ANVIL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-anvil
 ANVIL_HOST_PORT ?= 8545

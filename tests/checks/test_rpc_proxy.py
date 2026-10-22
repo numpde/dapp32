@@ -209,6 +209,19 @@ class RpcProxyTest(unittest.TestCase):
             with self.assertRaisesRegex(self.proxy.UpstreamRejected, "non-global address"):
                 self.proxy.resolve_global_ip("example.com", 443, time.monotonic() + 1)
 
+    def test_expired_client_deadline_survives_upstream_failure_cleanup(self) -> None:
+        prior_handler = signal.getsignal(signal.SIGALRM)
+        # Advance the cleanup clock beyond the outer budget without waiting or
+        # delivering a real alarm. Both contexts must still restore signal state.
+        with mock.patch.object(self.proxy.time, "monotonic", side_effect=[100.0, 100.0, 401.0]), \
+                mock.patch.object(self.proxy, "UPSTREAM_DEADLINE_SECONDS", 150):
+            with self.assertRaises(self.proxy.RequestDeadlineExceeded):
+                with self.proxy.request_deadline(300, self.proxy.RequestDeadlineExceeded):
+                    with self.proxy.upstream_deadline():
+                        raise self.proxy.UpstreamDeadlineExceeded()
+        self.assertEqual(prior_handler, signal.getsignal(signal.SIGALRM))
+        self.assertEqual((0.0, 0.0), signal.getitimer(signal.ITIMER_REAL))
+
     def test_upstream_deadline_covers_dns_send_and_response_without_hiding_effect_uncertainty(self) -> None:
         body = b'{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0x1234"],"id":1}'
         request = b"POST / HTTP/1.0\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
