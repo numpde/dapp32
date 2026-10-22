@@ -587,3 +587,77 @@ async function boundWalletForSubmission() {
     emit: (event: string) => listeners.get(event)?.(event === "accountsChanged" ? [] : event === "chainChanged" ? "0x1" : { code: 4900 }),
   }
 }
+
+// These host laws also apply to Bike handover and workshop calls. Keep them
+// generic here: the host must not infer ownership changes from a send result.
+test("an explicit retry after wallet rejection revalidates and simulates before its only new send", async () => {
+  const events: string[] = []
+  const rejection = new UserRejectedRequestError(new Error("User rejected the request"))
+  let attempts = 0
+  const call = testCall()
+  const ports: TestPorts = {
+    ...recordingPorts(events),
+    async send({ call: submitted }) {
+      assert.equal(submitted, call)
+      events.push("send")
+      attempts += 1
+      if (attempts === 1) throw rejection
+      return sentHash
+    },
+  }
+  const submit = () => submitPreparedContractCall({
+    ports, publicClient: testPublicClient(), walletAddress,
+    startup: testStartup(), call, shouldContinue: () => true,
+  })
+  await assert.rejects(submit, error => error === rejection)
+  assert.equal(attempts, 1, "rejection must not cause automatic resubmission")
+  const firstAttempt = [...events]
+  events.length = 0
+  assert.equal(await submit(), sentHash)
+  assert.deepEqual(events, firstAttempt, "an explicit retry must repeat all pre-send checks")
+  assert.equal(attempts, 2)
+})
+
+test("receipt inspection can be retried for the original hash without repeating wallet submission", async () => {
+  const events: string[] = []
+  const hash = await submitPreparedContractCall({
+    ports: recordingPorts(events), publicClient: testPublicClient(), walletAddress,
+    startup: testStartup(), call: testCall(), shouldContinue: () => true,
+  })
+  assert.equal(hash, sentHash)
+  const inspected: `0x${string}`[] = []
+  const outage = new Error("receipt RPC temporarily unavailable")
+  const confirmed = { status: "success" as const, blockNumber: 12n }
+  const client = {
+    ...reader({ pendingNonce: 5 }),
+    async waitForTransactionReceipt({ hash: requested }: { readonly hash: `0x${string}` }) {
+      inspected.push(requested)
+      if (inspected.length === 1) throw outage
+      return confirmed
+    },
+  }
+  const inspect = () => waitForSubmittedTransactionReceipt({
+    client, txHash: hash!, rpcEndpoint: "localhost:8545",
+    pollingIntervalMs: 500, timeoutMs: 20_000,
+  })
+  await assert.rejects(inspect, error => {
+    assert(error instanceof Error)
+    assert.equal(error.cause, outage)
+    assert.match(error.message, /Transaction was sent/)
+    assert.match(error.message, /still pending/)
+    assert.doesNotMatch(error.message, /confirmed|reverted/)
+    return true
+  })
+  assert.deepEqual(inspected, [sentHash], "receipt failure must not trigger an implicit retry")
+  assert.equal(await inspect(), confirmed)
+  assert.deepEqual(inspected, [sentHash, sentHash])
+  assert.equal(events.filter(event => event === "send").length, 1)
+})
+
+test("a mined reverted receipt remains reverted rather than becoming a successful confirmation", async () => {
+  const receipt = { status: "reverted" as const, blockNumber: 12n }
+  assert.equal(await waitForSubmittedTransactionReceipt({
+    client: { ...reader(), waitForTransactionReceipt: async () => receipt },
+    txHash, rpcEndpoint: "localhost:8545", pollingIntervalMs: 500, timeoutMs: 20_000,
+  }), receipt)
+})
