@@ -182,7 +182,13 @@ function installFixtureWallet(options) {
     if (closed) return
     const bar = document.createElement('aside')
     bar.id = 'local-fixture-wallet'
-    bar.style.cssText = 'position:sticky;top:0;z-index:2147483647;background:#fff3c4;color:#242424;border:2px solid #826000;padding:10px;font:14px/1.4 system-ui;display:flex;gap:12px;align-items:center;flex-wrap:wrap'
+    bar.style.cssText = 'grid-row:1;margin:0;box-sizing:border-box;background:#fff3c4;color:#242424;border:0;border-bottom:2px solid #826000;padding:10px 16px;font:14px/1.4 system-ui;display:flex;gap:12px;align-items:center;flex-wrap:wrap'
+    const layout = document.createElement('style')
+    layout.textContent = `
+      html { overflow: hidden; }
+      body { margin: 0; height: 100dvh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+      body > #root { grid-row: 2; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; }
+    `
     const label = document.createElement('label')
     label.textContent = 'Local test wallet · chain 31337 · account '
     select = document.createElement('select')
@@ -196,7 +202,7 @@ function installFixtureWallet(options) {
     accountLabel.style.cssText = 'overflow-wrap:anywhere;min-width:0;max-width:100%'
     const explanation = document.createElement('span')
     explanation.textContent = options.confirmTransactions ? 'Public test accounts. Confirming a send submits immediately on this local chain.' : 'Local test accounts. The test process submits transactions.'
-    bar.append(label, accountLabel, explanation)
+    bar.append(layout, label, accountLabel, explanation)
     document.body.prepend(bar)
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', toolbar, { once: true })

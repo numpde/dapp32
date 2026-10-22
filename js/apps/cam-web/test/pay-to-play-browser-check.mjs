@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
-import { browserFixtureFailureDetails, createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { browserFixtureFailureDetails, checkFixtureWalletToolbar, createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from '../../../tools/pay-to-play-vouchers/protocol.ts'
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
@@ -219,6 +219,7 @@ try {
   await checkNftMetadata({ call, evaluate, viewerURL: viewer.href })
   phase = 'timestamp display lifecycle fixture'
   await checkTimestampStatus({ call, evaluate, viewerURL: viewer.href })
+  await checkFixtureWalletToolbar({ call, evaluate })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
   await click('Connect wallet')

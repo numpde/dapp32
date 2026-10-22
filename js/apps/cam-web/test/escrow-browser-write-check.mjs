@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { createPublicClient, createWalletClient, http, sha256, parseAbi, toHex } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
-import { createCdpCommands, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { checkFixtureWalletToolbar, createCdpCommands, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import walletConfig from './escrow-fixture-wallet.mjs'
 
@@ -269,6 +269,7 @@ async function withCase(mode, test) {
     await call('Page.addScriptToEvaluateOnNewDocument', { source: providerSource() }, sessionId)
     await call('Page.navigate', { url: viewer.href }, sessionId)
     await waitFor(state => state.buttons.some(button => button.name === 'Review agreement creation'), 'create view')
+    if (mode === 'workflow') await checkFixtureWalletToolbar({ call: (method, params) => call(method, params, sessionId), evaluate })
     await test(owner, release)
     assert(owner.sendRequests <= owner.sendLimit, `${mode}: unexpected repeated wallet submission`)
     assert.equal(owner.exceptions, 0, `${mode}: unexpected browser exception`)

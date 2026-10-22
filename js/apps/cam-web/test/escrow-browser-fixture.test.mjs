@@ -7,6 +7,18 @@ import { checkActionStyles } from './action-style-browser-check.mjs'
 import { checkNftMetadata } from './nft-metadata-browser-check.mjs'
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 
+test('wallet toolbar check preserves its failure and attempts page cleanup if viewport restoration fails', async () => {
+  const primary = new Error('viewport change failed')
+  const cleanup = new Error('viewport restoration failed')
+  let pageCleaned = false
+  let evaluations = 0
+  await assert.rejects(fixture.checkFixtureWalletToolbar({
+    call: async method => { throw method === 'Emulation.clearDeviceMetricsOverride' ? cleanup : primary },
+    evaluate: async () => { evaluations++; if (evaluations === 1) return { x: 0, y: 200 }; if (evaluations === 3) pageCleaned = true },
+  }), error => error instanceof AggregateError && error.errors[0] === primary && error.errors[1] === cleanup)
+  assert(pageCleaned)
+})
+
 for (const failure of ['lost broadcast reply', 'transport exception']) {
   test(`${failure} must not ask the actual wallet SDK to submit again through another method`, async () => {
     const methods = []

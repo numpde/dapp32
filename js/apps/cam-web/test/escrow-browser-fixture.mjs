@@ -4,6 +4,34 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 export class BrowserFixtureError extends Error {}
 
+export async function checkFixtureWalletToolbar({ call, evaluate }) {
+  const scroll = await evaluate(`(() => { const app=document.getElementById('root');return {x:app.scrollLeft,y:app.scrollTop} })()`)
+  const failures = []
+  let wideHeight
+  try {
+    await evaluate(`(() => { const filler=document.createElement('div');filler.id='wallet-toolbar-scroll-test';filler.style.height='200vh';document.getElementById('root').append(filler) })()`)
+    for (const width of [1280, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: true })
+      await call('Page.captureScreenshot', { format: 'jpeg', quality: 10, captureBeyondViewport: false })
+      const height = await evaluate(`document.getElementById('local-fixture-wallet').getBoundingClientRect().height`)
+      if (width === 1280) wideHeight = height
+      else assert(height > wideHeight, 'wallet header wraps at narrow width')
+      await evaluate(`document.getElementById('root').scrollTo(0,0)`)
+      assert(await evaluate(`(() => { const bar=document.getElementById('local-fixture-wallet').getBoundingClientRect();const app=document.getElementById('root');const bounds=app.getBoundingClientRect();return bounds.top>=bar.bottom-1&&bounds.bottom<=innerHeight+1&&app.clientHeight>0&&app.scrollHeight>app.clientHeight })()`), 'app has its own bounded scroll area below the wallet header')
+      await evaluate(`document.getElementById('root').scrollTo(0,300)`)
+      await call('Page.captureScreenshot', { format: 'jpeg', quality: 10, captureBeyondViewport: false })
+      assert(await evaluate(`(() => { const bar=document.getElementById('local-fixture-wallet').getBoundingClientRect();const app=document.getElementById('root');return app.scrollTop>0&&scrollY===0&&Math.abs(bar.top)<1&&bar.left>=0&&bar.right<=innerWidth+1&&app.getBoundingClientRect().top>=bar.bottom-1 })()`), 'only the app scrolls; its content never passes behind the wallet header')
+    }
+  } catch (error) {
+    failures.push(error)
+  } finally {
+    try { await call('Emulation.clearDeviceMetricsOverride', {}) } catch (error) { failures.push(error) }
+    try { await evaluate(`document.getElementById('wallet-toolbar-scroll-test')?.remove();document.getElementById('root').scrollTo(${scroll.x},${scroll.y})`) } catch (error) { failures.push(error) }
+  }
+  if (failures.length === 1) throw failures[0]
+  if (failures.length > 1) throw new AggregateError(failures, 'Wallet toolbar check and restoration failures')
+}
+
 export function browserFixtureFailureDetails(error) {
   const failures = error instanceof AggregateError ? error.errors : [error]
   return failures.filter(failure => failure instanceof BrowserFixtureError || failure instanceof assert.AssertionError)
