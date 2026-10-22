@@ -6,7 +6,8 @@ import type {
 } from "../../packages/cam-core/dist/index.js"
 import type { ResolvedCamContract } from "../../packages/cam-evm-viem/dist/index.js"
 import { UI_VERSION } from "../../packages/cam-protocol/dist/index.js"
-import type { UiDocument } from "../../packages/cam-screen/dist/index.js"
+import { resolveInitialUiNode } from "../../packages/cam-screen/dist/index.js"
+import type { UiDocument, UiNode } from "../../packages/cam-screen/dist/index.js"
 import type { CamViewerSnapshot } from "../../packages/cam-viewer/dist/index.js"
 import type {
   Address,
@@ -27,7 +28,6 @@ const contracts: Record<string, ResolvedCamContract> = { "contracts.Fixture": { 
 const typedRoute: CamRoute = { ...routeWithInputs(["unrelatedName", "timeCode"]), call: {
   namespace: "contracts.Fixture", function: "inspect(address,uint256)", args: { who: "$inputs.unrelatedName", seconds: "$inputs.timeCode" },
 } }
-const emptyUi: UiDocument = { ui: UI_VERSION, nodes: {} }
 
 test("broad value generation keeps invalid empty strings in the read-only corpus", () => {
   assert.deepEqual(
@@ -85,7 +85,7 @@ test("state fuzzing includes dedicated integer controls and excludes disabled co
       { element: "NonNegativeIntegerField", props: { label: "Disabled counter" }, disabled: true, state: { key: "disabled" }, draft: { text: "", status: "empty" }, children: [] },
       { element: "TextField", props: { label: "Identifier" }, state: { key: "identifier" }, children: [] },
     ] },
-  }, contracts, routes: {}, ui: emptyUi, account, prng: firstValuePrng(), mode: "broad" })
+  }, contracts, routes: {}, account, prng: firstValuePrng(), mode: "broad" })
   assert.deepEqual(plainRecord(patch), { counter: "", duration: "", identifier: "" })
 })
 
@@ -105,28 +105,62 @@ test("conflicting direct ABI constraints fail rather than guessing an input type
 })
 
 test("state generation follows direct UI bindings with different field and route-input names and numeric caps", () => {
-  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: { element: "Button", props: {}, call: { namespace: "routes", function: "inspect", args: { unrelatedName: "$state.workshopCode", timeCode: "$state.life" } } } } }
-  const patch = generatedStatePatch({ snapshot: {
-    canGoBack: false, inputs: {}, state: { workshopCode: "", life: "" }, resolvedUi: { element: "Fragment", props: {}, children: [
-      { element: "TextField", props: { label: "Person" }, state: { key: "workshopCode" }, children: [] },
-      { element: "DurationField", props: { label: "Lifetime", min: "10", max: "120" }, state: { key: "life" }, draft: { parts: { days: { text: "", status: "empty" }, hours: { text: "", status: "empty" }, minutes: { text: "", status: "empty" }, seconds: { text: "", status: "empty" } }, status: "empty" }, children: [] },
-      { element: "Button", props: {}, call: { namespace: "routes", function: "inspect", args: { unrelatedName: "", timeCode: "" } } },
-    ] },
-  }, contracts, routes: { inspect: typedRoute }, ui, account, prng: firstValuePrng(), mode: "write-positive" })
+  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: { requires: [], element: "Fragment", children: [
+    { element: "TextField", props: { label: "Person" }, state: { key: "workshopCode", defaultValue: "" } },
+    { element: "DurationField", props: { label: "Lifetime", min: "10", max: "120" }, state: { key: "life", defaultValue: "" } },
+    { element: "Button", props: { label: "Inspect" }, call: { namespace: "routes", function: "inspect", args: { unrelatedName: "$state.workshopCode", timeCode: "$state.life" } } },
+  ] } } }
+  const patch = generatedStatePatch({ snapshot: renderedSnapshot(ui, "app"), contracts, routes: { inspect: typedRoute }, account, prng: firstValuePrng(), mode: "write-positive" })
   assert.deepEqual(plainRecord(patch), { life: "120", workshopCode: account })
 })
 
-test("a rendered field with conflicting direct action bindings is a generator limitation", () => {
-  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: { element: "Button", props: {}, call: {
-    namespace: "routes", function: "inspect", args: { unrelatedName: "$state.shared", timeCode: "$state.shared" },
-  } } } }
-  assert.throws(() => generatedStatePatch({ snapshot: {
-    canGoBack: false, inputs: {}, state: { shared: "" }, resolvedUi: { element: "Fragment", props: {}, children: [
-      { element: "TextField", props: { label: "Shared" }, state: { key: "shared" }, children: [] },
-      { element: "Button", props: {}, call: { namespace: "routes", function: "inspect", args: {} } },
-    ] },
-  }, contracts, routes: { inspect: typedRoute }, ui, account, prng: firstValuePrng(), mode: "write-positive" }), /generat.*conflict.*shared/i)
+test("separate screens reusing a route and state key do not constrain each other's generated values", () => {
+  const ui: UiDocument = { ui: UI_VERSION, nodes: {
+    address: stateBindingScreen({ unrelatedName: "$state.shared", timeCode: "1" }),
+    integer: stateBindingScreen({ unrelatedName: account, timeCode: "$state.shared" }),
+  } }
+  for (const [screen, expected] of [["address", account], ["integer", "1"]] as const) {
+    const patch = generatedStatePatch({ snapshot: renderedSnapshot(ui, screen), contracts, routes: { inspect: typedRoute }, account, prng: firstValuePrng(), mode: "write-positive" })
+    assert.deepEqual(plainRecord(patch), { shared: expected })
+  }
 })
+
+test("a rendered field with conflicting direct action bindings is a generator limitation", () => {
+  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: stateBindingScreen({ unrelatedName: "$state.shared", timeCode: "$state.shared" }) } }
+  assert.throws(() => generatedStatePatch({ snapshot: renderedSnapshot(ui, "app"), contracts, routes: { inspect: typedRoute }, account, prng: firstValuePrng(), mode: "write-positive" }), /generat.*conflict.*shared/i)
+})
+
+test("two rendered actions using the same route must agree on a shared field's type", () => {
+  const first = stateBindingScreen({ unrelatedName: "$state.shared", timeCode: "1" })
+  const second = stateBindingScreen({ unrelatedName: account, timeCode: "$state.shared" })
+  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: { requires: [], element: "Fragment", children: [...first.children, ...second.children.slice(1)] } } }
+  assert.throws(() => generatedStatePatch({ snapshot: renderedSnapshot(ui, "app"), contracts, routes: { inspect: typedRoute }, account, prng: firstValuePrng(), mode: "write-positive" }), /generat.*conflict.*shared/i)
+})
+
+test("disabled actions do not constrain an enabled field used by another action", () => {
+  const first = stateBindingScreen({ unrelatedName: "$state.shared", timeCode: "1" })
+  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: { requires: [], element: "Fragment", children: [
+    ...first.children,
+    { element: "Button", props: { label: "Unavailable" }, enabledWhen: { member: "inspect", in: [] }, call: {
+      namespace: "routes", function: "inspect", args: { unrelatedName: account, timeCode: "$state.shared" },
+    } },
+  ] } } }
+  const patch = generatedStatePatch({ snapshot: renderedSnapshot(ui, "app"), contracts, routes: { inspect: typedRoute }, account, prng: firstValuePrng(), mode: "write-positive" })
+  assert.deepEqual(plainRecord(patch), { shared: account })
+})
+
+function stateBindingScreen(args: Record<string, string>): Extract<UiNode, { element: "Fragment" }> {
+  return { requires: [], element: "Fragment", children: [
+    { element: "TextField", props: { label: "Shared" }, state: { key: "shared", defaultValue: "" } },
+    { element: "Button", props: { label: "Inspect" }, call: { namespace: "routes", function: "inspect", args } },
+  ] }
+}
+
+function renderedSnapshot(ui: UiDocument, name: string): CamViewerSnapshot {
+  return { canGoBack: false, inputs: {}, ...resolveInitialUiNode(ui, name, {}, {
+    host: { chainId: "eip155:31337", address: account }, account: { address: account }, inputs: {}, outputs: [], state: {},
+  }) }
+}
 
 test("an unbounded duration control respects its directly bound uint8 ABI range", () => {
   assert.equal(numericPatch("uint8", {}).life, "255")
@@ -166,14 +200,11 @@ function scalarBinding(type: string) {
 
 function numericPatch(type: string, bounds: { min?: string; max?: string }) {
   const { route, contracts } = scalarBinding(type)
-  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: { element: "Button", props: {}, call: {
-    namespace: "routes", function: "inspect", args: { mystery: "$state.life" },
-  } } } }
-  const snapshot: CamViewerSnapshot = { canGoBack: false, inputs: {}, state: { life: "" }, resolvedUi: { element: "Fragment", props: {}, children: [
-    { element: "DurationField", props: { label: "Lifetime", ...bounds }, state: { key: "life" }, draft: { parts: { days: { text: "", status: "empty" }, hours: { text: "", status: "empty" }, minutes: { text: "", status: "empty" }, seconds: { text: "", status: "empty" } }, status: "empty" }, children: [] },
-    { element: "Button", props: {}, call: { namespace: "routes", function: "inspect", args: {} } },
-  ] } }
-  return generatedStatePatch({ snapshot, contracts, routes: { inspect: route }, ui, account, prng: firstValuePrng(), mode: "write-positive" })
+  const ui: UiDocument = { ui: UI_VERSION, nodes: { app: { requires: [], element: "Fragment", children: [
+    { element: "DurationField", props: { label: "Lifetime", ...bounds }, state: { key: "life", defaultValue: "" } },
+    { element: "Button", props: { label: "Inspect" }, call: { namespace: "routes", function: "inspect", args: { mystery: "$state.life" } } },
+  ] } } }
+  return generatedStatePatch({ snapshot: renderedSnapshot(ui, "app"), contracts, routes: { inspect: route }, account, prng: firstValuePrng(), mode: "write-positive" })
 }
 
 function plainRecord(record: Record<string, unknown>): Record<string, unknown> {

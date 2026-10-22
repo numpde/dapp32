@@ -28,6 +28,32 @@ const context = {
   },
 }
 
+test("rendered actions retain only their own direct state bindings through Includes", () => {
+  const ui = parseUi({ ui: UI_VERSION, nodes: {
+    app: { requires: [], element: "Fragment", children: [
+      { element: "Include", call: { namespace: "ui", function: "action", args: { value: "$state.serialNumber", target: "inspect" } } },
+      { element: "Include", call: { namespace: "ui", function: "action", args: { value: "$state.serialNumber", target: "update" } } },
+    ] },
+    action: { requires: ["value", "target"], element: "Button", props: { label: "Inspect" }, call: {
+      namespace: "routes", function: "$target", args: {
+        direct: "$state.serialNumber", parameter: "$value", nested: { value: "$state.serialNumber" }, literal: "ABC123",
+      },
+    } },
+    unrendered: { requires: [], element: "Button", props: { label: "Other" }, call: {
+      namespace: "routes", function: "inspect", args: { parameter: "$state.serialNumber" },
+    } },
+  } })
+  const actions = resolvedUiButtons(resolveUiNode(ui, "app", {}, context))
+  assert.deepEqual(actions.map(action => action.call.function), ["inspect", "update"])
+  const [action] = actions
+  assert.ok(action)
+  assert.deepEqual({ ...action.directStateBindings }, { direct: "serialNumber" })
+  assert.deepEqual(toInertValue(action.call.args), toInertValue({
+    direct: "ABC123", parameter: "ABC123", nested: { value: "ABC123" }, literal: "ABC123",
+  }))
+  assert.deepEqual(toInertValue(JSON.parse(JSON.stringify(action))), toInertValue(action))
+})
+
 test("NonNegativeIntegerField keeps one exact canonical integer while preserving declared lexical defaults", () => {
   for (const value of ["", "0", "0000", "00042", "9007199254740993", "18446744073709551615", (2n ** 256n - 1n).toString()]) {
     const ui = parseUi({ ui: UI_VERSION, nodes: { counter: {

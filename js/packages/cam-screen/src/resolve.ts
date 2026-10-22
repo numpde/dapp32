@@ -11,6 +11,7 @@ import {
   isExpressionIdentifier,
   isRecordObject,
   nameListShapeIssues,
+  parseExpressionReference,
   UI_CALL_NAMESPACE_BY_ELEMENT,
   UI_PROP_SCHEMAS,
   UI_RUNTIME_ROOTS,
@@ -522,11 +523,18 @@ function checkedSelectedNodeNames(names: readonly string[], path: string): reado
 }
 
 function resolveAction(node: ButtonNode, context: UiRuntimeContext, path: string): ResolvedButtonNode {
+  const directStateBindings = createStringMap<string>()
+  for (const [input, value] of Object.entries(node.call.args)) {
+    if (typeof value !== "string") continue
+    const reference = parseExpressionReference(value, { numericSegments: true })
+    if (reference?.root === "state" && reference.segments.length === 1) directStateBindings[input] = reference.segments[0]!
+  }
   return {
     element: "Button",
     ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`),
     props: resolveProps(node.element, node.props, context, `${path}.props`),
     call: resolveCall(node.call, context, `${path}.call`),
+    ...(Object.keys(directStateBindings).length === 0 ? {} : { directStateBindings }),
   }
 }
 

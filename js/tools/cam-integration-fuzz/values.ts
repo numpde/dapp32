@@ -7,7 +7,7 @@ import {
   forEachResolvedUiNode,
   resolvedUiButtons,
 } from "../../packages/cam-screen/dist/index.js"
-import type { UiDocument, UiNode } from "../../packages/cam-screen/dist/index.js"
+import type { ResolvedButtonNode } from "../../packages/cam-screen/dist/index.js"
 import type { ResolvedCamContract } from "../../packages/cam-evm-viem/dist/index.js"
 import type {
   CamViewerSnapshot,
@@ -18,7 +18,6 @@ import {
   abiScalarKind,
   isAbiFunctionSignatureReference,
   parseExpressionReference,
-  parseStaticExpressionString,
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
 } from "../../packages/cam-protocol/dist/index.js"
@@ -62,7 +61,6 @@ export function generatedStatePatch({
   snapshot,
   routes,
   contracts,
-  ui,
   account,
   prng,
   mode,
@@ -70,7 +68,6 @@ export function generatedStatePatch({
   readonly snapshot: CamViewerSnapshot
   readonly routes: Record<string, CamRoute>
   readonly contracts: Record<string, ResolvedCamContract>
-  readonly ui: UiDocument
   readonly account: Address
   readonly prng: Prng
   readonly mode: ValueGenerationMode
@@ -85,7 +82,7 @@ export function generatedStatePatch({
   forEachResolvedUiNode(resolved, node => {
     if ((node.element === "TextField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.disabled !== true) renderedKeys.add(node.state.key)
   })
-  const types = directStateTypes(ui, resolvedUiButtons(resolved).map(button => button.call.function), renderedKeys, routes, contracts)
+  const types = directStateTypes(resolvedUiButtons(resolved), renderedKeys, routes, contracts)
   forEachResolvedUiNode(resolved, (node) => {
     if ("disabled" in node && node.disabled === true) return
     if (node.element === "NonNegativeIntegerField" || node.element === "DurationField") {
@@ -144,32 +141,24 @@ function directRouteInputTypes(route: CamRoute, contracts: Record<string, Resolv
 }
 
 function directStateTypes(
-  ui: UiDocument,
-  renderedRoutes: readonly string[],
+  buttons: readonly ResolvedButtonNode[],
   renderedKeys: ReadonlySet<string>,
   routes: Record<string, CamRoute>,
   contracts: Record<string, ResolvedCamContract>,
 ): Map<string, string> {
   const types = new Map<string, string>()
-  // Use only explicit state-to-input edges for rendered controls and routes;
+  // Only the actual rendered action instances constrain these controls.
   // Include parameter flow and nested expressions remain outside this generator.
-  function visit(node: UiNode): void {
-    if (node.element === "Button") {
-      const name = typeof node.call.function === "string" ? parseStaticExpressionString(node.call.function) : undefined
-      if (name === undefined || !renderedRoutes.includes(name)) return
-      const route = routes[name]
-      if (route === undefined) return
-      const inputTypes = directRouteInputTypes(route, contracts)
-      for (const [input, value] of Object.entries(node.call.args)) {
-        const key = directReference(value, "state")
-        const type = inputTypes.get(input)
-        if (key !== undefined && renderedKeys.has(key) && type !== undefined) bindType(types, key, type)
-      }
-    } else if (node.element === "Screen" || node.element === "Fragment") {
-      node.children.forEach(visit)
+  for (const button of buttons) {
+    if (button.disabled === true) continue
+    const route = routes[button.call.function]
+    if (route === undefined) continue
+    const inputTypes = directRouteInputTypes(route, contracts)
+    for (const [input, key] of Object.entries(button.directStateBindings ?? {})) {
+      const type = inputTypes.get(input)
+      if (renderedKeys.has(key) && type !== undefined) bindType(types, key, type)
     }
   }
-  Object.values(ui.nodes).forEach(visit)
   return types
 }
 

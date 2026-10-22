@@ -9,7 +9,6 @@ import {
   createHttpCamPublicClient,
   loadCamFromHost,
   resolveCamContracts,
-  verifyCamResourceIntegrity,
 } from "../../packages/cam-evm-viem/dist/index.js"
 import type {
   CamHost,
@@ -30,13 +29,9 @@ import type {
 } from "../../packages/cam-viewer/dist/index.js"
 import {
   resolvedUiButtons,
-  parseUi,
 } from "../../packages/cam-screen/dist/index.js"
-import type { UiDocument } from "../../packages/cam-screen/dist/index.js"
 import {
   createSameOriginHttpResourceLoader,
-  resolveCamResourceURI,
-  parseJsonBytes,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
   InertRecord,
@@ -141,12 +136,6 @@ async function main(): Promise<void> {
     loadResource,
   })
   await assertResolvedContractsHaveCode(fullPublicClient, contracts)
-  const uiNamespace = loadedCam.cam.namespaces.ui
-  if (uiNamespace?.type !== "ui") throw new Error("Cannot generate UI values: the CAM ui namespace is missing")
-  const uiURI = resolveCamResourceURI(loadedCam.camURI, uiNamespace.uri)
-  const uiBytes = await loadResource(uiURI)
-  verifyCamResourceIntegrity({ bytes: uiBytes, integrity: uiNamespace.integrity, uri: uiURI })
-  const ui = parseUi(parseJsonBytes(uiBytes))
   emit({
     event: "contracts_resolved",
     contracts: Object.fromEntries(
@@ -200,7 +189,6 @@ async function main(): Promise<void> {
       session,
       routes: loadedCam.cam.routes,
       contracts,
-      ui,
       account,
       simulationClient: fullPublicClient,
       receiptClient: fullPublicClient,
@@ -297,7 +285,6 @@ async function walkSession({
   session,
   routes,
   contracts,
-  ui,
   account,
   simulationClient,
   receiptClient,
@@ -310,7 +297,6 @@ async function walkSession({
   readonly session: CamViewerSession
   readonly routes: CamDocument["routes"]
   readonly contracts: Parameters<typeof callCamRoute>[0]["contracts"]
-  readonly ui: UiDocument
   readonly account: Address
   readonly simulationClient: CamSimulationClient
   readonly receiptClient: ReceiptClient
@@ -326,7 +312,6 @@ async function walkSession({
       snapshot: before,
       routes,
       contracts,
-      ui,
       account,
       prng,
       mode: valueMode,

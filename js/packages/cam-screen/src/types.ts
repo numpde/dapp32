@@ -260,6 +260,8 @@ export type ResolvedButtonNode = {
   readonly disabled?: boolean
   readonly props: InertRecord
   readonly call: ResolvedUiCall
+  /** Non-authoritative provenance for generation tools; only direct state references, not Include parameter flow. */
+  readonly directStateBindings?: Readonly<Record<string, string>>
 }
 
 export type ResolvedUiCall = {
