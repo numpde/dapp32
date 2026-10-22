@@ -296,6 +296,9 @@ button:focus-visible,
   background: transparent;
 }
 
+.action-button { text-align: start; }
+.action-effect { display: block; font-size: 0.75em; font-weight: 400; margin-block-start: 2px; }
+
 .button-quiet:not(:disabled):hover {
   text-decoration: underline;
 }

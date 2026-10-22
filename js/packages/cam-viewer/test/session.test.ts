@@ -375,6 +375,7 @@ test("Bike screen links navigate without a wallet and start registration with a 
     assert.ok(snapshot.resolvedUi)
     const button = resolvedUiButtons(snapshot.resolvedUi).find(button => button.props.label === label)
     assert.ok(button, `screen offers ${label}`)
+    assert.equal(session.actionKind(button), "navigate")
     const result = await session.dispatchAction(button)
     assert.equal(result.type, "navigated", "screen links must not prepare a transaction")
     assert.equal(session.snapshot().route, route)

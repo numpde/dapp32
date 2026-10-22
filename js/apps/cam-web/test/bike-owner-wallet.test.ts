@@ -29,6 +29,7 @@ test("Bike handover review and rejected-wallet retry preserve the record collect
   const snapshot = session.updateState({ to: BUYER })
   const action = resolvedUiButtons(snapshot.resolvedUi).find(button => button.call.function === "transferComponent")
   assert.ok(action, "published Bike owner screen must expose handover review")
+  assert.equal(session.actionKind(action), "contractCall", "the manifest identifies handover as transaction preparation")
   const prepared = await session.dispatchAction(action)
   assert.equal(prepared.type, "contractCall")
   if (prepared.type !== "contractCall") assert.fail("handover must prepare a contract call")

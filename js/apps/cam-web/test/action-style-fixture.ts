@@ -36,7 +36,7 @@ function render(): void {
     { element: "Status", props: { label: "Timestamp", value: "100", format: "timestampSeconds" }, formattedValue: "1970-01-01 00:01:40 UTC (100 Unix seconds)", children: [] },
     { element: "Status", props: { label: "After actions", value: "After" }, children: [] },
   ] } }
-  const props = { snapshot, viewRef: null, changingView: busy, sending,
+  const props = { snapshot, actionKind: fixtureActionKind, viewRef: null, changingView: busy, sending,
     onBack: async () => { events.back++ }, onRefresh: async () => { events.refresh++ },
     onAction: async (action: ResolvedButtonNode) => { const kind = fixtureActionKind(action); events[kind]++; if (kind === "contractCall") prepared = true; render() },
     onInput: (_name: string, value: string) => { draft = value; render() }, onAmount: () => {}, onInteger: () => {}, onDuration: () => {}, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },

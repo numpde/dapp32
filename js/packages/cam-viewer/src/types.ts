@@ -65,6 +65,7 @@ export type CamViewerDocumentHashOperation = {
 }
 
 export type CamViewerSession = {
+  readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
   readonly beginDocumentHash: (name: string, source: "url" | "file") => CamViewerDocumentHashOperation
   readonly cancelDocumentHash: (name: string) => CamViewerLoadedSnapshot
   readonly snapshot: () => CamViewerSnapshot
@@ -83,6 +84,8 @@ export type CamViewerSession = {
   readonly editInteger: (name: string, text: string, options?: { readonly composing?: boolean }) => CamViewerLoadedSnapshot
   readonly dispatchAction: (action: ResolvedButtonNode) => Promise<CamViewerActionResult>
 }
+
+export type CamViewerActionKind = "navigate" | "contractCall" | "unsupported"
 
 export type CamViewerActionResult =
   | { readonly type: "navigated"; readonly snapshot: CamViewerLoadedSnapshot }

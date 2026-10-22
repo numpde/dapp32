@@ -701,6 +701,7 @@ export function App(): ReactElement {
       {loadState.status === "ready" ? (
         <UiView
           snapshot={loadState.snapshot}
+          actionKind={loadState.runtime.session.actionKind}
           viewRef={viewRef}
           changingView={changingView || walletRefreshing || !walletAccountSynchronized}
           sending={sending}

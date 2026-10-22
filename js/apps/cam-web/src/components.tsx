@@ -15,6 +15,7 @@ import type {
   ResolvedUiNode,
 } from "@cam/screen"
 import type {
+  CamViewerActionKind,
   CamViewerLoadedSnapshot,
   CamViewerPreparedContractCall,
   CamViewerDocumentHashStatus,
@@ -68,6 +69,7 @@ export function ConnectionSummary({
 
 export function UiView({
   snapshot,
+  actionKind,
   viewRef,
   changingView,
   sending,
@@ -82,6 +84,7 @@ export function UiView({
   onCancelDocumentHash,
 }: {
   readonly snapshot: CamViewerLoadedSnapshot
+  readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
   readonly viewRef: Ref<HTMLElement>
   readonly changingView: boolean
   readonly sending: boolean
@@ -111,7 +114,7 @@ export function UiView({
         </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -164,6 +167,7 @@ export function PreparedCallView({
 
 function UiNodeView({
   node,
+  actionKind,
   scopeKey,
   state,
   documentHashes,
@@ -176,6 +180,7 @@ function UiNodeView({
   onCancelDocumentHash,
 }: {
   readonly node: ResolvedUiNode
+  readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
   readonly scopeKey: string
   readonly state: Record<string, InertValue>
   readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
@@ -193,7 +198,7 @@ function UiNodeView({
       return (
         <>
           {node.children.map((child, index) => (
-            <UiNodeView key={index} scopeKey={scopeKey} node={child} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+            <UiNodeView key={index} scopeKey={scopeKey} node={child} actionKind={actionKind} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
           ))}
         </>
       )
@@ -235,10 +240,14 @@ function UiNodeView({
       return <NftView key={JSON.stringify([scopeKey, node.props])} contractAddress={stringProp(node.props, "contractAddress")} tokenId={formatInertValue(node.props.tokenId)} metadataURI={node.props.metadataURI === undefined ? undefined : stringProp(node.props, "metadataURI")} />
     case "Button": {
       const label = displayText(stringProp(node.props, "label"))
+      const kind = actionKind(node)
+      const effect = kind === "navigate" ? "Read only" : kind === "contractCall" ? "Review transaction" : "Unknown route"
       return (
         <button
-          className="action-button"
+          className={`action-button${kind === "navigate" ? " button-quiet" : ""}`}
+          data-action-kind={kind}
           aria-label={label}
+          aria-description={effect}
           type="button"
           disabled={node.disabled === true}
           onClick={() => {
@@ -246,6 +255,7 @@ function UiNodeView({
           }}
         >
           {label}
+          <span className="action-effect" aria-hidden="true">{effect}{kind === "navigate" ? " →" : ""}</span>
         </button>
       )
     }

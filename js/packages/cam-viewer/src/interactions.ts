@@ -15,6 +15,14 @@ import type {
 } from "@cam/screen"
 
 import { CamViewerError } from "./errors.ts"
+import type { CamViewerActionKind } from "./types.ts"
+
+export function renderedActionKind(cam: CamDocument, action: ResolvedButtonNode): CamViewerActionKind {
+  if (action.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Button) return "unsupported"
+  const route = cam.routes[action.call.function]
+  if (route === undefined) return "unsupported"
+  return route.kind === "read" ? "navigate" : "contractCall"
+}
 
 export type RenderedActionInterpretation =
   | {
@@ -34,25 +42,12 @@ export function interpretRenderedAction(cam: CamDocument, action: ResolvedButton
   }
 
   const route = action.call.function
-  const camRoute = cam.routes[route]
-  if (camRoute === undefined) {
+  const kind = renderedActionKind(cam, action)
+  if (kind === "unsupported") {
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
   }
 
-  switch (camRoute.kind) {
-    case "read":
-      return {
-        type: "navigate",
-        route,
-        inputs: action.call.args,
-      }
-    case "write":
-      return {
-        type: "contractCall",
-        route,
-        inputs: action.call.args,
-      }
-  }
+  return { type: kind, route, inputs: action.call.args }
 }
 
 export function assertActionIsRendered(resolvedUi: ResolvedUiNode, action: ResolvedButtonNode): void {

@@ -1,5 +1,6 @@
 export type {
   CamViewerActionResult,
+  CamViewerActionKind,
   CamViewerDocumentHashStatus,
   CamViewerDocumentHashOperation,
   CamViewerLoadedSnapshot,

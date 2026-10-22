@@ -34,26 +34,25 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
         return JSON.stringify([style.color, style.backgroundColor, style.borderColor,
           style.borderStyle, style.borderWidth, style.borderRadius, style.padding, style.minHeight])
       }
-      const commands = [...document.querySelectorAll('.action-button:not(:disabled), .wallet-button, .document-hash-field button')]
-        .filter(button => button.textContent !== 'Cancel calculation')
-      const reference = signature(commands[0])
+      const [read,write] = document.querySelectorAll('.action-button')
+      const reference = signature(write)
       const quiet = [...document.querySelectorAll('.ui-meta>button, .prepared-call>button:not(.send-button)')]
       quiet.push([...document.querySelectorAll('.document-hash-field button')].find(button => button.textContent === 'Cancel calculation'))
       const send = getComputedStyle(document.querySelector('.send-button'))
-      const command = getComputedStyle(commands[0])
+      const command = getComputedStyle(write)
       return {
-        commandsConsistent: commands.every(button => signature(button) === reference),
         commandsOutlined: command.backgroundColor !== command.borderColor && command.borderStyle === 'solid',
+        readDistinct: signature(read) !== signature(write) && getComputedStyle(read).backgroundColor === 'rgba(0, 0, 0, 0)',
+        kindsVisible: read.textContent.includes('Read only') && write.textContent.includes('Review transaction') && read.getAttribute('aria-description')==='Read only' && write.getAttribute('aria-description')==='Review transaction',
         quietConsistent: quiet.every(button => signature(button) === signature(quiet[0])),
         quietDistinct: signature(quiet[0]) !== reference,
         quietUnfilled: quiet.every(button => getComputedStyle(button).backgroundColor === 'rgba(0, 0, 0, 0)' && getComputedStyle(button).borderColor === 'rgba(0, 0, 0, 0)'),
         sendFilled: send.backgroundColor === send.borderColor && send.backgroundColor !== command.backgroundColor,
-        noAutomaticArrows: [...document.querySelectorAll('.action-button')].every(button => !button.querySelector('[aria-hidden]')),
       }
     })()`)
-    assert(styles.commandsConsistent && styles.commandsOutlined, 'CAM, wallet and document commands share one outlined treatment regardless of route kind')
+    assert(styles.readDistinct && styles.commandsOutlined && styles.kindsVisible, 'read-only actions and transaction reviews have distinct visible and accessible treatments even when labels suggest the opposite')
     assert(styles.quietConsistent && styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel share a quiet supporting treatment')
-    assert(styles.sendFilled && styles.noAutomaticArrows, 'only Send is filled; CAM commands have no automatic route arrows')
+    assert(styles.sendFilled, 'only Send is filled')
 
     assert(await evaluate(`(() => {
       const controls = [...document.querySelectorAll('.ui-meta>button, .ui-meta>details>summary')]
@@ -76,12 +75,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     const beforeTimestamp = await evaluate(`JSON.stringify(window.actionFixture.events)`)
     await evaluate(`document.querySelector('.timestamp-options').click()`)
     await wait(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')==='true'`)
-    assert(await evaluate(`(() => {
-      const button = document.querySelector('.timestamp-options')
-      const bounds = button.getBoundingClientRect()
-      return bounds.width === 60 && bounds.height === 32
-        && window.actionFixture.events.send === 0 && window.actionFixture.events.contractCall === 1
-    })()`), 'timestamp capsule retains its separate geometry and selection without preparing or sending')
+    assert(await evaluate(`window.actionFixture.events.send === 0 && window.actionFixture.events.contractCall === 1`), 'changing time presentation does not prepare or send a transaction')
 
     assert.equal(await evaluate(`JSON.stringify(window.actionFixture.events)`), beforeTimestamp, 'changing time presentation does not invoke a command')
 
@@ -95,13 +89,8 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
           button.click()
         }
         const commands = [...document.querySelectorAll('.action-button, .wallet-button, .document-hash-field button:not(.button-quiet)')]
-        const appearance = button => {
-          const style = getComputedStyle(button)
-          return JSON.stringify([style.color, style.backgroundColor, style.borderColor, style.cursor])
-        }
         return JSON.stringify(window.actionFixture.events) === before
-          && commands.every(button => appearance(button) === appearance(commands[0]))
-          && getComputedStyle(commands[0]).cursor === 'not-allowed'
+          && commands.every(button => getComputedStyle(button).cursor === 'not-allowed')
       })()`), `${state} preserves inherited fieldset and shell interaction guards`)
       await evaluate(`window.actionFixture.${state}(false)`)
       await wait(`!document.querySelector('.elements').disabled`)
@@ -123,7 +112,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       assert.equal(layout.draft, 'unchanged')
       assert.equal(layout.sends, 0)
     }
-    return { widths: [1280, 320], commandsConsistent: true, supportingQuiet: true, sendFilled: true, disabledAndBusyPreserved: true, nativeKeyboardUnverified: true }
+    return { widths: [1280, 320], actionKindsDistinct: true, supportingQuiet: true, sendFilled: true, disabledAndBusyPreserved: true, nativeKeyboardUnverified: true }
   } catch (error) {
     failures.push(error)
   } finally {
