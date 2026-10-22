@@ -25,15 +25,7 @@
     <div class="shell">
       <a class="brand" href="../">dapp32</a>
       <div class="topbar-actions">
-        <nav aria-label="Primary">
-          <a href="../">Overview</a>
-          <a href="../escrow/">Escrow</a>
-          <a href="../authoring/">Authoring</a>
-          <a href="#workflow">Workflow</a>
-          <a href="#authority">Authority</a>
-          <a href="#cam">CAM routes</a>
-          <a href="#boundaries">Boundaries</a>
-        </nav>
+        <nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployment/">Deployment</a></nav>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
           <span class="theme-sun" aria-hidden="true">☀</span>
           <span class="theme-moon" aria-hidden="true">☾</span>
@@ -74,14 +66,14 @@
           </div>
           <div class="status-row">
             <span>Owner actions</span>
-            <strong>metadata, report, retire</strong>
+            <strong>metadata, reports, service state, workshop access</strong>
           </div>
           <div class="chips" aria-label="Visible workflow actions">
             <span class="chip">look up</span>
             <span class="chip">register</span>
             <span class="chip">update URI</span>
             <span class="chip">report missing</span>
-            <span class="chip">retire</span>
+            <span class="chip">take out of service</span>
           </div>
         </div>
       </aside>
@@ -124,8 +116,8 @@
           <p>The owner or a scoped delegate updates metadata, opens a missing report, or resolves it.</p>
         </article>
         <article class="flow-step">
-          <strong>4. Finalize</strong>
-          <p>The owner or a delegate with retirement capability can retire an active component. Resolve an open missing report first; retirement remains final even if the NFT later transfers.</p>
+          <strong>4. Change service state or ownership</strong>
+          <p>Only the owner can take the component out of service or reactivate it. Missing reports remain attached. An ownership handover transfers the NFT directly and permanently invalidates previous workshop grants.</p>
         </article>
       </div>
     </section>
@@ -209,21 +201,13 @@ make bike-nft/local/demo/gui/up</code></pre>
         <article class="card">
           <h3>Owner authority</h3>
           <p>
-            Current ERC-721 owners can update metadata while active or missing, open a report while active, resolve it while missing, and retire only an active component. The
-            manager contract also supports scoped delegation. V1 CAM uses active
-            delegations to expose delegate-authorized actions, but does not
-            expose a grant/revoke workflow.
+            Current ERC-721 owners can update metadata, manage missing reports, take components out of service or reactivate them, manage expiring workshop permissions, and transfer the NFT directly. Service state does not erase or block missing reports.
           </p>
         </article>
         <article class="card">
           <h3>Scoped delegates</h3>
           <p>
-            Delegates receive explicit capabilities with an expiry. Delegations
-            only work while the grantor is the current token owner and the grant
-            has not expired. A transfer to another owner disables those permissions;
-            they can become effective again if ownership returns before expiry. Grant and
-            revoke calls remain contract-level operations because capability and
-            expiry inputs need a lower-error UI than V1 provides.
+            Owners grant workshops selected update capabilities with an expiry and can revoke them in the app. These grants do not authorize NFT transfers or changes to service state. A change of owner invalidates old grants permanently, including if the token returns to that owner.
           </p>
         </article>
         <article class="card">
@@ -257,70 +241,21 @@ make bike-nft/local/demo/gui/up</code></pre>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td><code>entry</code></td>
-              <td>read</td>
-              <td><code>viewEntry(account)</code></td>
-              <td><code>ui.app(view=$outputs.0)</code></td>
-              <td>Initial lookup screen and registration availability.</td>
-            </tr>
-            <tr>
-              <td><code>component</code></td>
-              <td>read</td>
-              <td><code>viewComponent(serialNumber, account)</code></td>
-              <td><code>ui.app(view=$outputs.0)</code></td>
-              <td>Component lookup, owner view, current status, token URI, and available actions.</td>
-            </tr>
-            <tr>
-              <td><code>register</code></td>
-              <td>read</td>
-              <td><code>viewRegister(serialNumber, account)</code></td>
-              <td><code>ui.app(view=$outputs.0)</code></td>
-              <td>Registration readiness for a serial number.</td>
-            </tr>
-            <tr>
-              <td><code>registerComponent</code></td>
-              <td>write</td>
-              <td><code>registerComponent(owner, serialNumber, tokenURI_)</code></td>
-              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
-              <td>Registrar supplies an explicit owner, mints the component NFT, and creates the verified record.</td>
-            </tr>
-            <tr>
-              <td><code>setAccountInfo</code></td>
-              <td>write</td>
-              <td><code>setAccountInfo(infoURI)</code></td>
-              <td><code>routes.entry()</code></td>
-              <td>The connected account publishes or clears its own account metadata URI.</td>
-            </tr>
-            <tr>
-              <td><code>updateComponentMetadata</code></td>
-              <td>write</td>
-              <td><code>setComponentMetadata(serialNumber, tokenURI_)</code></td>
-              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
-              <td>Owner or delegate updates the component token URI.</td>
-            </tr>
-            <tr>
-              <td><code>markComponentMissing</code></td>
-              <td>write</td>
-              <td><code>markComponentMissing(serialNumber, reportURI)</code></td>
-              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
-              <td>Owner or delegate reports the component missing with an external report URI.</td>
-            </tr>
-            <tr>
-              <td><code>clearComponentMissing</code></td>
-              <td>write</td>
-              <td><code>clearComponentMissing(serialNumber, resolutionURI)</code></td>
-              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
-              <td>Owner or delegate restores the component to active status with an external resolution URI.</td>
-            </tr>
-            <tr>
-              <td><code>retireComponent</code></td>
-              <td>write</td>
-              <td><code>retireComponent(serialNumber)</code></td>
-              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
-              <td>Owner or retirement delegate retires an active record. Resolve a missing report first.</td>
-            </tr>
-          </tbody>
+<tr><td><code>entry</code></td><td>read</td><td><code>viewEntry(account)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Look up a component or edit the viewed account’s profile.</td></tr>
+<tr><td><code>component</code></td><td>read</td><td><code>viewComponent(serialNumber, account)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Read one component and its available actions.</td></tr>
+<tr><td><code>register</code></td><td>read</td><td><code>viewRegister(serialNumber, account)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Check whether a serial can be registered.</td></tr>
+<tr><td><code>registerComponent</code></td><td>write</td><td><code>registerComponent(owner, serialNumber, tokenURI_)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Mint the component NFT and register its serial.</td></tr>
+<tr><td><code>setAccountInfo</code></td><td>write</td><td><code>setAccountInfo(infoURI)</code></td><td><code>routes.entry()</code></td><td>Set the sending account’s public information URI.</td></tr>
+<tr><td><code>updateComponentMetadata</code></td><td>write</td><td><code>setComponentMetadata(serialNumber, tokenURI_)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Update the component NFT’s metadata URI.</td></tr>
+<tr><td><code>markComponentMissing</code></td><td>write</td><td><code>markComponentMissing(serialNumber, reportURI)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Open a missing report with its published URI.</td></tr>
+<tr><td><code>clearComponentMissing</code></td><td>write</td><td><code>clearComponentMissing(serialNumber, resolutionURI)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Resolve the missing report with a resolution URI.</td></tr>
+<tr><td><code>decommissionComponent</code></td><td>write</td><td><code>decommissionComponent(serialNumber)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner takes the component out of service without erasing missing reports.</td></tr>
+<tr><td><code>reactivateComponent</code></td><td>write</td><td><code>reactivateComponent(serialNumber)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner returns an out-of-service component to service.</td></tr>
+<tr><td><code>delegation</code></td><td>read</td><td><code>viewDelegation(serialNumber, delegate, account, duration)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Inspect a workshop grant and preview its expiry.</td></tr>
+<tr><td><code>setComponentDelegate</code></td><td>write</td><td><code>setComponentDelegate(serialNumber, delegate, capabilities, validUntil)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner grants expiring, scoped workshop permissions.</td></tr>
+<tr><td><code>revokeComponentDelegate</code></td><td>write</td><td><code>revokeComponentDelegate(serialNumber, delegate)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner revokes workshop permissions.</td></tr>
+<tr><td><code>transferComponent</code></td><td>write</td><td><code>safeTransferFrom(address,address,uint256)(from, to, tokenId)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner transfers the NFT directly to its recipient.</td></tr>
+</tbody>
         </table>
       </div>
     </section>
@@ -355,7 +290,7 @@ make bike-nft/local/demo/gui/up</code></pre>
         </article>
       </div>
     </section>
-  </main>
+  <section id="deployment" class="narrow"><h2>Deploy your own instance</h2><p>This is an example app guide. Use the <a href="../deployment/bike-nft/">app deployment guide</a> for its contract settings, authority handoffs and verification, and the <a href="../deployment/">shared deployment guide</a> for the release workflow. Deployment selects your chain and publication; this page supplies no running public instance.</p></section></main>
 
   <script>
     (function () {

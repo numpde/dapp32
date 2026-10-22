@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy Pay-to-Play · dapp32</title><meta name="description" content="Instance settings, contract authority and acceptance checks for the Pay-to-Play example app."><link rel="stylesheet" href="../../site.css"><script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("dapp32-theme")
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute("data-theme")
+      }
+    })()
+  </script></head><body><a class="skip-link" href="#main">Skip to content</a><div class="topbar home-topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployment/">Deployment</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
+        <span class="theme-sun" aria-hidden="true">☀</span>
+        <span class="theme-moon" aria-hidden="true">☾</span>
+      </button></div></div><header class="shell document-header"><h1>Deploy Pay-to-Play</h1><p class="lede">Instance settings, contract authority and acceptance checks for the Pay-to-Play example app.</p></header><main id="main" class="shell document"><p><a href="../../pay-to-play/">Example app guide</a> · <a href="../#deploy-to-the-selected-chain">Shared setup, deployment and verification</a></p><p>This page defines the app-specific inputs and checks. Use the shared guide for source snapshots, protected configuration, approval, records and cleanup. Example addresses and paths below are placeholders; your saved configuration selects the actual instance.</p><article class="narrow deployment-guide"><h2 id="deploy-a-release">Deploy a release</h2>
+<p>Use <code>make pay-to-play/release/deploy</code> to deploy one CAM host and one native-asset PayToPlay contract to a selected chain. The script binds the payment contract in the CAM host. It creates only reserved channel 0; service channels are created later by the payment admin.</p>
+<p>Use the shared walkthrough to collect every setting once and save one complete configuration, including the RPC URL, deployer key and deployment confirmation:</p>
+<pre><code>make pay-to-play/release/setup CONFIG=/absolute/private/pay-to-play.json
+make pay-to-play/release/deploy CONFIG=/absolute/private/pay-to-play.json</code></pre>
+<p>For a local test deployment, first run <code>make network/local/up</code>, then choose <code>local</code> in setup. Run the same deploy and verify commands afterward; the network stays running until <code>make network/local/down</code>. Use <code>make network/local/info</code> to show connection details, and <code>make network/local/status</code> to see container state and health, including stopped services. Local setup supplies the funded public <code>ba</code> test key, local RPC/CAM URLs and chain 31338.</p>
+<p>The local manifest URI is <code>http://release-cam:8080/pay-to-play/main.json</code> (HTTP). It is reachable only inside the Docker network. No ports are published to your host, so your browser cannot open it. This flow supports container-based deployment and verification; browser or wallet testing needs separate network exposure. See the <a href="https://numpde.github.io/dapp32/deployment/#start-a-local-network-then-deploy-manually">local network flow</a>.</p>
+<p>When setup asks for an output directory, choose a new off-repo path such as <code>/tmp/local-release</code>, with an existing parent. Deployment creates it and saves plans, transaction records and contract addresses there. Keep it: verification reads its <code>artifact/deployment.json</code>. The <code>CONFIG</code> file holds the deployment inputs and is separate from these output records.</p>
+<p>The <code>CONFIG</code> file must be new and outside the checkout, with an existing parent and no symlink path components. Setup creates it with mode <code>0600</code>; loading requires that mode and your ownership. It pins the source commit and has no dependency on the RPC catalog or other credential files. Review all inputs before saving. The <a href="https://numpde.github.io/dapp32/deployment/#deploy-to-the-selected-chain">shared release walkthrough</a> also serves Escrow and Bike NFT. The manual environment interface is described below.</p>
+<p>For a public deployment, publish the checked-out <code>cam/</code> bundle at an immutable HTTPS location, or pin it in content-addressed storage. Keep its relative ABI, UI and protocol paths available. Validate the local files against the intended publication URI first:</p>
+<pre><code>make pay-to-play/cam/publication/preflight CAM_URI=https://example.org/releases/COMMIT/pay-to-play/main.json</code></pre>
+<p>This validates local bytes; it does not upload files or test the public server. Check that the published bytes match, and that the server permits browser reads with CORS when using the web viewer. The current web viewer requires HTTP(S) resource transport; an IPFS publication needs an explicit supported gateway path.</p>
+<p>Prepare the funded deployer's key and HTTPS RPC URL in separate, owner-only files outside the checkout. Select a clean committed source revision and install its locked dependencies with <code>make dapps/deps/install</code> and <code>make js/deps/install</code>. Replace the example addresses, paths and publication URI below:</p>
+<pre><code>RPC_URL_FILE=/absolute/private/rpc-url \
+DEPLOYER_PRIVATE_KEY_FILE=/absolute/private/deployer-key \
+PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID=84532 \
+PAY_TO_PLAY_RELEASE_CAM_URI=https://example.org/releases/COMMIT/pay-to-play/main.json \
+PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER=0x1111111111111111111111111111111111111111 \
+PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN=0x2222222222222222222222222222222222222222 \
+PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD=86400 \
+PAY_TO_PLAY_RELEASE_OUTPUT_DIR=/absolute/new/pay-to-play-release \
+CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES \
+make pay-to-play/release/deploy</code></pre>
+<p>The chain number above selects Base Sepolia, a public testnet with its own gas tokens. Use the chain you intend to deploy to. Both owner addresses must be nonzero; they may differ or be the same account. The CAM owner can replace the manifest and contract binding. The payment admin can create service channels and change their payees. Neither authority comes from the wallet currently viewing CAM.</p>
+<p><code>PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD</code> is the fixed withdrawal wait for reserved channel 0, in seconds from 0 through 2,592,000 (30 days). Zero means there is no wait on that channel. Service channels get their own fixed waits when the admin creates them.</p>
+<p>The command saves <code>plan/release-plan.json</code>, the Forge broadcast under <code>broadcast/</code>, and <code>artifact/deployment.json</code>. If an intended owner differs from the deployer, deployment starts a two-step ownership transfer on that contract. Using their own transaction client, the CAM owner calls <code>acceptOwnership()</code> on the saved <code>camRoot</code> address, and the payment admin calls it on <code>payToPlay</code>. These are separate transactions. They are unnecessary for an authority that already equals the deployer.</p>
+<p>Until each transfer is accepted, the deployer remains that contract's owner.</p>
+<p>After the transfers are accepted, run:</p>
+<pre><code>make pay-to-play/release/verify CONFIG=/absolute/private/pay-to-play.json</code></pre>
+<p>For a deployment made with individual environment inputs, use:</p>
+<pre><code>RPC_URL_FILE=/absolute/private/rpc-url \
+PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE=/absolute/new/pay-to-play-release/artifact/deployment.json \
+make pay-to-play/release/verify</code></pre>
+<p>Verification requires the same clean source commit. It submits no transactions. It checks creation receipts and deployer identity, the CAM digest and binding, both accepted ownership transfers, runtime hashes, reserved-channel settings and the EIP-712 signing domain. PayToPlay embeds its own address in runtime code, so source verification checks its actual creation-transaction input against the compiled creation code and constructor arguments. Creating and funding ordinary channels afterward does not invalidate these checks.</p>
+<p>The release artifact is <code>pay-to-play.deployment.v1</code>; its transaction hashes and creation-input hash are evidence for these checks, not a replacement for them. Run <code>make pay-to-play/release/check</code> for offline tool tests. Shared snapshot, credential, output and failure handling are documented in the <a href="https://numpde.github.io/dapp32/deployment/">release ceremony</a>. Explorer source publication is a separate step.</p></article></main><script>
+    (function () {
+      var key = "dapp32-theme"
+      var button = document.getElementById("theme-toggle")
+      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+      if (!button) return
+
+      function storedTheme() {
+        try {
+          var value = localStorage.getItem(key)
+          return value === "light" || value === "dark" ? value : null
+        } catch (error) {
+          return null
+        }
+      }
+
+      function applyTheme(value) {
+        document.documentElement.dataset.theme = value
+        try {
+          localStorage.setItem(key, value)
+        } catch (error) {
+          return
+        }
+      }
+
+      function effectiveTheme() {
+        return storedTheme() || (systemTheme.matches ? "dark" : "light")
+      }
+
+      function updateButton() {
+        var currentTheme = effectiveTheme()
+        var nextTheme = currentTheme === "dark" ? "light" : "dark"
+        button.dataset.themeState = currentTheme
+        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
+        button.setAttribute("title", "Switch to " + nextTheme + " mode")
+      }
+
+      button.addEventListener("click", function () {
+        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
+        updateButton()
+      })
+
+      systemTheme.addEventListener("change", function () {
+        if (!storedTheme()) updateButton()
+      })
+
+      updateButton()
+    })()
+  </script></body></html>

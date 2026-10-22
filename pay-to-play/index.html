@@ -12,7 +12,7 @@
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell">
 <a class="brand" href="../">dapp32</a>
-<nav aria-label="Primary"><a href="../">Overview</a><a href="../bike-nft/">Bike NFT</a><a href="../escrow/">Escrow</a><a href="../authoring/">Authoring</a><a href="../reference/cam/">Reference</a></nav>
+<nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployment/">Deployment</a></nav>
 </div></div>
 <main id="main" class="shell">
 <p>Published from the <a href="https://github.com/numpde/dapp32/blob/c69a6cde010075a479ad1defbc6f8acdf0897922/dapps/pay-to-play/README.md">canonical source guide at c69a6cd</a>. This page documents a local workflow; it does not host the app.</p>
@@ -159,7 +159,7 @@
 <p>Recovery events are <code>PositionRenewed</code>, <code>PositionClosing</code>, <code>ChannelClosing</code>, <code>RefundRecipientChanged</code> and <code>Refunded</code>, in addition to payment/withdrawal/key and ownership events. Ordinary zero/no-op calls may emit no event. Phase changes caused only by time emit no event: monitor deadlines as well as event streams.</p>
 <p>A service must maintain durable purchase IDs, cumulative authorization and outstanding accepted-but-uncollected value. With balance B, withdrawal request R, actual paid P and greatest accepted total A, a conservative admission check for additional work x is <code>max(A-P,0) + x &lt;= max(B-R,0)</code>. Count outstanding promises, not just the new purchase. This is service policy, not an onchain reservation: collection can use the actual balance B, including funds under a withdrawal request, and it can race withdrawals or other collections. Stop accepting new work when settling; collect accepted claims before the applicable deadline, accounting for already-pending ordinary withdrawals, confirmations, inclusion delay and recipient failures. An enabled UI control or a signed voucher alone is not a backing reservation.</p>
 <h3 id="compatibility">Deployment compatibility</h3>
-<p>These contracts are not upgradeable. Existing deployments retain their old code and policy. Deploy a new PayToPlay contract and bind it to a matching CAM publication; changing only the ABI or manifest does not change deployed code. Use ABI and UI resources exported for the exact deployed contract, including its Channel and PositionView tuple layouts. The voucher domain is PayToPlay/1; its verifying-contract address separates deployments. There is no automatic balance, voucher or key migration.</p>
+<p>These contracts are not upgradeable. Existing deployments retain their old code and policy. Deploy a new PayToPlay contract and bind it to a matching CAM publication; changing only the ABI or manifest does not change deployed code. Use ABI and UI resources exported for the exact deployed contract, including its Channel and PositionView tuple layouts. The voucher domain is PayToPlay/2; its verifying-contract address separates deployments. There is no automatic balance, voucher or key migration.</p>
 </section>
 
 <section id="local">
@@ -197,4 +197,4 @@ make cam/conformance/check</pre>
 <p>Compiler-exported ABI comparison must match the checked-in tuple layouts and resources before publishing a deployment. Local fixture success establishes local behavior, not a production deployment or delivered API service.</p>
 </section>
 </article>
-</main></body></html>
+<section id="deployment" class="narrow"><h2>Deploy your own instance</h2><p>This is an example app guide. Use the <a href="../deployment/pay-to-play/">app deployment guide</a> for its contract settings, authority handoffs and verification, and the <a href="../deployment/">shared deployment guide</a> for the release workflow. Deployment selects your chain and publication; this page supplies no running public instance.</p></section></main></body></html>

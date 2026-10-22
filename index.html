@@ -24,11 +24,7 @@
   <div class="topbar home-topbar">
     <div class="shell">
       <a class="brand" href="./">dapp32</a>
-      <nav aria-label="Primary">
-        <a href="authoring/">Authoring</a>
-        <a href="reference/cam/">CAM reference</a>
-        <a href="https://github.com/numpde/dapp32/tree/main">Source</a>
-      </nav>
+      <nav aria-label="Primary"><a href="./authoring/">Authoring</a><a href="./reference/cam/">CAM reference</a><a href="./examples/">Example apps</a><a href="./deployment/">Deployment</a></nav>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
         <span class="theme-sun" aria-hidden="true">☀</span>
         <span class="theme-moon" aria-hidden="true">☾</span>
@@ -51,7 +47,7 @@
           whole custom frontend.
         </p>
         <div class="actions">
-          <a class="button primary" href="#apps">App guides</a>
+          <a class="button primary" href="examples/">Example apps</a>
           <a class="button" href="#try">Run locally</a>
         </div>
       </div>
@@ -92,10 +88,10 @@
     </div>
   </header>
 
-  <main id="main" class="shell">
+  <main id="main" class="shell"><section id="documentation"><h2>Framework, examples, deployments</h2><p>This GitHub Pages site hosts documentation. A running viewer and a deployment of an example app are separate.</p><div class="grid"><article class="card"><h3>dapp32 and its viewer</h3><p>Reusable CAM interpretation, TypeScript packages and a generic graphical viewer. <a href="authoring/">Author a workflow</a> or read the <a href="reference/cam/">CAM reference</a>.</p></article><article class="card"><h3><a href="examples/">Example apps</a></h3><p>Bike NFT, Escrow and Pay-to-Play supply their own contracts and workflows. Their guides explain app behavior and local demos.</p></article><article class="card"><h3><a href="deployment/">Deploy an instance</a></h3><p>An operator selects the chain, exact CAM publication and authorities, then deploys and verifies contract addresses. This is separate from hosting the viewer.</p></article></div></section>
     <section id="apps" aria-labelledby="apps-heading">
-      <h2 id="apps-heading">App guides</h2>
-      <p>Choose a guide to understand an app and run its local demo. These pages are instructions, not hosted apps.</p>
+      <h2 id="apps-heading">Example apps</h2>
+      <p>These apps supply contracts and CAM bundles that exercise the generic dapp32 viewer. Each guide explains its workflow and local demo; use Deployment to create your own instance.</p>
       <div class="grid">
         <article class="card">
           <h3><a href="bike-nft/">Bike NFT</a></h3>
@@ -227,7 +223,7 @@ make bike-nft/local/demo/gui/up
       </div>
     </section>
 
-    <section id="roadmap" class="narrow"><h2>Build on the current model</h2><p>Bike NFT, Escrow and Pay-to-Play use <a href="reference/cam/1.2.0/">CAM 1.2.0 and UI 1.0.0</a>. Read the <a href="authoring/">authoring guide</a> to connect a host, manifest, ABI resources, routes, and a declarative UI.</p><p>Start with the existing examples and validation lanes. A manifest describes the workflow; the onchain contracts enforce permissions, amounts, and deadlines.</p></section>
+    <section id="roadmap" class="narrow"><h2>Build on the current model</h2><p>Each example manifest declares its format version; use the matching <a href="reference/cam/">CAM reference</a>. Read the <a href="authoring/">authoring guide</a> to connect a host, manifest, ABI resources, routes, and a declarative UI.</p><p>Start with the existing examples and validation lanes. A manifest describes the workflow; the onchain contracts enforce permissions, amounts, and deadlines.</p></section>
 
     <section id="related" class="narrow"><h2>Related specifications and projects</h2><p>Primary references for readers comparing resource discovery, wallet interfaces, signatures, and app distribution:</p><ul><li><a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript / ERC-5169</a></li>
 <li><a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 <code>web3://</code></a></li>

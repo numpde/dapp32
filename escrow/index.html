@@ -24,12 +24,7 @@
 <div class="topbar">
 <div class="shell">
 <a class="brand" href="../">dapp32</a>
-<nav aria-label="Primary">
-<a href="../">Overview</a>
-<a href="../bike-nft/">Bike NFT</a>
-<a href="../authoring/">Authoring</a>
-<a href="#try">Try locally</a>
-</nav>
+<nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployment/">Deployment</a></nav>
 </div>
 </div>
 <header>
@@ -38,7 +33,7 @@
 <p class="lede">A client locks a native-asset payment for one contractor milestone. The contractor accepts and submits work; the client approves or disputes it. An arbitrator can decide a dispute. Deadlines provide a fallback when a party does not act.</p>
 <div class="actions">
 <a class="button primary" href="#try">Try the local workflow</a>
-<a class="button" href="https://github.com/numpde/dapp32/tree/main/dapps/escrow">Source and release guide</a>
+<a class="button" href="https://github.com/numpde/dapp32/tree/main/dapps/escrow">Source</a>
 </div>
 </div>
 </header>
@@ -155,8 +150,8 @@ make escrow/local/demo/gui/up</code>
 <h2>Trust and publication boundaries</h2>
 <p>
 <code>CamEscrow</code> is immutable and has no owner, pause, fee, sweep, upgrade, or recovery path. Its read-only <code>CamEscrowUI</code> maps core-provided actions into stable route names. <code>CamRoot</code> has an owner who can change the CAM pointer and address bindings; integrity pins protect byte identity.</p>
-<p>For public-network planning and verification, use the source <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md">release guide</a> and <a href="https://github.com/numpde/dapp32/blob/main/docs/release-ceremony.md">release ceremony</a>.</p>
+<p>For public-network planning and verification, use the <a href="../deployment/escrow/">Escrow deployment guide</a> and <a href="../deployment/">shared release workflow</a>.</p>
 </section>
-</main>
+<section id="deployment" class="narrow"><h2>Deploy your own instance</h2><p>This is an example app guide. Use the <a href="../deployment/escrow/">app deployment guide</a> for its contract settings, authority handoffs and verification, and the <a href="../deployment/">shared deployment guide</a> for the release workflow. Deployment selects your chain and publication; this page supplies no running public instance.</p></section></main>
 </body>
 </html>

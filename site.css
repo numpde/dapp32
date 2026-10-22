@@ -436,3 +436,14 @@ code {overflow-wrap:anywhere}pre code {overflow-wrap:normal}
   .home-topbar nav {grid-column:1/-1;grid-row:2;justify-self:start}
   .home-topbar .theme-toggle {grid-column:2;grid-row:1}
 }
+
+.document > .deployment-guide { margin-top: 40px; }
+.deployment-guide h2 { margin-top: 40px; }
+.deployment-guide h3 { margin-top: 28px; }
+.deployment-guide pre { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.deployment-guide li { margin-block: 6px; }
+.document-header { padding-block: 28px; }
+.document-header h1 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1.12; }
+.document-header .lede { margin-top: 12px; }
+.document { padding-top: 24px; }
+.document > section:first-child { margin-top: 0; }

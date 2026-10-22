@@ -24,12 +24,7 @@
 <div class="topbar">
 <div class="shell">
 <a class="brand" href="../">dapp32</a>
-<nav aria-label="Primary">
-<a href="../">Overview</a>
-<a href="../bike-nft/">Bike NFT</a>
-<a href="../escrow/">Escrow</a>
-<a href="#examples">Examples</a>
-</nav>
+<nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployment/">Deployment</a></nav>
 </div>
 </div>
 <header>
@@ -171,7 +166,7 @@
 <code>{
   "requires": ["view"],
   "element": "Button",
-  "props": { "label": "Review agreement creation" },
+  "props": { "label": "Create agreement" },
   "call": {
     "namespace": "routes",
     "function": "createAgreement",
@@ -238,7 +233,7 @@ make tests/checks</code>
 </pre>
 <p>
 <code>make cam/abi/export</code> exports manifest-declared ABIs and refreshes local integrity pins. For UI-only resource edits, <code>make cam/integrity/refresh</code> refreshes pins without ABI export. Inspect generated changes. When starting from the escrow bundle, run <code>make dapps/tests/unit-scenario</code> for repository checks and Forge unit and scenario tests, <code>make js/tests</code> for the TypeScript workspace, and <code>make escrow/local/scenario/run</code> for its nine local settlement paths and withdrawal. New dapps need checks for their own contract and workflow behavior. Conformance validates deterministic publication joins and resource integrity; it does not prove live authorization, RPC reliability, wallet behavior, or security.</p>
-<p>The existing <a href="https://github.com/numpde/dapp32/blob/main/dapps/bike-nft/README.md#release-deployment">Bike NFT release guide</a> documents its separate release commands and role handoffs. For the existing escrow app, <code>make escrow/release/deploy</code> plans and deploys a release only with its required explicit confirmation, chain, publication, owner, secret-file, and output settings; <code>make escrow/release/verify</code> verifies that recorded release. Use the complete commands and prerequisite publication steps in <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md#release-deployment">escrow's release guide</a> and the shared <a href="https://github.com/numpde/dapp32/blob/main/docs/release-ceremony.md">release ceremony</a>. They own root-hash calculation and address binding; replace no required settings with guesses. New dapps need their own deliberate deployment wiring. Viewers validate contract-returned manifests, resources, URLs, and actions as untrusted input.</p>
+<p>The existing <a href="https://github.com/numpde/dapp32/blob/main/dapps/bike-nft/README.md#release-deployment">Bike NFT release guide</a> documents its separate release commands and role handoffs. For the existing escrow app, <code>make escrow/release/deploy</code> plans and deploys a release only with its required explicit confirmation, chain, publication, owner, secret-file, and output settings; <code>make escrow/release/verify</code> verifies that recorded release. Use the complete commands and prerequisite publication steps in <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md#release-deployment">escrow's release guide</a> and the shared <a href="https://numpde.github.io/dapp32/deployment/">release ceremony</a>. They own root-hash calculation and address binding; replace no required settings with guesses. New dapps need their own deliberate deployment wiring. Viewers validate contract-returned manifests, resources, URLs, and actions as untrusted input.</p>
 </section>
 <section class="narrow">
 <h2>Open and inspect a workflow</h2>

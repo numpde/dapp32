@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy Escrow · dapp32</title><meta name="description" content="Instance settings, contract authority and acceptance checks for the Escrow example app."><link rel="stylesheet" href="../../site.css"><script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("dapp32-theme")
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute("data-theme")
+      }
+    })()
+  </script></head><body><a class="skip-link" href="#main">Skip to content</a><div class="topbar home-topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployment/">Deployment</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
+        <span class="theme-sun" aria-hidden="true">☀</span>
+        <span class="theme-moon" aria-hidden="true">☾</span>
+      </button></div></div><header class="shell document-header"><h1>Deploy Escrow</h1><p class="lede">Instance settings, contract authority and acceptance checks for the Escrow example app.</p></header><main id="main" class="shell document"><p><a href="../../escrow/">Example app guide</a> · <a href="../#deploy-to-the-selected-chain">Shared setup, deployment and verification</a></p><p>This page defines the app-specific inputs and checks. Use the shared guide for source snapshots, protected configuration, approval, records and cleanup. Example addresses and paths below are placeholders; your saved configuration selects the actual instance.</p><article class="narrow deployment-guide"><h2 id="release-deployment">Release deployment</h2>
+<p>For guided setup, run <code>make escrow/release/setup CONFIG=/absolute/private/escrow.json</code>, then <code>make escrow/release/deploy CONFIG=/absolute/private/escrow.json</code>. The <a href="https://numpde.github.io/dapp32/deployment/#deploy-to-the-selected-chain">shared walkthrough</a> saves every app input, concrete RPC URL, signing key and deployment confirmation in one protected off-repo file. Use the same <code>CONFIG</code> for release verification.</p>
+<p>A release deployment is deliberately separate from the local fixture. It has no default chain and accepts no local fixture chain ID. The offline planning step validates the complete checked-in CAM bundle and computes the exact-byte SHA-256 root digest stored in <code>CamRoot</code>.</p>
+<p>Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in <a href="https://numpde.github.io/dapp32/deployment/">the release ceremony guide</a>.</p>
+<p>For the first public rehearsal, prepare Ethereum Sepolia (<code>11155111</code>) but do not conflate it with the local Anvil workflow. Anvil is a disposable process on the operator's machine; Sepolia is a persistent public test network with externally funded accounts, provider RPC, public CAM hosting, wallet interaction, explorer records, and an explicit finality decision.</p>
+<p>Publish the exact checked-in CAM bytes and their declared protocol/ABI/UI resources at the chosen URI before deployment. The release planner binds the URI and checked-in root hash; it does not fetch the remote publication. Viewers will reject the publication if the bytes served there do not match the hash stored in <code>CamRoot</code>.</p>
+<p>Prepare the RPC and deployer-key files:</p>
+<pre><code>umask 077
+printf '%s\n' 'https://rpc.example.invalid' &gt; /secure/escrow-rpc-url
+printf '%s\n' '0x&lt;32-byte-deployer-private-key&gt;' &gt; /secure/escrow-deployer-key</code></pre>
+<p>Run the release only from the exact clean commit intended for publication:</p>
+<pre><code>CONFIRM_ESCROW_RELEASE_DEPLOY=YES \
+ESCROW_RELEASE_EXPECTED_CHAIN_ID=&lt;chain-id&gt; \
+ESCROW_RELEASE_CAM_URI=https://published.example/escrow/cam/main.json \
+ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER=0x&lt;intended-root-owner&gt; \
+RPC_URL_FILE=/secure/escrow-rpc-url \
+DEPLOYER_PRIVATE_KEY_FILE=/secure/escrow-deployer-key \
+ESCROW_RELEASE_OUTPUT_DIR=/secure/releases/escrow-&lt;chain&gt;-&lt;version&gt; \
+make escrow/release/deploy</code></pre>
+<p>The target writes:</p>
+<pre><code>plan/release-plan.json
+broadcast/DeployEscrowRelease.s.sol/&lt;chain-id&gt;/run-latest.json
+artifact/deployment.json</code></pre>
+<p>The <code>escrow.release-plan.v2</code> and <code>escrow.deployment.v2</code> schemas identify SHA-256 manifest commitments; older v1 artifacts retain their Keccak meaning and are rejected by these lanes.</p>
+<p><code>plan/release-plan.json</code> binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended <code>CamRoot</code> owner. <code>artifact/deployment.json</code> records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, and intended <code>CamRoot</code> owner. It also records whether an ownership transfer was required and whether that account owned <code>CamRoot</code> with no transfer pending when the artifact was created.</p>
+<p>The deployed <code>CamEscrow</code> and <code>CamEscrowUI</code> are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. <code>CamRoot</code> remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, deployment starts an <code>Ownable2Step</code> transfer. The intended owner must review the addresses and artifact, then call <code>acceptOwnership()</code> independently. Do not treat the release as accepted while <code>pendingOwner()</code> is nonzero.</p>
+<h2 id="release-verification">Release verification</h2>
+<p>Run verification from the same exact clean source commit recorded in <code>deployment.json</code>:</p>
+<pre><code>RPC_URL_FILE=/secure/escrow-rpc-url \
+ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-&lt;chain&gt;-&lt;version&gt;/artifact/deployment.json \
+make escrow/release/verify</code></pre>
+<p>The verifier checks:</p>
+<ul>
+<li>current chain ID and source commit;</li>
+<li>nonzero deployed code at all three addresses;</li>
+<li>exact runtime bytecode against contracts compiled from the current source tree;</li>
+<li>artifact code hashes;</li>
+<li>CAM URI and nonzero publication-derived CAM hash;</li>
+<li>final <code>CamRoot</code> ownership with no pending owner;</li>
+<li>exact <code>CamEscrow</code> and <code>CamEscrowUI</code> root bindings;</li>
+<li>the projection's immutable escrow address;</li>
+<li>ERC-165 interfaces;</li>
+<li><code>totalLiabilities() &lt;= address(CamEscrow).balance</code>.</li>
+</ul>
+<p>A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original <code>deployment.json</code> remains an immutable record of the post-deployment observation; it is not rewritten after ownership acceptance.</p>
+<h2 id="operational-monitoring">Operational monitoring</h2>
+<p>Protect the final <code>CamRoot</code> owner as release authority; operationally, use an appropriately controlled account rather than the deployer hot key. Monitor:</p>
+<ul>
+<li><code>OwnershipTransferStarted</code> and <code>OwnershipTransferred</code> on <code>CamRoot</code>;</li>
+<li><code>CamUpdated</code> and <code>ContractAddressSet</code> on <code>CamRoot</code>;</li>
+<li><code>AgreementCreated</code>, <code>AgreementStateChanged</code>, and <code>Withdrawal</code> on <code>CamEscrow</code>;</li>
+<li><code>totalLiabilities()</code> against the escrow balance;</li>
+<li>active deadlines that require a public timeout transaction;</li>
+<li>arbitrator availability for disputed agreements.</li>
+</ul>
+<p>No component automatically executes timeouts. The arbitrator is selected by each client and never acknowledges participation on-chain.</p></article></main><script>
+    (function () {
+      var key = "dapp32-theme"
+      var button = document.getElementById("theme-toggle")
+      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+      if (!button) return
+
+      function storedTheme() {
+        try {
+          var value = localStorage.getItem(key)
+          return value === "light" || value === "dark" ? value : null
+        } catch (error) {
+          return null
+        }
+      }
+
+      function applyTheme(value) {
+        document.documentElement.dataset.theme = value
+        try {
+          localStorage.setItem(key, value)
+        } catch (error) {
+          return
+        }
+      }
+
+      function effectiveTheme() {
+        return storedTheme() || (systemTheme.matches ? "dark" : "light")
+      }
+
+      function updateButton() {
+        var currentTheme = effectiveTheme()
+        var nextTheme = currentTheme === "dark" ? "light" : "dark"
+        button.dataset.themeState = currentTheme
+        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
+        button.setAttribute("title", "Switch to " + nextTheme + " mode")
+      }
+
+      button.addEventListener("click", function () {
+        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
+        updateButton()
+      })
+
+      systemTheme.addEventListener("change", function () {
+        if (!storedTheme()) updateButton()
+      })
+
+      updateButton()
+    })()
+  </script></body></html>
