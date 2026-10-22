@@ -866,7 +866,7 @@ try {
     assert.equal(await field('amount.display'), '', 'explicit new agreement retained the old display amount')
   })
 
-  // The same valid CAM JSON with one extra byte must fail its onchain hash.
+  // Changed bytes remain usable, with the mismatched onchain hash disclosed.
   assert.deepEqual(exceptions, [], 'unhandled exceptions during ordinary workflows')
   assert.deepEqual(consoleErrors, [], 'console errors during ordinary workflows')
   assert.deepEqual(transactionRequests, [], 'ordinary workflows sent a transaction')
@@ -874,11 +874,8 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: cam.href, requestStage: 'Request' }] }, sessionId)
   intercept = 'tamper'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  await waitFor(state => state.text.includes('Cannot load app'), 'CAM hash rejection', false)
-  await evaluate(`document.querySelector('.error summary').click()`)
-  const tampered = await waitFor(state => /CAM hash mismatch/i.test(state.text), 'CAM hash diagnostic', false)
-  assert.notEqual(tampered.heading, 'Create and fund an escrow agreement', 'tampered CAM rendered as ready')
-  assert(/CAM hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
+  const tampered = await waitFor(state => /File hash mismatch/i.test(state.text) && state.heading === 'Create and fund an escrow agreement', 'CAM hash warning with rendered UI', false)
+  assert(/File hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
 
   // A failed fetch must leave Loading and identify the URL and cause.
   intercept = 'fail'

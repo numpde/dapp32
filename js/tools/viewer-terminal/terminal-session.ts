@@ -5,6 +5,7 @@ import type {
   CamViewerSession,
   CamViewerSnapshot,
 } from "../../packages/cam-viewer/dist/index.js"
+import { viewerErrorMessage } from "../../packages/cam-viewer/dist/index.js"
 import {
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
@@ -214,6 +215,13 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
 
 function render(snapshot: CamViewerSnapshot): void {
   output.write("\n")
+  if (snapshot.integrityWarnings !== undefined) {
+    for (const warning of snapshot.integrityWarnings) {
+      output.write(`${warning.status === "mismatch" ? "WARNING: file hash mismatch" : "Notice: no verification hash (zero)"}: ${formatValue(viewerErrorMessage(warning.uri))}\n`)
+      output.write(`expected: ${formatValue(warning.expectedHash)}\ndownloaded: ${formatValue(warning.actualHash)}\n`)
+    }
+  }
+  if (snapshot.integrityWarnings !== undefined && snapshot.integrityWarnings.length > 0) output.write("UI displayed without confirmed integrity. Matching other file hashes does not authenticate an unverified CAM manifest.\n")
   output.write(`route: ${formatValue(loadedText(snapshot.route))}\n`)
   output.write(`ui: ${formatValue(presentText(snapshot.uiURI))}\n`)
 
@@ -337,6 +345,7 @@ function printState(snapshot: CamViewerSnapshot): void {
     uiURI: snapshot.uiURI,
     account: snapshot.account,
     inputs: snapshot.inputs,
+    integrityWarnings: snapshot.integrityWarnings?.map(warning => ({ ...warning, uri: viewerErrorMessage(warning.uri) })),
     state,
   }, jsonReplacer, 2)}\n`)
 }

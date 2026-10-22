@@ -38,6 +38,7 @@ import { createInjectedWalletBinding } from "./wallet-binding.ts"
 import { actionFailure, failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
+import { IntegrityWarnings } from "./integrity-warnings.tsx"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
   assertHostHasCode,
@@ -667,6 +668,7 @@ export function App(): ReactElement {
         />
       )}
 
+      {loadState.status === "ready" ? <IntegrityWarnings warnings={loadState.snapshot.integrityWarnings} /> : null}
       {notice === undefined ? null : (
         <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}

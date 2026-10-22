@@ -1,5 +1,6 @@
 export type {
   CamHost,
+  CamIntegrityWarning,
   CamContractCall,
   CamPublicClient,
   CamSimulationClient,

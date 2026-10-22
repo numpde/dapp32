@@ -15,6 +15,21 @@ test("formatValue bounds human terminal display text", () => {
   assert.equal(formatDisplayText(long), `${"x".repeat(2_000)}...`)
 })
 
+test("terminal shows integrity warnings beside usable UI without exposing URI credentials", () => {
+  const output = statusTerminalOutput([], "Usable app", undefined, undefined, undefined, {
+    integrityWarnings: [
+      { status: "mismatch", uri: "https://example.test/main.json?token=secret-value", expectedHash: `0x${"1".repeat(64)}`, actualHash: `0x${"2".repeat(64)}` },
+      { status: "unverified", uri: "https://example.test/ui.json", expectedHash: `0x${"0".repeat(64)}`, actualHash: `0x${"3".repeat(64)}` },
+    ],
+  })
+  assert.match(output, /WARNING: file hash mismatch/)
+  assert.match(output, /Notice: no verification hash/)
+  assert.match(output, /Usable app/)
+  assert.match(output, /expected: 0x1{64}/)
+  assert.match(output, /downloaded: 0x2{64}/)
+  assert.doesNotMatch(output, /secret-value/)
+})
+
 test("terminal display escapes C0/DEL before enforcing its output bound", () => {
   const controls = "\u001b[2J\r\n\t\u0000\u007f"
   assert.equal(formatDisplayText(controls), "\\u001b[2J\\u000d\\u000a\\u0009\\u0000\\u007f")
@@ -309,9 +324,10 @@ function statusTerminalOutput(
   commands?: string,
   rejectAction?: boolean,
   preparedCall?: CamViewerPreparedContractCall,
-  snapshotOverrides?: Partial<Pick<CamViewerLoadedSnapshot, "route" | "uiURI" | "state">>,
+  snapshotOverrides?: Partial<Pick<CamViewerLoadedSnapshot, "route" | "uiURI" | "state" | "integrityWarnings">>,
 ): string {
   const snapshot: CamViewerLoadedSnapshot = {
+    integrityWarnings: [],
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
     ...snapshotOverrides,
     documentHashes: {},

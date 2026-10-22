@@ -12,7 +12,7 @@ import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamResourceIntegrity } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
-import type { CamHost, CamPublicClient, ResolvedCamContract, ResourceLoader } from "./types.ts"
+import type { CamHost, CamIntegrityWarning, CamPublicClient, ResolvedCamContract, ResourceLoader } from "./types.ts"
 
 export async function resolveCamContracts({
   publicClient,
@@ -20,6 +20,7 @@ export async function resolveCamContracts({
   camURI,
   cam,
   loadResource,
+  onIntegrityWarning,
 }: ResolveCamContractsOptions): Promise<Record<string, ResolvedCamContract>> {
   await assertClientChain(publicClient, host)
 
@@ -34,6 +35,7 @@ export async function resolveCamContracts({
         abiURI: contract.abiURI,
         integrity: contract.integrity,
         loadResource,
+        ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning }),
       }),
     ] as const),
   )
@@ -69,6 +71,7 @@ async function resolveContract({
   abiURI: relativeAbiURI,
   integrity,
   loadResource,
+  onIntegrityWarning,
 }: {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
@@ -77,6 +80,7 @@ async function resolveContract({
   readonly abiURI: string
   readonly integrity: string
   readonly loadResource: ResourceLoader
+  readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
 }): Promise<ResolvedCamContract> {
   let address: unknown
   try {
@@ -110,6 +114,7 @@ async function resolveContract({
     bytes: abiBytes,
     integrity,
     uri: abiURI,
+    ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning }),
   })
 
   return {
@@ -124,4 +129,5 @@ type ResolveCamContractsOptions = {
   readonly camURI: string
   readonly cam: CamDocument
   readonly loadResource: ResourceLoader
+  readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
 }

@@ -48,7 +48,7 @@ let route = "fixture"
 let account: `0x${string}` = "0x0000000000000000000000000000000000000001"
 let busy = false
 function render(): void {
-  const snapshot: CamViewerLoadedSnapshot = { canGoBack: false, route, inputs: {}, account: { address: account }, state: { tokenURI, locked: publishedURI }, values: [], uiURI: "fixture", documentHashes: {}, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { integrityWarnings: [], canGoBack: false, route, inputs: {}, account: { address: account }, state: { tokenURI, locked: publishedURI }, values: [], uiURI: "fixture", documentHashes: {}, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Nft", props: { contractAddress: account, tokenId: "7", metadataURI: viewerURI }, children: [] },
     { element: "NftMetadataField", props: { label: "Token metadata" }, state: { key: "tokenURI" }, children: [] },
     { element: "NftMetadataField", props: { label: "Locked metadata" }, state: { key: "locked" }, disabled: true, children: [] },

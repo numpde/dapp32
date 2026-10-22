@@ -13,6 +13,7 @@ export async function loadCamFromHost({
   publicClient,
   host,
   loadResource,
+  onIntegrityWarning,
 }: LoadCamFromHostOptions): Promise<LoadedCam> {
   await assertClientChain(publicClient, host)
   await assertCamHostInterface(publicClient, host.address)
@@ -48,6 +49,7 @@ export async function loadCamFromHost({
   verifyCamHash({
     bytes: camBytes,
     expectedHash: camHash,
+    ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning: warning => onIntegrityWarning({ ...warning, uri: camURI }) }),
   })
 
   let camJson: unknown
@@ -63,7 +65,7 @@ export async function loadCamFromHost({
     protocolURI,
     `failed to load CAM protocol resource: ${protocolURI}`,
   )
-  verifyCamResourceIntegrity({ bytes: protocolBytes, integrity: cam.protocol.integrity, uri: protocolURI })
+  verifyCamResourceIntegrity({ bytes: protocolBytes, integrity: cam.protocol.integrity, uri: protocolURI, ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning }) })
 
   return {
     camURI,

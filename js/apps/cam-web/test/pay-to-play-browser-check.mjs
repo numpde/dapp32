@@ -371,15 +371,13 @@ try {
   await wait(state => state.values['Current balance (wei)'] === '0', 'fully refunded balance')
   assert.equal(await publicClient.getBalance({ address: accounts.recipient.address }), recipientBefore + 40n, 'refund follows the owner-chosen recipient')
   disabled(await evaluate(snapshot), 'Refund full balance')
-  phase = 'cold-start integrity rejection'
+  phase = 'cold-start integrity warning'
   const beforeTamper = sent
   tamper = true
   await call('Fetch.enable', { patterns: [{ urlPattern: camURI.href, requestStage: 'Request' }] })
   await call('Page.navigate', { url: viewer.href })
-  await wait(state => state.text.includes('Cannot load app') && !state.buttons.some(button => button.name === 'Deposit'), 'tampered manifest rejection')
-  await evaluate(`document.querySelector('.error summary').click()`)
-  await wait(state => /CAM hash mismatch/i.test(state.text), 'tampered manifest diagnostic')
-  assert.equal(sent, beforeTamper, 'integrity rejection must never submit a transaction')
+  await wait(state => /File hash mismatch/i.test(state.text) && state.buttons.some(button => button.name === 'Deposit'), 'tampered manifest warning with rendered UI')
+  assert.equal(sent, beforeTamper, 'displaying an integrity warning must never submit a transaction')
   process.stdout.write(`${JSON.stringify({ event: 'ok', test: 'pay-to-play browser E2E', transactions: sent, widths: [1280, 320], fixtureChain: 31337 })}\n`)
 } catch (error) {
   const details = browserFixtureFailureDetails(error)

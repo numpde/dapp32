@@ -27,10 +27,18 @@ export type CamHost = {
 
 export type ResourceLoader = (uri: string) => Promise<Uint8Array>
 
+export type CamIntegrityWarning = {
+  readonly status: "mismatch" | "unverified"
+  readonly uri: string
+  readonly expectedHash: string
+  readonly actualHash: string
+}
+
 export type LoadCamFromHostOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
+  readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
 }
 
 export type LoadedCam = {
@@ -41,12 +49,14 @@ export type LoadedCam = {
 export type VerifyCamHashOptions = {
   readonly bytes: Uint8Array
   readonly expectedHash: Hex
+  readonly onIntegrityWarning?: (warning: Omit<CamIntegrityWarning, "uri">) => void
 }
 
 export type VerifyCamResourceIntegrityOptions = {
   readonly bytes: Uint8Array
   readonly integrity: string
   readonly uri: string
+  readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
 }
 
 export type ResolvedCamContract = {

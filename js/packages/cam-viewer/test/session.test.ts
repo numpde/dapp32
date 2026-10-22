@@ -9,6 +9,7 @@ import { forEachResolvedUiNode, resolvedUiButtons, UiError, type ResolvedAmountF
 
 import {
   createCamViewerSession,
+  viewerErrorMessage,
 } from "../src/index.ts"
 import { CamViewerError } from "../src/errors.ts"
 import type {
@@ -64,6 +65,83 @@ const BIKE_RESOLUTION_URI = "fixture://bike-nft/reports/session-recovered.json"
 const BIKE_ACCOUNT_INFO_URI = "fixture://bike-nft/accounts/session-owner.json"
 const BIKE_REGISTRATION_TOKEN_URI = "fixture://bike-nft/tokens/session-registration.json"
 const NO_RESOURCE_OVERRIDES = {}
+
+test("viewer renders changed or unpinned CAM resources and retains their integrity warnings", async () => {
+  for (const uri of [camURI, BIKE_PROTOCOL_URI, BIKE_UI_URI, BIKE_MANAGER_ABI_URI]) {
+    const resources = bikeResourceBytes({})
+    const originalHash = fixtureDigest(resources[camURI])
+    resources[uri] = new TextEncoder().encode(`${new TextDecoder().decode(resources[uri])}\n`)
+    const reads: string[] = []
+    const session = createSession(sessionFixtureOptions({
+      publicClient: createPublicClient(publicClientFixtureOptions({ camHash: originalHash })),
+      loadResource: async resourceURI => { reads.push(resourceURI); return resources[resourceURI] },
+    }))
+    const loaded = await session.load()
+    assert.ok(loaded.resolvedUi)
+    const warnings = loaded.integrityWarnings
+    assert.equal(warnings.length, 1)
+    assert.equal(warnings[0].status, "mismatch")
+    assert.equal(warnings[0].uri, uri)
+    assert.notEqual(warnings[0].expectedHash, warnings[0].actualHash)
+    assert.equal(reads.filter(value => value === uri).length, 1)
+    assert.deepEqual((await session.refresh()).integrityWarnings, warnings)
+    assert.deepEqual((await session.load()).integrityWarnings, warnings)
+  }
+  const session = createSession(sessionFixtureOptions({
+    publicClient: createPublicClient(publicClientFixtureOptions({ camHash: BIKE_ZERO_BYTES32 })),
+  }))
+  const loaded = await session.load()
+  assert.ok(loaded.resolvedUi)
+  assert.deepEqual(loaded.integrityWarnings.map(warning => warning.status), ["unverified"])
+})
+
+test("zero resource hashes warn while malformed hashes and JSON still fail at their boundaries", async () => {
+  for (const resource of ["protocol", "ui", "contracts.BicycleComponentManager"] as const) {
+    for (const integrity of [`sha256:${BIKE_ZERO_BYTES32}`, "sha256:not-a-digest"]) {
+      const resources = bikeResourceBytes({})
+      const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+      const declaration = resource === "protocol" ? mutableRecord(cam.protocol) : mutableRecord(mutableRecord(cam.namespaces)[resource])
+      declaration.integrity = integrity
+      resources[camURI] = encodeJson(cam)
+      const session = createSession(sessionFixtureOptions({
+        publicClient: createPublicClient(publicClientFixtureOptions({ camHash: fixtureDigest(resources[camURI]) })),
+        loadResource: createResourceLoader(resources),
+      }))
+      if (integrity.endsWith(BIKE_ZERO_BYTES32)) {
+        const loaded = await session.load()
+        assert.ok(loaded.resolvedUi)
+        assert.deepEqual(loaded.integrityWarnings.map(warning => warning.status), ["unverified"])
+      } else {
+        await assert.rejects(() => session.load(), error => /integrity|digest/i.test(viewerErrorMessage(error)))
+        assert.equal(session.snapshot().resolvedUi, undefined)
+      }
+    }
+  }
+  for (const uri of [camURI, BIKE_UI_URI, BIKE_MANAGER_ABI_URI]) {
+    const resources = bikeResourceBytes({ [uri]: new TextEncoder().encode("{") })
+    const session = createSession(sessionFixtureOptions({ loadResource: createResourceLoader(resources) }))
+    await assert.rejects(() => session.load())
+    assert.equal(session.snapshot().integrityWarnings, undefined)
+  }
+})
+
+test("integrity warnings follow the committed load and are isolated from failed reloads and snapshot edits", async () => {
+  const resources = bikeResourceBytes({})
+  const session = createSession(sessionFixtureOptions({ loadResource: createResourceLoader(resources) }))
+  assert.deepEqual((await session.load()).integrityWarnings, [])
+  const original = resources[camURI]
+  resources[camURI] = new TextEncoder().encode(`${new TextDecoder().decode(original)}\n`)
+  const warned = await session.load()
+  assert.equal(warned.integrityWarnings.length, 1)
+  const originalURI = warned.integrityWarnings[0].uri
+  mutableRecord(warned.integrityWarnings[0]).uri = "modified snapshot"
+  assert.equal(session.snapshot().integrityWarnings?.[0].uri, originalURI)
+  resources[camURI] = new TextEncoder().encode("{")
+  await assert.rejects(() => session.load())
+  assert.equal(session.snapshot().integrityWarnings?.[0].uri, originalURI)
+  resources[camURI] = original
+  assert.deepEqual((await session.load()).integrityWarnings, [])
+})
 
 test("bike availability keeps component writes and their fields visible across authority and lifecycle changes", async () => {
   // These scenarios explicitly opt into independent inactivity. Require the
@@ -313,7 +391,7 @@ test("bike fixture covers unpaused fixture projection cases", () => {
 })
 
 for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as const) {
-  test(`CAM 1.3 verifies the ${protocolCase} protocol resource before bindings, ABIs and UI`, async () => {
+  test(`CAM 1.3 checks the ${protocolCase} protocol resource before bindings, ABIs and UI`, async () => {
     const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
     const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
     const protocolBytes = new Uint8Array(readFileSync(new URL("../../../../dapps/escrow/cam/protocol.html", import.meta.url)))
@@ -345,15 +423,17 @@ for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as cons
       },
     })
     const discoveryRequests = ["supportsInterface", "camManifest", camURI, BIKE_PROTOCOL_URI]
-    if (protocolCase === "valid") {
-      assert.equal((await session.load()).route, BIKE_ROUTE_ENTRY)
+    if (protocolCase === "valid" || protocolCase === "tampered") {
+      const loaded = await session.load()
+      assert.equal(loaded.route, BIKE_ROUTE_ENTRY)
+      assert.deepEqual(loaded.integrityWarnings.map(warning => warning.status), protocolCase === "tampered" ? ["mismatch"] : [])
       assert.deepEqual(requests.slice(0, discoveryRequests.length), discoveryRequests)
       for (const request of ["contractAddress", BIKE_UI_ABI_URI, BIKE_MANAGER_ABI_URI, BIKE_UI_URI]) {
-        assert.ok(requests.indexOf(request) >= discoveryRequests.length, `${request} must follow verified protocol loading`)
+        assert.ok(requests.indexOf(request) >= discoveryRequests.length, `${request} must follow protocol loading`)
       }
     } else {
       await assert.rejects(() => session.load(), (error) => error instanceof CamEvmError
-        && error.code === (protocolCase === "tampered" ? "CAM_RESOURCE_INTEGRITY_MISMATCH" : "CAM_RESOURCE_LOAD_FAILED"))
+        && error.code === "CAM_RESOURCE_LOAD_FAILED")
       assert.deepEqual(requests, discoveryRequests)
     }
   })

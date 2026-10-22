@@ -3,6 +3,7 @@ import type { CamResolvedInvocation } from "@cam/core"
 import type {
   CamContractCall,
   CamHost,
+  CamIntegrityWarning,
   CamPublicClient,
   ResourceLoader,
 } from "@cam/evm-viem"
@@ -26,6 +27,7 @@ export type CreateCamViewerSessionOptions = {
 }
 
 export type CamViewerSnapshot = {
+  readonly integrityWarnings?: readonly CamIntegrityWarning[]
   readonly canGoBack: boolean
   readonly route?: string
   readonly inputs: InertRecord
@@ -38,7 +40,8 @@ export type CamViewerSnapshot = {
 }
 
 export type CamViewerLoadedSnapshot =
-  Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values" | "documentHashes"> & {
+  Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values" | "documentHashes" | "integrityWarnings"> & {
+    readonly integrityWarnings: readonly CamIntegrityWarning[]
     readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
     readonly route: string
     readonly inputs: InertRecord

@@ -2,7 +2,7 @@
   "cam": "1.3.0",
   "protocol": {
     "uri": "./protocol.html",
-    "integrity": "sha256:0x075f4105c02afcf40b8bd35e8f2d02030655ec1c126907cf56d402d6bd833221"
+    "integrity": "sha256:0x48c572d0023a83e64eabdb0cc9afe388302a8f825529fb4bc36f8534540d2553"
   },
   "entry": "entry",
   "namespaces": {
