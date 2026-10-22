@@ -446,7 +446,7 @@ try {
     await setupDraft(reference('receipt'))
     await installReadFault('receipt')
     await click('Send with wallet')
-    const held = await waitFor(asyncState => owner.sent.length === 1 && asyncState.transaction?.includes('Transaction sent:'), 'submitted transaction')
+    const held = await waitFor(asyncState => owner.sent.length === 1 && asyncState.transaction?.includes('Transaction submitted:'), 'submitted transaction')
     assertFrozen(held)
     await waitFor(state => state.receiptReached, 'held receipt arrival')
     assertFrozen(await evaluate(snapshotExpression))

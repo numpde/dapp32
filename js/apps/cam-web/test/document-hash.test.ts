@@ -3,8 +3,23 @@ import { createHash } from "node:crypto"
 import test from "node:test"
 
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL, DOCUMENT_HASH_MAX_BYTES } from "../src/document-hash.ts"
+import { failureReport } from "../src/errors.ts"
 
 const expected = (bytes: Uint8Array) => `0x${createHash("sha256").update(bytes).digest("hex")}`
+
+test("hash failures retain arbitrary causes behind the readable explanation", async t => {
+  for (const cause of [new TypeError("connection reset"), "connection reset"]) {
+    t.mock.method(globalThis, "fetch", async () => { throw cause })
+    await assert.rejects(calculateDocumentHashFromURL("https://example.test/document", new AbortController().signal), error => {
+      const report = failureReport(error)
+      assert.match(report.message, /Cannot read.*URL/)
+      assert.doesNotMatch(report.message, /connection reset/)
+      assert.match(report.diagnostic!, /connection reset/)
+      assert.equal((error as Error).cause, cause)
+      return true
+    })
+  }
+})
 
 test("local hashing preserves binary bytes and never retrieves or uploads anything", async (t) => {
   const bytes = new Uint8Array([0, 255, 128, 13, 10, 0, 195, 40])

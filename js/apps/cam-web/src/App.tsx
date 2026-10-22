@@ -35,7 +35,9 @@ import {
 } from "./wallet.ts"
 import type { WalletState } from "./wallet.ts"
 import { createInjectedWalletBinding } from "./wallet-binding.ts"
-import { actionErrorMessage, errorMessage } from "./errors.ts"
+import { actionFailure, failureReport, UserFacingError } from "./errors.ts"
+import type { FailureReport } from "./errors.ts"
+import { Feedback } from "./feedback.tsx"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
   assertHostHasCode,
@@ -64,7 +66,7 @@ import {
 type LoadState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerLoadedSnapshot }
-  | { readonly status: "failed"; readonly message: string }
+  | { readonly status: "failed"; readonly failure: FailureReport }
 
 type AppPublicClient = ReturnType<typeof createPublicClient>
 
@@ -74,7 +76,7 @@ type AppRuntime = {
   readonly session: CamViewerSession
 }
 
-type Notice = { readonly message: string; readonly kind: "error" | "status" }
+type Notice = FailureReport & { readonly kind: "error" | "status" }
 type FeedbackArrival = {
   readonly target: "notice" | "prepared" | "view" | "transaction"
   readonly interaction: number
@@ -172,7 +174,7 @@ export function App(): ReactElement {
         if (!cancelled) {
           setLoadState({
             status: "failed",
-            message: errorMessage(error),
+            failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
           })
         }
       }
@@ -214,12 +216,12 @@ export function App(): ReactElement {
         setWalletAccountSynchronized(state.accountSynchronized)
         setWalletChainMatches(state.chainMatches)
         if (!state.chainMatches) {
-          showError(`Wallet network differs from viewer chain ${loadedRuntime.startup.chainId}. Change the network in your wallet, then use Reconnect wallet. The app stays on its configured network.`, false)
+          showError({ message: `Wallet network differs from viewer chain ${loadedRuntime.startup.chainId}. Change the network in your wallet, then use Reconnect wallet. The app stays on its configured network.` }, false)
         } else if (!state.refreshing && state.accountSynchronized) {
           showStatus(state.wallet.status === "connected" ? "Wallet connected." : "Wallet disconnected. The selected account is unchanged.", false)
         }
       },
-      onError: error => showError(`Cannot synchronize the wallet account: ${errorMessage(error)} The selected account is unchanged. Use Reconnect wallet to retry.`, false),
+      onError: error => showError(failureReport(error, "Cannot synchronize the wallet account. The selected account is unchanged. Use Reconnect wallet to retry."), false),
     })
     walletBindingRef.current = binding
     return () => {
@@ -255,7 +257,7 @@ export function App(): ReactElement {
       } catch (error) {
         window.history.replaceState(window.history.state, "", committedUrlRef.current)
         if (!isCurrentInteraction(revision)) return
-        showError(`Cannot open the requested view: ${errorMessage(error)}`, true)
+        showError(failureReport(error, "Cannot open the requested view. The previous view is kept."), true)
       } finally {
         setViewChanging(false)
       }
@@ -298,7 +300,7 @@ export function App(): ReactElement {
       arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return
-      showError(actionErrorMessage(error, action.props.label), true)
+      showError(actionFailure(error, action.props.label), true)
     }
   }
 
@@ -329,7 +331,7 @@ export function App(): ReactElement {
       if (!isCurrentInteraction(revision)) return
       arriveAtFeedback("view")
     } catch (error) {
-      if (isCurrentInteraction(revision)) showError(errorMessage(error), true)
+      if (isCurrentInteraction(revision)) showError(failureReport(error, "Cannot open the previous view."), true)
     } finally {
       setViewChanging(false)
     }
@@ -348,7 +350,7 @@ export function App(): ReactElement {
       if (!isCurrentInteraction(revision)) return
       arriveAtFeedback("view")
     } catch (error) {
-      if (isCurrentInteraction(revision)) showError(errorMessage(error), true)
+      if (isCurrentInteraction(revision)) showError(failureReport(error, "Cannot refresh this view. The displayed values have not been refreshed."), true)
     } finally {
       setViewChanging(false)
     }
@@ -369,7 +371,7 @@ export function App(): ReactElement {
       return
     }
     if (wallet.status !== "connected") {
-      showError("Connect a wallet before sending.", true)
+      showError({ message: "Connect a wallet before sending." }, true)
       return
     }
 
@@ -380,6 +382,7 @@ export function App(): ReactElement {
     const ownsInteraction = () => isCurrentInteraction(interaction)
     const ownsSend = () => isCurrentSend(send)
     let submittedTxHash: `0x${string}` | undefined
+    let reverted = false
 
     // React disables the button after state commit, but a second click can
     // enter this handler before that render. The ref is the synchronous
@@ -401,7 +404,7 @@ export function App(): ReactElement {
       if (txHash === undefined) return
       submittedTxHash = txHash
       if (!ownsSend()) return
-      reportTransaction(`Transaction submitted: ${txHash}`, "status", false)
+      reportTransaction({ message: `Transaction submitted: ${txHash}` }, "status", false)
 
       const nonceGap = await submittedTransactionDiagnosis({
         client: ready.runtime.publicClient,
@@ -417,9 +420,10 @@ export function App(): ReactElement {
       const receipt = await waitForReceipt(ready, txHash)
       if (!ownsSend()) return
       if (receipt.status !== "success") {
+        reverted = true
         throw new Error(`Transaction reverted: ${txHash}`)
       }
-      reportTransaction(`Transaction confirmed in block ${receipt.blockNumber.toString()}. Transaction hash: ${txHash}.`, "status", ownsInteraction())
+      reportTransaction({ message: `Transaction confirmed in block ${receipt.blockNumber.toString()}. Transaction hash: ${txHash}.` }, "status", ownsInteraction())
       if (ownsInteraction()) {
         setPreparedCall(undefined)
       }
@@ -436,22 +440,23 @@ export function App(): ReactElement {
           }
         } catch (error) {
           if (!ownsInteraction() || !ownsSend()) return
-          showError(`The transaction is confirmed, but the view could not be refreshed: ${errorMessage(error)}`, true)
+          showError(failureReport(error, "The transaction is confirmed, but the view could not be refreshed. Refresh the view to check its current values."), true)
         }
       }
     } catch (error) {
       if (!ownsSend() || (submittedTxHash === undefined && !(error instanceof SubmissionOutcomeUnknownError) && !ownsInteraction())) return
       if (submittedTxHash !== undefined) {
-        const message = errorMessage(error)
         if (ownsInteraction()) {
           setPreparedCall(undefined)
         }
-        reportTransaction(message.includes(submittedTxHash) ? message : `${message} Transaction hash: ${submittedTxHash}.`, "error", ownsInteraction())
+        reportTransaction(failureReport(error, reverted
+          ? `Transaction reverted. Transaction hash: ${submittedTxHash}.`
+          : `Transaction submitted, but confirmation could not be checked. Check its status before sending another transaction. Transaction hash: ${submittedTxHash}.`), "error", ownsInteraction())
       } else if (error instanceof SubmissionOutcomeUnknownError) {
         if (ownsInteraction()) setPreparedCall(undefined)
-        reportTransaction(errorMessage(error), "error", ownsInteraction())
+        reportTransaction(failureReport(error, "The transaction may have been sent, but the wallet did not return a transaction hash. Check your wallet before trying again."), "error", ownsInteraction())
       } else {
-        showError(errorMessage(error), true)
+        showError(failureReport(error, "Transaction not sent. The wallet request was rejected or a check before submission failed. Review the details before trying again."), true)
       }
     } finally {
       sendingRef.current = false
@@ -471,7 +476,7 @@ export function App(): ReactElement {
         snapshot: ready.runtime.session.updateState({ [name]: value }),
       })
     } catch (error) {
-      showError(errorMessage(error), true)
+      showError(failureReport(error, "Cannot update this field."), true)
     }
   }
 
@@ -482,7 +487,7 @@ export function App(): ReactElement {
       invalidatePreparedInteraction()
       setLoadState({ ...ready, snapshot: ready.runtime.session.editAmount(name, representation, text, options) })
     } catch (error) {
-      showError(errorMessage(error), true)
+      showError(failureReport(error, "Cannot update this amount."), true)
     }
   }
 
@@ -493,7 +498,7 @@ export function App(): ReactElement {
       invalidatePreparedInteraction()
       setLoadState({ ...ready, snapshot: ready.runtime.session.editDuration(name, part, text, options) })
     } catch (error) {
-      showError(errorMessage(error), true)
+      showError(failureReport(error, "Cannot update this duration."), true)
     }
   }
 
@@ -504,7 +509,7 @@ export function App(): ReactElement {
       invalidatePreparedInteraction()
       setLoadState({ ...ready, snapshot: ready.runtime.session.editInteger(name, text, options) })
     } catch (error) {
-      showError(errorMessage(error), true)
+      showError(failureReport(error, "Cannot update this number."), true)
     }
   }
 
@@ -552,11 +557,11 @@ export function App(): ReactElement {
           setLoadState({ ...ready, snapshot })
         }
       } catch (error) {
-        const snapshot = operation.fail(error instanceof Error ? error.message : "Cannot calculate document digest. Choose a file or enter it manually.")
+        const snapshot = operation.fail(failureReport(error))
         if (snapshot !== undefined) setLoadState({ ...ready, snapshot })
       }
     } catch (error) {
-      showError(errorMessage(error), true)
+      showError(failureReport(error, "Cannot start the document hash calculation."), true)
     }
   }
 
@@ -583,7 +588,7 @@ export function App(): ReactElement {
       if (snapshot.account !== undefined) previousUrl.searchParams.set("account", snapshot.account.address)
       window.history.replaceState(window.history.state, "", previousUrl.href)
       committedUrlRef.current = previousUrl.href
-      showStatus(`View opened, but its URL could not be updated. Refresh will open the previous view. ${errorMessage(error)}`, false)
+      setNotice({ ...failureReport(error, "View opened, but its URL could not be updated. Refresh will open the previous view."), kind: "status" })
     }
   }
 
@@ -591,8 +596,8 @@ export function App(): ReactElement {
     setFeedbackArrival({ target, interaction: interactionRevision.current })
   }
 
-  function showError(message: string, focus: boolean): void {
-    setNotice({ message, kind: "error" })
+  function showError(report: FailureReport, focus: boolean): void {
+    setNotice({ ...report, kind: "error" })
     if (focus) arriveAtFeedback("notice")
   }
 
@@ -601,8 +606,8 @@ export function App(): ReactElement {
     if (focus) arriveAtFeedback("notice")
   }
 
-  function reportTransaction(message: string, kind: Notice["kind"], focus: boolean): void {
-    setTransactionNotice({ message, kind })
+  function reportTransaction(report: FailureReport, kind: Notice["kind"], focus: boolean): void {
+    setTransactionNotice({ ...report, kind })
     if (focus) arriveAtFeedback("transaction")
   }
 
@@ -663,15 +668,11 @@ export function App(): ReactElement {
       )}
 
       {notice === undefined ? null : (
-        <p className="notice" ref={noticeRef} tabIndex={-1} role={notice.kind === "error" ? "alert" : "status"}>
-          {notice.message}
-        </p>
+        <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}
       {transactionNotice === undefined ? null : (
         <section className="transaction-feedback" aria-label="Transaction outcome">
-          <p className="notice" ref={transactionNoticeRef} tabIndex={-1} role={transactionNotice.kind === "error" ? "alert" : "status"}>
-            {transactionNotice.message}
-          </p>
+          <Feedback report={transactionNotice} kind={transactionNotice.kind} className="notice" messageRef={transactionNoticeRef} />
         </section>
       )}
       {preparedCall === undefined ? null : (
@@ -693,7 +694,7 @@ export function App(): ReactElement {
       {loadState.status === "failed" ? (
         <section className="panel error">
           <h2>Cannot load app</h2>
-          <p>{loadState.message}</p>
+          <Feedback report={loadState.failure} kind="error" />
         </section>
       ) : null}
 
@@ -719,7 +720,7 @@ export function App(): ReactElement {
 }
 
 function requireDocumentFile(file: File | undefined): File {
-  if (file === undefined) throw new Error("Choose a file to calculate its SHA-256 digest.")
+  if (file === undefined) throw new UserFacingError("Choose a file to calculate its SHA-256 digest.")
   return file
 }
 

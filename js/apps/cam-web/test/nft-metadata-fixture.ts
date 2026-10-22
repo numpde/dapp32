@@ -15,6 +15,7 @@ const metadata = { name: "Fixture NFT", description: "Prepared independently of 
 let viewerURI = `data:application/json,${encodeURIComponent(JSON.stringify(metadata))}`
 const requests: string[] = []
 const copies: string[] = []
+let copyRejected = false
 const downloads: string[] = []
 const revoked: string[] = []
 const blobs = new Map<string, Blob>()
@@ -32,7 +33,7 @@ window.fetch = async (input, init) => {
   if (uri === "https://nft.fixture.test/image.png") return new Response(png, { headers: { "content-type": "image/png" } })
   return originalFetch(input, init)
 }
-Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { copies.push(text) } } })
+Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { if (copyRejected) throw new Error("Clipboard access denied", { cause: new Error("Permission denied") }); copies.push(text) } } })
 const createURL = URL.createObjectURL.bind(URL)
 const revokeURL = URL.revokeObjectURL.bind(URL)
 URL.createObjectURL = blob => { const uri = createURL(blob); if (blob instanceof Blob) blobs.set(uri, blob); return uri }
@@ -59,6 +60,7 @@ function render(): void {
   }))
 }
 Object.assign(window, { nftFixture: { requests, copies, downloads, revoked, metadata, publishedURI,
+  rejectCopy(value: boolean) { copyRejected = value },
   holdMetadata() { hold = true },
   releaseMetadata() { hold = false; held?.(); held = undefined },
   response(text: string | undefined) { responseText = text },

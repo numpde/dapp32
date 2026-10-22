@@ -1,6 +1,7 @@
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
 import { checkNftMetadata } from './nft-metadata-browser-check.mjs'
+import { checkStartupErrors } from './error-reporting-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
@@ -217,6 +218,7 @@ try {
   phase = 'action presentation fixture'
   await checkActionStyles({ call, evaluate, viewerURL: viewer.href })
   await checkNftMetadata({ call, evaluate, viewerURL: viewer.href })
+  await checkStartupErrors({ call, evaluate, viewerURL: viewer.href })
   phase = 'timestamp display lifecycle fixture'
   await checkTimestampStatus({ call, evaluate, viewerURL: viewer.href })
   await checkFixtureWalletToolbar({ call, evaluate })
@@ -374,7 +376,9 @@ try {
   tamper = true
   await call('Fetch.enable', { patterns: [{ urlPattern: camURI.href, requestStage: 'Request' }] })
   await call('Page.navigate', { url: viewer.href })
-  await wait(state => state.text.includes('Cannot load app') && /CAM hash mismatch/i.test(state.text) && !state.buttons.some(button => button.name === 'Review deposit'), 'tampered manifest rejection')
+  await wait(state => state.text.includes('Cannot load app') && !state.buttons.some(button => button.name === 'Review deposit'), 'tampered manifest rejection')
+  await evaluate(`document.querySelector('.error summary').click()`)
+  await wait(state => /CAM hash mismatch/i.test(state.text), 'tampered manifest diagnostic')
   assert.equal(sent, beforeTamper, 'integrity rejection must never submit a transaction')
   process.stdout.write(`${JSON.stringify({ event: 'ok', test: 'pay-to-play browser E2E', transactions: sent, widths: [1280, 320], fixtureChain: 31337 })}\n`)
 } catch (error) {

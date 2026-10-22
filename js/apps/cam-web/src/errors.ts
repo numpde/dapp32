@@ -1,14 +1,25 @@
 import { viewerErrorMessage } from "@cam/viewer"
 
-export { viewerErrorMessage as errorMessage } from "@cam/viewer"
+export class UserFacingError extends Error {}
 
-const MAX_ERROR_TEXT_LENGTH = 500
+export type FailureReport = { readonly message: string; readonly diagnostic?: string }
 
-export function actionErrorMessage(error: unknown, label: unknown): string {
+export function failureReport(error: unknown, explanation?: string): FailureReport {
   const diagnostic = viewerErrorMessage(error)
-  return typeof label === "string" && isReadableErrorText(label)
-    ? `${boundedErrorText(label.trim())} failed: ${diagnostic}`
-    : diagnostic
+  let primary = explanation
+  if (primary === undefined) {
+    try { if (error instanceof UserFacingError) primary = error.message }
+    catch { /* An untrusted prototype or message accessor cannot replace the diagnostic. */ }
+  }
+  const message = typeof primary === "string" ? viewerErrorMessage(primary) : "Cannot complete this operation."
+  return { message, ...(diagnostic === message ? {} : { diagnostic }) }
+}
+
+export function actionFailure(error: unknown, label: unknown): FailureReport {
+  const explanation = typeof label === "string" && isReadableErrorText(label)
+    ? `${viewerErrorMessage(label.trim())} failed.`
+    : "Cannot complete this action."
+  return failureReport(error, explanation)
 }
 
 function isReadableErrorText(value: string): boolean {
@@ -16,10 +27,4 @@ function isReadableErrorText(value: string): boolean {
   return text.length > 0
     && text !== "[object Object]"
     && !/[\u0000-\u001F\u007F]/u.test(text)
-}
-
-function boundedErrorText(value: string): string {
-  return value.length <= MAX_ERROR_TEXT_LENGTH
-    ? value
-    : `${value.slice(0, MAX_ERROR_TEXT_LENGTH)}...`
 }

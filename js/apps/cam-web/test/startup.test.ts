@@ -1,12 +1,23 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { displayRpcEndpoint, parseStartupOptions, readStartupPolicy, urlForView } from "../src/startup.ts"
+import { displayRpcEndpoint, parseStartupOptions, parseViewFragment, readStartupPolicy, urlForView } from "../src/startup.ts"
 
 const POLICY = {
   resourceOrigin: "https://resources.example.test",
 
 }
+
+test("view-link parsing keeps the parser cause behind its public explanation", () => {
+  for (const fragment of ["#route=home&bad=%zz", "#route=home&inputs=%7Bbad%7D"]) {
+    assert.throws(() => parseViewFragment(fragment), error => {
+      assert(error instanceof Error)
+      assert.match(error.message, /Cannot open view/)
+      assert(error.cause instanceof Error, "the original parser reason remains available to diagnostics")
+      return true
+    })
+  }
+})
 
 test("startup parser rejects duplicate deep-link parameters", () => {
   const url = validStartupUrl()

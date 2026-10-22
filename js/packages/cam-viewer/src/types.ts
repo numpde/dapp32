@@ -49,18 +49,19 @@ export type CamViewerLoadedSnapshot =
   }
 
 export type CamViewerDocumentHashStatus = {
-  readonly status: "pending" | "succeeded" | "failed"
   readonly source: "url" | "file"
   readonly sourceURI?: string
-  readonly message?: string
-}
+} & (
+  | { readonly status: "pending" | "succeeded" }
+  | { readonly status: "failed"; readonly message: string; readonly diagnostic?: string }
+)
 
 export type CamViewerDocumentHashOperation = {
   readonly snapshot: CamViewerLoadedSnapshot
   readonly signal: AbortSignal
   readonly sourceURI?: string
   readonly complete: (digest: string) => CamViewerLoadedSnapshot | undefined
-  readonly fail: (message: string) => CamViewerLoadedSnapshot | undefined
+  readonly fail: (failure: { readonly message: string; readonly diagnostic?: string }) => CamViewerLoadedSnapshot | undefined
 }
 
 export type CamViewerSession = {

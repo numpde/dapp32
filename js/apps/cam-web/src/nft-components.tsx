@@ -2,8 +2,10 @@ import { useCallback, useEffect, useId, useRef, useState } from "react"
 import type { ReactElement } from "react"
 import { isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
-import { errorMessage } from "./errors.ts"
-import { loadNftImage, loadNftMetadata, nftMetadataDataURI, NftResourceError, parseNftMetadata, serializeNftMetadata, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
+import { failureReport } from "./errors.ts"
+import type { FailureReport } from "./errors.ts"
+import { Feedback } from "./feedback.tsx"
+import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, serializeNftMetadata, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type Resource<T> = { readonly status: "idle" | "pending" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown }
 
@@ -35,11 +37,7 @@ function useNftResource<T>() {
 
 function ResourceFeedback({ resource }: { readonly resource: Resource<unknown> }): ReactElement | null {
   if (resource.status === "pending") return <p role="status">Loading…</p>
-  if (resource.status === "failed") {
-    const diagnostic = errorMessage(resource.error)
-    const message = resource.error instanceof NftResourceError ? errorMessage(resource.error.message) : diagnostic
-    return <div className="nft-resource-error"><p className="field-error" role="alert">{message}</p>{diagnostic !== message ? <details><summary>Technical details</summary><code className="nft-source">{diagnostic}</code></details> : null}</div>
-  }
+  if (resource.status === "failed") return <Feedback report={failureReport(resource.error)} kind="error" />
   return null
 }
 
@@ -118,7 +116,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
   const [text, setText] = useState("{}")
   const [appliedURI, setAppliedURI] = useState<string | undefined>(undefined)
-  const [feedback, setFeedback] = useState("")
+  const [feedback, setFeedback] = useState<{ readonly kind: "error" | "status"; readonly report: FailureReport } | undefined>(undefined)
   const [baseURI, setBaseURI] = useState<string | undefined>(undefined)
   const loading = useNftResource<string>()
   const draft = metadataDraft(text)
@@ -133,11 +131,12 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
       setAppliedURI(undefined)
     }
     setText(next)
-    setFeedback("")
+    setFeedback(undefined)
   }
   async function copy(content: string): Promise<void> {
-    try { await navigator.clipboard.writeText(content); setFeedback("Copied.") }
-    catch { setFeedback("Cannot copy to the clipboard. Select and copy the text below.") }
+    setFeedback(undefined)
+    try { await navigator.clipboard.writeText(content); setFeedback({ kind: "status", report: { message: "Copied." } }) }
+    catch (error) { setFeedback({ kind: "error", report: failureReport(error, "Cannot copy to the clipboard. Select and copy the text below.") }) }
   }
   function download(): void {
     if (disabled || "error" in draft) return
@@ -147,7 +146,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
     link.download = "nft-metadata.json"
     link.click()
     setTimeout(() => URL.revokeObjectURL(url), 0)
-    setFeedback("JSON download requested. Host the file, then enter its URI in Hosted JSON.")
+    setFeedback({ kind: "status", report: { message: "JSON download requested. Host the file, then enter its URI in Hosted JSON." } })
   }
   const editor = <>
       <button className="button-quiet" type="button" disabled={value === "" || loading.resource.status === "pending"} onClick={() => { void loading.run(async signal => serializeNftMetadata(await loadNftMetadata(value, signal))).then(json => { if (json !== undefined) { setBaseURI(value); editDraft(json) } }) }}>Load selected metadata</button>
@@ -179,9 +178,9 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
     <section id={`${id}-hosted-panel`} role="tabpanel" aria-labelledby={`${id}-hosted-tab`} hidden={mode !== "hosted"} tabIndex={0}>
       {mode === "hosted" ? <>
         <p className="field-hint">Host the JSON document and enter its location. You can prepare and download the file below.</p>
-        <label className="field"><span>Hosted metadata URI</span><input name={name} value={hostedURI} aria-invalid={hostedIsEmbedded} aria-describedby={hostedIsEmbedded ? `${id}-hosted-error` : undefined} onChange={event => { if (value === hostedURI && event.currentTarget.value !== hostedURI) onInput(name, ""); setHostedURI(event.currentTarget.value); setFeedback("") }} /></label>
+        <label className="field"><span>Hosted metadata URI</span><input name={name} value={hostedURI} aria-invalid={hostedIsEmbedded} aria-describedby={hostedIsEmbedded ? `${id}-hosted-error` : undefined} onChange={event => { if (value === hostedURI && event.currentTarget.value !== hostedURI) onInput(name, ""); setHostedURI(event.currentTarget.value); setFeedback(undefined) }} /></label>
         {hostedIsEmbedded ? <p id={`${id}-hosted-error`} className="field-error" role="alert">This URI contains the document itself. Choose Embed JSON to prepare an embedded document, or enter the location of a hosted JSON file.</p> : null}
-        <button className="button-quiet" type="button" disabled={hostedURI === "" || hostedIsEmbedded} onClick={() => { setAppliedURI(undefined); onInput(name, hostedURI); setFeedback("") }}>Use hosted JSON</button>
+        <button className="button-quiet" type="button" disabled={hostedURI === "" || hostedIsEmbedded} onClick={() => { setAppliedURI(undefined); onInput(name, hostedURI); setFeedback(undefined) }}>Use hosted JSON</button>
         <details className="nft-hosted-draft"><summary>Prepare JSON for hosting</summary>{editor}</details>
       </> : null}
     </section>
@@ -190,10 +189,10 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
         <p className="field-hint">Store the JSON itself on chain instead of hosting a JSON file. This increases transaction size; external image URLs remain separate.</p>
         {editor}
         {relativeImage ? <p className="field-error" role="alert">Use an absolute image URL before embedding this JSON.</p> : null}
-        <button className="button-quiet" type="button" disabled={relativeImage || "error" in draft} onClick={() => { if (!("error" in draft)) { setAppliedURI(draft.uri); onInput(name, draft.uri); setFeedback("") } }}>Use embedded JSON</button>
+        <button className="button-quiet" type="button" disabled={relativeImage || "error" in draft} onClick={() => { if (!("error" in draft)) { setAppliedURI(draft.uri); onInput(name, draft.uri); setFeedback(undefined) } }}>Use embedded JSON</button>
       </> : null}
     </section>
     {value !== "" ? <details><summary>URI to submit</summary><label className="field"><span>Selected URI</span><textarea readOnly value={value} /></label><button className="button-quiet" type="button" onClick={() => { void copy(value) }}>Copy URI</button></details> : null}
-      <p id={`${id}-feedback`} role="status">{feedback}</p>
+      <div id={`${id}-feedback`}>{feedback === undefined ? null : <Feedback report={feedback.report} kind={feedback.kind} className={feedback.kind === "error" ? "field-error" : "field-hint"} />}</div>
   </fieldset>
 }

@@ -131,6 +131,10 @@ dd,
 .nft-editor [role="tabpanel"] > .field-hint { margin-block: 12px; }
 .nft-hosted-draft { margin-block: 12px; }
 .nft-source, .nft-identity dd { overflow-wrap: anywhere; word-break: break-word; }
+.error-feedback { min-width: 0; overflow-wrap: anywhere; }
+.error-feedback details { margin-block: 0.5rem 1rem; }
+.error-feedback summary { cursor: pointer; }
+.error-feedback code { display: block; margin-block-start: 0.5rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .nft-identity, .nft-attributes { margin-block: 8px; }
 .nft-identity > div, .nft-attributes > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 12px; padding-block: 6px; }
 .nft-identity dt, .nft-attributes dt { color: var(--muted); }

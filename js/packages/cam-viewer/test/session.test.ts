@@ -2251,14 +2251,21 @@ test("document hash calculation is explicit and preserves manual input on failur
   assert.equal(session.snapshot().state?.digest, "manual")
   const failed = session.beginDocumentHash("digest", "url")
   assert.equal(session.snapshot().documentHashes?.digest?.status, "pending")
-  failed.fail("Document could not be read")
+  const failure = { message: "Document could not be read", diagnostic: "stream disconnected" }
+  const reported = failed.fail(failure)
+  failure.diagnostic = "changed after reporting"
   assert.equal(session.snapshot().state?.digest, "manual")
-  assert.equal(session.snapshot().documentHashes?.digest?.message, "Document could not be read")
+  const retained = session.snapshot().documentHashes?.digest
+  const returned = reported?.documentHashes?.digest
+  assert(retained?.status === "failed" && returned?.status === "failed")
+  assert.equal(retained.message, "Document could not be read")
+  assert.equal(returned.diagnostic, "stream disconnected")
+  assert.equal(retained.diagnostic, "stream disconnected")
   const canceled = session.beginDocumentHash("digest", "file")
   session.cancelDocumentHash("digest")
   assert.equal(canceled.signal.aborted, true)
   assert.equal(canceled.complete(calculatedDigest), undefined)
-  assert.equal(canceled.fail("late failure"), undefined)
+  assert.equal(canceled.fail({ message: "late failure", diagnostic: "obsolete operation" }), undefined)
   assert.equal(session.snapshot().state?.digest, "manual")
 })
 
@@ -2291,14 +2298,14 @@ test("document hash replacement and all view transition intents invalidate pendi
   const replacement = session.beginDocumentHash("digest", "file")
   assert.equal(replaced.signal.aborted, true)
   assert.equal(replaced.complete(calculatedDigest), undefined)
-  assert.equal(replaced.fail("late failure"), undefined)
-  replacement.fail("Canceled read")
+  assert.equal(replaced.fail({ message: "late failure" }), undefined)
+  replacement.fail({ message: "Canceled read" })
   for (const transition of [() => session.navigate("unknown", {}), () => session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER }), () => session.back(), () => session.setAccount({ address: otherUserAddress }), () => session.load()]) {
     const pending = session.beginDocumentHash("digest", "url")
     const changing = transition()
     assert.equal(pending.signal.aborted, true)
     assert.equal(pending.complete(calculatedDigest), undefined)
-    assert.equal(pending.fail("late failure"), undefined)
+    assert.equal(pending.fail({ message: "late failure" }), undefined)
     await changing.catch(() => undefined)
   }
 })

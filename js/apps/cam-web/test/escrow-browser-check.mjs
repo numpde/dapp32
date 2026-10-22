@@ -219,7 +219,7 @@ async function clickButton(label) {
   assert(events.includes('click'), `${label} received no browser click (${events.join(', ')})`)
 }
 async function feedback(kind) {
-  return evaluate(`(() => { const node = ${kind === 'notice' ? "[...document.querySelectorAll('.notice')].at(-1)" : "document.querySelector('.prepared-call')"}; if (!node) return null; const r=node.getBoundingClientRect(); return {text:node.innerText, role:node.getAttribute('role'), top:r.top,bottom:r.bottom,height:innerHeight, focus:node.contains(document.activeElement), active:document.activeElement?.tagName} })()`)
+  return evaluate(`(() => { const node = ${kind === 'notice' ? "[...document.querySelectorAll('.notice')].at(-1)" : "document.querySelector('.prepared-call')"}; if (!node) return null; const r=node.getBoundingClientRect(); return {text:node.innerText, diagnostic:node.parentElement.querySelector('details code')?.textContent, role:node.getAttribute('role'), top:r.top,bottom:r.bottom,height:innerHeight, focus:node.contains(document.activeElement), active:document.activeElement?.tagName} })()`)
 }
 async function waitFor(predicate, label, failOnViewerError) {
   let lastState
@@ -748,8 +748,10 @@ try {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
     await clickButton('Review agreement creation')
-    await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'decoded prepare rejection')
+    await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.diagnostic || ''), 'decoded prepare rejection')
     const rejected = await feedback('notice')
+    assert(!rejected.text.includes('InvalidPartyConfiguration'), 'primary explanation exposes the contract diagnostic')
+    assert(await evaluate(`(() => { const details=[...document.querySelectorAll('p.notice')].at(-1).parentElement.querySelector('details'); if(details.open) return false; details.querySelector('summary').click(); return details.open&&details.innerText.includes('InvalidPartyConfiguration') })()`), 'technical details are closed initially and can be opened')
     assert(rejected.role === 'alert' || rejected.role === 'status', 'prepare rejection is not announced')
     assert(rejected.top >= 0 && rejected.top < rejected.height && rejected.bottom > 0, 'prepare rejection is outside the viewport')
     assert.equal(await field('agreementRef'), draft.agreementRef, 'prepare rejection discarded draft')
@@ -781,7 +783,7 @@ try {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
     await clickButton('Review agreement creation')
-    await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'first rejection')
+    await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.diagnostic || ''), 'first rejection')
     await enter('amount', '43')
     assert.equal(await evaluate("document.activeElement?.getAttribute('name')"), 'amount', 'editing stole focus from amount')
     await clickButton('Review agreement creation')
@@ -872,14 +874,18 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: cam.href, requestStage: 'Request' }] }, sessionId)
   intercept = 'tamper'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const tampered = await waitFor(state => state.text.includes('Cannot load app') && /CAM hash mismatch/i.test(state.text), 'CAM hash rejection', true)
+  await waitFor(state => state.text.includes('Cannot load app'), 'CAM hash rejection', false)
+  await evaluate(`document.querySelector('.error summary').click()`)
+  const tampered = await waitFor(state => /CAM hash mismatch/i.test(state.text), 'CAM hash diagnostic', false)
   assert.notEqual(tampered.heading, 'Create and fund an escrow agreement', 'tampered CAM rendered as ready')
   assert(/CAM hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
 
   // A failed fetch must leave Loading and identify the URL and cause.
   intercept = 'fail'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const failed = await waitFor(state => state.text.includes('Cannot load app') && /Failed to fetch|net::ERR_FAILED/.test(state.text), 'failed-load explanation', false)
+  await waitFor(state => state.text.includes('Cannot load app'), 'failed-load explanation', false)
+  await evaluate(`document.querySelector('.error summary').click()`)
+  const failed = await waitFor(state => /Failed to fetch|net::ERR_FAILED/.test(state.text), 'failed-load diagnostic', false)
   assert.notEqual(failed.heading, 'Loading', 'failure left the page titled Loading')
   assert(failed.text.includes(cam.href), 'failure hid the failed resource URL')
   assert(/Failed to fetch|net::ERR_FAILED/.test(failed.text), 'failure hid the browser fetch cause')

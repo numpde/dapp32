@@ -7,7 +7,8 @@ import type {
 import type {
   Address,
 } from "viem"
-import { UserRejectedRequestError } from "viem"
+import { HttpRequestError, UserRejectedRequestError } from "viem"
+import { viewerErrorMessage } from "@cam/viewer"
 import { createInjectedWalletBinding } from "../src/wallet-binding.ts"
 
 import type {
@@ -440,6 +441,24 @@ test("receipt checking failure preserves context when follow-up diagnosis fails"
     }),
     /Transaction was sent, but receipt checking on localhost:8545 failed\. The viewer also could not inspect the submitted transaction/,
   )
+})
+
+test("receipt diagnosis preserves SDK evidence without flattening signed request bodies", async () => {
+  const sdkFailure = new HttpRequestError({
+    url: "https://rpc.example.test/?api_key=private-rpc-key",
+    body: { method: "eth_sendRawTransaction", params: ["private-signed-transaction"] },
+    details: "upstream disconnected",
+  })
+  await assert.rejects(waitForSubmittedTransactionReceipt({
+    client: reader({ receiptError: new Error("receipt timeout"), txError: sdkFailure }),
+    txHash, rpcEndpoint: "https://rpc.example.test", pollingIntervalMs: 500, timeoutMs: 20_000,
+  }), error => {
+    const diagnostic = viewerErrorMessage(error)
+    assert.match(diagnostic, /upstream disconnected/)
+    assert.match(diagnostic, /receipt timeout/)
+    assert.doesNotMatch(diagnostic, /private-rpc-key|private-signed-transaction|Request body/)
+    return true
+  })
 })
 
 test("receipt checking failure bounds follow-up diagnosis errors", async () => {

@@ -31,6 +31,7 @@ import {
   preparedCallFields,
 } from "./prepared-call.ts"
 import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
+import { Feedback } from "./feedback.tsx"
 
 export function ConnectionSummary({
   chainId,
@@ -324,9 +325,8 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
     }} />
     {node.props.sourceURI === undefined ? null : <button type="button" disabled={node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
     {pending ? <button className="button-quiet" type="button" onClick={() => onCancel(node.state.key)}>Cancel calculation</button> : null}
-    {status === undefined ? null : <p className="field-hint" role={status.status === "failed" ? "alert" : "status"}>
+    {status === undefined ? null : status.status === "failed" ? <Feedback report={status} kind="error" /> : <p className="field-hint" role="status">
       {pending ? "Calculating SHA-256… Your current digest is kept until calculation succeeds."
-        : status.status === "failed" ? status.message
         : status.source === "file" ? "SHA-256 calculated from local file bytes. The URI has not been checked."
         : "SHA-256 calculated from the bytes returned by this URL after HTTP decoding."}
     </p>}

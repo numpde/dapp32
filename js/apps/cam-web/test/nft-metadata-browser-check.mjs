@@ -158,7 +158,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     await click(`${editor} button`, 'Use hosted JSON')
     await click(`${editor} summary`, 'Prepare JSON for hosting')
     await click(`${editor} button`, 'Load selected metadata')
-    const resourceError = '.nft-hosted-draft > .nft-resource-error'
+    const resourceError = '.nft-hosted-draft > .error-feedback'
     await wait(`!!document.querySelector(${JSON.stringify(resourceError + ' [role="alert"]')})`)
     const primary = await evaluate(`document.querySelector(${JSON.stringify(resourceError + ' [role="alert"]')}).textContent`)
     assert.match(primary, /Cannot load.*http:\/\/.*https:\/\//)
@@ -174,6 +174,14 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     await wait(`[...document.querySelectorAll('.nft-editor [role="alert"]')].some(e=>e.textContent.includes('use valid JSON'))`)
     assert(await evaluate(`[...document.querySelectorAll('.nft-editor [role="alert"]')].every(e=>!e.textContent.includes('Unexpected token'))`), 'local JSON errors use the same primary-versus-technical presentation')
     assert.equal(await evaluate('window.nftFixture.requests.length'), beforeRejected, 'rejected resource addresses never issue a request')
+    await edit(json, '{"name":"Copy failure test"}')
+    await evaluate(`window.nftFixture.rejectCopy(true)`)
+    await click(`${editor} button`, 'Copy JSON')
+    await wait(`[...document.querySelectorAll('.nft-editor [role="alert"]')].some(e=>e.textContent.includes('Cannot copy'))`)
+    assert(await evaluate(`[...document.querySelectorAll('.nft-editor .error-feedback code')].some(e=>e.textContent.includes('Permission denied'))`), 'clipboard reporting preserves the provider cause')
+    await click(`${editor} button`, 'Download JSON')
+    await wait(`[...document.querySelectorAll('.nft-editor [role="status"]')].some(e=>e.textContent.includes('download requested'))`)
+    assert(await evaluate(`![...document.querySelectorAll('.nft-editor [role="alert"]')].some(e=>e.textContent.includes('Cannot copy'))`), 'later success replaces the previous clipboard failure')
     await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: true })
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), 'metadata JSON and long URIs fit a 320px viewport')
     return { explicitResourceLoading: true, metadataRoundTrip: true, publicationURIHonest: true, scopeCleanup: true, disabledControls: true, width: 320 }

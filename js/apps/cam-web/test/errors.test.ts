@@ -8,7 +8,7 @@ import { bikeCamJson } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import { bikeResourceBytes, createMockCamPublicClient, createMockResourceLoader, encodeJson } from "../../../../tests/fixtures/cam/mock.mts"
 import { CamEvmError, validateCamContractCall } from "@cam/evm-viem"
 
-import { actionErrorMessage, errorMessage } from "../src/errors.ts"
+import { actionFailure, failureReport, UserFacingError } from "../src/errors.ts"
 
 test("viewerErrorMessage gives blank thrown values a readable diagnostic", () => {
   const emptyStringification = { toString: () => "" }
@@ -43,7 +43,7 @@ test("errorMessage stops at cyclic cause chains", () => {
   const error = new Error("top")
   error.cause = error
 
-  assert.equal(errorMessage(error), "top")
+  assert.equal(viewerErrorMessage(error), "top")
 })
 
 test("errorMessage still includes useful nested revert details", () => {
@@ -57,7 +57,7 @@ test("errorMessage still includes useful nested revert details", () => {
   })
 
   assert.equal(
-    errorMessage(error),
+    viewerErrorMessage(error),
     'transaction failed: Unauthorized("0x0000000000000000000000000000000000000001")',
   )
 })
@@ -65,7 +65,7 @@ test("errorMessage still includes useful nested revert details", () => {
 test("resource errors retain network reasons while redacting recognizable credentials", () => {
   const cause = new TypeError("DNS lookup failed for https://fixture-user:fixture-password@private.example/rpc?token=fixture-token&chain=31337\nAuthorization: Bearer fixture-bearer")
   const failure = Object.assign(new Error("failed to load CAM resource", { cause }), { code: "CAM_RESOURCE_LOAD_FAILED" })
-  const visible = errorMessage(failure)
+  const visible = viewerErrorMessage(failure)
   assert.match(visible, /DNS lookup failed/)
   assert.match(visible, /private.example\/rpc/)
   assert.match(visible, /chain=31337/)
@@ -74,14 +74,14 @@ test("resource errors retain network reasons while redacting recognizable creden
 })
 
 test("string causes remain visible with the same credential and control safeguards", () => {
-  const visible = errorMessage(new Error("outer operation failed", { cause: "network disconnected\nhttps://example.test/rpc?token=fixture-string-token" }))
+  const visible = viewerErrorMessage(new Error("outer operation failed", { cause: "network disconnected\nhttps://example.test/rpc?token=fixture-string-token" }))
   assert.match(visible, /network disconnected/)
   assert.match(visible, /example.test\/rpc/)
   assert.doesNotMatch(visible, /fixture-string-token|[\u0000-\u001f\u007f]/)
 })
 
 test("URL evidence survives ordinary query addresses while encoded credential values are redacted", () => {
-  const visible = errorMessage(new Error("request failed for https://example.test?email=user@example.test&%74oken=fixture-encoded-token"))
+  const visible = viewerErrorMessage(new Error("request failed for https://example.test?email=user@example.test&%74oken=fixture-encoded-token"))
   assert.match(visible, /https:\/\/example.test\?email=user@example.test/)
   assert.doesNotMatch(visible, /fixture-encoded-token/)
 })
@@ -89,7 +89,7 @@ test("URL evidence survives ordinary query addresses while encoded credential va
 test("hostile custom-revert argument access cannot replace the original failure", () => {
   const args = ["ordinary"]
   Object.defineProperty(args, "0", { get() { throw new Error("hostile argument getter") } })
-  const visible = errorMessage(new Error("transaction failed", { cause: { data: { errorName: "BadArgs", args } } }))
+  const visible = viewerErrorMessage(new Error("transaction failed", { cause: { data: { errorName: "BadArgs", args } } }))
   assert.match(visible, /transaction failed/)
   assert.match(visible, /BadArgs\(/)
   assert.match(visible, /unprintable/i)
@@ -109,7 +109,7 @@ test("a real failed UI load exposes its parse cause through the web consumer", a
     loadResource: createMockResourceLoader(bikeResourceBytes({ [BIKE_CAM_URI]: camBytes, [BIKE_UI_URI]: bytes })),
   })
   await assert.rejects(() => session.load(), error => {
-    const visible = errorMessage(error)
+    const visible = viewerErrorMessage(error)
     assert.match(visible, /failed to parse CAM UI resource/)
     assert.match(visible, /UnsupportedFixtureElement/)
     assert.match(visible, /nodes.app.element/)
@@ -120,7 +120,7 @@ test("a real failed UI load exposes its parse cause through the web consumer", a
 
 test("structured SDK diagnostics preserve the reason without exposing flattened request bodies", () => {
   const cause = new HttpRequestError({ url: "https://example.test/rpc?api_key=fixture-api-key", body: { method: "eth_sendRawTransaction", params: ["fixture-private-signature"] }, details: "upstream DNS resolution failed" })
-  const visible = errorMessage(new Error("receipt checking failed", { cause }))
+  const visible = viewerErrorMessage(new Error("receipt checking failed", { cause }))
   assert.match(visible, /HTTP request failed/)
   assert.match(visible, /upstream DNS resolution failed/)
   assert.doesNotMatch(visible, /fixture-private-signature|fixture-api-key|Request body/)
@@ -129,14 +129,14 @@ test("structured SDK diagnostics preserve the reason without exposing flattened 
 test("fresh-object cause chains and combined diagnostics are bounded", () => {
   let reads = 0
   const fresh: object = { message: "nested diagnostic", get cause(): object | undefined { reads += 1; return reads < 128 ? Object.create(fresh) : undefined } }
-  const visible = errorMessage(new Error("top", { cause: fresh }))
+  const visible = viewerErrorMessage(new Error("top", { cause: fresh }))
   assert.match(visible, /nested diagnostic/)
   assert(visible.length < 2100)
   assert(reads <= 32, "a fresh object per cause must not evade the chain bound")
-  assert.match(errorMessage(new Error("top", { cause: new Error("x".repeat(3000)) })), /truncat|\.\.\./)
+  assert.match(viewerErrorMessage(new Error("top", { cause: new Error("x".repeat(3000)) })), /truncat|\.\.\./)
   let chain: unknown
   for (let index = 0; index < 10; index += 1) chain = new Error(`${index}: ${"x".repeat(400)}`, { cause: chain })
-  const combined = errorMessage(chain)
+  const combined = viewerErrorMessage(chain)
   assert(combined.length < 2100, "distinct individually bounded causes must also have a total display bound")
   assert(combined.endsWith("..."))
 })
@@ -150,7 +150,7 @@ test("errorMessage ignores provider objects with hostile property access", () =>
     }),
   })
 
-  assert.equal(errorMessage(error), "transaction failed")
+  assert.equal(viewerErrorMessage(error), "transaction failed")
 })
 
 test("errorMessage survives hostile provider stringification", () => {
@@ -160,7 +160,7 @@ test("errorMessage survives hostile provider stringification", () => {
     },
   }
 
-  assert.equal(errorMessage(hostile), "unprintable error")
+  assert.equal(viewerErrorMessage(hostile), "unprintable error")
 })
 
 test("errorMessage keeps custom revert names when args are cyclic", () => {
@@ -175,7 +175,7 @@ test("errorMessage keeps custom revert names when args are cyclic", () => {
     },
   })
 
-  assert.equal(errorMessage(error), "transaction failed: BadArgs()")
+  assert.equal(viewerErrorMessage(error), "transaction failed: BadArgs()")
 })
 
 test("errorMessage keeps custom revert names when args have hostile stringification", () => {
@@ -196,15 +196,15 @@ test("errorMessage keeps custom revert names when args have hostile stringificat
     },
   })
 
-  assert.equal(errorMessage(error), "transaction failed: BadArgs(unprintable value)")
+  assert.equal(viewerErrorMessage(error), "transaction failed: BadArgs(unprintable value)")
 })
 
 test("errorMessage bounds untrusted provider text", () => {
   const long = "x".repeat(1_000)
 
-  assert.equal(errorMessage(new Error(long)), `${"x".repeat(500)}...`)
+  assert.equal(viewerErrorMessage(new Error(long)), `${"x".repeat(500)}...`)
   assert.equal(
-    errorMessage(new Error("transaction failed", {
+    viewerErrorMessage(new Error("transaction failed", {
       cause: {
         data: {
           errorName: "BadArgs",
@@ -216,7 +216,7 @@ test("errorMessage bounds untrusted provider text", () => {
   )
 
   assert.equal(
-    errorMessage(new Error("transaction failed", {
+    viewerErrorMessage(new Error("transaction failed", {
       cause: {
         data: {
           errorName: "ManyArgs",
@@ -244,7 +244,7 @@ test("custom revert diagnostics stop reading args after the visible prefix", () 
       return Reflect.get(target, property, receiver)
     },
   })
-  const visible = errorMessage(new Error("transaction failed", {
+  const visible = viewerErrorMessage(new Error("transaction failed", {
     cause: { data: { errorName: "LargeArgs", args } },
   }))
 
@@ -258,17 +258,17 @@ test("custom revert truncation marks omitted args when the visible prefix hits i
   const longArgument = "x".repeat(492)
   const nearLimitName = "N".repeat(498)
 
-  const exactBudgetDiagnostic = errorMessage(new Error("transaction failed", {
+  const exactBudgetDiagnostic = viewerErrorMessage(new Error("transaction failed", {
     cause: { data: { errorName: "Edge", args: [longArgument, 42] } },
   }))
   assert.match(exactBudgetDiagnostic, /^transaction failed: Edge\("x+/)
   assert.match(exactBudgetDiagnostic, /\.\.\.$/)
   assert.match(
-    errorMessage({ data: { errorName: nearLimitName, args: [42] } }),
+    viewerErrorMessage({ data: { errorName: nearLimitName, args: [42] } }),
     /N+\(4\.\.\.$/,
   )
   assert.match(
-    errorMessage(new Error("transaction failed", { cause: { data: { errorName: "Edge", args: ["x".repeat(491), 42] } } })),
+    viewerErrorMessage(new Error("transaction failed", { cause: { data: { errorName: "Edge", args: ["x".repeat(491), 42] } } })),
     /\.\.\.$/,
   )
 })
@@ -278,7 +278,7 @@ test("custom revert formatting does not read an argument beyond the visible pref
   Object.defineProperty(args, "1", { get() { throw new Error("invisible argument getter") } })
   args.length = 2
 
-  const visible = errorMessage({ data: { errorName: "Edge", args } })
+  const visible = viewerErrorMessage({ data: { errorName: "Edge", args } })
   assert.match(visible, /^Edge\("x+/)
   assert.match(visible, /\.\.\.$/)
   assert.doesNotMatch(visible, /unprintable arguments|invisible argument getter/)
@@ -288,7 +288,7 @@ test("custom revert diagnostics preserve sparse argument separators", () => {
   const args = new Array(3)
   args[2] = "visible"
 
-  assert.equal(errorMessage({ data: { errorName: "Sparse", args } }), "Sparse(, , \"visible\")")
+  assert.equal(viewerErrorMessage({ data: { errorName: "Sparse", args } }), "Sparse(, , \"visible\")")
 })
 
 test("custom revert omission stays visible when composite credential redaction shortens the text", () => {
@@ -309,9 +309,12 @@ test("custom revert omission stays visible when composite credential redaction s
 test("action failures name the visible operation and retain the existing diagnostic once", () => {
   const cause = { data: { errorName: "ChannelNotFound", args: [999999n] } }
   const error = Object.assign(new Error("failed to call CAM route: position", { cause }), { code: "CAM_ROUTE_CALL_FAILED" })
-  const diagnostic = errorMessage(error)
-  assert.equal(actionErrorMessage(error, "Open balance"), `Open balance failed: ${diagnostic}`)
-  assert.equal(actionErrorMessage(error, "Open balance").match(/ChannelNotFound\(999999\)/g)?.length, 1)
+  const diagnostic = viewerErrorMessage(error)
+  const report = actionFailure(error, "Open balance")
+  assert.match(report.message, /Open balance/)
+  assert.doesNotMatch(report.message, /ChannelNotFound|CAM route/)
+  assert.equal(report.diagnostic, diagnostic)
+  assert.equal(report.diagnostic?.match(/ChannelNotFound\(999999\)/g)?.length, 1)
   assert.equal(error.cause, cause)
   assert.equal(error.code, "CAM_ROUTE_CALL_FAILED")
 })
@@ -320,10 +323,10 @@ test("action failure labels use existing text bounds without coercing unsafe val
   const error = new Error("argument rejected")
   const hostile = { toString() { throw new Error("Do not stringify a label") } }
   for (const label of [undefined, null, hostile, "", "\u0000Open balance", "Open\n balance"]) {
-    assert.equal(actionErrorMessage(error, label), "argument rejected")
+    assert.equal(actionFailure(error, label).message, "Cannot complete this action.")
   }
-  assert.equal(actionErrorMessage(error, "x".repeat(1000)), `${"x".repeat(500)}... failed: argument rejected`)
-  assert.equal(actionErrorMessage(error, "  Open balance  "), "Open balance failed: argument rejected")
+  assert(actionFailure(error, "x".repeat(1000)).message.length < 550)
+  assert.equal(actionFailure(error, "  Open balance  ").message, "Open balance failed.")
 })
 
 test("a real rejected amount renders its action, one ABI path and correction without hiding the diagnostic", () => {
@@ -333,12 +336,39 @@ test("a real rejected amount renders its action, one ABI path and correction wit
     function: "setWithdrawal", args: { amount: null },
   }), error => {
     assert(error instanceof CamEvmError)
-    const visible = actionErrorMessage(error, "Review replacement request")
-    assert(visible.startsWith("Review replacement request failed: "))
-    assert(visible.includes(error.message), "the renderer preserves the substantive producer diagnostic")
-    assert.equal(visible.split("setWithdrawal.amount").length - 1, 1)
-    assert.match(visible, /whole number/)
-    assert.match(visible, /uint256/)
+    const report = actionFailure(error, "Review replacement request")
+    assert.match(report.message, /Review replacement request failed/)
+    assert.doesNotMatch(report.message, /CAM ABI|uint256/)
+    assert(report.diagnostic)
+    assert(report.diagnostic.includes(error.message), "technical details preserve the substantive producer diagnostic")
+    assert.equal(report.diagnostic.split("setWithdrawal.amount").length - 1, 1)
+    assert.match(report.diagnostic, /whole number/)
+    assert.match(report.diagnostic, /uint256/)
     return true
   })
+})
+
+test("UI failure reports separate owned explanations from arbitrary causes", () => {
+  const error = new UserFacingError("Cannot read this document. Choose another file.", { cause: new TypeError("stream interrupted") })
+  const report = failureReport(error)
+  assert.equal(report.message, error.message)
+  assert.match(report.diagnostic!, /stream interrupted/)
+  assert.equal(failureReport(new UserFacingError("Choose a file.")).diagnostic, undefined)
+  assert.equal(failureReport(new Error("ABI_INTERNAL"), "Cannot open this view.").message, "Cannot open this view.")
+  assert.equal(failureReport(error, "Transaction confirmed; refreshing the view failed.").message, "Transaction confirmed; refreshing the view failed.")
+})
+
+test("UI summaries and details share credential redaction and text bounds", () => {
+  const secretURL = "https://person:fixture-password@example.test/?token=fixture-token"
+  const report = failureReport(new UserFacingError(`Cannot load ${secretURL}`, { cause: new Error("x".repeat(3000)) }))
+  assert.doesNotMatch(JSON.stringify(report), /fixture-password|fixture-token/)
+  assert(report.message.length < 550)
+  assert(report.diagnostic!.length < 2100)
+  for (const error of [null, "socket disconnected", new Proxy({}, { get() { throw new Error("hostile") } })]) {
+    const unknown = failureReport(error, "Cannot refresh this view.")
+    assert.equal(unknown.message, "Cannot refresh this view.")
+    assert.equal(typeof unknown.diagnostic, "string")
+  }
+  const hostilePrototype = new Proxy({}, { getPrototypeOf() { throw new Error("hostile prototype") } })
+  assert.equal(failureReport(hostilePrototype).message, "Cannot complete this operation.")
 })

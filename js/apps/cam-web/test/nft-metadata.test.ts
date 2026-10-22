@@ -4,13 +4,13 @@ import test from "node:test"
 import {
   NFT_IMAGE_MAX_BYTES,
   NFT_METADATA_MAX_BYTES,
-  NftResourceError,
   loadNftImage,
   loadNftMetadata,
   nftMetadataDataURI,
   parseNftMetadata,
   serializeNftMetadata,
 } from "../src/nft-metadata.ts"
+import { UserFacingError } from "../src/errors.ts"
 
 const signal = () => new AbortController().signal
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown
@@ -88,7 +88,7 @@ test("unusable resource addresses explain the correction and retain the rejected
     () => loadNftImage("image.png", "not a URL", signal()),
     () => loadNftImage("//[", "https://example.test/metadata.json", signal()),
   ]) await assert.rejects(load(), error => {
-    assert(error instanceof NftResourceError)
+    assert(error instanceof UserFacingError)
     assert.match(error.message, /Cannot load/)
     assert.match(error.message, /http:\/\/.*https:\/\//)
     assert.doesNotMatch(error.message, /construct|expected|Invalid URL|secret/)

@@ -8,6 +8,7 @@ import {
 import {
   assertCamResourceSize,
   isDocumentHashDigest,
+  isRecordObject,
   CAM_UI_NAMESPACE,
   parseJsonBytes,
   resolveCamResourceURI,
@@ -262,11 +263,11 @@ export function createCamViewerSession({
         documentHashes[name] = { status: "succeeded", ...origin }
         return loadedSnapshot(assertCurrentView())
       },
-      fail(message) {
+      fail(failure) {
         if (!isCurrent()) return undefined
-        if (typeof message !== "string") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Cannot report document hash failure: message must be a string")
+        if (!isRecordObject(failure) || typeof failure.message !== "string" || failure.diagnostic !== undefined && typeof failure.diagnostic !== "string") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Cannot report document hash failure: message and optional diagnostic must be strings")
         documentHashOperations.delete(name)
-        documentHashes[name] = { status: "failed", ...origin, message }
+        documentHashes[name] = { status: "failed", ...origin, message: failure.message, ...(failure.diagnostic === undefined ? {} : { diagnostic: failure.diagnostic }) }
         return loadedSnapshot(assertCurrentView())
       },
     }

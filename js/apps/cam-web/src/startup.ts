@@ -149,8 +149,8 @@ export function parseViewFragment(hash: string): { readonly route?: string; read
     // URLSearchParams is intentionally tolerant of broken percent escapes.
     // A navigation request must instead preserve its exact supplied text.
     decodeURIComponent(fragment.replace(/\+/g, " "))
-  } catch {
-    throw new Error("Cannot open view: the URL fragment has invalid percent encoding.")
+  } catch (cause) {
+    throw new Error("Cannot open view: the URL fragment has invalid percent encoding.", { cause })
   }
   const params = new URLSearchParams(fragment)
   const route = requiredParam(params, "route")
@@ -169,8 +169,8 @@ export function parseViewFragment(hash: string): { readonly route?: string; read
   let inputs: unknown
   try {
     inputs = parseJsonText(text)
-  } catch {
-    throw new Error("Cannot open view: inputs must be valid JSON with no duplicate object keys.")
+  } catch (cause) {
+    throw new Error("Cannot open view: inputs must be valid JSON with no duplicate object keys.", { cause })
   }
   if (!isRecordObject(inputs)) throw new Error("Cannot open view: inputs must be a JSON object.")
   assertViewInputNumbers(inputs)

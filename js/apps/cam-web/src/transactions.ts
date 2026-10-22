@@ -4,6 +4,7 @@ import type {
 import type {
   CamViewerPreparedContractCall,
 } from "@cam/viewer"
+import { viewerErrorMessage } from "@cam/viewer"
 import type {
   Address,
 } from "viem"
@@ -32,8 +33,6 @@ export type TransactionReader<TReceipt> = {
 }
 
 export type PreparedCallSimulationClient = Parameters<typeof simulateCamContractCall>[0]["publicClient"]
-
-const MAX_DIAGNOSTIC_ERROR_LENGTH = 500
 
 export type PreparedCallSubmitterPorts<TWalletClient, TChain> = {
   readonly ensureAccount: (address: Address) => Promise<void>
@@ -147,7 +146,7 @@ export async function waitForSubmittedTransactionReceipt<TReceipt>({
         includePendingAdvice: true,
       }))
     } catch (diagnosisCause) {
-      advice = `The viewer also could not inspect the submitted transaction on ${rpcEndpoint}: ${diagnosticErrorMessage(diagnosisCause)}.`
+      advice = `The viewer also could not inspect the submitted transaction on ${rpcEndpoint}: ${viewerErrorMessage(diagnosisCause)}.`
     }
     throw new Error(
       [
@@ -187,20 +186,6 @@ export async function submittedTransactionDiagnosis({
   return tx.nonce === pendingNonce
     ? `The transaction is known by the local RPC but is still pending at nonce ${tx.nonce}. Check whether local mining is paused or the wallet left the transaction in the mempool.`
     : `The transaction nonce ${tx.nonce} is lower than the local pending nonce ${pendingNonce}. The wallet may have shown a stale or replaced transaction hash.`
-}
-
-function diagnosticErrorMessage(error: unknown): string {
-  let message: string
-  try {
-    message = error instanceof Error && error.message.length > 0
-      ? error.message
-      : String(error)
-  } catch {
-    message = "unprintable error"
-  }
-  return message.length <= MAX_DIAGNOSTIC_ERROR_LENGTH
-    ? message
-    : `${message.slice(0, MAX_DIAGNOSTIC_ERROR_LENGTH)}...`
 }
 
 async function readSubmittedTransaction(
