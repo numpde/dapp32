@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from contextlib import contextmanager
+from collections import deque
+from dataclasses import dataclass
 import http.client
 import http.server
 import ipaddress
@@ -82,6 +84,10 @@ CONNECT_TIMEOUT_SECONDS = required_positive_seconds_env("RPC_PROXY_CONNECT_TIMEO
 MAX_CONCURRENT_REQUESTS = required_bounded_positive_int_env(
     "RPC_PROXY_MAX_CONCURRENT_REQUESTS", MAX_CONCURRENT_REQUESTS_LIMIT,
 )
+_queued_requests = os.environ.get("RPC_PROXY_MAX_QUEUED_REQUESTS", "0")
+if re.fullmatch(r"0|[1-9][0-9]?", _queued_requests) is None or int(_queued_requests) > 64:
+    raise RuntimeError("RPC_PROXY_MAX_QUEUED_REQUESTS: expected a decimal integer from 0 through 64")
+MAX_QUEUED_REQUESTS = int(_queued_requests)
 MAX_BATCH_ITEMS = required_bounded_positive_int_env("RPC_PROXY_MAX_BATCH_ITEMS", MAX_BATCH_ITEMS_LIMIT)
 REQUEST_DEADLINE_SECONDS = required_bounded_seconds_env("RPC_PROXY_REQUEST_TIMEOUT_SECONDS")
 UPSTREAM_DEADLINE_SECONDS = required_bounded_seconds_env("RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS")
@@ -364,7 +370,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.request_version = "HTTP/1.0"
         self.command = None
         try:
-            with request_deadline(REQUEST_DEADLINE_SECONDS, RequestDeadlineExceeded):
+            deadline = getattr(self.server, "connection_deadline", time.monotonic() + REQUEST_DEADLINE_SECONDS)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RequestDeadlineExceeded()
+            with request_deadline(remaining, RequestDeadlineExceeded):
                 super().handle()
         except RequestDeadlineExceeded:
             self.close_connection = True
@@ -516,6 +526,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_error(502, "RPC upstream response too large")
             return
 
+        if response.status >= 400:
+            print(f"rpc-proxy: upstream returned HTTP {response.status}", file=sys.stderr)
         self.send_response(response.status, response.reason)
         connection_headers = {
             token.strip().lower()
@@ -547,11 +559,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return
 
 
+@dataclass(frozen=True)
+class PendingConnection:
+    request: socket.socket
+    address: tuple
+    deadline: float
+
+
 class BoundedForkingHTTPServer(http.server.HTTPServer):
     """One deadline-isolated process per connection, without an unbounded queue."""
 
     def __init__(self, server_address, handler_class):
         self.active_children = set()
+        self.pending = deque()
         self.request_queue_size = MAX_CONCURRENT_REQUESTS
         super().__init__(server_address, handler_class)
 
@@ -575,13 +595,38 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
 
     def service_actions(self):
         self.collect_children()
+        for connection in tuple(self.pending):
+            if time.monotonic() >= connection.deadline:
+                self.reject_unforwarded(connection.request, 408, "queue deadline expired")
+                self.pending.remove(connection)
+            elif self.disconnected(connection.request):
+                self.shutdown_request(connection.request)
+                self.pending.remove(connection)
+        while self.pending and len(self.active_children) < MAX_CONCURRENT_REQUESTS:
+            self.start_pending()
+
+    def disconnected(self, request):
+        # Buffered bytes can hide a graceful close; cancel only on observed
+        # transport errors or end-of-input, without consuming the request.
+        try:
+            if request.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR):
+                return True
+            return request.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b""
+        except BlockingIOError:
+            return False
+        except (ConnectionResetError, ConnectionAbortedError):
+            return True
 
     def reject_busy(self, request):
+        self.reject_unforwarded(request, 503, "capacity exhausted")
+
+    def reject_unforwarded(self, request, status, reason):
+        print(f"rpc-proxy: request not forwarded: {reason}; active={len(self.active_children)} queued={len(self.pending)}", file=sys.stderr)
         try:
             request.setblocking(False)
             request.sendall(
-                b"HTTP/1.0 503 Service Unavailable\r\n"
-                b"Content-Length: 0\r\nConnection: close\r\nRetry-After: 1\r\n\r\n"
+                f"HTTP/1.0 {status} {'Service Unavailable' if status == 503 else 'Request Timeout'}\r\n".encode()
+                + b"Content-Length: 0\r\nConnection: close\r\nRetry-After: 1\r\n\r\n"
             )
         # silent-defaults: allow-exception-fallback -- An overloaded server closes the socket even if its nonblocking rejection cannot reach the client.
         except OSError:
@@ -590,13 +635,19 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
             self.shutdown_request(request)
 
     def process_request(self, request, client_address):
-        self.collect_children()
-        if len(self.active_children) >= MAX_CONCURRENT_REQUESTS:
+        connection = PendingConnection(request, client_address, time.monotonic() + REQUEST_DEADLINE_SECONDS)
+        self.pending.append(connection)
+        self.service_actions()
+        if len(self.pending) > MAX_QUEUED_REQUESTS:
+            self.pending.remove(connection)
             self.reject_busy(request)
-            return
 
+    def start_pending(self):
         # Do not interrupt fork before the parent owns the child's lifetime.
         old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM, signal.SIGINT})
+        connection = self.pending.popleft()
+        request = connection.request
+        client_address = connection.address
         try:
             pid = os.fork()
         except OSError:
@@ -622,6 +673,10 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
         try:
             os.setpgid(0, 0)
             self.socket.close()
+            for waiting in self.pending:
+                waiting.request.close()
+            self.pending.clear()
+            self.connection_deadline = connection.deadline
 
             def stop_worker(_signal_number, _frame):
                 raise ServerStopping()
@@ -647,6 +702,8 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
 
     def server_close(self):
         super().server_close()
+        while self.pending:
+            self.shutdown_request(self.pending.popleft().request)
         self.collect_children()
         for pid in self.active_children:
             try:

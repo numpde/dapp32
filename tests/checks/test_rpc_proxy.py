@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import errno
+import http.server
 import io
 import json
 import multiprocessing
@@ -97,7 +98,7 @@ class RpcProxyTest(unittest.TestCase):
             with self.subTest(headers=headers), mock.patch.object(self.proxy.Handler, "open_upstream") as upstream:
                 connection = mock.Mock()
                 connection.makefile.return_value = io.BytesIO(b"POST / HTTP/1.0\r\n" + headers + b"\r\n" + body)
-                self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+                self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock(spec=http.server.HTTPServer))
                 response = b"".join(call.args[0] for call in connection.sendall.call_args_list)
                 self.assertTrue(response.startswith(f"HTTP/1.0 {status} ".encode()), response)
                 upstream.assert_not_called()
@@ -251,7 +252,7 @@ class RpcProxyTest(unittest.TestCase):
                         mock.patch.object(self.proxy.socket, "getaddrinfo", side_effect=dns), \
                         mock.patch.object(self.proxy, "FixedIpHttpsConnection", return_value=transport), \
                         mock.patch("sys.stderr", stderr):
-                    self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+                    self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock(spec=http.server.HTTPServer))
                 elapsed = time.monotonic() - started
                 response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
                 self.assertLess(elapsed, 1.0, f"{phase} exceeded the total upstream deadline")
@@ -282,7 +283,7 @@ class RpcProxyTest(unittest.TestCase):
                     (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
                 ]), \
                 mock.patch.object(self.proxy, "FixedIpHttpsConnection", return_value=successful):
-            self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+            self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock(spec=http.server.HTTPServer))
         response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
         self.assertIn("200", response)
         self.assertIn("0xabc", response)
@@ -309,7 +310,7 @@ class RpcProxyTest(unittest.TestCase):
 
                 with mock.patch.object(self.proxy, "ALLOWED_METHODS", frozenset({"eth_sendRawTransaction"})), \
                         mock.patch("sys.stderr", stderr):
-                    FixtureHandler(connection, ("127.0.0.1", 1234), mock.Mock())
+                    FixtureHandler(connection, ("127.0.0.1", 1234), mock.Mock(spec=http.server.HTTPServer))
                 response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
                 self.assertIn("502", response)
                 self.assertIn("transaction submission outcome unknown", response)
@@ -328,7 +329,7 @@ class RpcProxyTest(unittest.TestCase):
                 return oversized, "/", "example.com"
 
         with mock.patch.object(self.proxy, "ALLOWED_METHODS", frozenset({"eth_sendRawTransaction"})):
-            OversizedHandler(connection, ("127.0.0.1", 1234), mock.Mock())
+            OversizedHandler(connection, ("127.0.0.1", 1234), mock.Mock(spec=http.server.HTTPServer))
         response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
         self.assertIn("502", response)
         self.assertIn("transaction submission outcome unknown", response)
@@ -390,7 +391,7 @@ class RpcProxyTest(unittest.TestCase):
                         mock.patch.object(self.proxy, "FixedIpHttpsConnection") as transport, \
                         mock.patch("sys.stderr", stderr):
                     transport.return_value.request.side_effect = failure
-                    self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+                    self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock(spec=http.server.HTTPServer))
                 response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
                 self.assertIn("502", response)
                 self.assertIn("RPC upstream request failed", response)
@@ -431,7 +432,7 @@ class RpcProxyTest(unittest.TestCase):
             request = b"POST / HTTP/1.0\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
             connection = mock.Mock()
             connection.makefile.return_value = io.BytesIO(request)
-            FixtureHandler(connection, ("127.0.0.1", 1234), mock.Mock())
+            FixtureHandler(connection, ("127.0.0.1", 1234), mock.Mock(spec=http.server.HTTPServer))
             response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
             self.assertIn(status, response)
             if status == "200":

@@ -5,9 +5,11 @@ import http.client
 import json
 import multiprocessing
 import os
+import select
 from pathlib import Path
 import signal
 import socket
+import struct
 import tempfile
 import time
 import unittest
@@ -33,7 +35,7 @@ def serve_fixture(upstream_path, ready, activity, release, overrides, stall_dns)
         def read(self, _limit):
             if self.request_id.startswith("block"):
                 deadline = time.monotonic() + 30
-                while not release.value:
+                while release.value < (2 if self.request_id == "block-next" else 1):
                     if time.monotonic() >= deadline:
                         raise TimeoutError("fixture response was not released")
                     time.sleep(0.01)
@@ -69,6 +71,19 @@ def serve_fixture(upstream_path, ready, activity, release, overrides, stall_dns)
             super().__init__(("127.0.0.1", 0), handler)
             ready.send(self.server_address)
             ready.close()
+
+        def service_actions(self):
+            # Exercise accept-triggered dispatch without a periodic reap winning
+            # the ownership race before the next connection arrives.
+            if not overrides.get("FIXTURE_DISPATCH_ON_ACCEPT") or getattr(self, "accepting", False):
+                super().service_actions()
+
+        def process_request(self, request, client_address):
+            self.accepting = True
+            try:
+                super().process_request(request, client_address)
+            finally:
+                self.accepting = False
 
     def blocked_dns(*_args, **_kwargs):
         activity.send(("dns", os.getpid()))
@@ -194,6 +209,130 @@ class RpcProxyServerTest(unittest.TestCase):
             for connection in blocked:
                 self.assertEqual(200, self.response(connection)[0])
             self.assert_recovers(address)
+
+    def test_bounded_queue_absorbs_a_read_burst_without_extra_workers(self):
+        with self.server(stall_dns=False, overrides={"RPC_PROXY_MAX_QUEUED_REQUESTS": "2"}) as (address, activity, release, _process):
+            requests = []
+            workers = set()
+            for request_id in ("block-first", "block-second"):
+                connection = self.connect(address)
+                self.send_rpc(connection, request_id)
+                workers.add(self.next_activity(activity, "upstream")[2])
+                requests.append(connection)
+            queued = self.connect(address)
+            self.send_rpc(queued, "third")
+            self.assertFalse(select.select([queued], [], [], 0.2)[0], "ordinary burst was rejected instead of queued")
+            self.assertFalse(activity.poll(0.05), "queued request started another worker")
+            self.assertEqual(2, len(workers))
+            release.value = 1
+            for connection in (*requests, queued):
+                self.assertEqual(200, self.response(connection)[0])
+            self.assertEqual("third", self.next_activity(activity, "upstream")[1])
+
+    def test_queue_overflow_is_not_forwarded_and_fifo_recovers(self):
+        with self.server(stall_dns=False, overrides={"RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1", "RPC_PROXY_MAX_QUEUED_REQUESTS": "2"}) as (address, activity, release, _process):
+            first = self.connect(address)
+            self.send_rpc(first, "block-first")
+            self.next_activity(activity, "upstream")
+            queued = []
+            for request_id in ("second", "third"):
+                connection = self.connect(address)
+                self.send_rpc(connection, request_id)
+                queued.append(connection)
+            overflow = self.connect(address)
+            self.send_rpc(overflow, "must-not-forward")
+            self.assertEqual(503, self.response(overflow)[0])
+            release.value = 1
+            for connection in (first, *queued):
+                self.assertEqual(200, self.response(connection)[0])
+            self.assertEqual("second", self.next_activity(activity, "upstream")[1])
+            self.assertEqual("third", self.next_activity(activity, "upstream")[1])
+
+    def test_expired_queued_request_is_never_forwarded(self):
+        overrides = {"RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1", "RPC_PROXY_MAX_QUEUED_REQUESTS": "1", "RPC_PROXY_REQUEST_TIMEOUT_SECONDS": "0.3"}
+        with self.server(stall_dns=False, overrides=overrides) as (address, activity, _release, _process):
+            blocked = self.connect(address)
+            self.send_rpc(blocked, "block-first")
+            worker = self.next_activity(activity, "upstream")[2]
+            os.kill(worker, signal.SIGSTOP)
+            try:
+                queued = self.connect(address)
+                self.send_rpc(queued, "must-not-forward")
+                self.assertEqual(408, self.response(queued)[0])
+                self.assertFalse(activity.poll(0.1), "expired request reached upstream")
+            finally:
+                os.kill(worker, signal.SIGCONT)
+
+    def test_disconnected_waiter_releases_its_queue_slot(self):
+        with self.server(stall_dns=False, overrides={"RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1", "RPC_PROXY_MAX_QUEUED_REQUESTS": "1"}) as (address, activity, release, _process):
+            blocked = self.connect(address)
+            self.send_rpc(blocked, "block-first")
+            self.next_activity(activity, "upstream")
+            canceled = self.connect(address)
+            self.send_rpc(canceled, "must-not-forward")
+            canceled.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+            canceled.close()
+            replacement = self.connect(address)
+            self.send_rpc(replacement, "replacement")
+            self.assertFalse(select.select([replacement], [], [], 0.2)[0])
+            release.value = 1
+            self.assertEqual(200, self.response(blocked)[0])
+            self.assertEqual(200, self.response(replacement)[0])
+            self.assertEqual("replacement", self.next_activity(activity, "upstream")[1])
+
+    def test_shutdown_closes_queued_sockets_and_active_workers(self):
+        with self.server(stall_dns=False, overrides={"RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1", "RPC_PROXY_MAX_QUEUED_REQUESTS": "2"}) as (address, activity, _release, process):
+            blocked = self.connect(address)
+            self.send_rpc(blocked, "block-first")
+            worker = self.next_activity(activity, "upstream")[2]
+            queued = self.connect(address)
+            self.send_rpc(queued, "must-not-forward")
+            self.assertFalse(select.select([queued], [], [], 0.2)[0])
+            process.terminate()
+            process.join(timeout=3)
+            self.assertFalse(process.is_alive())
+            try:
+                self.assertEqual(b"", queued.recv(1))
+            except ConnectionResetError:
+                pass
+            with self.assertRaises(ProcessLookupError):
+                os.kill(worker, 0)
+
+    def test_promoted_worker_does_not_keep_a_new_arrivals_socket_open(self):
+        overrides = {"RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1", "RPC_PROXY_MAX_QUEUED_REQUESTS": "1", "FIXTURE_DISPATCH_ON_ACCEPT": "1"}
+        with self.server(stall_dns=False, overrides=overrides) as (address, activity, release, _process):
+            first = self.connect(address)
+            self.send_rpc(first, "block-first")
+            self.next_activity(activity, "upstream")
+            older = self.connect(address)
+            self.send_rpc(older, "block-next")
+            self.assertFalse(select.select([older], [], [], 0.1)[0])
+            release.value = 1
+            self.assertEqual(200, self.response(first)[0])
+            time.sleep(0.05)
+            incoming = self.connect(address)
+            self.assertEqual("block-next", self.next_activity(activity, "upstream")[1])
+            incoming.shutdown(socket.SHUT_WR)
+            trigger = self.connect(address)
+            trigger.sendall(b"GET /healthz HTTP/1.0\r\n\r\n")
+            incoming.settimeout(0.3)
+            self.assertEqual(b"", incoming.recv(1), "promoted worker retained the unrelated accepted socket")
+            release.value = 2
+            self.assertEqual(200, self.response(older)[0])
+
+    def test_dispatch_uses_the_remaining_connection_budget(self):
+        overrides = {"RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1", "RPC_PROXY_MAX_QUEUED_REQUESTS": "1", "RPC_PROXY_REQUEST_TIMEOUT_SECONDS": "1", "RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS": "3"}
+        with self.server(stall_dns=False, overrides=overrides) as (address, activity, _release, _process):
+            first = self.connect(address)
+            self.send_rpc(first, "block-first")
+            self.next_activity(activity, "upstream")
+            time.sleep(0.2)
+            queued = self.connect(address)
+            self.send_rpc(queued, "block-second")
+            self.assertEqual(504, self.response(first)[0])
+            started = time.monotonic()
+            self.assertEqual(504, self.response(queued)[0])
+            self.assertLess(time.monotonic() - started, 0.65, "dequeue reset the connection deadline")
 
     def test_connection_deadline_bounds_incomplete_headers_and_body(self):
         for request in (b"POST / HTTP/1.0\r\n", b"POST / HTTP/1.0\r\nContent-Length: 100\r\n\r\n{"):

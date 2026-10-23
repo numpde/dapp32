@@ -229,7 +229,7 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
   }
   stopWatchingHandoff()
 
-  const backend = createFixedBackend({ url: settings.backendUrl, timeoutMs: 30_000, maxResponseBytes: 1024 * 1024 })
+  const backend = createFixedBackend({ url: settings.backendUrl, timeoutMs: 45_000, maxResponseBytes: 1024 * 1024 })
   const durableAudit = openAudit(settings.auditDir)
   let listener: Awaited<ReturnType<typeof startRpcListener>> | null = null
   let timer: NodeJS.Timeout | null = null

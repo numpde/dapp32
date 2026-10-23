@@ -185,18 +185,21 @@ release_approval_retain_signer_log() {
 }
 
 release_approval_retain_diagnostics() {
-  local identity path="$release_approval_output/approval-diagnostics.log"
-  identity="$(compose_release ps -a -q release-approval)" || return 1
-  if [[ -z "$identity" ]]; then return 0; fi
-  if [[ ! "$identity" =~ ^[0-9a-f]{64}$ ]]; then return 1; fi
+  local path="$release_approval_output/approval-diagnostics.log"
   if ! (
     umask 077
     set -o noclobber
     (
       failed=0
       printf '%s\n' 'Approval diagnostics: first 65536 bytes; excerpt may be truncated.'
-      timeout --kill-after=1s 5s docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$identity" || failed=1
-      timeout --kill-after=1s 5s docker logs --tail 80 "$identity" || failed=1
+      for service in release-rpc-proxy release-artifact-rpc-proxy release-approval; do
+        identity="$(compose_release ps -a -q "$service")" || { failed=1; continue; }
+        if [[ -z "$identity" ]]; then continue; fi
+        if [[ ! "$identity" =~ ^[0-9a-f]{64}$ ]]; then failed=1; continue; fi
+        printf 'Service: %s\n' "$service"
+        timeout --kill-after=1s 5s docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$identity" || failed=1
+        timeout --kill-after=1s 5s docker logs --tail 80 "$identity" 2>&1 | { head -c 16384 && cat >/dev/null; } || failed=1
+      done
       exit "$failed"
     ) 2>&1 | { head -c 65536 && cat >/dev/null; } > "$path"
   ); then

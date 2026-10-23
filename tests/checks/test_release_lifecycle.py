@@ -722,6 +722,10 @@ docker() {
       esac
     else
       printf '%s\n' 'private startup failure' >&2
+      case "${@: -1}" in
+        *2) printf '%s\n' 'rpc-proxy: request not forwarded: capacity exhausted' ;;
+        *3) printf '%s\n' 'rpc-proxy: upstream returned HTTP 503' ;;
+      esac
       if [[ "$STARTUP_CASE" == large ]]; then "$PYTHON" -c 'print("x" * 262144)'; fi
       if [[ "$STARTUP_CASE" == log-failure ]]; then return 9; fi
     fi
@@ -737,7 +741,12 @@ if [[ "$STARTUP_CASE" == head-failure ]]; then head() { command head "$@"; retur
 compose_release() {
   case "$1" in
     up) printf 'up:%s\n' "${@: -1}" >> "$CASE_ROOT/events" ;;
-    ps) printf '%064d\n' 1 ;;
+    ps)
+      case "${@: -1}" in
+        release-rpc-proxy) printf '%064d\n' 2 ;;
+        release-artifact-rpc-proxy) printf '%064d\n' 3 ;;
+        *) printf '%064d\n' 1 ;;
+      esac ;;
     down)
       if [[ -f "$CASE_ROOT/output/approval-diagnostics.log" ]]; then
         printf '%s\n' retained-before-down >> "$CASE_ROOT/events"
@@ -763,6 +772,8 @@ compose_release() {
                 else:
                     self.assertIn("status=exited exit=1 oom=false", contents)
                     self.assertIn("private startup failure", contents)
+                    self.assertIn("request not forwarded: capacity exhausted", contents)
+                    self.assertIn("upstream returned HTTP 503", contents)
                     self.assertLessEqual(diagnostic.stat().st_size, 65536)
                     self.assertEqual(0o600, diagnostic.stat().st_mode & 0o777)
                 if case in ("log-failure", "existing-file", "head-failure"):

@@ -46,6 +46,12 @@ x-rpc-proxy-base: &rpc_proxy_base
     - ALL
   pids_limit: 64
   mem_limit: 256m
+  logging:
+    driver: local
+    options:
+      max-size: 64k
+      max-file: "1"
+      compress: "false"
   environment:
     RPC_PROXY_HOST: 0.0.0.0
     RPC_PROXY_PORT: "8080"
@@ -57,6 +63,7 @@ x-rpc-proxy-base: &rpc_proxy_base
     RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "25"
     RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "40"
     RPC_PROXY_MAX_CONCURRENT_REQUESTS: "2"
+    RPC_PROXY_MAX_QUEUED_REQUESTS: "32"
     RPC_PROXY_MAX_BATCH_ITEMS: "100"
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=16m
@@ -118,6 +125,7 @@ services:
       RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "25"
       RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "40"
       RPC_PROXY_MAX_CONCURRENT_REQUESTS: "2"
+      RPC_PROXY_MAX_QUEUED_REQUESTS: "32"
       RPC_PROXY_MAX_BATCH_ITEMS: "100"
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBlockByHash
@@ -205,6 +213,7 @@ services:
       RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "25"
       RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "40"
       RPC_PROXY_MAX_CONCURRENT_REQUESTS: "2"
+      RPC_PROXY_MAX_QUEUED_REQUESTS: "32"
       RPC_PROXY_MAX_BATCH_ITEMS: "100"
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_blockNumber eth_getTransactionReceipt eth_getTransactionByHash eth_getCode eth_call
