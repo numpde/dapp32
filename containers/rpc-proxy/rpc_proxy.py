@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Forward allowed JSON-RPC methods through bounded HTTPS and worker lifetimes."""
+
 from contextlib import contextmanager
 from collections import deque
 from dataclasses import dataclass
@@ -85,6 +87,7 @@ MAX_CONCURRENT_REQUESTS = required_bounded_positive_int_env(
     "RPC_PROXY_MAX_CONCURRENT_REQUESTS", MAX_CONCURRENT_REQUESTS_LIMIT,
 )
 MAX_QUEUED_REQUESTS = os.environ.get("RPC_PROXY_MAX_QUEUED_REQUESTS")
+# A queue requires a declared capacity; other callers retain immediate rejection.
 if MAX_QUEUED_REQUESTS is not None:
     if re.fullmatch(r"0|[1-9][0-9]?", MAX_QUEUED_REQUESTS) is None or int(MAX_QUEUED_REQUESTS) > 64:
         raise RuntimeError("RPC_PROXY_MAX_QUEUED_REQUESTS: expected a decimal integer from 0 through 64")
@@ -371,6 +374,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.request_version = "HTTP/1.0"
         self.command = None
         try:
+            # The worker inherits the acceptance deadline, including time spent
+            # waiting in the parent's queue.
             deadline = getattr(self.server, "connection_deadline", time.monotonic() + REQUEST_DEADLINE_SECONDS)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -562,13 +567,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 @dataclass(frozen=True)
 class PendingConnection:
-    request: socket.socket
+    """A parent-owned socket and its absolute monotonic deadline in seconds."""
+
+    socket: socket.socket
     address: tuple
     deadline: float
 
 
 class BoundedForkingHTTPServer(http.server.HTTPServer):
-    """One deadline-isolated process per connection, without an unbounded queue."""
+    """Own an optional bounded FIFO and reap each worker with its DNS descendants."""
 
     def __init__(self, server_address, handler_class):
         self.active_children = set()
@@ -595,18 +602,20 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
                 self.active_children.discard(pid)
 
     def service_actions(self):
+        """Reap workers, remove expired or canceled waiters, then dispatch in FIFO order."""
         self.collect_children()
         for connection in tuple(self.pending):
             if time.monotonic() >= connection.deadline:
-                self.reject_unforwarded(connection.request, 408, "queue deadline expired")
+                self.reject_unforwarded(connection.socket, 408, "queue deadline expired")
                 self.pending.remove(connection)
-            elif self.disconnected(connection.request):
-                self.shutdown_request(connection.request)
+            elif self.has_observed_disconnect(connection.socket):
+                self.shutdown_request(connection.socket)
                 self.pending.remove(connection)
         while self.pending and len(self.active_children) < MAX_CONCURRENT_REQUESTS:
-            self.start_pending()
+            self.start_next_connection()
 
-    def disconnected(self, request):
+    def has_observed_disconnect(self, request):
+        """Detect transport failure or EOF without consuming input or waiting."""
         # Buffered bytes can hide a graceful close; cancel only on observed
         # transport errors or end-of-input, without consuming the request.
         try:
@@ -624,6 +633,7 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
         self.reject_unforwarded(request, 503, "capacity exhausted")
 
     def reject_unforwarded(self, request, status, reason):
+        """Close an undispatched socket after a bounded best-effort HTTP rejection."""
         print(f"rpc-proxy: request not forwarded: {reason}; active={len(self.active_children)} queued={len(self.pending)}", file=sys.stderr)
         try:
             request.setblocking(False)
@@ -638,18 +648,24 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
             self.shutdown_request(request)
 
     def process_request(self, request, client_address):
+        """Own the new socket, service older waiters, then enforce waiting capacity."""
         connection = PendingConnection(request, client_address, time.monotonic() + REQUEST_DEADLINE_SECONDS)
+        # Maintenance can fork an older waiter. Track this socket first so that
+        # worker closes its inherited copy too, even if admission later rejects it.
         self.pending.append(connection)
         self.service_actions()
-        if self.pending and (MAX_QUEUED_REQUESTS is None or len(self.pending) > MAX_QUEUED_REQUESTS):
+        if connection not in self.pending:
+            return
+        if MAX_QUEUED_REQUESTS is None or len(self.pending) > MAX_QUEUED_REQUESTS:
             self.pending.remove(connection)
             self.reject_busy(request)
 
-    def start_pending(self):
+    def start_next_connection(self):
+        """Transfer the oldest waiting socket to a worker while retaining its PID."""
         # Do not interrupt fork before the parent owns the child's lifetime.
         old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM, signal.SIGINT})
         connection = self.pending.popleft()
-        request = connection.request
+        request = connection.socket
         client_address = connection.address
         try:
             pid = os.fork()
@@ -676,8 +692,10 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
         try:
             os.setpgid(0, 0)
             self.socket.close()
+            # close() drops inherited descriptors; shutdown() would also disable
+            # the parent's queued connections.
             for waiting in self.pending:
-                waiting.request.close()
+                waiting.socket.close()
             self.pending.clear()
             self.connection_deadline = connection.deadline
 
@@ -704,9 +722,10 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
         print("rpc-proxy: request worker failed", file=sys.stderr)
 
     def server_close(self):
+        """Close parent-owned sockets, then stop and reap owned worker groups."""
         super().server_close()
         while self.pending:
-            self.shutdown_request(self.pending.popleft().request)
+            self.shutdown_request(self.pending.popleft().socket)
         self.collect_children()
         for pid in self.active_children:
             try:

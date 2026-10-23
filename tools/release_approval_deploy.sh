@@ -184,6 +184,8 @@ release_approval_retain_signer_log() {
   fi
 }
 
+# Capture bounded state and logs before teardown. Services absent during partial
+# startup are expected; collection failure must not prevent resource cleanup.
 release_approval_retain_diagnostics() {
   local path="$release_approval_output/approval-diagnostics.log"
   if ! (
@@ -192,6 +194,8 @@ release_approval_retain_diagnostics() {
     (
       failed=0
       printf '%s\n' 'Approval diagnostics: first 65536 bytes; excerpt may be truncated.'
+      # Bound each service log excerpt; drain truncated streams so producer failures
+      # still reach pipefail instead of being replaced by a broken-pipe error.
       for service in release-rpc-proxy release-artifact-rpc-proxy release-approval; do
         identity="$(compose_release ps -a -q "$service")" || { failed=1; continue; }
         if [[ -z "$identity" ]]; then continue; fi
