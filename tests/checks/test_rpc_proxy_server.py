@@ -5,6 +5,8 @@ import http.client
 import json
 import multiprocessing
 import os
+from pathlib import Path
+import signal
 import socket
 import tempfile
 import time
@@ -249,6 +251,38 @@ class RpcProxyServerTest(unittest.TestCase):
             for pid in (worker_pid, dns_pid):
                 with self.subTest(pid=pid), self.assertRaises(ProcessLookupError):
                     os.kill(pid, 0)
+
+    def test_killed_worker_stops_its_dns_resolver_and_releases_capacity(self):
+        with self.server(stall_dns=True, overrides={
+            "RPC_PROXY_MAX_CONCURRENT_REQUESTS": "1",
+            "RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS": "10",
+            "RPC_PROXY_REQUEST_TIMEOUT_SECONDS": "20",
+        }) as (address, activity, _release, process):
+            connection = self.connect(address)
+            self.send_rpc(connection, "blocked-dns")
+            worker_pid = self.next_activity(activity, "accepted")[1]
+            dns_pid = self.next_activity(activity, "dns")[1]
+            os.kill(worker_pid, signal.SIGKILL)
+            self.assert_recovers(address)
+
+            deadline = time.monotonic() + 1
+            while True:
+                try:
+                    state = Path(f"/proc/{dns_pid}/stat").read_text().split(")", 1)[1].split()[0]
+                except FileNotFoundError:
+                    break
+                # The fixture container's PID 1 may retain an adopted zombie;
+                # it must no longer execute or hold the accepted connection.
+                if state == "Z":
+                    break
+                self.assertLess(time.monotonic(), deadline, "killed worker left its DNS resolver running")
+                time.sleep(0.01)
+
+            self.assertEqual(b"", connection.recv(1), "orphan resolver retained the client connection")
+            process.terminate()
+            process.join(timeout=2)
+            self.assertFalse(process.is_alive(), "proxy did not stop after reaping the killed worker")
+            self.assertEqual(0, process.exitcode)
 
 
 if __name__ == "__main__":

@@ -560,10 +560,19 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
     def collect_children(self):
         for pid in tuple(self.active_children):
             try:
-                reaped, _status = os.waitpid(pid, os.WNOHANG)
+                exited = os.waitid(os.P_PID, pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
             except ChildProcessError:
-                reaped = pid
-            if reaped:
+                self.active_children.discard(pid)
+                continue
+            if exited is not None:
+                # Keep the owned leader unreaped until its descendants are
+                # stopped, so its PID cannot be reused as another group ID.
+                try:
+                    os.killpg(pid, signal.SIGKILL)
+                # silent-defaults: allow-exception-fallback -- A completed worker may have no remaining process group; its owned zombie is still reaped below.
+                except ProcessLookupError:
+                    pass
+                os.waitpid(pid, 0)
                 self.active_children.discard(pid)
 
     def service_actions(self):
