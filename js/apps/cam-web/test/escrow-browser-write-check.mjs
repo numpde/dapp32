@@ -257,7 +257,7 @@ async function agreement(ref) {
 async function withCase(mode, test) {
   if (selectedCases.size > 0 && !selectedCases.has(mode)) return
   let release
-  const owner = { mode, sendLimit: mode === 'workflow' ? 6 : ['grant', 'wallet-events', 'chain-navigation', 'empty-navigation', 'chain-failed-navigation', 'empty-failed-navigation'].includes(mode) ? 0 : 1, sendRequests: 0, sendReached: false, sent: [], exceptions: 0, closed: false, held: new Promise(resolve => { release = resolve }) }
+  const owner = { mode, sendLimit: mode === 'workflow' ? 6 : ['grant', 'back-review', 'wallet-events', 'chain-navigation', 'empty-navigation', 'chain-failed-navigation', 'empty-failed-navigation'].includes(mode) ? 0 : 1, sendRequests: 0, sendReached: false, sent: [], exceptions: 0, closed: false, held: new Promise(resolve => { release = resolve }) }
   commands = createCdpCommands({ socket: ws, runDeadline: deadline, now: Date.now })
   activeCase = owner
   try {
@@ -321,6 +321,25 @@ try {
     assert.equal(owner.sendRequests, 0)
     assert.equal(owner.sent.length, 0)
     assert.equal(await nonce(), before, 'provider grant rejection must precede any nonce change')
+  })
+  await withCase('back-review', async owner => {
+    await evaluate("location.hash='route=accountCredit';true")
+    await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'credit before review history')
+    await evaluate("location.hash='route=createAgreementForm';true")
+    await waitFor(state => state.buttons.some(button => button.name === 'Create agreement'), 'form before review history')
+    await setupDraft(reference('back-review'))
+    const before = await nonce()
+    assert(await evaluate(`(() => {
+      const button=name=>[...document.querySelectorAll('button')].find(button=>(button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim()===name);
+      const back=button('Back'),send=button('Send with wallet');
+      if(!back||back.disabled||!send||send.disabled)return false;
+      back.click();send.click();return true;
+    })()`), 'capture enabled Back and Send before same-tick navigation')
+    const state = await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'Back leaves transaction review')
+    assert(!state.prepared)
+    assert.deepEqual(state.submissionMethods, [], 'Back must revoke submission before the browser traversal event')
+    assert.equal(owner.sendRequests, 0)
+    assert.equal(await nonce(), before, 'Back must not broadcast a stale review')
   })
   await withCase('wallet-events', async owner => {
     await setupDraft(reference('wallet-events'))

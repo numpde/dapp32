@@ -33,6 +33,8 @@ import {
   walletChain,
   walletLabel,
 } from "./wallet.ts"
+import { createBrowserHistory } from "./browser-history.ts"
+import type { BrowserVisit } from "./browser-history.ts"
 import type { WalletState } from "./wallet.ts"
 import { createInjectedWalletBinding } from "./wallet-binding.ts"
 import { actionFailure, failureReport, UserFacingError } from "./errors.ts"
@@ -117,6 +119,18 @@ export function App(): ReactElement {
   const walletAccountSynchronizedRef = useRef(true)
   const walletBindingRef = useRef<{ connect(): Promise<void>; resume(): Promise<void>; dispose(): void } | undefined>(undefined)
   const committedUrlRef = useRef(window.location.href)
+  const browserHistoryRef = useRef<ReturnType<typeof createBrowserHistory> | undefined>(undefined)
+  if (browserHistoryRef.current === undefined) browserHistoryRef.current = createBrowserHistory({
+    get state() { return window.history.state },
+    get href() { return window.location.href },
+    replaceState: (state, unused, url) => window.history.replaceState(state, unused, url),
+    pushState: (state, unused, url) => window.history.pushState(state, unused, url),
+    go: delta => window.history.go(delta),
+  }, crypto.getRandomValues(new Uint32Array(4)).join("-"))
+  const browserHistory = browserHistoryRef.current
+  const browserReadRef = useRef<BrowserVisit | undefined>(undefined)
+  const readyRef = useRef(loadState)
+  readyRef.current = loadState
   const noticeRef = useRef<HTMLParagraphElement>(null)
   const transactionNoticeRef = useRef<HTMLParagraphElement>(null)
   const preparedRef = useRef<HTMLElement>(null)
@@ -169,7 +183,7 @@ export function App(): ReactElement {
             },
             snapshot,
           }
-          commitSnapshot(ready, snapshot)
+          commitSnapshot(ready, snapshot, "replace")
         }
       } catch (error) {
         if (!cancelled) {
@@ -204,10 +218,13 @@ export function App(): ReactElement {
       isViewBusy: () => changingViewRef.current,
       setAccount: async address => {
         setViewChanging(true)
-        try { return await loadedRuntime.session.setAccount({ address }) }
-        finally { setViewChanging(false) }
+        try {
+          const snapshot = await loadedRuntime.session.setAccount({ address })
+          await browserHistory.settled()
+          return snapshot
+        } finally { setViewChanging(false) }
       },
-      commitAccount: snapshot => commitSnapshot(ready, snapshot),
+      commitAccount: snapshot => commitSnapshot(ready, snapshot, "replace"),
       invalidate: invalidatePreparedInteraction,
       onState: state => {
         walletRefreshingRef.current = state.refreshing
@@ -232,41 +249,60 @@ export function App(): ReactElement {
   }, [loadedRuntime])
 
   useEffect(() => {
-    async function navigateFromFragment(): Promise<void> {
-      if (loadState.status !== "ready") {
-        // Startup owns the URL until the first view loads. A changed startup
-        // request is handled by the same tab, rather than overwriting it later.
+    async function openBrowserVisit(target: BrowserVisit): Promise<void> {
+      const current = readyRef.current
+      if (current.status !== "ready") {
         window.location.reload()
         return
       }
-      if (sendingRef.current || viewInteractionBlocked()) {
-        window.history.replaceState(window.history.state, "", committedUrlRef.current)
+      if (browserReadRef.current !== undefined) {
+        browserHistory.restore(browserReadRef.current.position)
         showStatus("Finish the current operation before opening another view.", false)
         return
       }
-      const ready = loadState
+      if (sendingRef.current || viewInteractionBlocked()) {
+        browserHistory.restore("committed")
+        showStatus("Finish the current operation before opening another view.", false)
+        return
+      }
+      browserReadRef.current = target
       const revision = nextInteractionRevision()
       setPreparedCall(undefined)
       setNotice(undefined)
       setViewChanging(true)
       try {
-        const requested = parseViewFragment(window.location.hash)
-        const snapshot = await ready.runtime.session.navigate(requested.route, requested.inputs)
-        commitSnapshot(ready, snapshot)
-        if (!isCurrentInteraction(revision)) return
-        arriveAtFeedback("view")
+        let snapshot = target.visitId === undefined ? undefined : await current.runtime.session.traverse(target.visitId)
+        if (snapshot === undefined) {
+          const requested = parseViewFragment(new URL(target.href).hash)
+          snapshot = await current.runtime.session.navigate(requested.route, requested.inputs)
+        }
+        await browserHistory.settled()
+        if (browserHistory.isCurrent(target)) {
+          commitSnapshot(current, snapshot, target)
+          if (isCurrentInteraction(revision)) arriveAtFeedback("view")
+        }
       } catch (error) {
-        window.history.replaceState(window.history.state, "", committedUrlRef.current)
-        if (!isCurrentInteraction(revision)) return
-        showError(failureReport(error, "Cannot open the requested view. The previous view is kept."), true)
+        await browserHistory.settled()
+        if (browserHistory.isCurrent(target)) {
+          browserHistory.restore("committed")
+          if (isCurrentInteraction(revision)) showError(failureReport(error, "Cannot open the requested view. The previous view is kept."), true)
+        }
       } finally {
+        browserReadRef.current = undefined
         setViewChanging(false)
       }
     }
-    const onHashChange = () => { void navigateFromFragment() }
-    window.addEventListener("hashchange", onHashChange)
-    return () => window.removeEventListener("hashchange", onHashChange)
-  }, [loadState])
+    const onNavigation = () => {
+      const target = browserHistory.observe()
+      if (target !== undefined) void openBrowserVisit(target)
+    }
+    window.addEventListener("popstate", onNavigation)
+    window.addEventListener("hashchange", onNavigation)
+    return () => {
+      window.removeEventListener("popstate", onNavigation)
+      window.removeEventListener("hashchange", onNavigation)
+    }
+  }, [])
 
   async function dispatch(action: ResolvedButtonNode): Promise<void> {
     if (sendingRef.current || viewInteractionBlocked()) return
@@ -280,7 +316,8 @@ export function App(): ReactElement {
       let result
       try {
         result = await ready.runtime.session.dispatchAction(action)
-        if (result.type === "navigated") commitSnapshot(ready, result.snapshot)
+        await browserHistory.settled()
+        if (result.type === "navigated") commitSnapshot(ready, result.snapshot, "push")
       } finally {
         setViewChanging(false)
       }
@@ -320,22 +357,9 @@ export function App(): ReactElement {
   }
 
   async function goBack(): Promise<void> {
-    if (sendingRef.current || viewInteractionBlocked()) return
-    const ready = requireReadyState(loadState)
-    const revision = nextInteractionRevision()
-    setPreparedCall(undefined)
-    setNotice(undefined)
-    setViewChanging(true)
-    try {
-      const snapshot = await ready.runtime.session.back()
-      commitSnapshot(ready, snapshot)
-      if (!isCurrentInteraction(revision)) return
-      arriveAtFeedback("view")
-    } catch (error) {
-      if (isCurrentInteraction(revision)) showError(failureReport(error, "Cannot open the previous view."), true)
-    } finally {
-      setViewChanging(false)
-    }
+    if (sendingRef.current || viewInteractionBlocked() || !browserHistory.canGoBack()) return
+    invalidatePreparedInteraction()
+    browserHistory.back()
   }
 
   async function refreshView(): Promise<void> {
@@ -347,7 +371,8 @@ export function App(): ReactElement {
     setViewChanging(true)
     try {
       const snapshot = await ready.runtime.session.refresh()
-      commitSnapshot(ready, snapshot)
+      await browserHistory.settled()
+      commitSnapshot(ready, snapshot, "replace")
       if (!isCurrentInteraction(revision)) return
       arriveAtFeedback("view")
     } catch (error) {
@@ -434,8 +459,9 @@ export function App(): ReactElement {
           setViewChanging(true)
           try {
             const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
+            await browserHistory.settled()
             if (!ownsSend()) return
-            commitSnapshot(ready, snapshot)
+            commitSnapshot(ready, snapshot, "push")
           } finally {
             setViewChanging(false)
           }
@@ -526,15 +552,16 @@ export function App(): ReactElement {
   }
 
   function cancelPendingDocumentHashes(): void {
-    if (loadState.status !== "ready") return
-    const session = loadState.runtime.session
+    const current = readyRef.current
+    if (current.status !== "ready") return
+    const session = current.runtime.session
     const documentHashes = session.snapshot().documentHashes
     if (documentHashes === undefined) return
-    let snapshot = loadState.snapshot
+    let snapshot = current.snapshot
     for (const [name, status] of Object.entries(documentHashes)) {
       if (status.status === "pending") snapshot = session.cancelDocumentHash(name)
     }
-    if (snapshot !== loadState.snapshot) setLoadState({ ...loadState, snapshot })
+    if (snapshot !== current.snapshot) setLoadState({ ...current, snapshot })
   }
 
   async function calculateDocumentHash(name: string, source: "url" | "file", file?: File): Promise<void> {
@@ -574,20 +601,21 @@ export function App(): ReactElement {
   function commitSnapshot(
     ready: Extract<LoadState, { readonly status: "ready" }>,
     snapshot: CamViewerLoadedSnapshot,
+    mode: "push" | "replace" | BrowserVisit,
   ): void {
     setLoadState({ ...ready, snapshot })
     const currentUrl = new URL(window.location.href)
     if (snapshot.account !== undefined) currentUrl.searchParams.set("account", snapshot.account.address)
     try {
       const nextUrl = urlForView(currentUrl, snapshot)
-      window.history.replaceState(window.history.state, "", nextUrl.href)
+      browserHistory.commit(snapshot.visitId, nextUrl.href, mode)
       committedUrlRef.current = nextUrl.href
     } catch (error) {
       // The read succeeded. Do not misreport it as a lookup failure merely
       // because its inputs cannot be represented by the URL boundary.
       const previousUrl = new URL(committedUrlRef.current)
       if (snapshot.account !== undefined) previousUrl.searchParams.set("account", snapshot.account.address)
-      window.history.replaceState(window.history.state, "", previousUrl.href)
+      browserHistory.commit(snapshot.visitId, previousUrl.href, mode)
       committedUrlRef.current = previousUrl.href
       setNotice({ ...failureReport(error, "View opened, but its URL could not be updated. Refresh will open the previous view."), kind: "status" })
     }
@@ -702,7 +730,7 @@ export function App(): ReactElement {
 
       {loadState.status === "ready" ? (
         <UiView
-          snapshot={loadState.snapshot}
+          snapshot={{ ...loadState.snapshot, canGoBack: browserHistory.canGoBack() }}
           actionKind={loadState.runtime.session.actionKind}
           viewRef={viewRef}
           changingView={changingView || walletRefreshing || !walletAccountSynchronized}

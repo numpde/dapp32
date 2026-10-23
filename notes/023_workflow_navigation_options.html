@@ -123,6 +123,23 @@
   tested. The <a href="014_generated_ui_workshop_2026_10_11.html">2026-10-11 UI audit</a>
   is earlier background. The recommendation remains provisional; improved
   usability and final navigation behavior are unproven.</p>
+  <h2>Implemented follow-up: browser history</h2>
+  <p>The baseline account above describes <code>addd8b7</code>. The subsequent
+  viewer change makes successful new read navigation create browser visits.
+  Viewer Back and native browser Back/Forward reopen the same retained visits:
+  contract values are read again and compatible drafts are restored, including
+  distinct drafts from visits with identical URLs. Refresh keeps the current
+  visit. A successful viewing-account change clears prior drafts; old, reset or
+  evicted visits reopen with fresh forms for the active viewing account.</p>
+  <p>The session retains at most 21 visits. Browser entries store visit IDs and
+  positions; drafts remain in the session and do not persist across reloads.
+  Extra browser traversal during a pending operation is compensated back to the
+  pending or committed visit. Failed reads preserve the previous view and
+  history branch. Submitted transaction evidence remains independent of view
+  navigation and transaction review.</p>
+  <p>Validation includes the full JS checks and actual CDP browser checks on
+  Bike. This follow-up implements navigation mechanics; the presentation
+  comparison above remains open, and tabs have not been implemented.</p>
 </main>
 </body>
 </html>

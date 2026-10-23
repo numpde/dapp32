@@ -74,8 +74,8 @@ type CamViewerLoadedState = {
 }
 
 type CurrentView = ViewerResolvedReadView & { readonly numericDrafts: Record<string, NumericDraft> }
-type PreviousView = Pick<CurrentView, "route" | "inputs" | "state" | "numericDrafts">
-const HISTORY_LIMIT = 20
+type Visit = Pick<CurrentView, "route" | "inputs" | "state" | "numericDrafts"> & { readonly visitId: number }
+const VISIT_LIMIT = 21
 
 export function createCamViewerSession({
   publicClient,
@@ -90,7 +90,9 @@ export function createCamViewerSession({
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
   let loadedState: CamViewerLoadedState | undefined
   let currentView: CurrentView | undefined
-  const history: PreviousView[] = []
+  const visits: Visit[] = []
+  let visitCursor = -1
+  let nextVisitId = 1
   let changingView = false
   let writePreparationRevision = 0
   const documentHashes: Record<string, CamViewerDocumentHashStatus> = Object.create(null)
@@ -106,7 +108,7 @@ export function createCamViewerSession({
 
   function sessionSnapshot(inputs: InertRecord): CamViewerSnapshot {
     return {
-      canGoBack: history.length > 0,
+      canGoBack: visitCursor > 0,
       inputs: cloneViewerData<InertRecord>(inputs, "inputs"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
     }
@@ -116,6 +118,7 @@ export function createCamViewerSession({
     const current = assertLoaded()
     return {
       ...sessionSnapshot(view.inputs),
+      visitId: visits[visitCursor]!.visitId,
       integrityWarnings: cloneViewerData(current.integrityWarnings, "integrityWarnings"),
       documentHashes: cloneViewerData(documentHashes, "documentHashes"),
       route: view.route,
@@ -162,7 +165,7 @@ export function createCamViewerSession({
 
     loadedState = nextLoadedState
     currentView = nextView
-    history.length = 0
+    resetVisits(nextView)
 
     return loadedSnapshot(currentView)
   }
@@ -174,15 +177,28 @@ export function createCamViewerSession({
   }
 
   async function back(): Promise<CamViewerLoadedSnapshot> {
-    writePreparationRevision += 1
-    const current = assertLoaded()
-    const previous = history.at(-1)
+    assertLoaded()
+    const previous = visits[visitCursor - 1]
     if (previous === undefined) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot go back: there is no previous view")
     }
-    const refreshed = await resolveLoadedView(current, previous.route, previous.inputs, account)
-    currentView = restoreDrafts(previous, refreshed)
-    history.pop()
+    await traverse(previous.visitId)
+    return loadedSnapshot(assertCurrentView())
+  }
+
+  async function traverse(visitId: number): Promise<CamViewerLoadedSnapshot | undefined> {
+    if (!Number.isSafeInteger(visitId) || visitId <= 0) {
+      throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Cannot traverse view history: visit identifier must be a positive safe integer")
+    }
+    const targetCursor = visits.findIndex((visit) => visit.visitId === visitId)
+    if (targetCursor === -1) return undefined
+    writePreparationRevision += 1
+    const target = targetCursor === visitCursor ? savedVisit(assertCurrentView(), visitId) : visits[targetCursor]!
+    const refreshed = await resolveLoadedView(assertLoaded(), target.route, target.inputs, account)
+    const restored = restoreDrafts(target, refreshed)
+    visits[visitCursor] = savedVisit(assertCurrentView(), visits[visitCursor]!.visitId)
+    currentView = restored
+    visitCursor = targetCursor
     return loadedSnapshot(currentView)
   }
 
@@ -194,7 +210,16 @@ export function createCamViewerSession({
     return loadedSnapshot(currentView)
   }
 
-  function restoreDrafts(previous: PreviousView, refreshed: CurrentView): CurrentView {
+  function savedVisit(view: CurrentView, visitId: number): Visit {
+    return { visitId, route: view.route, inputs: view.inputs, state: view.state, numericDrafts: view.numericDrafts }
+  }
+
+  function resetVisits(view: CurrentView): void {
+    visits.splice(0, visits.length, savedVisit(view, nextVisitId++))
+    visitCursor = 0
+  }
+
+  function restoreDrafts(previous: Pick<CurrentView, "state" | "numericDrafts">, refreshed: CurrentView): CurrentView {
     const state = { ...refreshed.state }
     const numericDrafts = { ...refreshed.numericDrafts }
     for (const name of resolvedUiInputNames(refreshed.resolvedUi)) {
@@ -222,7 +247,7 @@ export function createCamViewerSession({
     const nextView = await resolveLoadedView(assertLoaded(), view.route, view.inputs, candidateAccount)
     account = candidateAccount
     currentView = nextView
-    history.length = 0
+    resetVisits(nextView)
     return loadedSnapshot(nextView)
   }
 
@@ -403,9 +428,11 @@ export function createCamViewerSession({
     const current = assertLoaded()
     const nextView = await resolveLoadedView(current, nextRoute, nextInputs, account)
 
-    const previous = assertCurrentView()
-    history.push({ route: previous.route, inputs: previous.inputs, state: previous.state, numericDrafts: previous.numericDrafts })
-    if (history.length > HISTORY_LIMIT) history.shift()
+    visits[visitCursor] = savedVisit(assertCurrentView(), visits[visitCursor]!.visitId)
+    visits.splice(visitCursor + 1)
+    visits.push(savedVisit(nextView, nextVisitId++))
+    if (visits.length > VISIT_LIMIT) visits.shift()
+    visitCursor = visits.length - 1
     currentView = nextView
 
     return loadedSnapshot(currentView)
@@ -497,7 +524,7 @@ export function createCamViewerSession({
     }
   }
 
-  async function changeView(operation: () => Promise<CamViewerLoadedSnapshot>): Promise<CamViewerLoadedSnapshot> {
+  async function changeView<T>(operation: () => Promise<T>): Promise<T> {
     assertViewAvailable()
     for (const name of Object.keys(documentHashes)) invalidateDocumentHash(name)
     changingView = true
@@ -521,6 +548,7 @@ export function createCamViewerSession({
     snapshot,
     load: () => changeView(load),
     back: () => changeView(back),
+    traverse: (visitId) => changeView(() => traverse(visitId)),
     refresh: () => changeView(refresh),
     navigate: (route, inputs) => changeView(() => navigate(route, inputs)),
     setAccount: (nextAccount) => changeView(() => setAccount(nextAccount)),

@@ -27,6 +27,7 @@ export type CreateCamViewerSessionOptions = {
 }
 
 export type CamViewerSnapshot = {
+  readonly visitId?: number
   readonly integrityWarnings?: readonly CamIntegrityWarning[]
   readonly canGoBack: boolean
   readonly route?: string
@@ -41,6 +42,7 @@ export type CamViewerSnapshot = {
 
 export type CamViewerLoadedSnapshot =
   Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values" | "documentHashes" | "integrityWarnings"> & {
+    readonly visitId: number
     readonly integrityWarnings: readonly CamIntegrityWarning[]
     readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
     readonly route: string
@@ -74,6 +76,7 @@ export type CamViewerSession = {
   readonly snapshot: () => CamViewerSnapshot
   readonly load: () => Promise<CamViewerLoadedSnapshot>
   readonly back: () => Promise<CamViewerLoadedSnapshot>
+  readonly traverse: (visitId: number) => Promise<CamViewerLoadedSnapshot | undefined>
   readonly refresh: () => Promise<CamViewerLoadedSnapshot>
   readonly navigate: (
     /** Undefined selects the loaded manifest entry. */

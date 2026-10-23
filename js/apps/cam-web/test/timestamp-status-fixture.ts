@@ -23,7 +23,7 @@ browser.clearInterval = timer => { if (timer !== undefined) timers.delete(timer)
 const context = { host: { chainId: "eip155:31337", address: "0x0000000000000000000000000000000000000001" }, inputs: {}, outputs: [], state: {} }
 function render(timestamp: ResolvedUiNode | undefined): void {
   root.render(createElement(UiView, {
-    snapshot: { integrityWarnings: [], canGoBack: false, route: "fixture", inputs: {}, state: { draft: "unchanged" }, values: [], uiURI: "fixture", documentHashes: {},
+    snapshot: { visitId: 1, integrityWarnings: [], canGoBack: false, route: "fixture", inputs: {}, state: { draft: "unchanged" }, values: [], uiURI: "fixture", documentHashes: {},
       resolvedUi: { element: "Fragment", props: {}, children: [
         { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },
         { element: "Status", props: { label: "Value before timestamp", value: "Before" }, children: [] },

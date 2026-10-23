@@ -28,7 +28,7 @@ function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCa
   return declared.kind
 }
 function render(): void {
-  const snapshot: CamViewerLoadedSnapshot = { integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "" }, values: [], uiURI: "fixture", documentHashes: { document: { status: "pending", source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "" }, values: [], uiURI: "fixture", documentHashes: { document: { status: "pending", source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Status", props: { label: "Before actions", value: "Before" }, children: [] },
     { element: "Screen", props: { title: "Fixture actions" }, children: [
       { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },

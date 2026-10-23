@@ -471,6 +471,77 @@ try {
     assert((await evaluate('document.body.innerText')).includes(first), 'failed lookup changed the loaded agreement')
   })
 
+  await browserCase('native Back and Forward restore distinct same-URL drafts', async () => {
+    await freshForm()
+    await enter('agreementRef', 'native-first-draft')
+    const firstURL = await evaluate('location.href')
+    await enter('agreementId', `0x${'ad'.repeat(32)}`)
+    await clickButton('Open agreement by ID')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup between form visits')
+    await clickButton('Create an agreement')
+    await waitFor(async () => (await field('agreementRef')) === '', 'second form visit')
+    assert.equal(await evaluate('location.href'), firstURL, 'same-route action changed URL')
+    await enter('agreementRef', 'native-second-draft')
+    await evaluate('history.go(-2)')
+    await waitFor(async () => (await field('agreementRef')) === 'native-first-draft', 'native Back restores first visit')
+    await evaluate('history.go(2)')
+    await waitFor(async () => (await field('agreementRef')) === 'native-second-draft', 'native Forward restores second visit')
+    await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
+    await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'manual fragment before native Back')
+    await evaluate('history.back()')
+    await waitFor(async () => (await field('agreementRef')) === 'native-second-draft', 'popstate and hashchange restore one draft')
+    assert.equal(transactionRequests.length, 0, 'history requested a transaction')
+  })
+
+  await browserCase('viewer Back stays available on a branch created before the reload entry', async () => {
+    await freshForm()
+    await enter('agreementId', `0x${'ac'.repeat(32)}`)
+    await clickButton('Open agreement by ID')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before reload branch')
+    await clickButton('Create an agreement')
+    await waitFor(async () => (await field('agreementRef')) !== undefined, 'form before reload branch')
+    const token = await evaluate('history.state.camViewer')
+    await call('Page.reload', {}, sessionId)
+    await waitFor(async () => (await evaluate('history.state?.camViewer')) !== token && (await field('agreementRef')) !== undefined, 'fresh session after reload')
+    await evaluate('history.back()')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'native Back before reload entry')
+    await clickButton('Create an agreement')
+    await waitFor(async () => (await field('agreementRef')) !== undefined, 'new branch before reload entry')
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === 'Back')?.disabled"), false, 'new branch lost its previous viewer visit')
+    await clickButton('Back')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'viewer Back on reloaded branch')
+  })
+
+  await browserCase('rapid native Back compensates to the pending visit before committing its read', async () => {
+    await freshForm()
+    await enter('agreementRef', 'rapid-native-draft')
+    await enter('agreementId', `0x${'ab'.repeat(32)}`)
+    await clickButton('Open agreement by ID')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before rapid Back')
+    const pendingURL = await evaluate('location.href')
+    await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
+    await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'credit before rapid Back')
+    intercept = 'hold'
+    await call('Fetch.enable', { patterns: [{ urlPattern: rpc.href, requestStage: 'Request' }] }, sessionId)
+    try {
+      await evaluate('history.back()')
+      await waitFor(() => heldRequests.length > 0, 'paused native Back read')
+      await evaluate('history.back()')
+      await waitFor(async () => (await evaluate('location.href')) === pendingURL && (await feedback('notice'))?.text.includes('Finish the current operation'), 'rapid Back compensates to pending lookup slot')
+      intercept = undefined
+      for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', { requestId }, sessionId)
+      await call('Fetch.disable', {}, sessionId)
+      await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && !state.text.includes('Total withdrawable credit for this account (wei)'), 'pending native Back commits')
+      assert.equal(await evaluate('location.href'), pendingURL)
+      await evaluate('history.back()')
+      await waitFor(async () => (await field('agreementRef')) === 'rapid-native-draft', 'next native Back restores original draft')
+    } finally {
+      intercept = undefined
+      for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', { requestId }, sessionId)
+      await call('Fetch.disable', {}, sessionId)
+    }
+  })
+
   await browserCase('fragment navigation and clearing use ordinary reads and viewer Back', async () => {
     await freshForm()
     await enter('agreementRef', 'hash-back-draft')
@@ -498,10 +569,11 @@ try {
     try {
       await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
       await waitFor(() => heldRequests.length > 0, 'paused credit read')
+      const pendingURL = await evaluate('location.href')
       assert(await evaluate(`(()=>{const fields=[...document.querySelectorAll('.amount-field input')];return fields.length===2&&fields.every(field=>field.matches(':disabled')&&field.getBoundingClientRect().width>0);})()`), 'pending read must keep both amount controls visible and disabled')
       assert(await evaluate(`['acceptanceDuration.seconds','workDuration.seconds','reviewDuration.seconds','arbitrationDuration.seconds'].every(name=>{const field=document.querySelector('input[name="'+name+'"]');return field?.matches(':disabled')&&field.getBoundingClientRect().width>0;})`), 'pending read must keep integer controls visible and disabled')
       await evaluate(`location.hash = new URLSearchParams({ route: 'agreement', inputs: '{}' }).toString()`)
-      await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.text.includes('Finish the current operation'), 'busy link rollback')
+      await waitFor(async () => (await evaluate('location.href')) === pendingURL && (await feedback('notice'))?.text.includes('Finish the current operation'), 'busy link rollback')
       assert.equal(await field('agreementRef'), 'pending-link-draft')
       for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', { requestId }, sessionId)
       await call('Fetch.disable', {}, sessionId)
@@ -534,6 +606,22 @@ try {
       assert.equal(await field('agreementRef'), 'malformed-link-draft', 'failed link changed the current draft')
     }
     assert.equal(transactionRequests.length, 0, 'failed fragment requested a transaction')
+  })
+
+  await browserCase('batched rejected fragments preserve the draft and leave a usable history branch', async () => {
+    await freshForm()
+    await enter('agreementRef', 'batched-link-draft')
+    const committed = await evaluate('location.href')
+    await evaluate("location.hash='route=missing-first-route';location.hash='route=missing-second-route'")
+    await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".elements")?.disabled'), 'batched rejected fragments restore committed view')
+    assert.equal(await field('agreementRef'), 'batched-link-draft')
+    await clickButton('View account credit')
+    await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'new history branch after batched rejection')
+    await evaluate('history.back()')
+    await waitFor(async () => (await field('agreementRef')) === 'batched-link-draft' && (await evaluate('location.href')) === committed, 'Back after batched rejection restores draft')
+    await evaluate('history.forward()')
+    await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'Forward after batched rejection')
+    assert.equal(transactionRequests.length, 0)
   })
 
   await browserCase('initial write fragments fail without preparing a transaction', async () => {

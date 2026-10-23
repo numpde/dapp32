@@ -1621,6 +1621,83 @@ function amountDraft(snapshot: CamViewerLoadedSnapshot): ResolvedAmountFieldNode
   return draft
 }
 
+test("visit traversal restores distinct same-route drafts and rereads contract values in both directions", async () => {
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const session = createSession(sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })) }))
+  const first = await session.load()
+  session.updateState({ serialNumber: "first draft" })
+  const second = await session.navigate(BIKE_ROUTE_ENTRY, {})
+  session.updateState({ serialNumber: "second draft" })
+  assert.ok(Number.isSafeInteger(first.visitId))
+  assert.ok(second.visitId > first.visitId)
+  assert.equal((await session.back()).visitId, first.visitId)
+  session.updateState({ serialNumber: "revised first draft" })
+  routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), accountInfo: "fresh read" }
+  const forward = await session.traverse(second.visitId)
+  assert.ok(forward)
+  assert.equal(forward.state.serialNumber, "second draft")
+  assert.equal(mutableRecord(forward.values[0]).accountInfo, "fresh read")
+  assert.equal((await session.traverse(first.visitId))?.state.serialNumber, "revised first draft")
+  assert.equal((await session.refresh()).visitId, first.visitId)
+})
+
+test("visit traversal preserves numeric lexical drafts in both directions", async () => {
+  const { session } = integerEditingSession("42")
+  const first = await session.load()
+  editInteger(session, "00023")
+  const second = await session.navigate(BIKE_ROUTE_ENTRY, {})
+  editInteger(session, "00024", { composing: true })
+  assert.equal(integerDraft((await session.traverse(first.visitId))!).text, "00023")
+  const forward = (await session.traverse(second.visitId))!
+  assert.equal(integerDraft(forward).text, "00024")
+  assert.equal(integerDraft(forward).composing, true)
+  assert.equal(forward.state.amount, null)
+})
+
+test("failed traversal and navigation preserve the cursor, forward visits and drafts", async () => {
+  const { session, publicClient } = integerEditingSession("42")
+  const first = await session.load()
+  editInteger(session, "00023")
+  const second = await session.navigate(BIKE_ROUTE_ENTRY, {})
+  editInteger(session, "00024")
+  await session.back()
+  const before = editInteger(session, "00025")
+  const readContract = publicClient.readContract
+  Object.assign(publicClient, { readContract: async () => { throw new Error("fixture read unavailable") } })
+  await assert.rejects(() => session.traverse(second.visitId))
+  await assert.rejects(() => session.navigate(BIKE_ROUTE_ENTRY, {}))
+  assert.deepEqual(session.snapshot(), before)
+  Object.assign(publicClient, { readContract })
+  assert.equal(integerDraft((await session.traverse(second.visitId))!).text, "00024")
+  assert.equal(integerDraft((await session.traverse(first.visitId))!).text, "00025")
+  const replacement = await session.navigate(BIKE_ROUTE_ENTRY, {})
+  assert.ok(replacement.visitId > second.visitId)
+  const current = session.snapshot()
+  assert.equal(await session.traverse(second.visitId), undefined)
+  assert.deepEqual(session.snapshot(), current)
+})
+
+test("reset and evicted visits are unavailable and visit identifiers are never reused", async () => {
+  const session = createSession(sessionFixtureOptions({}))
+  assert.equal(await session.traverse(1), undefined)
+  const visits = [await session.load()]
+  for (let visit = 0; visit < 22; visit += 1) visits.push(await session.navigate(BIKE_ROUTE_ENTRY, {}))
+  assert.equal(await session.traverse(visits[0]!.visitId), undefined)
+  assert.equal(await session.traverse(visits[1]!.visitId), undefined)
+  assert.equal((await session.traverse(visits[2]!.visitId))?.canGoBack, false)
+  assert.equal((await session.traverse(visits[22]!.visitId))?.visitId, visits[22]!.visitId)
+  const accountVisit = await session.setAccount({ address: otherUserAddress })
+  assert.ok(accountVisit.visitId > visits[22]!.visitId)
+  assert.equal(await session.traverse(visits[22]!.visitId), undefined)
+  const loaded = await session.load()
+  assert.ok(loaded.visitId > accountVisit.visitId)
+  assert.equal(await session.traverse(accountVisit.visitId), undefined)
+  for (const visitId of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(() => session.traverse(visitId), /visit/i)
+    assert.deepEqual(session.snapshot(), loaded)
+  }
+})
+
 test("history retains at most twenty previous visits", async () => {
   const session = createSession(sessionFixtureOptions({}))
   await session.load()
@@ -1648,7 +1725,7 @@ test("a pending Back rejects competing mutations and preserves its account scope
       return await publicClient.readContract(request)
     },
   } }))
-  await session.load()
+  const entry = await session.load()
   session.updateState({ serialNumber: "unfinished" })
   await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
   blockEntry = true
@@ -1656,6 +1733,7 @@ test("a pending Back rejects competing mutations and preserves its account scope
   await assert.rejects(() => session.navigate(BIKE_ROUTE_ENTRY, {}), /navigation is in progress/)
   await assert.rejects(() => session.setAccount({ address: otherUserAddress }), /navigation is in progress/)
   await assert.rejects(() => session.back(), /navigation is in progress/)
+  await assert.rejects(() => session.traverse(entry.visitId), /navigation is in progress/)
   assert.throws(() => session.updateState({ serialNumber: "competing edit" }), /navigation is in progress/)
   assert.ok(releaseRead)
   releaseRead()
