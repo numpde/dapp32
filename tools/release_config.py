@@ -1,6 +1,7 @@
 """Collect a self-contained release configuration and unpack it for existing release lanes."""
 
 import argparse
+from datetime import datetime, timezone
 import getpass
 import json
 import os
@@ -45,6 +46,12 @@ OUTPUT_FIELD = ("OUTPUT_DIR", "New deployment output directory (absolute, outsid
 KEY_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 MAX_CONFIG_BYTES = 65536
 CONFIG_VERSION = 3
+
+
+class SourceCommitMismatch(ValueError):
+    """A valid configuration belongs to another source revision."""
+
+
 # Public repeated-pattern key, pre-funded by the local network's genesis.
 # This preset is a test fixture, never an operator credential.
 LOCAL_DEPLOYER_KEY = "0x" + "ba" * 32
@@ -133,8 +140,8 @@ def validate(config, app, source_commit):
         raise ValueError("The release configuration has missing or unknown fields; run the release setup again.")
     if config["app"] != app:
         raise ValueError("The configuration belongs to a different app; use its release target.")
-    if config["sourceCommit"] != source_commit:
-        raise ValueError("The configuration pins a different source commit; use that commit or run the walkthrough again.")
+    if not isinstance(config["sourceCommit"], str) or not re.fullmatch(r"[0-9a-f]{40}", config["sourceCommit"]):
+        raise ValueError("The saved source commit must be an exact 40-character Git commit hash.")
     if config["confirmDeploy"] is not True:
         raise ValueError("The configuration has no saved deployment confirmation; finish the walkthrough.")
     check_value(config["approvalImageId"], "approval-image")
@@ -160,6 +167,8 @@ def validate(config, app, source_commit):
             check_value(settings[name], kind, local_cam_uri=local_cam_uri)
         except ValueError as error:
             raise ValueError(f"Invalid {name}: {error}") from error
+    if config["sourceCommit"] != source_commit:
+        raise SourceCommitMismatch("The configuration pins a different source commit; deploy interactively to update it, or use the saved commit.")
     return config
 
 
@@ -183,26 +192,32 @@ def ask(label, kind, previous, *, secret, local_cam_uri=None):
             print(error, file=sys.stderr)
 
 
-def ask_approval_image(output):
+def installed_approval_images(output):
     with (output / "approval-images").open("rb") as source:
         raw = source.read(MAX_CONFIG_BYTES + 1)
     if len(raw) > MAX_CONFIG_BYTES:
         raise ValueError("Checked approval-image choices exceed 65536 bytes.")
     choices = {}
-    print("Select an installed approval-tool build:")
     for index, line in enumerate(raw.decode("ascii").splitlines(), 1):
         parts = line.split("\t")
         if len(parts) != 2 or not re.fullmatch(r"[0-9a-f]{40}", parts[1]):
             raise ValueError("Checked approval-image choices must contain an image ID and tool source commit.")
         image = check_value(parts[0], "approval-image")
-        choices[str(index)] = image
-        print(f"{index}: {image}  tool source commit: {parts[1]}")
+        choices[str(index)] = (image, parts[1])
     if not choices:
         raise ValueError("No checked local approval images are available; build an approval-tool image before setup.")
+    return choices
+
+
+def ask_approval_image(output):
+    choices = installed_approval_images(output)
+    print("Select an installed approval-tool build:")
+    for index, (image, source_commit) in choices.items():
+        print(f"{index}: {image}  tool source commit: {source_commit}")
     while True:
         selected = input("Approval image number: ").strip()
         if selected in choices:
-            return choices[selected]
+            return choices[selected][0]
         print("Choose one of the listed approval image numbers.", file=sys.stderr)
 
 
@@ -225,7 +240,8 @@ def ask_collection_uri(label, token_name, previous):
 
 def ask_output_directory(app, host_config_file, previous):
     config_file = PurePosixPath(host_config_file)
-    config_directory = str(config_file.with_name(f"{config_file.stem}-deployment"))
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    config_directory = str(config_file.parent / f"{stamp}-deployment")
     temp_directory = f"/tmp/{app}-release-{uuid.uuid4().hex}"
     print("Deployment creates this directory for plans, transaction records and deployed contract addresses.")
     print("Keep it for verification, including after failures. Setup does not create or reserve it.")
@@ -377,7 +393,7 @@ def setup(app, source_commit, output):
             raise ValueError("Setup cancelled; no deployment configuration was saved.")
 
 
-def unpack(app, source_commit, mode, source, output):
+def read_config(source):
     with source.open("rb") as handle:
         raw = handle.read(MAX_CONFIG_BYTES + 1)
     if len(raw) > MAX_CONFIG_BYTES:
@@ -386,6 +402,32 @@ def unpack(app, source_commit, mode, source, output):
         config = json.loads(raw, object_pairs_hook=unique_fields)
     except (json.JSONDecodeError, UnicodeError):
         raise ValueError("The configuration is not valid UTF-8 JSON; no inputs were loaded.") from None
+    return config
+
+
+def update_source(app, source_commit, source, output):
+    config = read_config(source)
+    validate(config, app, config.get("sourceCommit") if isinstance(config, dict) else None)
+    print(f"Saved source commit:   {config['sourceCommit']}\nCurrent source commit: {source_commit}")
+    print("Updating keeps your RPC, signing key, chain and contract settings. It does not resume an earlier deployment.")
+    print(f"Previous deployment records: {config['settings']['OUTPUT_DIR']} (left untouched)")
+    config["sourceCommit"] = source_commit
+    if config["approvalImageId"] not in {image for image, _ in installed_approval_images(output).values()}:
+        print("The saved approval tool is no longer installed; select an installed build.")
+        config["approvalImageId"] = ask_approval_image(output)
+    config["settings"]["OUTPUT_DIR"] = ask_output_directory(app, setup_config_path(), "")
+    validate(config, app, source_commit)
+    print(f"App: {app}\nApproval image: {config['approvalImageId']}\nRPC URL and signing key: unchanged (hidden)")
+    for name, value in config["settings"].items():
+        print(f"{name}: {value}")
+    print("This replaces the saved configuration after validation, then continues deployment. Transactions still require operator approval.")
+    if input("Update configuration and continue? [update/cancel; default cancel]: ").strip().lower() != "update":
+        raise ValueError("Configuration update cancelled; the saved configuration is unchanged.")
+    write_private(output / "release.json", (json.dumps(config, indent=2) + "\n").encode())
+
+
+def unpack(app, source_commit, mode, source, output):
+    config = read_config(source)
     validate(config, app, source_commit)
     prefix = app.upper().replace("-", "_")
     if mode == "verify":
@@ -409,7 +451,7 @@ def unpack(app, source_commit, mode, source, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "deploy", "verify"))
+    parser.add_argument("mode", choices=("network", "setup", "update", "deploy", "verify"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
@@ -420,8 +462,13 @@ def main():
             prepare_network(args.app, args.source_commit, Path("/out"))
         elif args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))
+        elif args.mode == "update":
+            update_source(args.app, args.source_commit, Path("/run/release.json"), Path("/out"))
         else:
             unpack(args.app, args.source_commit, args.mode, Path("/run/release.json"), Path("/out"))
+    except SourceCommitMismatch as error:
+        print(f"Cannot prepare release configuration: {error}", file=sys.stderr)
+        raise SystemExit(3) from None
     except (OSError, ValueError, EOFError, KeyboardInterrupt) as error:
         if isinstance(error, OSError):
             reason = f"File operation failed ({error.strerror})."

@@ -586,6 +586,57 @@ printf 'fixture input\\n' > "$release_config_dir/rpc-url"
                     self.assertIn("Release configuration teardown failed", stderr)
                     self.assertIn("retained mounted inputs", stderr)
 
+    def test_config_update_is_interactive_and_published_only_after_host_admission(self) -> None:
+        for outcome in ("update", "cancel", "bad-image", "bad-output", "changed", "noninteractive", "verify"):
+            with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config = root / "config.json"
+                config.write_text("original")
+                config.chmod(0o600)
+                env = self.environment(root, root)
+                env.update(CONFIG=str(config), OUTCOME=outcome)
+                script = f'source {shlex.quote(str(CONFIG))}\n' + r'''
+source_commit=current
+require_release_config() { [[ -f "$1" ]]; }
+release_config_stage() { [[ "$1" == "$CASE_ROOT" ]]; release_config_dir="$1/stage"; mkdir "$release_config_dir"; }
+release_config_prepare_approval_images() { :; }
+validate_new_release_output() { [[ "$OUTCOME" != bad-output && "$1" == "$CASE_ROOT/new-output" ]]; }
+docker() { [[ "$OUTCOME" != bad-image ]] || return 1; printf '%s\n' "$5"; }
+compose_release_config() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/events"
+  if [[ " $* " == *" release-config update "* ]]; then
+    [[ "$OUTCOME" != cancel ]] || return 2
+    printf updated > "$release_config_dir/release.json"
+    if [[ "$OUTCOME" == changed ]]; then printf concurrent-edit > "$CONFIG"; fi
+  elif [[ -v release_config_input ]]; then
+    printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0ESCROW_RELEASE_OUTPUT_DIR=%s/new-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
+  else return 3; fi
+}
+mode=deploy
+if [[ "$OUTCOME" == verify ]]; then mode=verify; fi
+load_release_config escrow "$mode"
+'''
+                master, slave = pty.openpty()
+                try:
+                    interactive = outcome != "noninteractive"
+                    process = subprocess.Popen(
+                        [self.bash, "-eu", "-o", "pipefail", "-c", script],
+                        cwd=ROOT, env=env, stdin=slave if interactive else subprocess.DEVNULL,
+                        stdout=slave, stderr=slave,
+                    )
+                    process.wait(timeout=10)
+                    self.assertEqual(outcome == "update", process.returncode == 0)
+                    expected = "updated" if outcome == "update" else "concurrent-edit" if outcome == "changed" else "original"
+                    self.assertEqual(expected, config.read_text())
+                    events = (root / "events").read_text()
+                    self.assertEqual(outcome not in ("verify", "noninteractive"), "release-config update" in events)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait(timeout=4)
+                    os.close(master)
+                    os.close(slave)
+
     def test_setup_completion_follows_link_and_prints_safe_next_commands_for_every_app(self) -> None:
         for app in ("bike-nft", "escrow", "pay-to-play"):
             for fail_link in (False, True):

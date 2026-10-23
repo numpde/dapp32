@@ -51,6 +51,75 @@ def complete_setup(app, source_commit, output):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_update_replaces_only_a_missing_approval_image_and_preserves_the_local_fixture(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original = configuration("escrow")
+            original.update(localNetwork="fixture-internal", rpcUrl=release_config.LOCAL_RPC_URL,
+                            deployerPrivateKey=release_config.LOCAL_DEPLOYER_KEY, approvalImageId="sha256:" + "b" * 64)
+            original["settings"].update(EXPECTED_CHAIN_ID="31338", EXPECTED_DEPLOYER_ADDRESS=release_config.LOCAL_DEPLOYER_ADDRESS)
+            source = root / "config.json"
+            source.write_text(json.dumps(original))
+            output = root / "stage"
+            output.mkdir()
+            (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+            with patch.object(release_config, "input", side_effect=["", "update"], create=True), contextlib.redirect_stdout(io.StringIO()):
+                release_config.update_source("escrow", "f" * 40, source, output)
+            updated = json.loads((output / "release.json").read_text())
+            self.assertEqual(APPROVAL_IMAGE, updated["approvalImageId"])
+            original["sourceCommit"] = updated["sourceCommit"]
+            original["approvalImageId"] = updated["approvalImageId"]
+            original["settings"]["OUTPUT_DIR"] = updated["settings"]["OUTPUT_DIR"]
+            self.assertEqual(original, updated)
+            selected = Path(updated["settings"]["OUTPUT_DIR"])
+            self.assertEqual(Path("/tmp"), selected.parent)
+            self.assertRegex(selected.name, r"^[0-9]{8}T[0-9]{12}Z-deployment$")
+
+    def test_update_rejects_invalid_configs_before_prompting_or_writing(self):
+        for changes in ({"schemaVersion": 1}, {"sourceCommit": "main"}, {"app": "bike-nft"}, {"confirmDeploy": False}):
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / "config.json"
+                source.write_text(json.dumps(dict(configuration("escrow"), **changes)))
+                output = root / "stage"
+                output.mkdir()
+                with patch.object(release_config, "input", create=True) as prompt:
+                    with self.assertRaises(ValueError):
+                        release_config.update_source("escrow", "f" * 40, source, output)
+                prompt.assert_not_called()
+                self.assertEqual([], list(output.iterdir()))
+
+    def test_source_update_preserves_inputs_and_requires_explicit_confirmation_for_all_apps(self):
+        current = "f" * 40
+        for app in release_config.APP_FIELDS:
+            for decision in ("update", "", "cancel"):
+                with self.subTest(app=app, decision=decision), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    original = configuration(app)
+                    original["settings"]["CAM_HASH"] = "0x" + "0" * 64
+                    source = root / "config.json"
+                    source.write_text(json.dumps(original))
+                    before = source.read_bytes()
+                    output = root / "stage"
+                    output.mkdir()
+                    (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+                    transcript = io.StringIO()
+                    with patch.object(release_config, "input", side_effect=["/tmp/fresh-release", decision], create=True), contextlib.redirect_stdout(transcript):
+                        if decision == "update":
+                            release_config.update_source(app, current, source, output)
+                            updated = json.loads((output / "release.json").read_text())
+                            expected = dict(original, sourceCommit=current, settings=dict(original["settings"], OUTPUT_DIR="/tmp/fresh-release"))
+                            self.assertEqual(expected, updated)
+                        else:
+                            with self.assertRaisesRegex(ValueError, "cancelled"):
+                                release_config.update_source(app, current, source, output)
+                            self.assertFalse((output / "release.json").exists())
+                    self.assertEqual(before, source.read_bytes())
+                    for secret in (FIXTURE_RPC, FIXTURE_KEY):
+                        self.assertNotIn(secret, transcript.getvalue())
+                    self.assertIn(COMMIT, transcript.getvalue())
+                    self.assertIn(current, transcript.getvalue())
+
     def test_endpoint_selection_collects_no_signing_key_and_detected_chain_is_confirmed(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -228,7 +297,8 @@ class ReleaseConfigTest(unittest.TestCase):
                         self.assertNotIn(selected, temporary_proposals)
                         temporary_proposals.add(selected)
                     elif choice in ("", "config"):
-                        self.assertEqual(root / "operator.release-deployment", selected)
+                        self.assertEqual(root, selected.parent)
+                        self.assertRegex(selected.name, r"^[0-9]{8}T[0-9]{12}Z-deployment$")
                     else:
                         self.assertEqual(root / f"{choice}-deployment", selected)
                     self.assertFalse(selected.exists())

@@ -1675,7 +1675,7 @@ recheck_new_release_output "$$CONFIG" CONFIG; \
 ln -T -- "$$release_config_input" "$$CONFIG"; \
 printf 'Saved release configuration: %s\nNo transactions were sent.\n' "$$CONFIG"; \
 printf 'Run the next commands from a checkout at saved source commit %s.\n' "$$source_commit"; \
-printf '%s\n' 'If the checkout has changed, rerun setup with a new CONFIG path.'; \
+printf '%s\n' 'If the checkout has changed, interactive deployment offers to update CONFIG for the new commit and a fresh deployment directory.'; \
 printf 'Approval image selected in CONFIG: %s\n' "$$RELEASE_APPROVAL_IMAGE"; \
 printf '  make %s/release/deploy CONFIG=%q\n' "$$app" "$$CONFIG"; \
 printf '%s\n' 'Deployment starts required handovers but does not finish them; selecting the deployer as owner/admin skips that handover.'; \

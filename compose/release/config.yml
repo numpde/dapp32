@@ -40,6 +40,8 @@ services:
     volumes: [*tool, *output]
   release-config:
     <<: *config_runtime
+    environment:
+      RELEASE_CONFIG_FILE: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
     volumes:
       - *tool
       - *output

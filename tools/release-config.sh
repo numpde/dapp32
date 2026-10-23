@@ -120,12 +120,23 @@ release_config_prepare_approval_images() {
 }
 
 load_release_config() {
-  local app="$1" mode="$2"
+  local app="$1" mode="$2" status=0 updated=0 original_digest
   local -a inputs
   if [[ ! -v CONFIG || -z "$CONFIG" ]]; then return; fi
   require_release_config "$CONFIG"
-  release_config_stage /tmp
-  compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit"
+  release_config_stage "$(dirname -- "$CONFIG")"
+  original_digest=$(sha256sum -- "$CONFIG")
+  compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit" || status=$?
+  if [[ "$status" == 3 && "$mode" == deploy && -t 0 && -t 1 ]]; then
+    release_config_prepare_approval_images
+    compose_release_config run --rm --no-deps -it release-config update "$app" "$source_commit"
+    release_config_input="$release_config_dir/release.json"
+    require_release_config "$release_config_input"
+    compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit"
+    updated=1
+  elif [[ "$status" != 0 ]]; then
+    return "$status"
+  fi
   mapfile -d '' -t inputs < "$release_config_dir/inputs"
   unset RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE RELEASE_REHEARSAL RELEASE_REHEARSAL_NETWORK RELEASE_APPROVAL_IMAGE
   export "${inputs[@]}"
@@ -136,5 +147,19 @@ load_release_config() {
     release_approval_require_image
     DEPLOYER_PRIVATE_KEY_FILE="$release_config_dir/deployer-key"
     export DEPLOYER_PRIVATE_KEY_FILE
+  fi
+  if [[ "$updated" == 1 ]]; then
+    local prefix="${app^^}" output_name
+    prefix="${prefix//-/_}"
+    output_name="${prefix}_RELEASE_OUTPUT_DIR"
+    validate_new_release_output "${!output_name}" "$output_name"
+    require_release_config "$CONFIG"
+    if [[ "$(sha256sum -- "$CONFIG")" != "$original_digest" ]]; then
+      printf '%s\n' 'The saved configuration changed during review; refusing to replace it.' >&2
+      return 2
+    fi
+    mv -T -- "$release_config_input" "$CONFIG"
+    unset release_config_input
+    printf 'Updated release configuration: %s\n' "$CONFIG"
   fi
 }
