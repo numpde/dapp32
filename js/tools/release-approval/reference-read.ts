@@ -37,7 +37,7 @@ export type CompiledContractReference = {
 }
 
 export type ReferenceSnapshot = ReleaseReference & {
-  readonly schema: "release-approval.reference.v1"
+  readonly schema: "release-approval.reference.v2"
   readonly app: ReleaseApp
   readonly planSha256: Hex
   readonly contracts: readonly CompiledContractReference[]
@@ -166,6 +166,8 @@ function snapshotContracts(value: unknown, app: ReleaseApp): readonly CompiledCo
   return value as readonly CompiledContractReference[]
 }
 
+const PRESENTATION_CONTROLS = /[\p{C}\p{Zl}\p{Zp}]/u
+
 function snapshotSteps(value: unknown, contracts: readonly CompiledContractReference[]): readonly ExpectedStep[] {
   if (!Array.isArray(value) || value.length < contracts.length || value.length > 64) throw new Error("invalid reference step inventory")
   const byRole = new Map(contracts.map((contract) => [contract.role, contract]))
@@ -174,16 +176,23 @@ function snapshotSteps(value: unknown, contracts: readonly CompiledContractRefer
   for (const [index, item] of value.entries()) {
     const step = record(item, `reference step ${index + 1}`)
     if (step.kind === "create") {
-      requireExactKeys(step, ["kind", "role", "name", "constructorTypes", "args"], `reference creation step ${index + 1}`)
+      requireExactKeys(step, ["kind", "role", "name", "action", "argumentLabels", "constructorTypes", "args"], `reference creation step ${index + 1}`)
     } else if (step.kind === "call") {
       if (typeof step.signature !== "string") throw new Error(`reference call signature is missing at step ${index + 1}`)
-      requireExactKeys(step, ["kind", "role", "name", "signature", "args"], `reference call step ${index + 1}`)
+      requireExactKeys(step, ["kind", "role", "name", "action", "argumentLabels", "signature", "args"], `reference call step ${index + 1}`)
     } else {
       throw new Error(`reference step ${index + 1} has unknown kind`)
     }
     if (typeof step.role !== "string" || !byRole.has(step.role)) throw new Error(`reference step ${index + 1} has unknown contract role`)
     if (typeof step.name !== "string" || step.name.length === 0 || step.name.length > 128) throw new Error(`reference step ${index + 1} has invalid name`)
     if (!Array.isArray(step.args) || step.args.length > 16) throw new Error(`reference step ${index + 1} has invalid arguments`)
+    if (typeof step.action !== "string" || step.action.length === 0 || step.action.length > 256 || PRESENTATION_CONTROLS.test(step.action)) {
+      throw new Error(`reference step ${index + 1} action must be a printable single line of at most 256 characters`)
+    }
+    if (!Array.isArray(step.argumentLabels) || step.argumentLabels.length !== step.args.length || step.argumentLabels.some(label =>
+      typeof label !== "string" || label.length === 0 || label.length > 128 || PRESENTATION_CONTROLS.test(label))) {
+      throw new Error(`reference step ${index + 1} argument labels must match its arguments and be printable single lines of at most 128 characters`)
+    }
     for (const arg of step.args) {
       if (typeof arg === "string") {
         if (arg.length > 4096) throw new Error(`reference step ${index + 1} has oversized argument`)
@@ -219,7 +228,7 @@ export function parseReferenceSnapshot(bytes: Uint8Array): ReferenceSnapshot {
   if (bytes.byteLength > 1024 * 1024) throw new Error("release approval reference exceeds 1048576 bytes")
   const value = parseJsonRecord(bytes, "release approval reference")
   requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "expectedDeployer", "planSha256", "steps", "contracts", "snapshotSha256"], "release approval reference")
-  if (value.schema !== "release-approval.reference.v1") throw new Error("unsupported release approval reference schema")
+  if (value.schema !== "release-approval.reference.v2") throw new Error("unsupported release approval reference schema")
   if (value.app !== "escrow" && value.app !== "bike-nft" && value.app !== "pay-to-play") throw new Error("unknown release approval app")
   if (typeof value.snapshotSha256 !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value.snapshotSha256)) throw new Error("invalid reference snapshot digest")
   const { snapshotSha256, ...base } = value

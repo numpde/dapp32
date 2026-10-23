@@ -16,12 +16,12 @@ const childAbi = [{ type: "constructor", stateMutability: "nonpayable", inputs: 
 
 function snapshot(): ReferenceSnapshot {
   return {
-    schema: "release-approval.reference.v1", app: "escrow", sourceCommit: "a".repeat(40),
+    schema: "release-approval.reference.v2", app: "escrow", sourceCommit: "a".repeat(40),
     expectedChainId: 8453, expectedDeployer: account.address, planSha256: zeroHash,
     steps: [
-      { kind: "create", role: "root", name: "Root", constructorTypes: ["address"], args: [account.address] },
-      { kind: "create", role: "child", name: "Child", constructorTypes: [], args: [] },
-      { kind: "call", role: "root", name: "bind", signature: "bind(address)", args: [{ createdContract: "child" }] },
+      { kind: "create", role: "root", name: "Root", action: "Deploy root", argumentLabels: ["Deployment account"], constructorTypes: ["address"], args: [account.address] },
+      { kind: "create", role: "child", name: "Child", action: "Deploy child", argumentLabels: [], constructorTypes: [], args: [] },
+      { kind: "call", role: "root", name: "bind", action: "Bind child", argumentLabels: ["Verified Child contract"], signature: "bind(address)", args: [{ createdContract: "child" }] },
     ],
     contracts: [
       { role: "root", name: "Root", source: "root.sol", compilerVersion: "0.8.35", compilerMetadataSha256: zeroHash, artifactSha256: zeroHash, creationBytecode: "0x60016002", abi: rootAbi },
@@ -86,7 +86,7 @@ test("constructor address reference needs a matching successful creation receipt
   const base = snapshot()
   const dependent: ReferenceSnapshot = {
     ...base,
-    steps: [base.steps[0]!, { kind: "create", role: "child", name: "Child", constructorTypes: ["address"],
+    steps: [base.steps[0]!, { kind: "create", role: "child", name: "Child", action: "Deploy child backed by root", argumentLabels: ["Verified Root contract"], constructorTypes: ["address"],
       args: [{ createdContract: "root" }] }, base.steps[2]!],
     contracts: base.contracts.map((contract) => contract.role === "child" ? {
       ...contract, abi: [{ type: "constructor", stateMutability: "nonpayable", inputs: [{ type: "address" }] }],

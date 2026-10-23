@@ -27,7 +27,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 wire = (
                     "Release container project: cam-release-" + "a" * 24 + "-run\r\n"
                     "\x1b[?25hRelease approval\r\n  App: escrow\r\n" + self.rehearsal.PROMPT + "\r\n"
-                    "Review transaction 1\r\n  Reject with: reject fixture-challenge\r\n"
+                    "Review transaction 1\r\n  Press a to approve and send, r to reject and stop. No Enter for any key.\r\n"
                 ).encode()
                 for offset in range(0, len(wire), 3):
                     transcript.extend(wire[offset:offset + 3])
@@ -37,7 +37,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.assertIn("Release approval", transcript.identity_lines)
                 self.assertEqual("cam-release-" + "a" * 24 + "-run", transcript.project)
                 self.assertTrue(transcript.review_seen)
-                self.assertEqual("fixture-challenge", transcript.challenge)
+                self.assertTrue(transcript.review_ready)
                 # A large line must not require an unbounded parser buffer or
                 # force prompt searches over the accumulated terminal output.
                 transcript.extend(b"x" * (transcript.TAIL_LIMIT + 4096))
@@ -46,7 +46,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.assertLessEqual(len(transcript.pending), transcript.LINE_LIMIT)
                 self.assertNotIn(b"Review transaction", transcript)
                 self.assertTrue(transcript.review_seen)
-                self.assertEqual("fixture-challenge", transcript.challenge)
+                self.assertTrue(transcript.review_ready)
                 self.assertNotIn("fixture-challenge", transcript.status())
                 self.assertEqual("cam-release-" + "a" * 24 + "-run", transcript.project)
                 transcript.result = "passed"
@@ -124,7 +124,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     f"  App: {shown}\n  Chain ID: 31338\n  Deployer: {deployer}\n"
                     f"  Source commit: {source}\n  Reference SHA-256: 0x{'f' * 64}\n"
                     + self.rehearsal.PROMPT + "\nReview transaction 1\n"
-                    "  Reject with: reject fixture-challenge\n"
+                    "  Press a to approve and send, r to reject and stop. No Enter for any key.\n"
                     + transcript.EXPLANATION + "\n"
                 ).encode())
                 try:
@@ -157,7 +157,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     self.assertEqual(2, transcript.identity_lines.count(self.rehearsal.PROMPT))
                     started = True
                 else:
-                    self.assertEqual(b"reject fixture-challenge\n", wire)
+                    self.assertEqual(b"r", wire)
                 return len(wire)
 
             def read(_master, _process, observed, predicate, _deadline, explanation):
@@ -193,7 +193,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     return
                 self.rehearsal.main(app, "reject")
                 backend.assert_called_once_with(gate)
-                self.assertEqual([b"\n", b"start\n", b"reject fixture-challenge\n"],
+                self.assertEqual([b"\n", b"start\n", b"r"],
                                  [call.args[1] for call in commands.call_args_list])
             facts = json.loads((root / "approval-diagnostics.json").read_text())
             self.assertEqual("passed", facts["result"])

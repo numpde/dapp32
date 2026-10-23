@@ -54,7 +54,7 @@ class ApprovalSuccessTest(unittest.TestCase):
                 nonce.assert_not_called()
                 terminal.assert_not_called()
 
-    def test_successive_chunked_reviews_replace_the_challenge_and_identity(self) -> None:
+    def test_successive_chunked_reviews_require_the_complete_summary_and_replace_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             transcript = self.rehearsal.Transcript(Path(directory) / "approval-pty.log")
             try:
@@ -64,15 +64,15 @@ class ApprovalSuccessTest(unittest.TestCase):
                         f"Review transaction {number}\n  Chain ID: 31338\n"
                         f"  Sender: 0x{'a' * 40}\n  Nonce: {number - 1}\n"
                         f"  Transaction hash: {transaction_hash}\n"
-                        f"  Reject with: reject challenge-{number}\n"
+                        "  Press a to approve and send, r to reject and stop. No Enter for any key.\n"
                     ).encode()
                     for offset in range(0, len(wire), 7):
                         transcript.extend(wire[offset:offset + 7])
                     self.assertEqual(number, transcript.review_number)
                     self.assertEqual(transaction_hash, transcript.review["Transaction hash"])
-                    self.assertEqual(f"challenge-{number}", transcript.challenge)
+                    self.assertTrue(transcript.review_ready)
                     transcript.extend(f"Review transaction {number + 1}\n".encode())
-                    self.assertIsNone(transcript.challenge)
+                    self.assertFalse(transcript.review_ready)
                     self.assertEqual({}, transcript.review)
             finally:
                 transcript.finish()
@@ -106,7 +106,7 @@ class ApprovalSuccessTest(unittest.TestCase):
                     self.rehearsal.check_success_audit(corrupted, approvals)
 
     def test_only_matching_current_reviews_are_approved_once(self) -> None:
-        faults = (None, "step", "nonce", "hash", "sender", "audit", "challenge", "reference-app")
+        faults = (None, "step", "nonce", "hash", "sender", "audit", "challenge", "reference-app", "action", "argument-label")
         for app, fault in product(("escrow", "bike-nft", "pay-to-play"), faults):
             with self.subTest(app=app, fault=fault), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory)
@@ -116,7 +116,10 @@ class ApprovalSuccessTest(unittest.TestCase):
                 reference = {
                     "app": app, "expectedChainId": 31338, "expectedDeployer": deployer,
                     "sourceCommit": source, "snapshotSha256": digest,
-                    "steps": [{"name": "Create", "role": "root"}, {"name": "Configure", "role": "root"}],
+                    "steps": [
+                        {"name": "Create", "role": "root", "action": "Deploy root", "argumentLabels": ["Initial owner"], "args": [deployer]},
+                        {"name": "Configure", "role": "root", "action": "Bind interface", "argumentLabels": ["CONFIGURER_ROLE: change interface"], "args": [{"createdContract": "ui"}]},
+                    ],
                 }
                 if fault == "reference-app":
                     reference["app"] = "another-app"
@@ -144,11 +147,19 @@ class ApprovalSuccessTest(unittest.TestCase):
                             elif fault == "challenge":
                                 challenge = "challenge-1"
                         step = reference["steps"][current - 1]
+                        action, label, suffix = step["action"], step["argumentLabels"][0], ""
+                        if current == 2:
+                            suffix = " (ui contract)"
+                            if fault == "action":
+                                action = "Wrong action"
+                            elif fault == "argument-label":
+                                label = "Wrong label"
                         transcript.extend((
-                            f"Review transaction {number}\n  Chain ID: 31338\n  Sender: {sender}\n"
+                            f"Review transaction {number}\nAction: {action}\n  Chain ID: 31338\n  Sender: {sender}\n"
                             f"  Nonce: {nonce}\n  Transaction hash: {transaction_hash}\n"
-                            f"  Step: {step['name']}; role {step['role']}\n"
-                            f"  Reject with: reject {challenge}\n"
+                            f"  Step: {step['name']}; contract {step['role']}\n"
+                            f"    1 {label}{suffix}: https://fixture.example:443/interface\n"
+                            "  Press a to approve and send, r to reject and stop. No Enter for any key.\n"
                         ).encode())
                         event = {"kind": "pending", "hash": transaction_hash, "challenge": challenge,
                                  "nonce": nonce, "chainId": 31338, "sender": sender, "referenceDigest": digest}
@@ -159,8 +170,10 @@ class ApprovalSuccessTest(unittest.TestCase):
 
                 def write(_master, command):
                     commands.append(command)
-                    if command.startswith(b"inspect "):
+                    if command == b"i":
                         transcript.extend(b"Full data page 1 of 2\n")
+                        self.assertFalse(transcript.inspection_seen, "inspection requires the complete page footer")
+                        transcript.extend(b"a approve and send; r reject and stop; n next; p previous; i back. No Enter.\n")
                     return len(command)
 
                 try:
@@ -173,12 +186,13 @@ class ApprovalSuccessTest(unittest.TestCase):
                         else:
                             with self.assertRaisesRegex(RuntimeError, "review|identity"):
                                 self.rehearsal.approve_transactions(0, None, transcript, output, app, deployer, source, 0)
-                    expected = [b"approve challenge-1\n"]
+                    expected = [b"a"]
                     if fault == "reference-app":
                         expected = []
                     elif fault is None:
-                        expected.append(b"approve challenge-2\n")
-                    self.assertEqual(expected, [command for command in commands if command.startswith(b"approve ")])
+                        expected.append(b"a")
+                    self.assertEqual(expected, [command for command in commands if command == b"a"])
+                    self.assertEqual(len(expected), commands.count(b"i"))
                 finally:
                     transcript.finish()
 

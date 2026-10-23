@@ -116,7 +116,7 @@ export async function prepareReferenceSnapshot(
   for (const step of creates) contracts.push(await compiledContract(app, step, expected.steps, artifactsRoot, sourcesRoot))
   // The launcher must bind the mounted source archive to this plan's commit.
   const base = {
-    schema: "release-approval.reference.v1" as const,
+    schema: "release-approval.reference.v2" as const,
     app, sourceCommit: expected.sourceCommit, expectedChainId: expected.expectedChainId,
     expectedDeployer: expected.expectedDeployer, planSha256: sha256(planBytes),
     steps: expected.steps, contracts,

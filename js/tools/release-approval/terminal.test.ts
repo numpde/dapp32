@@ -18,7 +18,7 @@ const challenge = "a1a2a3a4-b1b2-c1c2-d1d2-e1e2e3e4e5e6"
 function review(overrides?: Partial<TransactionReview>): TransactionReview {
   return {
     stepIndex: 0,
-    step: { kind: "call", role: "camRoot", name: "bind", signature: "bind(address)", args: [target] },
+    step: { kind: "call", role: "camRoot", name: "bind", signature: "bind(address)", args: [target], action: "Bind the target in CAM", argumentLabels: ["Target contract"] },
     signed: { hash, sender, chainId: 84532, nonce: 7, to: target, valueWei: "0", gasLimit: "21001",
       maxFeePerGasWei: "100000000001", maxPriorityFeePerGasWei: "2000000000", accessList: [],
       calldata: `0x${"fe".repeat(3000)}`, calldataHash: digest },
@@ -29,12 +29,13 @@ function review(overrides?: Partial<TransactionReview>): TransactionReview {
   }
 }
 
-function fixture(candidate?: TransactionReview) {
+function fixture(candidate?: TransactionReview, initialRaw?: boolean) {
   const selected = candidate === undefined ? review() : candidate
-  const input = Object.assign(new PassThrough(), { isTTY: true })
+  const input = Object.assign(new PassThrough(), { isTTY: true, isRaw: initialRaw === true,
+    setRawMode(enabled: boolean) { this.isRaw = enabled; return this } })
   const output = Object.assign(new PassThrough(), { isTTY: true })
   let printed = ""
-  output.on("data", chunk => { printed += chunk.toString() })
+  output.on("data", chunk => { printed += chunk.toString().replace(/\u001b\[\?2004[hl]/g, "") })
   let pending: { hash: Hex; sender: Address; chainId: number; nonce: number; challenge: string; deadline: number; referenceDigest: Hex } | null =
     { hash: selected.signed.hash, sender: selected.signed.sender, chainId: selected.signed.chainId,
       nonce: selected.signed.nonce, challenge, deadline: 5000, referenceDigest: digest }
@@ -54,20 +55,23 @@ function fixture(candidate?: TransactionReview) {
 
 async function settle() { await new Promise<void>(resolve => setImmediate(resolve)) }
 
-test("summary distinguishes signed facts and reference comparisons, uses exact fee arithmetic, and escapes terminal controls", () => {
-  const f = fixture(review({ step: { kind: "call", role: "camRoot", name: "bind\u001b[31m\u202e", signature: "bind(address)", args: [target] } }))
+test("compact summary keeps human action, exact signed identity and fee ceiling visible without terminal controls", () => {
+  const f = fixture(review({ step: { kind: "call", role: "camRoot", name: "bind\u001b[31m\u202e", signature: "bind(address,address,address,address)",
+    args: [target, target, target, target], action: "Bind target", argumentLabels: ["First target", "Second target", "Third target", "Fourth target"] },
+    comparison: { ...review().comparison, expectedArgs: [target, target, target, target] },
+  }))
   try {
     f.terminal.poll()
     const text = f.printed()
-    assert.match(text, /Signed transaction/)
-    assert.match(text, /Reference comparison/)
+    assert.match(text, /Action: Bind target/)
     assert.match(text, new RegExp(hash))
     assert.match(text, new RegExp(sender))
-    assert.match(text, /21001/)
     assert.match(text, /2100100000021001/) // 21001 * 100000000001, exact bigint
     assert.match(text, /Other chain fees: not established/)
     assert.match(text, /\\u001b\[31m\\u202e/)
     assert.doesNotMatch(text, /\u001b|\u202e/)
+    assert.ok(text.trim().split("\n").length <= 20)
+    assert.doesNotMatch(text, /Artifact SHA-256|Selected reference|Calldata:/)
     assert.ok(text.length < 4000)
   } finally { f.close() }
 })
@@ -75,9 +79,9 @@ test("summary distinguishes signed facts and reference comparisons, uses exact f
 test("real signed type-2 creation without an access list remains reviewable and shows its constructor address", async () => {
   const account = privateKeyToAccount(`0x${"11".repeat(32)}`)
   const source: ReferenceSnapshot = {
-    schema: "release-approval.reference.v1", app: "escrow", sourceCommit: "a".repeat(40),
+    schema: "release-approval.reference.v2", app: "escrow", sourceCommit: "a".repeat(40),
     expectedChainId: 84532, expectedDeployer: account.address, planSha256: digest,
-    steps: [{ kind: "create", role: "root", name: "Root", constructorTypes: ["address"], args: [target] }],
+    steps: [{ kind: "create", role: "root", name: "Root", constructorTypes: ["address"], args: [target], action: "Deploy root", argumentLabels: ["Initial owner"] }],
     contracts: [{ role: "root", name: "Root", source: "root.sol", compilerVersion: "0.8.35",
       compilerMetadataSha256: digest, artifactSha256: digest, creationBytecode: "0x60016002",
       abi: [{ type: "constructor", stateMutability: "nonpayable", inputs: [{ type: "address" }] }] }],
@@ -92,11 +96,14 @@ test("real signed type-2 creation without an access list remains reviewable and 
   try {
     f.terminal.poll()
     assert.deepEqual(f.closures, [])
-    assert.match(f.printed(), new RegExp(`1: ${target}`))
+    assert.match(f.printed(), new RegExp(`1 Initial owner: ${target}`))
     const predicted = getContractAddress({ from: account.address, nonce: 0n })
-    assert.match(f.printed(), new RegExp(`Predicted creation address: ${predicted}`))
-    f.input.write(`inspect ${challenge} 1\n`)
     await settle()
+    f.input.write("i")
+    await settle()
+    const count = Number(/Full data page 1 of (\d+)/.exec(f.printed())![1])
+    for (let page = 1; page < count; page++) { f.input.write("n"); await settle() }
+    assert.match(f.printed(), new RegExp(`Predicted creation address: ${predicted}`))
     assert.match(f.printed(), /Access list: \[\]/)
   } finally { f.close() }
 })
@@ -104,13 +111,13 @@ test("real signed type-2 creation without an access list remains reviewable and 
 test("recipient values appear in the summary, with long values explicitly abbreviated", () => {
   const long = "x".repeat(300)
   const f = fixture(review({ step: { kind: "call", role: "root", name: "setRecipient",
-    signature: "setRecipient(address,string)", args: [target, long] },
+    signature: "setRecipient(address,string)", args: [target, long], action: "Set recipient", argumentLabels: ["Recipient", "Description"] },
   comparison: { ...review().comparison, expectedArgs: [target, long] } }))
   try {
     f.terminal.poll()
-    assert.match(f.printed(), /setRecipient\(address,string\)/)
-    assert.match(f.printed(), new RegExp(`1: ${target}`))
-    assert.match(f.printed(), /2: x{100}\.\.\. \[full value in inspect pages\]/)
+    assert.match(f.printed(), /Step: setRecipient; contract root/)
+    assert.match(f.printed(), new RegExp(`1 Recipient: ${target}`))
+    assert.match(f.printed(), /2 Description: x{100}\.\.\. \[full value in inspect pages\]/)
     assert.ok(f.printed().length < 4000)
   } finally { f.close() }
 })
@@ -118,48 +125,71 @@ test("recipient values appear in the summary, with long values explicitly abbrev
 test("ownership transfer separates the call target from the new owner argument", () => {
   const newOwner = `0x${"3".repeat(40)}` as Address
   const f = fixture(review({ step: { kind: "call", role: "root", name: "transferOwnership",
-    signature: "transferOwnership(address)", args: [newOwner] },
+    signature: "transferOwnership(address)", args: [newOwner], action: "Nominate next CAM owner", argumentLabels: ["Next CAM owner (must accept)"] },
   comparison: { ...review().comparison, expectedArgs: [newOwner] } }))
   try {
     f.terminal.poll()
     assert.match(f.printed(), new RegExp(`Target: ${target}`))
-    assert.match(f.printed(), new RegExp(`1: ${newOwner}`))
+    assert.ok(f.printed().includes(`1 Next CAM owner (must accept): ${newOwner}`))
+    assert.match(f.printed(), /Action: Nominate next CAM owner/)
   } finally { f.close() }
 })
 
-test("only the displayed challenge authorizes this pending hash; blank and old buffered input do nothing", async () => {
+test("human action and semantic argument labels accompany exact role bytes and deployment-account address", () => {
+  const f = fixture(review({
+    step: { kind: "call", role: "manager", name: "grantRole", signature: "grantRole(bytes32,address)",
+      args: [digest, sender], action: "Grant Manager configuration authority", argumentLabels: ["CONFIGURER_ROLE", "Selected Manager configurer"] },
+    comparison: { ...review().comparison, targetRole: "manager", expectedArgs: [digest, sender] },
+  }))
+  try {
+    f.terminal.poll()
+    const text = f.printed()
+    assert.match(text, /Action: Grant Manager configuration authority/)
+    assert.ok(text.includes(`${target} (manager contract)`))
+    assert.ok(text.includes(`1 CONFIGURER_ROLE: ${digest}`))
+    assert.ok(text.includes(`2 Selected Manager configurer: ${sender} (deployment account)`))
+  } finally { f.close() }
+})
+
+test("single a needs no Enter and binds only the displayed hash and challenge", async () => {
   const f = fixture()
   try {
-    f.input.write(`approve old-token\napprove\nyes\n\n`)
+    assert.equal(f.input.isRaw, true)
+    f.input.write("a")
     f.terminal.poll()
-    f.input.write(`approve old-token\n`)
+    await settle()
+    f.input.write(`approve ${challenge}\n`)
     await settle()
     assert.deepEqual(f.decisions, [])
-    f.input.write(`approve ${challenge}\n`)
+    f.input.write("a")
     await settle()
     assert.deepEqual(f.decisions, [[challenge, "approve"]])
   } finally { f.close() }
 })
 
-test("an old challenge cannot authorize a newly displayed request", async () => {
+test("a key cannot authorize a changed pending request before its summary is displayed", async () => {
   const f = fixture()
   try {
     f.terminal.poll()
     const nextChallenge = "11111111-2222-3333-4444-555555555555"
     f.replacePending({ hash, sender, chainId: 84532, nonce: 7, challenge: nextChallenge,
       deadline: 6000, referenceDigest: digest })
+    f.input.write("a")
+    assert.deepEqual(f.decisions, [])
     f.terminal.poll()
-    f.input.write(`approve ${challenge}\napprove ${nextChallenge}\n`)
+    await settle()
+    f.input.write("a")
     await settle()
     assert.deepEqual(f.decisions, [[nextChallenge, "approve"]])
   } finally { f.close() }
 })
 
-test("rejection also requires the current challenge", async () => {
+test("single r rejects the currently displayed challenge without Enter", async () => {
   const f = fixture()
   try {
     f.terminal.poll()
-    f.input.write(`reject old-token\nreject ${challenge}\n`)
+    await settle()
+    f.input.write("r")
     await settle()
     assert.deepEqual(f.decisions, [[challenge, "reject"]])
   } finally { f.close() }
@@ -169,17 +199,25 @@ test("full calldata is inspectable in bounded pages", async () => {
   const f = fixture()
   try {
     f.terminal.poll()
+    await settle()
     const initial = f.printed().length
-    f.input.write(`inspect ${challenge} 1\n`)
+    f.input.write("i")
     await settle()
     const page = f.printed().slice(initial)
     assert.match(page, /Full data page 1/)
     assert.ok(page.length <= 1200)
-    assert.match(page, /fefefe/)
-    f.input.write(`inspect ${challenge} 9\n`)
+    const count = Number(/Full data page 1 of (\d+)/.exec(page)![1])
+    for (let page = 1; page < count; page++) { f.input.write("n"); await settle() }
     await settle()
-    assert.match(f.printed(), /Full data page 9 of 9/)
-    assert.match(f.printed(), /Expected calldata: 0x/)
+    assert.match(f.printed(), new RegExp(`Full data page ${count} of ${count}`))
+    assert.match(f.printed(), /fefefe/)
+    const details = f.printed().slice(initial)
+      .replace(/Full data page \d+ of \d+\n/g, "")
+      .replace(/\na approve and send; r reject and stop; n next; p previous; i back\. No Enter\.\n/g, "")
+    assert.match(details, /Expected calldata: 0x/)
+    for (const field of ["Reference SHA-256", "Artifact SHA-256", "Compiler metadata SHA-256", "Type: EIP-1559", "Gas limit: 21001", "Maximum fee per gas: 100000000001", "Priority fee cap: 2000000000", "Calldata: 3000 bytes"]) {
+      assert.ok(details.includes(field), `Full inspection must retain ${field}`)
+    }
   } finally { f.close() }
 })
 
@@ -197,7 +235,8 @@ test("blocked terminal output closes approval before operator input can authoriz
   const f = fixture()
   try {
     f.close()
-    const input = Object.assign(new PassThrough(), { isTTY: true })
+    const input = Object.assign(new PassThrough(), { isTTY: true, isRaw: false,
+      setRawMode(enabled: boolean) { this.isRaw = enabled; return this } })
     const output = Object.assign(new Writable({ highWaterMark: 1, write(_chunk, _encoding, _done) {} }), { isTTY: true })
     const terminal = new ApprovalTerminal({ input, output, owner: f.owner, reviewForHash: () => review(),
       referenceName: "reference", now: () => 1000, pageCharacters: 800 })
@@ -234,13 +273,70 @@ test("EOF detaches and refuses a pending ceremony", async () => {
   } finally { f.close() }
 })
 
-test("oversized commands close approval without a decision", () => {
+test("Ctrl-C closes the gate and restores cooked input even inside an unfinished escape or paste", async () => {
+  for (const prefix of ["", "\u001b", "\u001b[200~"]) {
+    const f = fixture()
+    try {
+      f.terminal.poll()
+      await settle()
+      if (prefix) f.input.write(prefix)
+      f.input.write("\u0003")
+      assert.deepEqual(f.closures, ["operator interrupted approval"])
+      assert.deepEqual(f.decisions, [])
+      assert.equal(f.input.isRaw, false)
+    } finally { f.close() }
+  }
+})
+
+test("stopping preserves the input mode from before the ceremony", () => {
+  for (const initialRaw of [false, true]) {
+    const f = fixture(undefined, initialRaw)
+    try {
+      assert.equal(f.input.isRaw, true)
+      f.terminal.stop()
+      assert.equal(f.input.isRaw, initialRaw)
+    } finally { f.close() }
+  }
+})
+
+test("input arriving before the summary write finishes cannot authorize it", async () => {
+  const f = fixture()
+  f.close()
+  const input = Object.assign(new PassThrough(), { isTTY: true, isRaw: false,
+    setRawMode(enabled: boolean) { this.isRaw = enabled; return this } })
+  const callbacks: (() => void)[] = []
+  const output = Object.assign(new Writable({ highWaterMark: 16384,
+    write(_chunk, _encoding, done) { callbacks.push(done) } }), { isTTY: true })
+  const terminal = new ApprovalTerminal({ input, output, owner: f.owner, reviewForHash: () => review(),
+    referenceName: "reference", now: () => 1000, pageCharacters: 800 })
+  try {
+    terminal.start()
+    terminal.poll()
+    input.write("a")
+    assert.deepEqual(f.decisions, [])
+    callbacks.shift()!() // bracketed-paste mode has reached the terminal
+    input.write("a")
+    assert.deepEqual(f.decisions, [])
+    callbacks.shift()!() // transaction summary has reached the terminal
+    await settle()
+    input.write("a")
+    await settle()
+    assert.deepEqual(f.decisions, [[challenge, "approve"]])
+  } finally { terminal.stop(); input.destroy(); output.destroy() }
+})
+
+test("combined packets and split escape/paste sequences cannot approve", async () => {
   const f = fixture()
   try {
     f.terminal.poll()
-    f.input.write("x".repeat(257))
+    await settle()
+    for (const packet of ["aa", "ar", "a\n", "\u001b[200~", "a", "\u001b[201~", "\u001b[", "a"]) f.input.write(packet)
+    await settle()
     assert.deepEqual(f.decisions, [])
-    assert.deepEqual(f.closures, ["operator command exceeds 256 characters"])
+    assert.deepEqual(f.closures, [])
+    f.input.write("r")
+    await settle()
+    assert.deepEqual(f.decisions, [[challenge, "reject"]])
   } finally { f.close() }
 })
 

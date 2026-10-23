@@ -19,6 +19,11 @@ const commit = "a".repeat(40)
 const digest = `0x${"ab".repeat(32)}` as Hex
 const deployer = "0x0000000000000000000000000000000000000011"
 
+function operatorInput() {
+  return Object.assign(new PassThrough(), { isTTY: true, isRaw: false,
+    setRawMode(enabled: boolean) { this.isRaw = enabled; return this } })
+}
+
 function snapshot(deployerAddress = deployer): ReferenceSnapshot {
   const contracts = [
     { role: "camRoot", name: "CamRoot", source: "cam/src/CamRoot.sol", abi: [
@@ -30,14 +35,14 @@ function snapshot(deployerAddress = deployer): ReferenceSnapshot {
   ].map(contract => ({ ...contract, compilerVersion: "0.8.35+commit.47b9dedd", compilerMetadataSha256: digest,
     artifactSha256: digest, creationBytecode: "0x60006000" as Hex }))
   const base = {
-    schema: "release-approval.reference.v1" as const, app: "escrow" as const, sourceCommit: commit,
+    schema: "release-approval.reference.v2" as const, app: "escrow" as const, sourceCommit: commit,
     expectedChainId: 8453, expectedDeployer: deployerAddress, planSha256: digest,
     contracts,
     steps: [
-      { kind: "create" as const, role: "camRoot", name: "CamRoot", constructorTypes: ["address", "string", "bytes32"], args: [deployerAddress, "https://example.test/cam", digest] },
-      { kind: "create" as const, role: "escrow", name: "CamEscrow", constructorTypes: [], args: [] },
-      { kind: "create" as const, role: "ui", name: "CamEscrowUI", constructorTypes: ["address"], args: [{ createdContract: "escrow" }] },
-      { kind: "call" as const, role: "camRoot", name: "setContractAddress", signature: "setContractAddress(string,address)", args: ["CamEscrowUI", { createdContract: "ui" }] },
+      { kind: "create" as const, role: "camRoot", name: "CamRoot", constructorTypes: ["address", "string", "bytes32"], args: [deployerAddress, "https://example.test/cam", digest], action: "Deploy CAM root", argumentLabels: ["Initial CAM owner", "Published CAM URI", "CAM SHA-256"] },
+      { kind: "create" as const, role: "escrow", name: "CamEscrow", constructorTypes: [], args: [], action: "Deploy escrow", argumentLabels: [] },
+      { kind: "create" as const, role: "ui", name: "CamEscrowUI", constructorTypes: ["address"], args: [{ createdContract: "escrow" }], action: "Deploy escrow UI", argumentLabels: ["Verified escrow contract"] },
+      { kind: "call" as const, role: "camRoot", name: "setContractAddress", signature: "setContractAddress(string,address)", args: ["CamEscrowUI", { createdContract: "ui" }], action: "Bind escrow UI in CAM", argumentLabels: ["Contract name", "Verified escrow UI contract"] },
     ],
   }
   return { ...base, snapshotSha256: `0x${createHash("sha256").update(JSON.stringify(base)).digest("hex")}` } as ReferenceSnapshot
@@ -101,8 +106,8 @@ test("startup rejects changed reference before opening the audit or socket", asy
     await mkdir(join(root, "socket"), { mode: 0o700 })
     await mkdir(selected.auditDir, { mode: 0o700 })
     await writeFile(selected.referencePath, JSON.stringify(reference))
-    const input = Object.assign(new PassThrough(), { isTTY: true })
-    const output = Object.assign(new PassThrough(), { isTTY: true })
+    const input = operatorInput()
+    const output = operatorInput()
     await assert.rejects(startApprovalRuntime({ ...selected, referenceSha256: `0x${"cd".repeat(32)}` }, { input, output }), /selected.*reference/i)
     assert.deepEqual(await readFile(selected.referencePath, "utf8"), JSON.stringify(reference))
     await assert.rejects(stat(join(root, "audit", "approval.jsonl")), { code: "ENOENT" })
@@ -139,6 +144,7 @@ for (const phase of ["before start", "after start", "wrong command", "input EOF"
     const child = spawn(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
       import { fileURLToPath } from 'node:url';
       process.stdin.isTTY = process.stdout.isTTY = true;
+      process.stdin.setRawMode = enabled => { process.stdin.isRaw = enabled; return process.stdin; };
       process.argv[1] = fileURLToPath(${JSON.stringify(entrypoint.href)});
       await import(${JSON.stringify(entrypoint.href)});
     `], { stdio: ["pipe", "pipe", "pipe"], env: {
@@ -192,8 +198,8 @@ test("blank Enter repeats the selected release prompt without effects before exa
     await mkdir(join(root, "socket"), { mode: 0o700 })
     await mkdir(selected.auditDir, { mode: 0o700 })
     await writeFile(selected.referencePath, JSON.stringify(reference))
-    const input = Object.assign(new PassThrough(), { isTTY: true })
-    const output = Object.assign(new PassThrough(), { isTTY: true })
+    const input = operatorInput()
+    const output = operatorInput()
     const starting = startApprovalRuntime(selected, { input, output })
     const [prompt] = await once(output, "data")
     for (const fact of ["escrow", "8453", deployer, commit, reference.snapshotSha256, "Type start and press Enter"]) {
@@ -224,7 +230,7 @@ test("a buffered operator prompt opens the socket only after the prompt drains a
     await mkdir(join(root, "socket"), { mode: 0o700 })
     await mkdir(selected.auditDir, { mode: 0o700 })
     await writeFile(selected.referencePath, JSON.stringify(reference))
-    const input = Object.assign(new PassThrough(), { isTTY: true })
+    const input = operatorInput()
     let prompt = ""
     let finishPrompt: () => void = () => { throw new Error("Operator prompt was not written") }
     let firstWrite = true
@@ -267,8 +273,8 @@ test("operator detachment immediately after start cannot open the approval socke
       await mkdir(join(root, "socket"), { mode: 0o700 })
       await mkdir(selected.auditDir, { mode: 0o700 })
       await writeFile(selected.referencePath, JSON.stringify(reference))
-      const input = Object.assign(new PassThrough(), { isTTY: true })
-      const output = Object.assign(new PassThrough(), { isTTY: true })
+      const input = operatorInput()
+      const output = operatorInput()
       const starting = startApprovalRuntime(selected, { input, output })
       await once(output, "data")
       if (mode === "input-end") input.end("start\n")
@@ -297,8 +303,8 @@ test("EOF, interrupted start, and malformed or buffered commands leave no audit 
       await mkdir(join(root, "socket"), { mode: 0o700 })
       await mkdir(selected.auditDir, { mode: 0o700 })
       await writeFile(selected.referencePath, JSON.stringify(reference))
-      const input = Object.assign(new PassThrough(), { isTTY: true })
-      const output = Object.assign(new PassThrough(), { isTTY: true })
+      const input = operatorInput()
+      const output = operatorInput()
       const controller = new AbortController()
       const starting = startApprovalRuntime(selected, { input, output, signal: controller.signal })
       await once(output, "data")
@@ -338,8 +344,8 @@ test("runtime serves bounded reads through the socket and stops incomplete cerem
     await mkdir(join(root, "socket"), { mode: 0o700 })
     await mkdir(selected.auditDir, { mode: 0o700 })
     await writeFile(selected.referencePath, JSON.stringify(reference))
-    const input = Object.assign(new PassThrough(), { isTTY: true })
-    const output = Object.assign(new PassThrough(), { isTTY: true })
+    const input = operatorInput()
+    const output = operatorInput()
     const starting = startApprovalRuntime(selected, { input, output })
     await once(output, "data")
     input.write("start\n")
@@ -372,8 +378,8 @@ test("a signed transaction with mismatched calldata closes the gate after its RP
     await mkdir(join(root, "socket"), { mode: 0o700 })
     await mkdir(selected.auditDir, { mode: 0o700 })
     await writeFile(selected.referencePath, JSON.stringify(reference))
-    const input = Object.assign(new PassThrough(), { isTTY: true })
-    const output = Object.assign(new PassThrough(), { isTTY: true })
+    const input = operatorInput()
+    const output = operatorInput()
     const starting = startApprovalRuntime(selected, { input, output })
     await once(output, "data")
     input.write("start\n")

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { keccak256, stringToHex } from "viem"
+import type { ReleaseReference } from "./reference.ts"
 
 import { escrowReference } from "../escrow-release/reference.ts"
 import { bikeReference } from "../bike-nft-release/reference.ts"
@@ -18,8 +20,18 @@ const common = {
 }
 const parse = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 
+function assertPresentation(reference: ReleaseReference): void {
+  for (const step of reference.steps) {
+    assert.ok("action" in step && typeof step.action === "string" && step.action.length > 0)
+    assert.ok("argumentLabels" in step && Array.isArray(step.argumentLabels))
+    assert.equal(step.argumentLabels.length, step.args.length)
+    assert.ok(step.argumentLabels.every(label => typeof label === "string" && label.length > 0))
+  }
+}
+
 test("Escrow reference follows creation, binding and conditional ownership order", () => {
   const normal = escrowReference(parse({ schema: "escrow.release-plan.v2", ...common }), deployer)
+  assertPresentation(normal)
   assert.deepEqual(normal.steps.map((step) => `${step.kind}:${step.role}:${step.name}`), [
     "create:camRoot:CamRoot", "create:escrow:CamEscrow", "create:ui:CamEscrowUI",
     "call:camRoot:setContractAddress", "call:camRoot:setContractAddress", "call:camRoot:transferOwnership",
@@ -35,6 +47,7 @@ test("Escrow reference follows creation, binding and conditional ownership order
 test("Pay-to-Play reference covers independent conditional handoffs", () => {
   const plan = { schema: "pay-to-play.release-plan.v1", ...common, intendedPaymentAdmin: other, nullClaimPeriod: 3600 }
   const normal = payToPlayReference(parse(plan), deployer)
+  assertPresentation(normal)
   assert.deepEqual(normal.steps.map((step) => `${step.kind}:${step.role}:${step.name}`), [
     "create:camRoot:CamRoot", "create:payments:PayToPlay",
     "call:camRoot:setContractAddress", "call:camRoot:transferOwnership",
@@ -59,6 +72,12 @@ test("Bike reference includes every registrar and ordered authority handoff", ()
     registrars: [other, owner],
   }
   const reference = bikeReference(parse(plan), deployer)
+  assertPresentation(reference)
+  const configuration = reference.steps.find(step => step.role === "manager" && step.name === "grantRole"
+    && step.args[0] === keccak256(stringToHex("CONFIGURER_ROLE")))
+  assert.ok(configuration && "action" in configuration && "argumentLabels" in configuration)
+  assert.match(String(configuration.action), /component collection.*delegation/i)
+  assert.match(String(configuration.argumentLabels), /CONFIGURER_ROLE/)
   assert.deepEqual(reference.steps.slice(0, 4).map((step) => step.name), ["CamRoot", "BicycleComponents", "BicycleComponentManager", "BicycleComponentManagerUI"])
   assert.deepEqual(reference.steps[2]?.args, [deployer, "172800", { createdContract: "components" }])
   assert.deepEqual(reference.steps[3]?.args, [{ createdContract: "manager" }])

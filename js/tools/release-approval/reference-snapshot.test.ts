@@ -57,6 +57,7 @@ test("compiler-backed snapshot binds plan, sender, creation bytes, ABI and sourc
   await fixture(async ({ artifacts, sources }) => {
     const expected = escrowReference(plan, deployer)
     const snapshot = await prepareReferenceSnapshot("escrow", expected, plan, artifacts, sources)
+    assert.equal(snapshot.schema, "release-approval.reference.v2")
     assert.equal(snapshot.sourceCommit, sourceCommit)
     assert.equal(snapshot.expectedDeployer, deployer)
     assert.equal(snapshot.planSha256, `0x${createHash("sha256").update(plan).digest("hex")}`)
@@ -87,6 +88,30 @@ test("snapshot parser rejects bytecode mutation and identity substitution", asyn
     const parse = (value: unknown) => parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(value)))
     assert.throws(() => parse({ ...snapshot, expectedDeployer: owner }), /snapshot digest mismatch/)
     assert.throws(() => parse({ ...snapshot, contracts: snapshot.contracts.map((item, i) => i === 0 ? { ...item, creationBytecode: "0x6000" } : item) }), /snapshot digest mismatch/)
+  })
+})
+
+test("snapshot presentation is required, bounded and bound to the selected reference", async () => {
+  await fixture(async ({ artifacts, sources }) => {
+    const expected = escrowReference(plan, deployer)
+    const snapshot = await prepareReferenceSnapshot("escrow", expected, plan, artifacts, sources)
+    const parse = (value: unknown) => parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(value)))
+    const rehash = (value: Record<string, unknown>) => {
+      const { snapshotSha256: ignored, ...base } = value
+      void ignored
+      return { ...base, snapshotSha256: `0x${createHash("sha256").update(JSON.stringify(base)).digest("hex")}` }
+    }
+    const changed = { ...snapshot, steps: snapshot.steps.map((step, index) => index === 0 ? { ...step, action: "Different action" } : step) }
+    assert.throws(() => parse(changed), /snapshot digest mismatch/)
+    await assert.rejects(prepareReferenceSnapshot("escrow", { ...expected, steps: changed.steps }, plan, artifacts, sources), /differ from the validated release plan/)
+    assert.throws(() => parse(rehash({ ...snapshot, schema: "release-approval.reference.v1" })), /unsupported.*schema/)
+    for (const presentation of [
+      { action: "" }, { action: "line\nbreak" }, { action: "\u001b[31m" }, { action: "\u202e" }, { action: "x".repeat(257) },
+      { argumentLabels: [] }, { argumentLabels: ["", "CAM URI", "CAM hash"] },
+      { argumentLabels: ["Owner", "CAM\rURI", "CAM hash"] }, { argumentLabels: ["x".repeat(129), "CAM URI", "CAM hash"] },
+    ]) {
+      assert.throws(() => parse(rehash({ ...snapshot, steps: snapshot.steps.map((step, index) => index === 0 ? { ...step, ...presentation } : step) })), /action|argument labels/)
+    }
   })
 })
 
@@ -130,7 +155,7 @@ test("snapshot loading rejects duplicate contract roles, duplicate ABI functions
     assert.throws(() => parse(duplicateAbi), /duplicate ABI function/)
     const unknownRole = rehash({ ...snapshot, steps: snapshot.steps.map((step, index) => index === 3 ? { ...step, args: ["CamEscrowUI", { createdContract: "unknown" }] } : step) })
     assert.throws(() => parse(unknownRole), /unknown or future created contract role/)
-    const missingSignature = rehash({ ...snapshot, steps: snapshot.steps.map((step, index) => index === 3 ? { kind: "call" as const, role: step.role, name: step.name, args: step.args } : step) })
+    const missingSignature = rehash({ ...snapshot, steps: snapshot.steps.map((step, index) => index === 3 ? { kind: "call" as const, role: step.role, name: step.name, action: step.action, argumentLabels: step.argumentLabels, args: step.args } : step) })
     assert.throws(() => parse(missingSignature), /call signature/)
   })
 })

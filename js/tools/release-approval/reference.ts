@@ -8,6 +8,8 @@ export type ExpectedStep = {
   readonly kind: "create" | "call"
   readonly role: string
   readonly name: string
+  readonly action: string
+  readonly argumentLabels: readonly string[]
   readonly signature?: string
   readonly constructorTypes?: readonly string[]
   readonly args: readonly ExpectedArgument[]

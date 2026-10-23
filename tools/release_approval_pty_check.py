@@ -89,8 +89,10 @@ class Transcript(bytearray):
         self.review_seen = False
         self.review_number = 0
         self.review: dict[str, str] = {}
+        self.review_arguments: dict[int, str] = {}
+        self.review_ready = False
+        self.inspection_started = False
         self.inspection_seen = False
-        self.challenge: str | None = None
         self.explanation_seen = False
         self.cleanup_incomplete = False
         self.identity_lines: list[str] = []
@@ -165,16 +167,24 @@ class Transcript(bytearray):
             self.review_number = int(match.group(1))
             self.review_seen = True
             self.review = {}
-            self.challenge = None
+            self.review_arguments = {}
+            self.review_ready = False
+            self.inspection_started = False
             self.inspection_seen = False
+        if self.review_number and line.startswith("Action: "):
+            self.review["Action"] = line.removeprefix("Action: ")
         match = re.fullmatch(r"  (Chain ID|Sender|Nonce|Transaction hash|Step): (.+)", line)
         if self.review_number and match:
             self.review[match.group(1)] = match.group(2)
+        match = re.fullmatch(r"    ([1-4]) (.*)", line)
+        if self.review_number and match:
+            self.review_arguments[int(match.group(1))] = match.group(2)
+        if self.review_number and line == "  Press a to approve and send, r to reject and stop. No Enter for any key.":
+            self.review_ready = True
         if re.fullmatch(r"Full data page 1 of [1-9][0-9]*", line):
+            self.inspection_started = True
+        if self.inspection_started and line == "a approve and send; r reject and stop; n next; p previous; i back. No Enter.":
             self.inspection_seen = True
-        match = re.fullmatch(r"\s*Reject with: reject ([A-Za-z0-9-]{1,128})", line)
-        if self.review_seen and match:
-            self.challenge = match.group(1)
         if self.EXPLANATION in line:
             self.explanation_seen = True
         if line.startswith((
@@ -673,34 +683,47 @@ def approve_transactions(master, process, transcript: Transcript, output: Path,
     approvals = []
     for index, step in enumerate(steps):
         read_until(master, process, transcript,
-                   lambda: transcript.review_number >= index + 1 and transcript.challenge is not None,
+                   lambda: transcript.review_number >= index + 1 and transcript.review_ready,
                    time.monotonic() + 180, f"signed transaction review {index + 1}")
-        review, challenge = transcript.review, transcript.challenge
+        review = transcript.review
         transaction_hash = review.get("Transaction hash")
         sender = review.get("Sender")
-        if (transcript.review_number != index + 1 or challenge is None
+        argument_prefixes = {}
+        for position, (label, argument) in enumerate(zip(step["argumentLabels"][:4], step["args"][:4]), 1):
+            suffix = ""
+            if isinstance(argument, dict) and "createdContract" in argument:
+                suffix = f" ({argument['createdContract']} contract)"
+            argument_prefixes[position] = label + suffix + ": "
+        if (transcript.review_number != index + 1
                 or not isinstance(transaction_hash, str) or re.fullmatch(r"0x[0-9a-f]{64}", transaction_hash) is None
                 or review.get("Chain ID") != "31338"
                 or not isinstance(sender, str) or sender.lower() != deployer.lower()
                 or review.get("Nonce") != str(nonce + index)
-                or review.get("Step") != f"{step['name']}; role {step['role']}"
-                or any(transaction_hash == item[0] or challenge == item[1] for item in approvals)):
+                or review.get("Step") != f"{step['name']}; contract {step['role']}"
+                or review.get("Action") != step["action"]
+                or transcript.review_arguments.keys() != argument_prefixes.keys()
+                or any(not transcript.review_arguments[position].startswith(prefix)
+                       for position, prefix in argument_prefixes.items())):
             raise RuntimeError(f"Transaction review {index + 1} differs from the expected fixture step")
         pending = read_audit(output)[-1]
+        challenge = pending.get("challenge")
         sender = pending.get("sender")
         if (pending.get("kind") != "pending" or pending.get("hash") != transaction_hash
-                or pending.get("challenge") != challenge or pending.get("nonce") != nonce + index
+                or not isinstance(challenge, str) or re.fullmatch(r"[A-Za-z0-9-]{1,128}", challenge) is None
+                or any(transaction_hash == item[0] or challenge == item[1] for item in approvals)
+                or pending.get("nonce") != nonce + index
                 or pending.get("chainId") != 31338
                 or not isinstance(sender, str) or sender.lower() != deployer.lower()
                 or pending.get("referenceDigest") != reference["snapshotSha256"]):
             raise RuntimeError(f"Transaction review {index + 1} differs from its pending approval audit")
         # ReleaseVerifier owns calldata/bytecode comparison; exercise the operator
-        # inspection command without implementing a second transaction decoder.
+        # inspection key without implementing a second transaction decoder.
+        transcript.inspection_started = False
         transcript.inspection_seen = False
-        os.write(master, f"inspect {challenge} 1\n".encode("ascii"))
+        os.write(master, b"i")
         read_until(master, process, transcript, lambda: transcript.inspection_seen,
                    time.monotonic() + 10, f"transaction {index + 1} inspection page")
-        os.write(master, f"approve {challenge}\n".encode("ascii"))
+        os.write(master, b"a")
         approvals.append((transaction_hash, challenge))
         progress(f"Approved fixture transaction {index + 1}/{len(steps)}")
     return approvals
@@ -851,12 +874,10 @@ def main(app: str, scenario: str) -> None:
             progress("PASS: every planned transaction approved and mined; deployment artifact retained; release containers removed")
             return
         read_until(master, process, transcript,
-                   lambda: transcript.review_seen and transcript.challenge is not None,
+                   lambda: transcript.review_seen and transcript.review_ready,
                    time.monotonic() + 180, "the first signed transaction review")
-        if transcript.challenge is None:
-            raise RuntimeError("First transaction review did not display a rejection challenge")
         progress("First transaction review reached; rejecting it automatically")
-        os.write(master, f"reject {transcript.challenge}\n".encode("ascii"))
+        os.write(master, b"r")
         status = wait_for_exit(process, master, transcript, time.monotonic() + 180)
         transcript.check()
         if status == 0:
