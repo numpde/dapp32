@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
+import uuid
 from urllib.parse import quote, urlsplit
 
 
@@ -195,6 +196,32 @@ def ask_collection_uri(label, token_name, previous):
             print(f"Cannot use inline collection metadata: {error}", file=sys.stderr)
 
 
+def ask_output_directory(app, host_config_file, previous):
+    config_file = PurePosixPath(host_config_file)
+    config_directory = str(config_file.with_name(f"{config_file.stem}-deployment"))
+    temp_directory = f"/tmp/{app}-release-{uuid.uuid4().hex}"
+    print("Deployment creates this directory for plans, transaction records and deployed contract addresses.")
+    print("Keep it for verification, including after failures. Setup does not create or reserve it.")
+    print(f"config: {config_directory} (beside the configuration file)")
+    print(f"temp: {temp_directory} (host /tmp can be cleaned; keep the deployment records)")
+    print("custom: enter a new absolute path whose parent exists; you can also paste that path directly.")
+    default = previous
+    if not default:
+        default = "config"
+    while True:
+        choice = ask("Output directory (config/temp/custom or absolute path)", "text", default, secret=False)
+        if choice == "custom":
+            return ask("New deployment output directory", "path", previous, secret=False)
+        if choice == "config":
+            choice = config_directory
+        elif choice == "temp":
+            choice = temp_directory
+        try:
+            return check_value(choice, "path")
+        except ValueError as error:
+            print(error, file=sys.stderr)
+
+
 def write_private(path, content):
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as output:
@@ -202,6 +229,9 @@ def write_private(path, content):
 
 
 def setup(app, source_commit, output):
+    if "RELEASE_CONFIG_FILE" not in os.environ:
+        raise ValueError("Release setup requires the original host configuration path in RELEASE_CONFIG_FILE; run it through make <app>/release/setup.")
+    host_config_file = check_value(os.environ["RELEASE_CONFIG_FILE"], "path")
     print(f"Release setup: {app}, source {source_commit}")
     network = ask("Target network [public/local]", "network", "", secret=False)
     print("Enter the actual deployment values. RPC URL and signing key are stored in the protected configuration.")
@@ -234,9 +264,8 @@ def setup(app, source_commit, output):
                 print(f"{name}: {config['settings'][name]}")
                 continue
             if name == "OUTPUT_DIR":
-                print("Deployment creates this directory to keep plans, transaction records and deployed contract addresses.")
-                print("Verification reads its artifact/deployment.json later. Keep it after deployment, including failures.")
-                print("Choose a new path such as /tmp/local-release; its parent must exist, but do not create the directory yourself.")
+                config["settings"][name] = ask_output_directory(app, host_config_file, config["settings"][name])
+                continue
             previous = config["settings"][name]
             if name == "BASE_TOKEN_URI":
                 print("With no prefix, each token can use a complete metadata URL or data URI. A shared prefix is prepended to each token URI.")

@@ -34,6 +34,7 @@ services:
     <<: *config_runtime
     environment:
       RELEASE_LOCAL_NETWORK: "${RELEASE_LOCAL_NETWORK:?missing_RELEASE_LOCAL_NETWORK}"
+      RELEASE_CONFIG_FILE: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
     stdin_open: true
     tty: true
     volumes: [*tool, *output]

@@ -37,6 +37,78 @@ def configuration(app):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def setUp(self):
+        self.setup_environment = patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": "/tmp/fixture-release.json"})
+        self.setup_environment.start()
+        self.addCleanup(self.setup_environment.stop)
+
+    def test_output_directory_choices_use_the_host_config_path_without_creating_directories(self):
+        for app in release_config.APP_FIELDS:
+            temporary_proposals = set()
+            for choice in ("", "config", "temp", "temp", "custom", "direct"):
+                with self.subTest(app=app, choice=choice), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    stage = root / "private-stage"
+                    stage.mkdir()
+                    host_config = root / "operator.release.json"
+                    expected = configuration(app)
+                    answers = ["public", *expected["settings"].values(), "save"]
+                    index = 1 + list(expected["settings"]).index("OUTPUT_DIR")
+                    answers[index] = choice
+                    if choice == "direct":
+                        answers[index] = str(root / "direct-deployment")
+                    elif choice == "custom":
+                        answers.insert(index + 1, str(root / "custom-deployment"))
+                    with patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": str(host_config)}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                        release_config.setup(app, COMMIT, stage)
+                    config = json.loads((stage / "release.json").read_text())
+                    selected = Path(config["settings"]["OUTPUT_DIR"])
+                    if choice == "temp":
+                        self.assertEqual(Path("/tmp"), selected.parent)
+                        self.assertTrue(selected.name.startswith(f"{app}-release-"))
+                        self.assertNotIn(selected, temporary_proposals)
+                        temporary_proposals.add(selected)
+                    elif choice in ("", "config"):
+                        self.assertEqual(root / "operator.release-deployment", selected)
+                    else:
+                        self.assertEqual(root / f"{choice}-deployment", selected)
+                    self.assertFalse(selected.exists())
+                    expected["settings"]["OUTPUT_DIR"] = str(selected)
+                    self.assertEqual(expected, config)
+                    unpacked = root / "unpacked"
+                    unpacked.mkdir()
+                    release_config.unpack(app, COMMIT, "deploy", stage / "release.json", unpacked)
+                    inputs = dict(item.split("=", 1) for item in (unpacked / "inputs").read_text().split("\0") if item)
+                    self.assertEqual(str(selected), inputs[f"{app.upper().replace('-', '_')}_RELEASE_OUTPUT_DIR"])
+
+    def test_output_directory_keeps_the_selected_path_when_reviewing_settings(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                expected = configuration(app)
+                initial = ["public", *expected["settings"].values(), "change"]
+                initial[1 + list(expected["settings"]).index("OUTPUT_DIR")] = "temp"
+                revised = list(expected["settings"].values())
+                revised[list(expected["settings"]).index("OUTPUT_DIR")] = ""
+                prompts = []
+                answers = iter([*initial, *revised, "save"])
+                def respond(prompt):
+                    prompts.append(prompt)
+                    return next(answers)
+                with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY, FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    release_config.setup(app, COMMIT, root)
+                selected = json.loads((root / "release.json").read_text())["settings"]["OUTPUT_DIR"]
+                self.assertTrue(selected.startswith(f"/tmp/{app}-release-"))
+                self.assertTrue(any(f"[{selected}]" in prompt for prompt in prompts))
+                self.assertFalse(Path(selected).exists())
+
+    def test_output_directory_requires_original_host_config_path_before_setup(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(release_config.os.environ):
+            del release_config.os.environ["RELEASE_CONFIG_FILE"]
+            with patch.object(release_config, "input", side_effect=AssertionError("Missing host path must fail before asking questions"), create=True), self.assertRaisesRegex(ValueError, "RELEASE_CONFIG_FILE"):
+                release_config.setup("pay-to-play", COMMIT, Path(temporary))
+            self.assertFalse((Path(temporary) / "release.json").exists())
+
     def test_bike_metadata_choices_save_canonical_values_and_unpack_empty_prefix(self):
         for prefix_answer, collection_answer in (("", ""), ("none", "inline"), ("https://metadata.example.test/tokens/", "https://metadata.example.test/collection.json"), ("", "data:application/json,%7B%22name%22%3A%22Custom%22%7D")):
             with self.subTest(prefix=prefix_answer, collection=collection_answer), tempfile.TemporaryDirectory() as temporary:
@@ -289,6 +361,7 @@ class ReleaseConfigTest(unittest.TestCase):
 
     def test_setup_and_loader_have_only_their_exact_offline_file_grants(self):
         services = rendered_compose_config("compose/release/config.yml")["services"]
+        self.assertEqual("/tmp/release-config.json", services["release-setup"]["environment"]["RELEASE_CONFIG_FILE"])
         for name, service in services.items():
             with self.subTest(service=name):
                 self.assertEqual("none", service["network_mode"])
