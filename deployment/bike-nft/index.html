@@ -22,13 +22,13 @@
 <li>operations: explicit pauser, configurer, and one or more unique registrar addresses.</li>
 </ul>
 <p>The release creates an empty NFT collection on testnets and mainnets; the normal release rehearsal also starts empty. Only the separate local demo script registers the sample frame, battery and motor NFTs. Metadata JSON and images hosted on GitHub are files, not on-chain NFTs: publishing or referencing them does not mint a token. An authorized registrar must register a component through the manager to create its NFT.</p>
-<p>The funded deployer must differ from every lasting authority. The same final account may deliberately hold several declared roles, but the release does not infer that policy. The release gives the manager only the token mint and URI-setter roles, removes the deployer's ordinary roles, and starts three independent handoffs:</p>
+<p>We recommend a separate funded deployment account. The deployer may retain any explicitly selected owner, admin or operational role, and the same account may hold several declared roles. The release gives the manager the token mint and URI-setter roles and removes the deployer's operational roles unless explicitly selected. For each intended owner or admin that differs from the deployer, it starts an independent handoff:</p>
 <ol>
 <li><code>CamRoot.acceptOwnership()</code> by the final root owner;</li>
 <li><code>BicycleComponents.acceptDefaultAdminTransfer()</code> by the final component admin after its delay;</li>
 <li><code>BicycleComponentManager.acceptDefaultAdminTransfer()</code> by the final manager admin after its delay.</li>
 </ol>
-<p>Until all three calls complete, the deployer remains a temporary default admin where OpenZeppelin's delayed transfer requires it, and <code>make bike-nft/release/verify</code> intentionally fails.</p>
+<p>Each required handoff needs its own acceptance transaction. Until acceptance, the deployer retains that contract's ownership or default-admin authority, and <code>make bike-nft/release/verify</code> fails while a required handoff remains pending. When the deployer is also the intended owner or admin, no handoff is needed.</p>
 <p>Choose the authority addresses and delays before creating a release plan. A production-like Sepolia rehearsal should normally use a disposable funded deployer, a testnet Safe or separate owner for final administration, a separate registrar, and explicitly controlled pauser/configurer accounts.</p>
 <p>To change either default admin later, that contract's current default admin calls <code>beginDefaultAdminTransfer(newAdmin)</code>. After the contract's current transfer delay, the nominee calls <code>acceptDefaultAdminTransfer()</code> on that same contract. The current admin retains authority until acceptance. The setup fields <code>COMPONENTS_ADMIN_DELAY</code> and <code>MANAGER_ADMIN_DELAY</code> set the initial delays. These transfers are separate from <a href="../#deploy-to-the-selected-chain">CAM ownership</a> and do not change operational role holders.</p>
 <p>Each contract's current default admin manages its operational roles with <code>grantRole(role, account)</code> and <code>revokeRole(role, account)</code>: pausers and configurers on Components; pausers, configurers and registrars on Manager. Roles can have several holders. Granting a role to a new account does not remove an old holder; the admin must revoke the old holder, or that holder can call <code>renounceRole(role, ownAddress)</code>. These role changes have no admin-transfer wait.</p>
@@ -93,18 +93,18 @@ make bike-nft/release/deploy</code></pre>
 <pre><code>plan/release-plan.json
 broadcast/DeployBikeNftRelease.s.sol/&lt;chain-id&gt;/run-latest.json
 artifact/deployment.json</code></pre>
-<p>After independently accepting all three handoffs, verify from the same exact clean commit:</p>
+<p>After independently accepting any required handoffs, verify from the same exact clean commit:</p>
 <pre><code>RPC_URL_FILE=/secure/bike-nft-sepolia-rpc \
 BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/bike-nft-sepolia-v1/artifact/deployment.json \
 make bike-nft/release/verify</code></pre>
-<p>Verification rechecks all four creation receipts, exact source/runtime and artifact code hashes, CAM identity and bindings, UI and manager backing, completed ownership/admin handoffs, absence of pending admin-delay changes, exact delays and metadata, current unpaused state, the manager's default delegation duration, required roles, deployer role removal, and interface support.</p>
+<p>Verification rechecks all four creation receipts, exact source/runtime and artifact code hashes, CAM identity and bindings, UI and manager backing, intended ownership/admin state with no pending handoffs, absence of pending admin-delay changes, exact delays and metadata, current unpaused state, the manager's default delegation duration, declared operational roles, removal of undeclared deployer roles, and interface support.</p>
 <h2 id="public-rehearsal">Public rehearsal</h2>
 <p>Configure the generic CAM web viewer with the public chain ID, a public read RPC, the deployed <code>CamRoot</code> address, the published CAM resource origin, and wallet/network switching. Hosting and wallet injection are deployment-provider concerns; this repository does not yet own a public hosting target.</p>
 <p>The viewer URL supplies <code>chainId</code> (for example <code>eip155:11155111</code>), <code>host</code>, <code>account</code>, and <code>rpcUrl</code>. The hosting configuration supplies <code>VITE_CAM_WEB_RESOURCE_ORIGIN</code>; links cannot override that resource origin. Use a credential-free public read RPC because its URL is included in shareable read links. Such links reopen a route against current state and do not carry wallet authority, unsent form edits, or prepared transactions.</p>
 <p>Exercise registrar creation, token receipt, metadata update, missing/report resolution, delegation grant/revoke, transfer with permission changes, pause/unpause, and unauthorized failures. Verify explorer metadata and rerun <code>make bike-nft/release/verify</code> after activity. Explorer source publication is advisable but remains separate from the repository's bytecode verifier.</p>
 <h2 id="explicit-uncertainties-and-limits">Explicit uncertainties and limits</h2>
 <ul>
-<li><code>AccessControlDefaultAdminRules</code> is not enumerable. Verification proves every declared holder is present and the deployer is absent; it cannot enumerate the universe of undisclosed third-party role holders from current state alone. The clean pinned script and preserved broadcast remain part of the audit evidence.</li>
+<li><code>AccessControlDefaultAdminRules</code> is not enumerable. Verification proves every declared holder is present and checks the deployer's roles against the declared selections; it cannot enumerate the universe of undisclosed third-party role holders from current state alone. The clean pinned script and preserved broadcast remain part of the audit evidence.</li>
 <li>The repository does not choose the actual Safe/EOA addresses, the final nonzero delay, RPC provider, CAM host, browser host, block explorer, or operator finality threshold.</li>
 <li>The release artifact records operator intent and immutable deployment provenance, not a mutable snapshot of every later handoff state. Live verification is the authority for accepted ownership and administration.</li>
 </ul>
