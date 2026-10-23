@@ -90,7 +90,10 @@ test("private release CAM transport requires the explicit fixture environment an
   assert.throws(() => assertReleaseCamURI(local, "CAM", {}), /publication URI/)
   assertReleaseCamURI(CAM_URI, "CAM", {})
   assertReleaseCamURI(local, "CAM", { RELEASE_REHEARSAL: "1" })
-  for (const uri of ["http://localhost/main.json", "http://other:8080/main.json", "https://example.test/main.json"]) {
+  for (const uri of [CAM_URI, "ipfs://bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva/main.json"]) {
+    assertReleaseCamURI(uri, "CAM", { RELEASE_REHEARSAL: "1" })
+  }
+  for (const uri of ["http://localhost/main.json", "http://other:8080/main.json"]) {
     assert.throws(() => assertReleaseCamURI(uri, "CAM", { RELEASE_REHEARSAL: "1" }), /rehearsal CAM/)
   }
   assert.throws(() => assertReleaseCamURI(local, "CAM", { RELEASE_REHEARSAL: "yes" }), /RELEASE_REHEARSAL/)

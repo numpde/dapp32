@@ -1,0 +1,102 @@
+# Attach a browser to an existing local release. No chain lifecycle or signer.
+services:
+  viewer-url:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work/js
+    environment:
+      RELEASE_VIEWER_APP: "${RELEASE_VIEWER_APP:?Select APP}"
+      RELEASE_VIEWER_ORIGIN: "${RELEASE_VIEWER_ORIGIN:?missing_RELEASE_VIEWER_ORIGIN}"
+      RELEASE_VIEWER_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN}"
+    volumes:
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+      - type: bind
+        source: "${RELEASE_VIEWER_ARTIFACT:?Set DEPLOYMENT_ARTIFACT_FILE}"
+        target: /deployment/deployment.json
+        read_only: true
+        bind: {create_host_path: false}
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:packages >/dev/null
+        ./node_modules/.bin/tsc -p tools/pay-to-play-release/tsconfig.json
+        exec node --experimental-strip-types tools/release-viewer-url.ts
+
+  cam-web:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work/js
+    environment:
+      VITE_CAM_WEB_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN}"
+      CAM_WEB_DEV_ORIGIN: "${RELEASE_VIEWER_ORIGIN:?missing_RELEASE_VIEWER_ORIGIN}"
+    volumes:
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+    networks: [viewer_internal]
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:workspace
+        exec npm run dev -w cam-web -- --host 0.0.0.0 --port 5173 --strictPort
+
+  browser-gateway:
+    image: ghcr.io/nginx/nginx-unprivileged:1.31.1-alpine3.23@sha256:8122337ed6c475bb486bc9340da453d4599f225e6b920ff0d92ca2267486b9b5
+    init: true
+    depends_on:
+      cam-web: {condition: service_started}
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: 1
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m"]
+    networks: [viewer_internal, release_local]
+    ports:
+      - "127.0.0.1:${RELEASE_VIEWER_PORT:?missing_RELEASE_VIEWER_PORT}:8080"
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+        cat >/tmp/nginx.conf <<'NGINX'
+        pid /tmp/nginx.pid;
+        worker_processes 1;
+        events { worker_connections 256; }
+        http {
+          access_log /dev/stdout;
+          error_log /dev/stderr info;
+          client_body_temp_path /tmp/client_body;
+          proxy_temp_path /tmp/proxy;
+          server {
+            listen 8080;
+            add_header Cache-Control "no-store" always;
+            location = /rpc { proxy_pass http://release-anvil:8545/; }
+            location / {
+              proxy_http_version 1.1;
+              proxy_set_header Host $$host;
+              proxy_set_header Upgrade $$http_upgrade;
+              proxy_set_header Connection "upgrade";
+              proxy_pass http://cam-web:5173;
+            }
+          }
+        }
+        NGINX
+        exec nginx -c /tmp/nginx.conf -g 'daemon off;'
+
+networks:
+  viewer_internal:
+    internal: true
+  release_local:
+    external: true
+    name: "${RELEASE_LOCAL_NETWORK:?missing_RELEASE_LOCAL_NETWORK}"

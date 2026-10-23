@@ -34,6 +34,10 @@ export function assertReleaseCamURI(uri: string, label: string, env: NodeJS.Proc
   }
   if (env.RELEASE_REHEARSAL !== "1") throw new Error("RELEASE_REHEARSAL must be 0 or 1")
   assertLoadableCamRootURI(uri, label)
+  if (new URL(uri).protocol !== "http:") {
+    assertPublishedCamRootURI(uri, label)
+    return
+  }
   if (new URL(uri).origin !== "http://release-cam:8080") {
     throw new Error(`${label}: rehearsal CAM must use http://release-cam:8080`)
   }

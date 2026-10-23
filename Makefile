@@ -123,6 +123,9 @@ PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml
 export PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD PAY_TO_PLAY_RELEASE_OUTPUT_DIR PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY
 LOCAL_RELEASE_PROJECT := $(COMPOSE_PROJECT_NAME)-release-local
 LOCAL_RELEASE_NETWORK := $(LOCAL_RELEASE_PROJECT)_anvil_internal
+# Intentional default: use a separate loopback port for the release attachment.
+RELEASE_VIEWER_PORT ?= 5174
+export RELEASE_VIEWER_PORT
 ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/browser-check.yml
 TEST_INTEGRATION_FUZZ_COMPOSE_FILES := -f $(COMPOSE_DIR)/test/integration-fuzz.yml
 TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/test-integration-fuzz.yml
@@ -160,10 +163,10 @@ endef
 
 define release_validate_cam_uri
 cam_uri="$${$(1)_RELEASE_CAM_URI}"; \
-if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == "1" ]]; then \
-  if [[ "$$cam_uri" != "http://release-cam:8080/$(2)/main.json" ]]; then printf '%s\n' 'Local rehearsal requires its exact private CAM URI.' >&2; exit 2; fi; \
-elif [[ ! "$$cam_uri" =~ ^(https|ipfs):// ]]; then \
-  printf '%s\n' '$(1)_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI.' >&2; exit 2; \
+if [[ ! "$$cam_uri" =~ ^(https|ipfs):// ]]; then \
+  if [[ ! -v RELEASE_REHEARSAL || "$$RELEASE_REHEARSAL" != "1" || "$$cam_uri" != "http://release-cam:8080/$(2)/main.json" ]]; then \
+    printf '%s\n' '$(1)_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI, or the exact private app fixture URI for a local release.' >&2; exit 2; \
+  fi; \
 fi; \
 if [[ "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then \
   printf '%s\n' '$(1)_RELEASE_CAM_URI must not contain shell syntax.' >&2; exit 2; \
@@ -618,6 +621,11 @@ help:
 	  '    No host ports or public network access. Chain 31338 uses public Anvil test accounts.' \
 	  '    RPC and CAM URLs work only inside the Docker network. CAM uses HTTP, not HTTPS;' \
 	  '    the host browser cannot open http://release-cam:8080. This flow supports deployment and verification.' \
+	  '  make network/local/viewer/up     Attach the browser viewer to an existing local release.' \
+	  '    Set APP, DEPLOYMENT_ARTIFACT_FILE and RESOURCE_ORIGIN (published HTTPS CAM origin).' \
+	  '    Open the printed URL in your browser. Loopback port defaults to 5174; set RELEASE_VIEWER_PORT to override.' \
+	  '    The fixture RPC endpoint permits local test transactions. No signing key is mounted.' \
+	  '  make network/local/viewer/down   Stop only that viewer; leave the chain running.' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
 	  '  make rpc/indexer/up              Start a read-only RPC proxy for contract log indexing.' \
 	  '    Requires RPC_URL_FILE: an absolute, owner-only file outside the checkout, owned by LOCAL_UID.' \
@@ -1302,6 +1310,41 @@ network/local/status:
 network/local/down:
 	@$(LANE_GUARD); \
 	$(call local_release_compose,down --volumes --remove-orphans)
+
+define local_release_viewer_compose
+LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(LOCAL_RELEASE_PROJECT)-viewer" \
+RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" RELEASE_VIEWER_ORIGIN="http://127.0.0.1:$$RELEASE_VIEWER_PORT" \
+RELEASE_VIEWER_APP="$$viewer_app" RELEASE_VIEWER_ARTIFACT="$$viewer_artifact" \
+RELEASE_VIEWER_RESOURCE_ORIGIN="$$viewer_resource_origin" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/viewer.yml $(1)
+endef
+
+.PHONY: network/local/viewer/up network/local/viewer/down
+network/local/viewer/up:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(release_host_guard_functions); \
+	viewer_app="$${APP:?Set APP to bike-nft, escrow or pay-to-play}"; \
+	case "$$viewer_app" in bike-nft|escrow|pay-to-play) ;; *) printf '%s\n' 'APP must be bike-nft, escrow or pay-to-play.' >&2; exit 2 ;; esac; \
+	viewer_artifact="$${DEPLOYMENT_ARTIFACT_FILE:?Set DEPLOYMENT_ARTIFACT_FILE}"; \
+	require_release_file "$$viewer_artifact" DEPLOYMENT_ARTIFACT_FILE; \
+	viewer_resource_origin="$${RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN to the published HTTPS CAM origin}"; \
+	port="$$RELEASE_VIEWER_PORT"; \
+	if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'RELEASE_VIEWER_PORT must be a TCP port in 1..65535.' >&2; exit 2; fi; \
+	RELEASE_REHEARSAL_NETWORK="$(LOCAL_RELEASE_NETWORK)"; require_release_local_network; \
+	running="$$( $(call local_release_compose,ps --quiet --status running release-anvil) )"; \
+	if [[ -z "$$running" ]]; then printf '%s\n' 'Local release chain is not running; run make network/local/up.' >&2; exit 2; fi; \
+	viewer_url="$$( $(call local_release_viewer_compose,run --build --rm --no-deps -T viewer-url) )"; \
+	printf 'Open this URL in your browser:\n%s\nFixture RPC permits local test transactions; no wallet is attached.\n' "$$viewer_url"; \
+	cleanup() { $(call local_release_viewer_compose,down --timeout 10); }; \
+	trap cleanup EXIT; \
+	$(call local_release_viewer_compose,up --build --abort-on-container-exit cam-web browser-gateway)
+
+# Compose still interpolates service inputs during down; none of these render
+# placeholders are used to run a service or replace operator deployment inputs.
+network/local/viewer/down:
+	@$(LANE_GUARD); \
+	viewer_app=unused; viewer_artifact=/dev/null; viewer_resource_origin=https://unused.invalid; \
+	$(call local_release_viewer_compose,down --timeout 10)
 
 ci: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
 

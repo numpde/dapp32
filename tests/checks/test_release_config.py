@@ -233,7 +233,8 @@ class ReleaseConfigTest(unittest.TestCase):
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 expected = configuration(app)
-                answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "CAM_URI", "EXPECTED_DEPLOYER_ADDRESS")], "save"]
+                expected["settings"]["CAM_URI"] = ""
+                answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS")], "save"]
                 with patch.dict(release_config.os.environ, {"RELEASE_LOCAL_NETWORK": "local-release-test"}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=AssertionError("Local setup must not request operator credentials")), contextlib.redirect_stdout(io.StringIO()):
                     release_config.setup(app, COMMIT, root)
                 config = json.loads((root / "release.json").read_text())
@@ -251,6 +252,21 @@ class ReleaseConfigTest(unittest.TestCase):
                 self.assertIn("RELEASE_REHEARSAL_NETWORK=local-release-test\0", inputs)
                 self.assertFalse((output / "deployer-key").exists())
 
+    def test_local_setup_can_select_published_cam_without_operator_credentials(self):
+        for app in release_config.APP_FIELDS:
+            for uri in ("https://cam.example.test/releases/main.json", "ipfs://bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva/main.json"):
+                with self.subTest(app=app, uri=uri), tempfile.TemporaryDirectory() as temporary:
+                    expected = configuration(app)
+                    expected["settings"].update(CAM_URI=uri, CAM_HASH="0x" + "00" * 32)
+                    answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS")], "save"]
+                    with patch.dict(release_config.os.environ, {"RELEASE_LOCAL_NETWORK": "local-release-test"}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=AssertionError("Local setup must not request operator credentials")), contextlib.redirect_stdout(io.StringIO()):
+                        release_config.setup(app, COMMIT, Path(temporary))
+                    config = json.loads((Path(temporary) / "release.json").read_text())
+                    self.assertEqual(uri, config["settings"]["CAM_URI"])
+                    self.assertEqual(expected["settings"]["CAM_HASH"], config["settings"]["CAM_HASH"])
+                    self.assertEqual(release_config.LOCAL_RPC_URL, config["rpcUrl"])
+                    self.assertEqual(release_config.LOCAL_DEPLOYER_KEY, config["deployerPrivateKey"])
+
     def test_local_transport_is_confined_to_the_fixture_chain_and_peers(self):
         config = configuration("pay-to-play")
         config["localNetwork"] = "local-release-test"
@@ -266,6 +282,8 @@ class ReleaseConfigTest(unittest.TestCase):
             (True, "deployerPrivateKey", FIXTURE_KEY),
             (False, "EXPECTED_CHAIN_ID", "84532"),
             (False, "CAM_URI", "http://release-cam:8080/escrow/main.json"),
+            (False, "CAM_URI", "http://localhost/main.json"),
+            (False, "CAM_URI", "http://release-cam:8080/pay-to-play/main.json?other=1"),
             (False, "EXPECTED_DEPLOYER_ADDRESS", FIXTURE_ADDRESS),
         ):
             changed = json.loads(json.dumps(config))

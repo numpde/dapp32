@@ -55,7 +55,7 @@ def fields(app):
     return (*COMMON_FIELDS, *APP_FIELDS[app], OUTPUT_FIELD)
 
 
-def check_value(value, kind):
+def check_value(value, kind, *, local_cam_uri=None):
     if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 4096:
         raise ValueError("Enter a nonempty value of at most 4096 UTF-8 bytes.")
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
@@ -77,6 +77,8 @@ def check_value(value, kind):
         if len({address.lower() for address in addresses}) != len(addresses):
             raise ValueError("Registrar addresses must be distinct.")
     elif kind == "uri":
+        if value == local_cam_uri:
+            return value
         parsed = urlsplit(value)
         if parsed.scheme not in ("https", "ipfs") or not parsed.netloc or any(char in value for char in "$`\\\"'; "):
             raise ValueError("Enter an absolute HTTPS or IPFS URI without whitespace or shell syntax.")
@@ -135,27 +137,26 @@ def validate(config, app, source_commit):
     if not isinstance(settings, dict) or not names - {"CAM_HASH"} <= settings.keys() <= names:
         raise ValueError("The release configuration settings are incomplete or unknown; run the release setup again.")
     local = "localNetwork" in config
+    local_cam_uri = None
     if local:
+        local_cam_uri = f"http://release-cam:8080/{app}/main.json"
         check_value(config["localNetwork"], "docker-network")
         if (config["rpcUrl"] != LOCAL_RPC_URL or config["deployerPrivateKey"] != LOCAL_DEPLOYER_KEY
-                or settings["EXPECTED_CHAIN_ID"] != "31338" or settings["EXPECTED_DEPLOYER_ADDRESS"] != LOCAL_DEPLOYER_ADDRESS
-                or settings["CAM_URI"] != f"http://release-cam:8080/{app}/main.json"):
-            raise ValueError("Local releases require the fixture chain, RPC, funded deployer account and this app's CAM manifest.")
+                or settings["EXPECTED_CHAIN_ID"] != "31338" or settings["EXPECTED_DEPLOYER_ADDRESS"] != LOCAL_DEPLOYER_ADDRESS):
+            raise ValueError("Local releases require the fixture chain, RPC and funded deployer account.")
     else:
         check_value(config["rpcUrl"], "rpc")
     for name, _, kind in fields(app):
         if name == "CAM_HASH" and name not in settings:
             continue
-        if local and name == "CAM_URI":
-            continue
         try:
-            check_value(settings[name], kind)
+            check_value(settings[name], kind, local_cam_uri=local_cam_uri)
         except ValueError as error:
             raise ValueError(f"Invalid {name}: {error}") from error
     return config
 
 
-def ask(label, kind, previous, *, secret):
+def ask(label, kind, previous, *, secret, local_cam_uri=None):
     while True:
         prompt = label
         if previous and not secret:
@@ -164,7 +165,7 @@ def ask(label, kind, previous, *, secret):
         value = getpass.getpass(prompt) if secret else input(prompt)
         value = value or previous
         try:
-            return check_value(value, kind)
+            return check_value(value, kind, local_cam_uri=local_cam_uri)
         except ValueError as error:
             print(error, file=sys.stderr)
 
@@ -182,34 +183,36 @@ def setup(app, source_commit, output):
     print("Saving records approval to deploy these settings later. Setup itself sends no transactions.")
     config = {"schemaVersion": CONFIG_VERSION, "app": app, "sourceCommit": source_commit, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in fields(app)}, "confirmDeploy": True}
     config["settings"]["CAM_HASH"] = "auto"
+    local_cam_uri = None
     if network == "local":
+        local_cam_uri = f"http://release-cam:8080/{app}/main.json"
         if "RELEASE_LOCAL_NETWORK" not in os.environ:
             raise ValueError("Run local setup through make <app>/release/setup so its Docker network is selected.")
         config["localNetwork"] = check_value(os.environ["RELEASE_LOCAL_NETWORK"], "docker-network")
         config["rpcUrl"] = LOCAL_RPC_URL
         config["deployerPrivateKey"] = LOCAL_DEPLOYER_KEY
-        config["settings"].update(EXPECTED_CHAIN_ID="31338", EXPECTED_DEPLOYER_ADDRESS=LOCAL_DEPLOYER_ADDRESS, CAM_URI=f"http://release-cam:8080/{app}/main.json")
+        config["settings"].update(EXPECTED_CHAIN_ID="31338", EXPECTED_DEPLOYER_ADDRESS=LOCAL_DEPLOYER_ADDRESS, CAM_URI=local_cam_uri)
         if app != "bike-nft":
             config["settings"]["INTENDED_CAM_ROOT_OWNER"] = LOCAL_DEPLOYER_ADDRESS
         if app == "pay-to-play":
             config["settings"]["INTENDED_PAYMENT_ADMIN"] = LOCAL_DEPLOYER_ADDRESS
         print(f"Local Docker network: {config['localNetwork']}")
         print(f"Local funded test account: {LOCAL_DEPLOYER_ADDRESS}")
-        print("Local RPC and CAM URLs are reachable only by containers on this Docker network.")
-        print("CAM uses HTTP, not HTTPS. No host ports are published; your host browser cannot open this URL.")
+        print("Local RPC is reachable only by containers on this Docker network.")
+        print("CAM may use a published HTTPS/IPFS URI or the default private HTTP fixture URI.")
     while True:
         if network == "public":
             config["rpcUrl"] = ask("Complete RPC URL (including any API key)", "rpc", config["rpcUrl"], secret=True)
             config["deployerPrivateKey"] = ask("Funded deployer private key", "key", config["deployerPrivateKey"], secret=True)
         for name, label, kind in fields(app):
-            if network == "local" and name in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "CAM_URI"):
+            if network == "local" and name in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"):
                 print(f"{name}: {config['settings'][name]}")
                 continue
             if name == "OUTPUT_DIR":
                 print("Deployment creates this directory to keep plans, transaction records and deployed contract addresses.")
                 print("Verification reads its artifact/deployment.json later. Keep it after deployment, including failures.")
                 print("Choose a new path such as /tmp/local-release; its parent must exist, but do not create the directory yourself.")
-            config["settings"][name] = ask(label, kind, config["settings"][name], secret=False)
+            config["settings"][name] = ask(label, kind, config["settings"][name], secret=False, local_cam_uri=local_cam_uri)
         validate(config, app, source_commit)
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
         for name, value in config["settings"].items():

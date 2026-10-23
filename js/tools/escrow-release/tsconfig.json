@@ -4,6 +4,7 @@
     "**/*.ts",
     "../release-cam-bundle.test.ts",
     "../release-files.test.ts",
-    "../release-values.test.ts"
+    "../release-values.test.ts",
+    "../release-viewer-url.test.ts"
   ]
 }

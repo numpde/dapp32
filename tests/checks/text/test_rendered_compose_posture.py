@@ -331,6 +331,11 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "RELEASE_CONFIG_STAGE_DIR": "/tmp/release-config-stage",
                 "RELEASE_CONFIG_FILE": "/tmp/release-config.json",
                 "RELEASE_LOCAL_NETWORK": "dapps-release-local_anvil_internal",
+                "RELEASE_VIEWER_PORT": "5174",
+                "RELEASE_VIEWER_ORIGIN": "http://127.0.0.1:5174",
+                "RELEASE_VIEWER_APP": "pay-to-play",
+                "RELEASE_VIEWER_ARTIFACT": "/tmp/release-output/artifact/deployment.json",
+                "RELEASE_VIEWER_RESOURCE_ORIGIN": "https://raw.githubusercontent.com",
                 "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
                 "RELEASE_WAIT_CASE": "delay-10",
                 "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",
@@ -463,6 +468,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             ),
         }
         expected_ports.add((makefile_compose_unit("PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES"), "pay-to-play-browser-gateway", "127.0.0.1", 8080, "5175"))
+        expected_ports.add(("compose/release/viewer.yml", "browser-gateway", "127.0.0.1", 8080, "5174"))
         expected_secrets = {("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url")}
         for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
             deploy = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
@@ -845,6 +851,28 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertNotIn("secrets", proxy)
         self.assertEqual({"max-size": "10m", "max-file": "3"}, proxy["logging"]["options"])
         self.assertEqual("local", proxy["logging"]["driver"])
+
+    def test_release_viewer_attaches_without_deployment_or_signing_authority(self) -> None:
+        config = rendered_compose_config("compose/release/viewer.yml")
+        self.assertEqual({"viewer-url", "cam-web", "browser-gateway"}, set(config["services"]))
+        self.assertEqual("dapps-release-local_anvil_internal", config["networks"]["release_local"]["name"])
+        self.assertTrue(config["networks"]["release_local"]["external"])
+        self.assertTrue(config["networks"]["viewer_internal"]["internal"])
+        for service in config["services"].values():
+            self.assert_hardened(service)
+            self.assertNotIn("secrets", service)
+        printer = config["services"]["viewer-url"]
+        self.assertEqual("none", printer["network_mode"])
+        self.assert_read_only_volumes(printer, "/deployment/deployment.json")
+        web = config["services"]["cam-web"]
+        self.assertEqual({"viewer_internal"}, set(web["networks"]))
+        self.assertEqual("https://raw.githubusercontent.com", web["environment"]["VITE_CAM_WEB_RESOURCE_ORIGIN"])
+        gateway = config["services"]["browser-gateway"]
+        self.assertEqual({"release_local", "viewer_internal"}, set(gateway["networks"]))
+        self.assertEqual("127.0.0.1", gateway["ports"][0]["host_ip"])
+        self.assertEqual("5174", gateway["ports"][0]["published"])
+        self.assertIn("release-anvil:8545", gateway["command"][-1])
+        self.assertNotIn("location /cam", gateway["command"][-1])
 
     def test_every_rpc_proxy_consumer_supplies_bounded_runtime_budgets(self) -> None:
         found = 0
