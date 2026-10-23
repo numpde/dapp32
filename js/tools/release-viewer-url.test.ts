@@ -30,19 +30,27 @@ const artifacts = {
 }
 
 for (const [app, artifact] of Object.entries(artifacts)) {
+  test(`${app} public release uses the deployed chain and explicit browser RPC`, () => {
+    const rpc = "https://api.avax-test.network/ext/bc/C/rpc"
+    const url = new URL(releaseViewerURL(app, bytes({ ...artifact, chainId: 43113 }), "http://127.0.0.1:5174", "https://raw.githubusercontent.com", rpc))
+    assert.deepEqual(Object.fromEntries(url.searchParams), {
+      chainId: "eip155:43113", host: common.camRoot, account: common.deployer, rpcUrl: rpc,
+    })
+    assert.throws(() => releaseViewerURL(app, bytes(artifact), url.origin, "https://raw.githubusercontent.com", "https://user:secret@example.test/rpc"), /username|password|credentials/)
+    assert.throws(() => releaseViewerURL(app, bytes(artifact), url.origin, "https://other.example", rpc), /resource origin/)
+  })
   test(`${app} attachment uses its canonical release artifact and ordinary viewer inputs`, () => {
-    const url = new URL(releaseViewerURL(app, bytes(artifact), "http://127.0.0.1:5174", "https://raw.githubusercontent.com"))
+    const url = new URL(releaseViewerURL(app, bytes(artifact), "http://127.0.0.1:5174", "https://raw.githubusercontent.com", "http://127.0.0.1:5174/rpc"))
     assert.equal(url.origin, "http://127.0.0.1:5174")
     assert.deepEqual(Object.fromEntries(url.searchParams), {
       chainId: "eip155:31338", host: common.camRoot, account: common.deployer,
       rpcUrl: "http://127.0.0.1:5174/rpc",
     })
-    assert.throws(() => releaseViewerURL(app, bytes({ ...artifact, chainId: 1 }), url.origin, "https://raw.githubusercontent.com"), /31338/)
-    assert.throws(() => releaseViewerURL(app, bytes(artifact), url.origin, "https://other.example"), /resource origin/)
-    assert.doesNotThrow(() => releaseViewerURL(app, bytes({ ...artifact, camHash: hash(0) }), url.origin, "https://raw.githubusercontent.com"))
+    assert.throws(() => releaseViewerURL(app, bytes(artifact), url.origin, "https://other.example", "http://127.0.0.1:5174/rpc"), /resource origin/)
+    assert.doesNotThrow(() => releaseViewerURL(app, bytes({ ...artifact, camHash: hash(0) }), url.origin, "https://raw.githubusercontent.com", "http://127.0.0.1:5174/rpc"))
   })
 }
 
 test("attachment rejects unknown apps before interpreting an artifact", () => {
-  assert.throws(() => releaseViewerURL("other", bytes({}), "http://127.0.0.1:5174", "https://raw.githubusercontent.com"), /bike-nft, escrow or pay-to-play/)
+  assert.throws(() => releaseViewerURL("other", bytes({}), "http://127.0.0.1:5174", "https://raw.githubusercontent.com", "http://127.0.0.1:5174/rpc"), /bike-nft, escrow or pay-to-play/)
 })

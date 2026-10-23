@@ -128,6 +128,9 @@ LOCAL_RELEASE_PROJECT := $(COMPOSE_PROJECT_NAME)-release-local
 LOCAL_RELEASE_NETWORK := $(LOCAL_RELEASE_PROJECT)_anvil_internal
 # Intentional default: use a separate loopback port for the release attachment.
 RELEASE_VIEWER_PORT ?= 5174
+RELEASE_VIEWER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-release-viewer
+COMPOSE_PROJECT_NAME_VARS += RELEASE_VIEWER_COMPOSE_PROJECT_NAME
+export RELEASE_VIEWER_COMPOSE_PROJECT_NAME
 export RELEASE_VIEWER_PORT
 ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/browser-check.yml
 TEST_INTEGRATION_FUZZ_COMPOSE_FILES := -f $(COMPOSE_DIR)/test/integration-fuzz.yml
@@ -704,6 +707,12 @@ help:
 	  '    Open the printed URL in your browser. Loopback port defaults to 5174; set RELEASE_VIEWER_PORT to override.' \
 	  '    The fixture RPC endpoint permits local test transactions. No signing key is mounted.' \
 	  '  make network/local/viewer/down   Stop only that viewer; leave the chain running.' \
+	  '  make viewer/release/up           Open an existing public-chain release; deploys nothing.' \
+	  '    Set APP, DEPLOYMENT_ARTIFACT_FILE, RESOURCE_ORIGIN and PUBLIC_RPC_URL.' \
+	  '    PUBLIC_RPC_URL is visible in the browser link: use a public endpoint without credentials.' \
+	  '    Defaults to http://127.0.0.1:5174. Connect your own wallet for transactions.' \
+	  '    Use RELEASE_VIEWER_COMPOSE_PROJECT_NAME and RELEASE_VIEWER_PORT for another viewer instance.' \
+	  '  make viewer/release/down         Stop only the public-release viewer.' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
 	  '  make rpc/indexer/up              Start a read-only RPC proxy for contract log indexing.' \
 	  '    Requires RPC_URL_FILE: an absolute, owner-only file outside the checkout, owned by LOCAL_UID.' \
@@ -1404,12 +1413,44 @@ network/local/down:
 	@$(LANE_GUARD); \
 	$(call local_release_compose,down --volumes --remove-orphans)
 
+LOCAL_RELEASE_VIEWER_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/viewer.yml -f $(COMPOSE_DIR)/release/viewer-local.yml
+
 define local_release_viewer_compose
 LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(LOCAL_RELEASE_PROJECT)-viewer" \
 RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" RELEASE_VIEWER_ORIGIN="http://127.0.0.1:$$RELEASE_VIEWER_PORT" \
 RELEASE_VIEWER_APP="$$viewer_app" RELEASE_VIEWER_ARTIFACT="$$viewer_artifact" \
-RELEASE_VIEWER_RESOURCE_ORIGIN="$$viewer_resource_origin" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/viewer.yml $(1)
+RELEASE_VIEWER_RPC_URL="http://127.0.0.1:$$RELEASE_VIEWER_PORT/rpc" \
+RELEASE_VIEWER_RESOURCE_ORIGIN="$$viewer_resource_origin" $(DOCKER_COMPOSE) $(LOCAL_RELEASE_VIEWER_COMPOSE_FILES) $(1)
 endef
+
+define public_release_viewer_compose
+LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(RELEASE_VIEWER_COMPOSE_PROJECT_NAME)" \
+RELEASE_VIEWER_ORIGIN="http://127.0.0.1:$$RELEASE_VIEWER_PORT" \
+RELEASE_VIEWER_APP="$$viewer_app" RELEASE_VIEWER_ARTIFACT="$$viewer_artifact" \
+RELEASE_VIEWER_RPC_URL="$$viewer_rpc" RELEASE_VIEWER_RESOURCE_ORIGIN="$$viewer_resource_origin" \
+$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/viewer.yml $(1)
+endef
+
+.PHONY: viewer/release/up viewer/release/down
+viewer/release/up:
+	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); $(release_host_guard_functions); \
+	viewer_app="$${APP:?Set APP to bike-nft, escrow or pay-to-play}"; \
+	viewer_artifact="$${DEPLOYMENT_ARTIFACT_FILE:?Set DEPLOYMENT_ARTIFACT_FILE}"; \
+	require_release_file "$$viewer_artifact" DEPLOYMENT_ARTIFACT_FILE; \
+	viewer_resource_origin="$${RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN to the published HTTPS CAM origin}"; \
+	viewer_rpc="$${PUBLIC_RPC_URL:?Set PUBLIC_RPC_URL to a public browser-accessible RPC endpoint}"; \
+	if [[ ! "$$RELEASE_VIEWER_PORT" =~ ^[1-9][0-9]{0,4}$$ || "$$RELEASE_VIEWER_PORT" -gt 65535 ]]; then printf '%s\n' 'RELEASE_VIEWER_PORT must be a TCP port in 1..65535.' >&2; exit 2; fi; \
+	if [[ -n "$$( $(call public_release_viewer_compose,ps --all --quiet) )" ]]; then printf '%s\n' 'This viewer project already has containers; stop it with viewer/release/down or select another RELEASE_VIEWER_COMPOSE_PROJECT_NAME.' >&2; exit 2; fi; \
+	viewer_url="$$( $(call public_release_viewer_compose,run --build --quiet-build --rm --no-deps -T viewer-url) )"; \
+	printf 'Open this URL in your browser:\n%s\nNo wallet is attached. Connect your wallet to send transactions.\n' "$$viewer_url"; \
+	cleanup() { $(call public_release_viewer_compose,down --timeout 10); }; \
+	trap cleanup EXIT; \
+	$(call public_release_viewer_compose,up --build --abort-on-container-exit cam-web browser-gateway)
+
+viewer/release/down:
+	@$(LANE_GUARD); viewer_app=unused; viewer_artifact=/dev/null; \
+	viewer_resource_origin=https://unused.invalid; viewer_rpc=https://unused.invalid; \
+	$(call public_release_viewer_compose,down --timeout 10)
 
 .PHONY: network/local/viewer/up network/local/viewer/down
 network/local/viewer/up:
@@ -1426,7 +1467,7 @@ network/local/viewer/up:
 	RELEASE_REHEARSAL_NETWORK="$(LOCAL_RELEASE_NETWORK)"; require_release_local_network; \
 	running="$$( $(call local_release_compose,ps --quiet --status running release-anvil) )"; \
 	if [[ -z "$$running" ]]; then printf '%s\n' 'Local release chain is not running; run make network/local/up.' >&2; exit 2; fi; \
-	viewer_url="$$( $(call local_release_viewer_compose,run --build --rm --no-deps -T viewer-url) )"; \
+	viewer_url="$$( $(call local_release_viewer_compose,run --build --quiet-build --rm --no-deps -T viewer-url) )"; \
 	printf 'Open this URL in your browser:\n%s\nFixture RPC permits local test transactions; no wallet is attached.\n' "$$viewer_url"; \
 	cleanup() { $(call local_release_viewer_compose,down --timeout 10); }; \
 	trap cleanup EXIT; \

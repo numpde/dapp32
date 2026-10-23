@@ -1,0 +1,14 @@
+# The local rehearsal alone needs access to the private fixture RPC.
+services:
+  viewer-url:
+    environment:
+      RELEASE_VIEWER_LOCAL: "1"
+  browser-gateway:
+    networks: [release_local]
+    environment:
+      VIEWER_RPC_LOCATION: "location = /rpc { proxy_pass http://release-anvil:8545/; }"
+
+networks:
+  release_local:
+    external: true
+    name: "${RELEASE_LOCAL_NETWORK:?missing_RELEASE_LOCAL_NETWORK}"

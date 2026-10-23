@@ -1,4 +1,4 @@
-# Attach a browser to an existing local release. No chain lifecycle or signer.
+# Attach a browser to an existing release. No chain lifecycle or signer.
 services:
   viewer-url:
     extends:
@@ -9,6 +9,7 @@ services:
       RELEASE_VIEWER_APP: "${RELEASE_VIEWER_APP:?Select APP}"
       RELEASE_VIEWER_ORIGIN: "${RELEASE_VIEWER_ORIGIN:?missing_RELEASE_VIEWER_ORIGIN}"
       RELEASE_VIEWER_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN}"
+      RELEASE_VIEWER_RPC_URL: "${RELEASE_VIEWER_RPC_URL:?Set PUBLIC_RPC_URL}"
     volumes:
       - ../../js:/input/js:ro
       - ../../js/node_modules:/work/js/node_modules:ro
@@ -46,7 +47,7 @@ services:
     cpus: 1
     # Docker needs a non-internal bridge to activate the loopback published
     # port. Only this gateway gains that network's ordinary egress authority.
-    networks: [viewer_internal, release_local, browser_ingress]
+    networks: [viewer_internal, browser_ingress]
     ports:
       - "127.0.0.1:${RELEASE_VIEWER_PORT:?missing_RELEASE_VIEWER_PORT}:8080"
     command:
@@ -54,6 +55,7 @@ services:
       - -eu
       - -c
       - |
+        printf '%s\n' "$${VIEWER_RPC_LOCATION-}" >/tmp/viewer-rpc.conf
         cat >/tmp/nginx.conf <<'NGINX'
         pid /tmp/nginx.pid;
         worker_processes 1;
@@ -63,7 +65,7 @@ services:
           server {
             listen 8080;
             add_header Cache-Control "no-store" always;
-            location = /rpc { proxy_pass http://release-anvil:8545/; }
+            include /tmp/viewer-rpc.conf;
             location / {
               proxy_http_version 1.1;
               proxy_set_header Host $$host;
@@ -81,6 +83,3 @@ networks:
     internal: true
   browser_ingress:
     internal: false
-  release_local:
-    external: true
-    name: "${RELEASE_LOCAL_NETWORK:?missing_RELEASE_LOCAL_NETWORK}"

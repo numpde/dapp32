@@ -108,6 +108,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "RELEASE_VIEWER_APP": "pay-to-play",
     "RELEASE_VIEWER_ARTIFACT": "/tmp/release-output/artifact/deployment.json",
     "RELEASE_VIEWER_RESOURCE_ORIGIN": "https://raw.githubusercontent.com",
+    "RELEASE_VIEWER_RPC_URL": "https://api.avax-test.network/ext/bc/C/rpc",
     "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
     "RELEASE_WAIT_CASE": "delay-10",
     "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",

@@ -344,6 +344,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "RELEASE_VIEWER_APP": "pay-to-play",
                 "RELEASE_VIEWER_ARTIFACT": "/tmp/release-output/artifact/deployment.json",
                 "RELEASE_VIEWER_RESOURCE_ORIGIN": "https://raw.githubusercontent.com",
+                "RELEASE_VIEWER_RPC_URL": "https://api.avax-test.network/ext/bc/C/rpc",
                 "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
                 "RELEASE_WAIT_CASE": "delay-10",
                 "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",
@@ -861,7 +862,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("local", proxy["logging"]["driver"])
 
     def test_release_viewer_attaches_without_deployment_or_signing_authority(self) -> None:
-        config = rendered_compose_config("compose/release/viewer.yml")
+        config = rendered_compose_config(("compose/release/viewer.yml", "compose/release/viewer-local.yml"))
         self.assertEqual({"viewer-url", "cam-web", "browser-gateway"}, set(config["services"]))
         self.assertEqual("dapps-release-local_anvil_internal", config["networks"]["release_local"]["name"])
         self.assertTrue(config["networks"]["release_local"]["external"])
@@ -883,8 +884,22 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assertFalse(ingress["internal"])
         self.assertEqual("127.0.0.1", gateway["ports"][0]["host_ip"])
         self.assertEqual("5174", gateway["ports"][0]["published"])
-        self.assertIn("release-anvil:8545", gateway["command"][-1])
+        self.assertIn("release-anvil:8545", gateway["environment"]["VIEWER_RPC_LOCATION"])
         self.assertNotIn("location /cam", gateway["command"][-1])
+
+    def test_public_release_viewer_has_no_fixture_or_signer(self) -> None:
+        config = rendered_compose_config("compose/release/viewer.yml")
+        self.assertEqual({"viewer-url", "cam-web", "browser-gateway"}, set(config["services"]))
+        self.assertEqual({"viewer_internal", "browser_ingress"}, set(config["networks"]))
+        for service in config["services"].values():
+            self.assert_hardened(service)
+            self.assertNotIn("secrets", service)
+        self.assertEqual("none", config["services"]["viewer-url"]["network_mode"])
+        self.assertEqual("https://api.avax-test.network/ext/bc/C/rpc", config["services"]["viewer-url"]["environment"]["RELEASE_VIEWER_RPC_URL"])
+        self.assertEqual("https://raw.githubusercontent.com", config["services"]["cam-web"]["environment"]["VITE_CAM_WEB_RESOURCE_ORIGIN"])
+        gateway = config["services"]["browser-gateway"]
+        self.assertNotIn("VIEWER_RPC_LOCATION", gateway.get("environment", {}))
+        self.assertNotIn("release-anvil", gateway["command"][-1])
 
     def test_browser_viewer_runtime_preserves_each_lanes_routes_and_networks(self) -> None:
         cases = [
@@ -916,7 +931,6 @@ class RenderedComposePostureTest(unittest.TestCase):
                 }], gateway["volumes"])
                 networks = {private_network, browser_network}
                 if app == "release":
-                    networks.add("release_local")
                     self.assertTrue(gateway["init"])
                     self.assertEqual(1, gateway["cpus"])
                 else:
@@ -929,7 +943,10 @@ class RenderedComposePostureTest(unittest.TestCase):
                 command = compose_command_text(gateway)
                 self.assertIn("include /etc/nginx/browser-http.conf;", command)
                 self.assertIn("proxy_pass http://cam-web:5173", command)
-                self.assertIn(f"proxy_pass http://{app}-anvil:8545/;", command)
+                if app == "release":
+                    self.assertNotIn("release-anvil", command)
+                else:
+                    self.assertIn(f"proxy_pass http://{app}-anvil:8545/;", command)
                 if app == "release":
                     self.assertNotIn("location /cam/", command)
                     self.assertNotIn("location /rpc/", command)
