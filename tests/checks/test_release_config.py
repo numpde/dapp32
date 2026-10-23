@@ -17,6 +17,7 @@ from .common import compose_sequence_or_empty, rendered_compose_config
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
 FIXTURE_KEY = "0x" + "11" * 32
 FIXTURE_ADDRESS = "0x" + "22" * 20
+FIXTURE_DEPLOYER_ADDRESS = "0x" + "ab" * 20
 FIXTURE_RPC = "https://rpc.example.test/private-fixture-credential"
 
 
@@ -29,10 +30,12 @@ def configuration(app):
         "cam-hash": "auto",
         "optional-text": "https://metadata.example.test/tokens/",
     }
+    settings = {name: values[kind] for name, _, kind in release_config.fields(app)}
+    settings["EXPECTED_DEPLOYER_ADDRESS"] = FIXTURE_DEPLOYER_ADDRESS
     return {
         "schemaVersion": 2, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
         "deployerPrivateKey": FIXTURE_KEY, "confirmDeploy": True,
-        "settings": {name: values[kind] for name, _, kind in release_config.fields(app)},
+        "settings": settings,
     }
 
 
@@ -41,6 +44,62 @@ class ReleaseConfigTest(unittest.TestCase):
         self.setup_environment = patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": "/tmp/fixture-release.json"})
         self.setup_environment.start()
         self.addCleanup(self.setup_environment.stop)
+
+    def test_bike_reprompts_only_the_deployer_conflicting_role_before_saving(self):
+        roles = ("INTENDED_CAM_ROOT_OWNER", "INTENDED_COMPONENTS_ADMIN", "COMPONENTS_PAUSER", "COMPONENTS_CONFIGURER", "INTENDED_MANAGER_ADMIN", "MANAGER_PAUSER", "MANAGER_CONFIGURER", "REGISTRARS")
+        for role in roles:
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                expected = configuration("bike-nft")
+                conflict = "0x" + FIXTURE_DEPLOYER_ADDRESS[2:].upper()
+                if role == "REGISTRARS":
+                    conflict = "0x" + "44" * 20 + "," + conflict
+                answers = ["public", *expected["settings"].values(), "save"]
+                index = 1 + list(expected["settings"]).index(role)
+                answers.insert(index, conflict)
+                if role == "INTENDED_CAM_ROOT_OWNER":
+                    answers.insert(index, "not-an-address")
+                errors = io.StringIO()
+                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                    release_config.setup("bike-nft", COMMIT, root)
+                self.assertEqual(expected, json.loads((root / "release.json").read_text()))
+                self.assertIn(role, errors.getvalue())
+                self.assertIn("deployer", errors.getvalue())
+                if role == "INTENDED_CAM_ROOT_OWNER":
+                    self.assertIn("nonzero EVM addresses", errors.getvalue())
+                self.assertNotIn(FIXTURE_KEY, errors.getvalue())
+                self.assertNotIn(FIXTURE_RPC, errors.getvalue())
+
+    def test_bike_saved_deployer_authorities_fail_before_unpack_writes(self):
+        roles = ("INTENDED_CAM_ROOT_OWNER", "INTENDED_COMPONENTS_ADMIN", "COMPONENTS_PAUSER", "COMPONENTS_CONFIGURER", "INTENDED_MANAGER_ADMIN", "MANAGER_PAUSER", "MANAGER_CONFIGURER", "REGISTRARS")
+        for role in roles:
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as temporary:
+                config = configuration("bike-nft")
+                conflict = "0x" + FIXTURE_DEPLOYER_ADDRESS[2:].upper()
+                if role == "REGISTRARS":
+                    conflict = FIXTURE_ADDRESS + "," + conflict
+                config["settings"][role] = conflict
+                root = Path(temporary)
+                saved = root / "config.json"
+                saved.write_text(json.dumps(config))
+                output = root / "out"
+                output.mkdir()
+                with self.assertRaisesRegex(ValueError, role):
+                    release_config.unpack("bike-nft", COMMIT, "deploy", saved, output)
+                self.assertEqual([], list(output.iterdir()))
+
+    def test_other_apps_can_keep_the_deployer_as_final_authority(self):
+        for app in ("escrow", "pay-to-play"):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                expected = configuration(app)
+                expected["settings"]["INTENDED_CAM_ROOT_OWNER"] = FIXTURE_DEPLOYER_ADDRESS
+                if app == "pay-to-play":
+                    expected["settings"]["INTENDED_PAYMENT_ADMIN"] = FIXTURE_DEPLOYER_ADDRESS
+                answers = ["public", *expected["settings"].values(), "save"]
+                root = Path(temporary)
+                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
+                    release_config.setup(app, COMMIT, root)
+                self.assertEqual(expected, json.loads((root / "release.json").read_text()))
 
     def test_output_directory_choices_use_the_host_config_path_without_creating_directories(self):
         for app in release_config.APP_FIELDS:
@@ -239,7 +298,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 prefix = app.upper().replace("-", "_")
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual("YES", inputs[f"CONFIRM_{prefix}_RELEASE_DEPLOY"])
-                self.assertEqual(FIXTURE_ADDRESS, inputs[f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"])
+                self.assertEqual(FIXTURE_DEPLOYER_ADDRESS, inputs[f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"])
                 for name, value in expected["settings"].items():
                     self.assertEqual(value, inputs[f"{prefix}_RELEASE_{name}"])
                 self.assertEqual(FIXTURE_KEY + "\n", (output / "deployer-key").read_text())

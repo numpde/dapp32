@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import pty
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -21,12 +22,16 @@ LAUNCHER = ROOT / "tools/release_approval_deploy.sh"
 CONFIG = ROOT / "tools/release-config.sh"
 
 
-def make_cleanup() -> str:
+def make_definition(name: str) -> str:
     source = (ROOT / "Makefile").read_text(encoding="utf-8")
-    match = re.search(r"(?ms)^define release_snapshot_cleanup\n(.*?)\nendef$", source)
+    match = re.search(rf"(?ms)^define {re.escape(name)}\n(.*?)\nendef$", source)
     if match is None:
-        raise AssertionError("shared release cleanup is missing")
+        raise AssertionError(f"shared Make definition is missing: {name}")
     return match.group(1).replace("$$", "$").replace("\\\n", "")
+
+
+def make_cleanup() -> str:
+    return make_definition("release_snapshot_cleanup")
 
 
 # The worker reaps its plugin child itself. The checks Python can be container
@@ -419,6 +424,127 @@ release_run_owned 2 "$PYTHON" "$CASE_ROOT/worker.py"
                 self.assertRegex(project, r"^cam-release-config-[0-9a-f]{24}$")
                 projects.append(project)
         self.assertNotEqual(*projects)
+
+    def test_config_one_shot_success_skips_down_but_failed_or_interrupted_runs_reconcile(self) -> None:
+        definition = make_definition("release_config_compose")
+        for name, value in {
+            "LOCAL_UID": '"$LOCAL_UID"', "LOCAL_GID": '"$LOCAL_UID"',
+            "LOCAL_RELEASE_NETWORK": "fixture-local", "COMPOSE_DIR": "compose",
+            "DOCKER_COMPOSE": '"$PYTHON" "$CASE_ROOT/compose.py"',
+        }.items():
+            definition = definition.replace(f"$({name})", value)
+        for outcome, fail_down in (("0", ""), ("23", ""), ("23", "config"), ("interrupt", ""), ("interrupt", "config")):
+            with self.subTest(outcome=outcome, fail_down=fail_down), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "worker.py").write_text(WORKER)
+                (root / "compose.py").write_text('''
+import os
+from pathlib import Path
+import sys
+root = Path(os.environ["CASE_ROOT"])
+operation = sys.argv[3]
+with (root / "events").open("a") as stream:
+    stream.write(operation + "\\n")
+if operation == "run":
+    if os.environ["RUN_OUTCOME"] == "interrupt":
+        exec((root / "worker.py").read_text())
+    raise SystemExit(int(os.environ["RUN_OUTCOME"]))
+if operation == "down":
+    raise SystemExit(int(os.environ["FAIL_DOWN"] == "config"))
+raise SystemExit(91)
+''')
+                env = self.environment(root, root)
+                env.update(RUN_OUTCOME=outcome, FAIL_DOWN=fail_down)
+                script = '''
+source "$PROCESS"
+release_process_init
+release_command_grace=2
+source "$CONFIG_SOURCE"
+CONFIG="$CASE_ROOT/operator.json"
+release_config_stage "$CASE_ROOT"
+printf '%s\\n' "$release_config_dir" > "$CASE_ROOT/stage"
+printf 'fixture input\\n' > "$release_config_dir/rpc-url"
+''' + definition + '\ncompose_release_config run --rm --no-deps -T release-config deploy escrow fixture-source\n'
+                process = self.launch(script, env)
+                try:
+                    if outcome == "interrupt":
+                        self.wait_path(root / "ready", process)
+                        process.send_signal(signal.SIGTERM)
+                    stdout, stderr = process.communicate(timeout=10)
+                finally:
+                    self.emergency_cleanup(process, root)
+                stage = Path((root / "stage").read_text().strip())
+                expected = 0
+                if fail_down:
+                    expected = 2
+                elif outcome == "interrupt":
+                    expected = 143
+                elif outcome != "0":
+                    expected = int(outcome)
+                self.assertEqual(expected, process.returncode, stdout + stderr)
+                events = (root / "events").read_text().splitlines()
+                self.assertEqual("run", events[0])
+                self.assertEqual(outcome != "0", "down" in events)
+                self.assertEqual(bool(fail_down), stage.exists())
+                if fail_down:
+                    self.assertIn("Release configuration teardown failed", stderr)
+                    self.assertIn("retained mounted inputs", stderr)
+
+    def test_setup_completion_follows_link_and_prints_safe_next_commands_for_every_app(self) -> None:
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            for fail_link in (False, True):
+                with self.subTest(app=app, fail_link=fail_link), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    env = self.environment(root, root)
+                    env.update(APP=app, PREFIX=app.upper().replace("-", "_"), CONFIG=str(root / "operator's release.json"), RELEASE_APPROVAL_IMAGE="must-not-print-this-image")
+                    guards = '''
+git() { [[ "$*" == "rev-parse HEAD" ]] || return 91; printf '%s\\n' 0123456789abcdef0123456789abcdef01234567; }
+validate_new_release_output() { [[ ! -e "$1" ]]; }
+recheck_new_release_output() { [[ ! -e "$1" ]]; }
+require_release_config() { [[ -f "$1" ]]; }
+release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
+'''
+                    composition = '''
+compose_release_config() {
+  if [[ " $* " == *" release-setup "* ]]; then
+    printf '{}' > "$release_config_dir/release.json"
+  else
+    printf 'RELEASE_REHEARSAL=0\\0%s_RELEASE_OUTPUT_DIR=%s/deployment\\0' "$PREFIX" "$CASE_ROOT" > "$release_config_dir/inputs"
+  fi
+}
+'''
+                    script = make_definition("release_setup")
+                    for old, new in {
+                        "$(LANE_GUARD)": ":", "$(patsubst %/release/setup,%,$@)": app,
+                        "$(release_host_guard_functions)": guards.strip(), "$(release_config_compose)": composition.strip(),
+                    }.items():
+                        script = script.replace(old, new)
+                    if fail_link:
+                        script = 'ln() { return 17; }\n' + script
+                    process = self.launch(script, env)
+                    stdout, stderr = process.communicate(timeout=10)
+                    if fail_link:
+                        self.assertEqual(17, process.returncode, stdout + stderr)
+                        self.assertNotIn("Saved release configuration:", stdout)
+                        self.assertNotIn("make ", stdout)
+                        self.assertFalse(Path(env["CONFIG"]).exists())
+                        continue
+                    self.assertEqual(0, process.returncode, stdout + stderr)
+                    self.assertTrue(Path(env["CONFIG"]).is_file())
+                    self.assertIn("Saved release configuration:", stdout)
+                    self.assertIn("No transactions", stdout)
+                    self.assertIn("source commit", stdout)
+                    self.assertIn("make " + app + "/release/deploy", stdout)
+                    self.assertIn('RELEASE_APPROVAL_IMAGE="$RELEASE_APPROVAL_IMAGE"', stdout)
+                    self.assertIn("make " + app + "/release/verify", stdout)
+                    self.assertNotIn(env["RELEASE_APPROVAL_IMAGE"], stdout)
+                    if app == "pay-to-play":
+                        self.assertIn("payment admin", stdout)
+                    commands = [shlex.split(line) for line in stdout.splitlines() if line.startswith("  make ")]
+                    self.assertEqual([
+                        ["make", f"{app}/release/deploy", f"CONFIG={env['CONFIG']}", "RELEASE_APPROVAL_IMAGE=$RELEASE_APPROVAL_IMAGE"],
+                        ["make", f"{app}/release/verify", f"CONFIG={env['CONFIG']}"],
+                    ], commands)
 
     def test_startup_failure_retains_private_bounded_diagnostics_before_teardown(self) -> None:
         for case in ("exited", "incomplete", "large", "log-failure", "existing-file", "head-failure"):

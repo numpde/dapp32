@@ -257,14 +257,20 @@ release_command_grace=15; \
 source tools/release-config.sh
 endef
 
+# These serial config runs are networkless --rm --no-deps one-shots. Only a
+# failed or interrupted run leaves resource removal unconfirmed.
 define release_config_compose
 compose_release_config() { \
 	local config_input="$$CONFIG"; \
 	if [[ -v release_config_input ]]; then config_input="$$release_config_input"; fi; \
   if [[ "$$1" == run ]]; then release_config_started=1; fi; \
-  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$release_config_project" \
+  if LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$release_config_project" \
     RELEASE_CONFIG_STAGE_DIR="$$release_config_dir" RELEASE_CONFIG_FILE="$$config_input" RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" \
-    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/config.yml "$$@"; \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/config.yml "$$@"; then \
+    if [[ "$$1" == run ]]; then release_config_started=0; fi; \
+  else \
+    return "$$?"; \
+  fi; \
 }
 endef
 
@@ -1638,7 +1644,19 @@ prefix="$${app^^}"; prefix="$${prefix//-/_}"; output_name="$${prefix}_RELEASE_OU
 validate_new_release_output "$${!output_name}" "$$output_name"; \
 recheck_new_release_output "$$CONFIG" CONFIG; \
 ln -T -- "$$release_config_input" "$$CONFIG"; \
-printf 'Saved ready-to-deploy configuration: %s\n' "$$CONFIG"
+printf 'Saved release configuration: %s\nNo transactions were sent.\n' "$$CONFIG"; \
+printf 'Run the next commands from a checkout at saved source commit %s.\n' "$$source_commit"; \
+printf '%s\n' 'If the checkout has changed, rerun setup with a new CONFIG path.'; \
+printf '%s\n' 'Before deployment, review and admit the approval tool image, then set RELEASE_APPROVAL_IMAGE to its reviewed local sha256 image ID.'; \
+printf '  make %s/release/deploy CONFIG=%q RELEASE_APPROVAL_IMAGE="$$RELEASE_APPROVAL_IMAGE"\n' "$$app" "$$CONFIG"; \
+if [[ "$$app" == bike-nft ]]; then \
+  printf '%s\n' 'After deployment, accept any pending CAM ownership and collection/manager admin transfers; admin transfers require their configured wait.'; \
+elif [[ "$$app" == pay-to-play ]]; then \
+  printf '%s\n' 'After deployment, the intended CAM owner and payment admin must accept any pending ownership transfers before verification.'; \
+else \
+  printf '%s\n' 'After deployment, the intended CAM owner must accept any pending ownership transfer before verification.'; \
+fi; \
+printf '  make %s/release/verify CONFIG=%q\n' "$$app" "$$CONFIG"
 endef
 
 .PHONY: bike-nft/release/setup escrow/release/setup pay-to-play/release/setup
