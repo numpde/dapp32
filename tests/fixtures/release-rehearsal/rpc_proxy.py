@@ -1,7 +1,6 @@
 """Use the production RPC request gates against one isolated rehearsal chain."""
 
 import http.client
-import http.server
 import runpy
 import time
 
@@ -18,6 +17,8 @@ def require_fixture_upstream():
 class RehearsalHandler(proxy["Handler"]):
     def open_upstream(self, deadline):
         require_fixture_upstream()
+        # Local Anvil is otherwise too fast to expose overlapping client reads.
+        time.sleep(0.1)
         timeout = min(proxy["CONNECT_TIMEOUT_SECONDS"], deadline - time.monotonic())
         if timeout <= 0:
             raise TimeoutError("rehearsal RPC deadline expired")
@@ -26,5 +27,5 @@ class RehearsalHandler(proxy["Handler"]):
 
 if __name__ == "__main__":
     require_fixture_upstream()
-    server = http.server.HTTPServer((proxy["LISTEN_HOST"], proxy["LISTEN_PORT"]), RehearsalHandler)
-    server.serve_forever()
+    server = proxy["BoundedForkingHTTPServer"]((proxy["LISTEN_HOST"], proxy["LISTEN_PORT"]), RehearsalHandler)
+    proxy["run_server"](server)
