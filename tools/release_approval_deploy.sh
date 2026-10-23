@@ -99,7 +99,7 @@ release_approval_prepare() {
   export RELEASE_APPROVAL_ARTIFACTS_DIR RELEASE_APPROVAL_REFERENCE_DIR RELEASE_APPROVAL_REFERENCE_FILE
   export RELEASE_APPROVAL_AUDIT_DIR RELEASE_APPROVAL_SOCKET_DIR
   mkdir --mode=0700 -- "$RELEASE_APPROVAL_ARTIFACTS_DIR" "$RELEASE_APPROVAL_REFERENCE_DIR" "$RELEASE_APPROVAL_AUDIT_DIR" "$RELEASE_APPROVAL_SOCKET_DIR"
-  compose_release up -d --build release-reference-prepare
+  compose_release up -d --no-build release-reference-prepare
   release_approval_wait_service release-reference-prepare 720
   if [[ ! -f "$output/plan/release-plan.json" || -L "$output/plan/release-plan.json" ||
         ! -f "$RELEASE_APPROVAL_REFERENCE_FILE" || -L "$RELEASE_APPROVAL_REFERENCE_FILE" ]]; then
@@ -112,8 +112,8 @@ release_approval_prepare() {
   chmod 0400 -- "$RELEASE_APPROVAL_REFERENCE_FILE"
   chmod 0500 -- "$RELEASE_APPROVAL_REFERENCE_DIR"
   release_phase_overlays+=(-f "$ceremony_source/compose/release/approval.yml")
-  # These are ordinary candidate-dependent images. The approval image is never in this build list.
-  compose_release build release-rpc-proxy deploy-release release-artifact-rpc-proxy release-artifact
+  # Candidate source is mounted into the selected immutable tool images.
+  # The approval image remains independently selected by the operator.
 }
 
 # Only the owning launcher may start services. These internal lifecycle slots
