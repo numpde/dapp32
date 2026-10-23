@@ -21,7 +21,8 @@
 <li>governance: final <code>CamRoot</code>, component-token, and manager authorities plus nonzero default-admin delays;</li>
 <li>operations: explicit pauser, configurer, and one or more unique registrar addresses.</li>
 </ul>
-<p>The funded deployer must differ from every lasting authority. The same final account may deliberately hold several declared roles, but the release does not infer that policy. It deploys no demo records, gives the manager only the token mint and URI-setter roles, removes the deployer's ordinary roles, and starts three independent handoffs:</p>
+<p>The release creates an empty NFT collection on testnets and mainnets; the normal release rehearsal also starts empty. Only the separate local demo script registers the sample frame, battery and motor NFTs. Metadata JSON and images hosted on GitHub are files, not on-chain NFTs: publishing or referencing them does not mint a token. An authorized registrar must register a component through the manager to create its NFT.</p>
+<p>The funded deployer must differ from every lasting authority. The same final account may deliberately hold several declared roles, but the release does not infer that policy. The release gives the manager only the token mint and URI-setter roles, removes the deployer's ordinary roles, and starts three independent handoffs:</p>
 <ol>
 <li><code>CamRoot.acceptOwnership()</code> by the final root owner;</li>
 <li><code>BicycleComponents.acceptDefaultAdminTransfer()</code> by the final component admin after its delay;</li>
