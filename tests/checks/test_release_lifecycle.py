@@ -159,6 +159,41 @@ release_config_teardown() { fake_down config; }
 
 
 class ReleaseLifecycleTest(unittest.TestCase):
+    def test_public_viewer_inspection_failure_never_starts_or_cleans_a_project(self):
+        for inspection in ("failed", "occupied", "empty"):
+            with self.subTest(inspection=inspection), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                artifact = root / "deployment.json"
+                artifact.write_text("{}", encoding="utf-8")
+                env = self.environment(root, root)
+                env.update(APP="bike-nft", DEPLOYMENT_ARTIFACT_FILE=str(artifact),
+                           RESOURCE_ORIGIN="https://raw.githubusercontent.com", PUBLIC_RPC_URL="https://rpc.example.test",
+                           RELEASE_VIEWER_PORT="5174", INSPECTION=inspection)
+                generated = subprocess.run(
+                    ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"),
+                     "viewer/release/up", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:", "DOCKER_COMPOSE=docker compose"],
+                    cwd=ROOT, env=env, capture_output=True, text=True, check=True,
+                )
+                script = r'''
+docker() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/events"
+  if [[ " $* " == *" ps --all --quiet "* ]]; then
+    if [[ "$INSPECTION" == failed ]]; then printf 'inspection unavailable\n' >&2; return 37; fi
+    if [[ "$INSPECTION" == occupied ]]; then printf 'existing-container\n'; fi
+  elif [[ " $* " == *" viewer-url "* ]]; then printf 'http://127.0.0.1:5174/\n'; fi
+}
+''' + generated.stdout
+                process = self.launch(script, env)
+                stdout, stderr = process.communicate(timeout=10)
+                events = (root / "events").read_text(encoding="utf-8").splitlines()
+                if inspection == "empty":
+                    self.assertEqual(0, process.returncode, stdout + stderr)
+                    self.assertTrue(any(" up --build " in f" {event} " for event in events))
+                    self.assertTrue(any(" down --timeout " in f" {event} " for event in events))
+                else:
+                    self.assertEqual(37 if inspection == "failed" else 2, process.returncode, stdout + stderr)
+                    self.assertEqual(1, len(events), events)
+
     def test_retained_signer_log_redacts_configured_credentials_and_keeps_public_facts(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

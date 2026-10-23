@@ -1440,7 +1440,8 @@ viewer/release/up:
 	viewer_resource_origin="$${RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN to the published HTTPS CAM origin}"; \
 	viewer_rpc="$${PUBLIC_RPC_URL:?Set PUBLIC_RPC_URL to a public browser-accessible RPC endpoint}"; \
 	if [[ ! "$$RELEASE_VIEWER_PORT" =~ ^[1-9][0-9]{0,4}$$ || "$$RELEASE_VIEWER_PORT" -gt 65535 ]]; then printf '%s\n' 'RELEASE_VIEWER_PORT must be a TCP port in 1..65535.' >&2; exit 2; fi; \
-	if [[ -n "$$( $(call public_release_viewer_compose,ps --all --quiet) )" ]]; then printf '%s\n' 'This viewer project already has containers; stop it with viewer/release/down or select another RELEASE_VIEWER_COMPOSE_PROJECT_NAME.' >&2; exit 2; fi; \
+	viewer_containers="$$( $(call public_release_viewer_compose,ps --all --quiet) )"; \
+	if [[ -n "$$viewer_containers" ]]; then printf '%s\n' 'This viewer project already has containers; stop it with viewer/release/down or select another RELEASE_VIEWER_COMPOSE_PROJECT_NAME.' >&2; exit 2; fi; \
 	viewer_url="$$( $(call public_release_viewer_compose,run --build --quiet-build --rm --no-deps -T viewer-url) )"; \
 	printf 'Open this URL in your browser:\n%s\nNo wallet is attached. Connect your wallet to send transactions.\n' "$$viewer_url"; \
 	cleanup() { $(call public_release_viewer_compose,down --timeout 10); }; \
