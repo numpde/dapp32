@@ -1,0 +1,40 @@
+name: RPC proxy checks
+
+on:
+  push:
+    paths:
+      - .github/workflows/rpc-proxy-checks.yml
+      - containers/rpc-proxy/**
+      - containers/checks/**
+      - compose/**
+      - tests/checks/**
+      - tests/fixtures/release-rehearsal/**
+      - Makefile
+  pull_request:
+    paths:
+      - .github/workflows/rpc-proxy-checks.yml
+      - containers/rpc-proxy/**
+      - containers/checks/**
+      - compose/**
+      - tests/checks/**
+      - tests/fixtures/release-rehearsal/**
+      - Makefile
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpc-proxy-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Run the offline, resource-limited checks container
+        run: make tests/checks COMPOSE_PROJECT_NAME=rpc-proxy-checks

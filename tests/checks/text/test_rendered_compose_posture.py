@@ -321,6 +321,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "LOCAL_GID": "1000",
                 "LOCAL_UID": "1000",
                 "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
+                "RPC_INDEXER_COMPOSE_PROJECT_NAME": "dapps-rpc-indexer",
                 "REFUND_CONFIG_FILE": "/tmp/refund-config",
                 "REFUND_PRIVATE_KEY_FILE": "/tmp/refund-relayer-key",
                 "REFUND_STATE_DIR": "/tmp/refund-state",
@@ -814,6 +815,57 @@ class RenderedComposePostureTest(unittest.TestCase):
         for service in (cast_offline, cast_rpc):
             self.assert_read_only_volumes(service, "/work/dapps")
             self.assert_no_volume_target(service, "/work")
+
+    def test_indexing_proxy_has_one_private_client_network_and_only_its_upstream_input(self) -> None:
+        config = rendered_compose_config("compose/rpc-indexer.yml")
+        self.assertEqual({"rpc-proxy"}, set(config["services"]))
+        proxy = compose_service(config, "rpc-proxy")
+        self.assert_hardened(proxy)
+        self.assert_no_published_ports(proxy)
+        self.assertEqual({"rpc_internal", "rpc_egress"}, set(proxy["networks"]))
+        self.assertTrue(config["networks"]["rpc_internal"]["internal"])
+        egress = config["networks"]["rpc_egress"]
+        if "internal" in egress:
+            self.assertFalse(egress["internal"])
+        self.assertEqual(["dapps-rpc-indexer-rpc"], proxy["networks"]["rpc_internal"]["aliases"])
+        self.assertEqual("1000:1000", proxy["user"])
+        mounts = proxy["volumes"]
+        self.assertEqual(1, len(mounts))
+        self.assertEqual("bind", mounts[0]["type"])
+        self.assertEqual("/tmp/escrow-release-rpc-url", mounts[0]["source"])
+        self.assertEqual("/run/inputs/rpc_url", mounts[0]["target"])
+        self.assertTrue(mounts[0]["read_only"])
+        self.assertIsNot(True, mounts[0]["bind"].get("create_host_path"))
+        environment = proxy["environment"]
+        self.assertEqual(mounts[0]["target"], environment["RPC_UPSTREAM_FILE"])
+        self.assertEqual(
+            {"eth_chainId", "eth_blockNumber", "eth_getBlockByNumber", "eth_getLogs"},
+            set(environment["RPC_ALLOWED_METHODS"].split()),
+        )
+        self.assertNotIn("secrets", proxy)
+        self.assertEqual({"max-size": "10m", "max-file": "3"}, proxy["logging"]["options"])
+        self.assertEqual("local", proxy["logging"]["driver"])
+
+    def test_every_rpc_proxy_consumer_supplies_bounded_runtime_budgets(self) -> None:
+        found = 0
+        for compose_unit in compose_render_units():
+            config = rendered_compose_config(compose_unit, env=compose_render_env())
+            for service_name, service in config["services"].items():
+                if "environment" not in service:
+                    continue
+                environment = service["environment"]
+                if "RPC_PROXY_HOST" not in environment:
+                    continue
+                found += 1
+                with self.subTest(compose_unit=compose_unit, service=service_name):
+                    for name, maximum in (("RPC_PROXY_MAX_CONCURRENT_REQUESTS", 32),
+                                          ("RPC_PROXY_MAX_BATCH_ITEMS", 1000)):
+                        self.assertGreater(int(environment[name]), 0)
+                        self.assertLessEqual(int(environment[name]), maximum)
+                    for name in ("RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS", "RPC_PROXY_REQUEST_TIMEOUT_SECONDS"):
+                        self.assertGreater(float(environment[name]), 0)
+                        self.assertLessEqual(float(environment[name]), 300)
+        self.assertGreater(found, 0)
 
     def test_release_planning_deadline_covers_the_workspace_runner(self) -> None:
         # Pin the command boundary without spending five minutes in a stalled build.

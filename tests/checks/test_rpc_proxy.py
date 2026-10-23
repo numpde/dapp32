@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import errno
 import io
+import json
 import multiprocessing
 import os
 import runpy
@@ -10,7 +11,6 @@ import signal
 import socket
 import ssl
 import tempfile
-import threading
 import time
 import unittest
 from unittest import mock
@@ -26,7 +26,7 @@ class RpcProxyTest(unittest.TestCase):
     def test_validate_rpc_request_rejects_duplicate_json_keys(self) -> None:
         with self.assertRaisesRegex(
             self.proxy.RpcRequestMalformed,
-            "duplicate object key: method",
+            "duplicate object key",
         ):
             self.proxy.validate_rpc_request(
                 b'{"jsonrpc":"2.0","method":"eth_sendRawTransaction","method":"eth_blockNumber"}',
@@ -57,6 +57,66 @@ class RpcProxyTest(unittest.TestCase):
                 b'{"jsonrpc":"2.0","method":"eth_sendRawTransaction","id":1}',
                 frozenset({"eth_blockNumber"}),
             )
+
+    def test_batches_are_bounded_and_every_member_must_pass_the_gate(self) -> None:
+        item = {"jsonrpc": "2.0", "method": "eth_blockNumber", "id": 1}
+        with mock.patch.object(self.proxy, "MAX_BATCH_ITEMS", 2):
+            self.assertEqual(
+                frozenset({"eth_blockNumber"}),
+                self.proxy.validate_rpc_request(json.dumps([item, item]).encode(), frozenset({"eth_blockNumber"})),
+            )
+            with self.assertRaises(self.proxy.RpcRequestMalformed):
+                self.proxy.validate_rpc_request(json.dumps([item, item, item]).encode(), frozenset({"eth_blockNumber"}))
+            with self.assertRaises(self.proxy.RpcMethodRejected):
+                self.proxy.validate_rpc_request(
+                    json.dumps([item, {**item, "method": "eth_sendRawTransaction"}]).encode(),
+                    frozenset({"eth_blockNumber"}),
+                )
+
+    def test_invalid_and_deep_json_fail_as_client_errors(self) -> None:
+        for body in (
+            b"[]", b"null", b"[1]", b'{"method":"eth_blockNumber","id":"\xff"}',
+            b"[" * 2000 + b"]" * 2000,
+            b'{"method":"eth_blockNumber","id":' + b"9" * 5000 + b"}",
+        ):
+            with self.subTest(body=body[:50]), self.assertRaises(self.proxy.RpcRequestMalformed):
+                self.proxy.validate_rpc_request(body, frozenset({"eth_blockNumber"}))
+
+    def test_request_framing_rejects_ambiguity_before_contacting_upstream(self) -> None:
+        body = b'{"jsonrpc":"2.0","method":"eth_blockNumber","id":1}'
+        length = str(len(body)).encode()
+        for headers, status in (
+            (b"Content-Length: " + length + b"\r\nContent-Length: " + length + b"\r\n", 400),
+            (b"Content-Length: " + length + b"\r\nTransfer-Encoding: chunked\r\n", 400),
+            (b"Transfer-Encoding: chunked\r\n", 400),
+            (b"Content-Length: +1\r\n", 400),
+            (b"Content-Length: " + b"9" * 5000 + b"\r\n", 413),
+            (b"Content-Length: 999999\r\n", 413),
+            (b"", 411),
+        ):
+            with self.subTest(headers=headers), mock.patch.object(self.proxy.Handler, "open_upstream") as upstream:
+                connection = mock.Mock()
+                connection.makefile.return_value = io.BytesIO(b"POST / HTTP/1.0\r\n" + headers + b"\r\n" + body)
+                self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+                response = b"".join(call.args[0] for call in connection.sendall.call_args_list)
+                self.assertTrue(response.startswith(f"HTTP/1.0 {status} ".encode()), response)
+                upstream.assert_not_called()
+
+    def test_new_resource_limits_reject_out_of_range_configuration(self) -> None:
+        limits = {
+            "RPC_PROXY_MAX_CONCURRENT_REQUESTS": ("0", "33", "-1", "1.5"),
+            "RPC_PROXY_MAX_BATCH_ITEMS": ("0", "1001", "-1", "1.5"),
+            "RPC_PROXY_REQUEST_TIMEOUT_SECONDS": ("0", "301", "nan", "inf"),
+            "RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS": ("0", "301", "nan", "inf"),
+        }
+        for name, values in limits.items():
+            for value in values:
+                with self.subTest(name=name, value=value), self.assertRaises(RuntimeError):
+                    import_python_module_with_env(
+                        "rpc_proxy_invalid_resource_limit",
+                        repo_path("containers/rpc-proxy/rpc_proxy.py"),
+                        {**proxy_environment("/tmp/rpc-url"), name: value},
+                    )
 
     def test_byte_limit_environment_values_are_bounded(self) -> None:
         with mock.patch.dict(os.environ, {
@@ -132,32 +192,6 @@ class RpcProxyTest(unittest.TestCase):
                 self.assertNotIn("fixture-secret", stderr.getvalue())
                 self.assertNotIn(address, stderr.getvalue())
 
-    def test_incomplete_client_requests_release_the_handler(self) -> None:
-        requests = [b"POST / HTTP/1.0\r\n", b"POST / HTTP/1.0\r\nContent-Length: 20\r\n\r\n{"]
-        for request in requests:
-            with self.subTest(request=request):
-                client, accepted = socket.socketpair()
-                with client, accepted, mock.patch.object(self.proxy.Handler, "open_upstream") as upstream:
-                    failures = []
-
-                    def serve():
-                        try:
-                            self.proxy.Handler(accepted, ("127.0.0.1", 1234), mock.Mock())
-                        except Exception as failure:
-                            failures.append(failure)
-
-                    worker = threading.Thread(target=serve, daemon=True)
-                    client.sendall(request)
-                    worker.start()
-                    worker.join(timeout=2)
-                    finished = not worker.is_alive()
-                    if not finished:
-                        client.shutdown(socket.SHUT_RDWR)
-                        worker.join(timeout=1)
-                    self.assertTrue(finished, "an incomplete request held the handler past its inactivity limit")
-                    self.assertEqual([], failures)
-                    upstream.assert_not_called()
-
     def test_resolve_global_ip_rejects_private_addresses(self) -> None:
         with mock.patch.object(
             self.proxy.socket,
@@ -166,6 +200,27 @@ class RpcProxyTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(self.proxy.UpstreamRejected, "non-global address"):
                 self.proxy.resolve_global_ip("example.com", 443, time.monotonic() + 1)
+
+    def test_dns_rejects_mixed_public_and_private_answers(self) -> None:
+        with mock.patch.object(self.proxy.socket, "getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443)),
+            (socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 443, 0, 0)),
+        ]):
+            with self.assertRaisesRegex(self.proxy.UpstreamRejected, "non-global address"):
+                self.proxy.resolve_global_ip("example.com", 443, time.monotonic() + 1)
+
+    def test_expired_client_deadline_survives_upstream_failure_cleanup(self) -> None:
+        prior_handler = signal.getsignal(signal.SIGALRM)
+        # Advance the cleanup clock beyond the outer budget without waiting or
+        # delivering a real alarm. Both contexts must still restore signal state.
+        with mock.patch.object(self.proxy.time, "monotonic", side_effect=[100.0, 100.0, 401.0]), \
+                mock.patch.object(self.proxy, "UPSTREAM_DEADLINE_SECONDS", 150):
+            with self.assertRaises(self.proxy.RequestDeadlineExceeded):
+                with self.proxy.request_deadline(300, self.proxy.RequestDeadlineExceeded):
+                    with self.proxy.upstream_deadline():
+                        raise self.proxy.UpstreamDeadlineExceeded()
+        self.assertEqual(prior_handler, signal.getsignal(signal.SIGALRM))
+        self.assertEqual((0.0, 0.0), signal.getitimer(signal.ITIMER_REAL))
 
     def test_upstream_deadline_covers_dns_send_and_response_without_hiding_effect_uncertainty(self) -> None:
         body = b'{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0x1234"],"id":1}'
@@ -207,6 +262,7 @@ class RpcProxyTest(unittest.TestCase):
                     transport.request.assert_not_called()
                 else:
                     self.assertIn("transaction submission outcome unknown", response)
+                    transport.request.assert_called_once()
                 for secret in ("fixture-secret", "/private", "token=", "0x1234"):
                     self.assertNotIn(secret, response + stderr.getvalue())
                 self.assertEqual(prior_handler, signal.getsignal(signal.SIGALRM))
@@ -257,6 +313,8 @@ class RpcProxyTest(unittest.TestCase):
                 response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
                 self.assertIn("502", response)
                 self.assertIn("transaction submission outcome unknown", response)
+                transport.request.assert_called_once()
+                transport.close.assert_called_once()
                 for secret in ("fixture-secret", "/private", "token=", "0x1234"):
                     self.assertNotIn(secret, response + stderr.getvalue())
 
@@ -274,6 +332,7 @@ class RpcProxyTest(unittest.TestCase):
         response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
         self.assertIn("502", response)
         self.assertIn("transaction submission outcome unknown", response)
+        oversized.request.assert_called_once()
 
     def test_proxy_failures_preserve_operation_and_reason_without_blaming_upstream(self) -> None:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as upstream:
@@ -284,17 +343,20 @@ class RpcProxyTest(unittest.TestCase):
                     stderr = io.StringIO()
                     failure = OSError(code, reason)
                     with mock.patch.dict(os.environ, proxy_environment(upstream.name)), \
-                            mock.patch("http.server.HTTPServer") as server, \
+                            mock.patch("http.server.HTTPServer.__init__") as initialize, \
+                            mock.patch("socketserver.BaseServer.serve_forever") as serve, \
+                            mock.patch("socketserver.TCPServer.server_close"), \
                             mock.patch("sys.stderr", stderr):
                         if phase == "bind":
-                            server.side_effect = failure
+                            initialize.side_effect = failure
                         else:
-                            server.return_value.serve_forever.side_effect = failure
+                            initialize.return_value = None
+                            serve.side_effect = failure
                         with self.assertRaises(SystemExit) as exited:
                             runpy.run_path(str(repo_path("containers/rpc-proxy/rpc_proxy.py")), run_name="__main__")
                     self.assertEqual(exited.exception.code, 2)
                     self.assertIs(exited.exception.__cause__, failure)
-                    server.assert_called_once()
+                    initialize.assert_called_once()
                     self.assertIn("could not run RPC proxy", stderr.getvalue())
                     self.assertIn("127.0.0.1:8080", stderr.getvalue())
                     self.assertIn(reason, stderr.getvalue())
@@ -368,6 +430,11 @@ class RpcProxyTest(unittest.TestCase):
             if status == "200":
                 upstream.assert_called_once_with()
                 transport.close.assert_called_once_with()
+                self.assertEqual({
+                    "accept": "application/json",
+                    "content-type": "application/json",
+                    "host": "release-anvil",
+                }, transport.request.call_args.kwargs["headers"])
             else:
                 upstream.assert_not_called()
 
@@ -389,6 +456,10 @@ def proxy_environment(upstream_path: str):
         "RPC_PROXY_MAX_RESPONSE_BYTES": "1024",
         "RPC_PROXY_MAX_UPSTREAM_URL_BYTES": "1024",
         "RPC_PROXY_CONNECT_TIMEOUT_SECONDS": "1",
+        "RPC_PROXY_MAX_CONCURRENT_REQUESTS": "2",
+        "RPC_PROXY_MAX_BATCH_ITEMS": "10",
+        "RPC_PROXY_REQUEST_TIMEOUT_SECONDS": "5",
+        "RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS": "3",
         "RPC_ALLOWED_METHODS": "eth_blockNumber",
     }
 

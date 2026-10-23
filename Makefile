@@ -22,6 +22,9 @@ LOCAL_GID ?= $(shell id -g)
 ALLOW_UPDATE ?= 0
 
 RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
+# Intentional default: isolate the persistent indexing proxy from Cast and
+# release services. Set a distinct project per chain when running several.
+RPC_INDEXER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-rpc-indexer
 ANVIL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-anvil
 ANVIL_HOST_PORT ?= 8545
 LIVE_CHECK_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-check-live
@@ -63,13 +66,14 @@ export RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 export CONFIG
 export CAM_URI
 export VIEWER_TERMINAL_MOCK
-COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
+COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
 export $(COMPOSE_PROJECT_NAME_VARS)
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
 DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
 PACKAGE_DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
 RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
+RPC_INDEXER_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_INDEXER_COMPOSE_PROJECT_NAME)
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
 # The live egress check renders compose/deps.yml but does not install/update
 # dependencies; force locked-mode interpolation for unrelated services there.
@@ -426,6 +430,7 @@ $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
 .PHONY: wallet/addresses/with-keys wallet/addresses wallet/addresses/check release/rpc/list help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
+.PHONY: rpc/indexer/up rpc/indexer/logs rpc/indexer/down
 
 help:
 	@printf '%s\n' \
@@ -614,6 +619,13 @@ help:
 	  '    RPC and CAM URLs work only inside the Docker network. CAM uses HTTP, not HTTPS;' \
 	  '    the host browser cannot open http://release-cam:8080. This flow supports deployment and verification.' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
+	  '  make rpc/indexer/up              Start a read-only RPC proxy for contract log indexing.' \
+	  '    Requires RPC_URL_FILE: an absolute, owner-only file outside the checkout, owned by LOCAL_UID.' \
+	  '    Set RPC_INDEXER_COMPOSE_PROJECT_NAME per chain; the default is dapps-rpc-indexer.' \
+	  '    Clients join that projects rpc_internal network; no host port or signing key is exposed.' \
+	  '    Starts only the proxy, not an indexer or database. See https://numpde.github.io/dapp32/deployment/rpc/#indexing for client wiring.' \
+	  '  make rpc/indexer/logs            Show the last 100 proxy log lines for that project.' \
+	  '  make rpc/indexer/down            Stop that proxy; detach its client containers first.' \
 	  '  make dapps/release/rehearsal/check      Rehearse releases for all three supported apps.' \
 	  '  make bike-nft/release/rehearsal/run     Rehearse the Bike NFT release on an isolated local chain.' \
 	  '  make escrow/release/rehearsal/run       Rehearse the Escrow release on an isolated local chain.' \
@@ -1373,6 +1385,24 @@ cast/live/block-number/read:
 	fi; \
 	chmod 0444 "$$rpc_url_file"; \
 	$(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml up --build --abort-on-container-exit --exit-code-from cast-rpc cast-rpc
+
+rpc/indexer/up:
+	@$(LANE_GUARD); \
+	$(release_host_guard_functions); \
+	require_protected_release_file "$${RPC_URL_FILE:?Set RPC_URL_FILE}" RPC_URL_FILE RPC_URL_FILE; \
+	case "$$RPC_URL_FILE" in */./*|*/../*|*//*) printf '%s\n' 'RPC_URL_FILE must be a normalized absolute path.' >&2; exit 2 ;; esac; \
+	case "$$RPC_URL_FILE" in "$$(pwd -P)"/*) printf '%s\n' 'RPC_URL_FILE must be outside the repository.' >&2; exit 2 ;; esac; \
+	if [[ "$$(stat -c %u -- "$$RPC_URL_FILE")" != "$(LOCAL_UID)" ]]; then printf '%s\n' 'RPC_URL_FILE must be owned by LOCAL_UID so the proxy can read it.' >&2; exit 2; fi; \
+	$(RPC_INDEXER_COMPOSE_ENV) RPC_URL_FILE="$$RPC_URL_FILE" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/rpc-indexer.yml up --build -d --wait --wait-timeout 30 rpc-proxy; \
+	printf 'Client network: %s_rpc_internal\nRPC URL: http://%s-rpc:8080\n' "$(RPC_INDEXER_COMPOSE_PROJECT_NAME)" "$(RPC_INDEXER_COMPOSE_PROJECT_NAME)"
+
+rpc/indexer/logs:
+	@$(LANE_GUARD); \
+	$(RPC_INDEXER_COMPOSE_ENV) RPC_URL_FILE=/dev/null $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/rpc-indexer.yml logs --tail 100 rpc-proxy
+
+rpc/indexer/down:
+	@$(LANE_GUARD); \
+	$(RPC_INDEXER_COMPOSE_ENV) RPC_URL_FILE=/dev/null $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/rpc-indexer.yml down
 
 anvil/internal/up:
 	@$(LANE_GUARD); \
