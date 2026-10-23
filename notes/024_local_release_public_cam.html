@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local releases with public CAM publication</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { max-width: 850px; margin: 32px auto; padding: 0 20px; font-family: system-ui, sans-serif; line-height: 1.6; }
+    code { overflow-wrap: anywhere; }
+    a { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Local releases with public CAM publication</h1>
+  <p>2026-10-23 · Implementation requirement</p>
+  <p>Deploy Bike NFT, Escrow and Pay-to-Play through the normal release workflow
+  onto the persistent local chain, then render each deployed workflow in an
+  existing browser tab. Publish each CAM bundle through GitHub over HTTPS and
+  store its public root URI with an all-zero root hash. The viewer must visibly
+  identify that root as unverified; declared resource integrity checks still apply.</p>
+
+  <h2>Current obstacle and ownership</h2>
+  <p><a href="../tools/release_config.py">Local setup</a> currently couples the
+  fixture chain, funded test deployer and internal
+  <code>http://release-cam:8080/&lt;app&gt;/main.json</code> publication.
+  The <a href="../compose/release/local-network.yml">shared network</a> exposes
+  neither service to a host browser. Local chain selection and CAM publication
+  are independent facts: using that chain must permit a public GitHub manifest
+  without pretending the deployment is an isolated rehearsal.</p>
+  <p>Keep <code>make &lt;app&gt;/release/setup</code>,
+  <code>release/deploy</code> and <code>release/verify</code> as the sole release
+  path for all three apps. Preserve clean-source admission, protected configuration,
+  plan validation, the reviewed approval image and per-transaction operator approval.
+  Do not add a second demo deployer or grant the signer internet access. The
+  existing isolated automatic rehearsals retain their private CAM server,
+  temporary chains and cleanup behavior.</p>
+
+  <h2>End state</h2>
+  <p>Setup records the local chain choice separately from the public manifest URI
+  and zero hash. Normal deployment saves its ordinary artifact; normal verification
+  checks the resulting contracts and ownership on that same chain. Any required
+  authority handoffs remain explicit operations.</p>
+  <p>Provide the browser a deliberately bounded local RPC route to the persistent
+  chain. The browser itself fetches the GitHub-hosted root and relative ABI/UI
+  resources using CORS; no signer fetch or private CAM mirror supplies those bytes.
+  Use the deployment artifact for launch coordinates: chain ID and CAM root
+  address, together with the browser-reachable RPC endpoint. These coordinates
+  locate the contract; the viewer must still discover the manifest URI, hash and
+  bindings from that contract. Reuse the existing browser tab without replacing
+  its browser session or redeploying contracts.</p>
+
+  <h2>Acceptance evidence</h2>
+  <p>Focused tests must reject mismatched local chain/deployer inputs while
+  accepting public CAM publication independently, preserve zero/nonzero hash
+  semantics, and assert the browser RPC boundary's rendered container posture.
+  Existing approval and isolated rehearsal checks must continue to pass.</p>
+  <p>For each app, complete normal setup, approved deployment and verification on
+  the persistent chain. Record artifact identity and contract reads proving the
+  public URI and zero hash. In the existing tab, observe successful cross-origin
+  root/resource fetches, contract-driven discovery, the unverified-root indication
+  and a rendered workflow. Keep these live observations distinct from automated
+  qualification; this note records the required outcome, not completed proof.</p>
+</main>
+</body>
+</html>
