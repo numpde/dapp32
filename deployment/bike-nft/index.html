@@ -29,7 +29,11 @@
 <li><code>BicycleComponentManager.acceptDefaultAdminTransfer()</code> by the final manager admin after its delay.</li>
 </ol>
 <p>Until all three calls complete, the deployer remains a temporary default admin where OpenZeppelin's delayed transfer requires it, and <code>make bike-nft/release/verify</code> intentionally fails.</p>
-<p>Choose the authority addresses and delays before creating a release plan. A production-like Sepolia rehearsal should normally use a disposable funded deployer, a testnet Safe or separate owner for final administration, a separate registrar, and explicitly controlled pauser/configurer accounts. The release lane requires a nonempty base URI and collection URI; this is a stricter publication policy than the contracts themselves, which permit empty constructor values.</p>
+<p>Choose the authority addresses and delays before creating a release plan. A production-like Sepolia rehearsal should normally use a disposable funded deployer, a testnet Safe or separate owner for final administration, a separate registrar, and explicitly controlled pauser/configurer accounts.</p>
+<h3 id="token-and-collection-metadata">Token and collection metadata</h3>
+<p>Use an empty base token URI for independent metadata on each component. This supports the viewer's complete HTTP(S) metadata URLs and embedded JSON data URIs. Setup proposes <code>none</code> for the base; accepting it stores an empty string. Enter <code>none</code> to clear a previously entered prefix.</p>
+<p>Collection metadata describes the whole collection through <code>contractURI()</code>; it is separate from each token's metadata and from the CAM manifest. Setup proposes <code>inline</code>: it generates a JSON document containing the chosen collection name and stores that document in a data URI, so no hosted collection file is needed. You can instead enter your own collection metadata URI.</p>
+<p>A nonempty base is an advanced option for clients that supply relative metadata suffixes. The contract concatenates that prefix with every stored token URI, including full URLs and data URIs; it does not recognize them as exceptions. Use the empty base for the generic viewer's full-URI and embedded-JSON workflow. Changing the base changes the resolved metadata URIs of existing tokens.</p>
 <h2 id="cam-publication">CAM publication</h2>
 <p>Publish the manifest and every declared resource without reformatting or newline normalization:</p>
 <pre><code>cam/
@@ -68,7 +72,7 @@ BIKE_NFT_RELEASE_CAM_URI=https://published.example/bike-nft/v1/main.json \
 BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER=0x&lt;intended-root-owner&gt; \
 BIKE_NFT_RELEASE_TOKEN_NAME='Bicycle Components' \
 BIKE_NFT_RELEASE_TOKEN_SYMBOL=BIKE \
-BIKE_NFT_RELEASE_BASE_TOKEN_URI=https://published.example/bike-nft/v1/tokens/ \
+BIKE_NFT_RELEASE_BASE_TOKEN_URI='' \
 BIKE_NFT_RELEASE_COLLECTION_URI=https://published.example/bike-nft/v1/collection.json \
 BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN=0x&lt;intended-components-admin&gt; \
 BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY=86400 \
