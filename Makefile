@@ -682,10 +682,12 @@ help:
 	  '    Setup lists installed approval-tool images with their source commits; select one by number.' \
 	  '    The selected exact image ID is saved in CONFIG. Setup does not build, pull, relabel or substitute approval images.' \
 	  '    Deploy from a terminal with CONFIG. A missing saved approval image stops deployment; no image is substituted.' \
-	  '  make release/approval/image/build SOURCE_COMMIT=<reviewed tool commit> RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<new directory>' \
+	  '  make release/approval/image/build  (HEAD; dated records under ~/Documents; replaces old approval images)' \
 	  '    Build the approval tool image from that committed source and fresh locked dependencies.' \
 	  '    Two-minute deadline; allows up to 90 additional seconds for cleanup before forced termination.' \
-	  '    Saves its immutable image ID and source/lock digests for separate operator review; never admits it automatically.' \
+	  '    Writes build records automatically; no approval file or image ID input is needed.' \
+	  '    Only after success, verbosely removes old approval-tool images without force; in-use images may prevent cleanup.' \
+	  '    SOURCE_COMMIT and RELEASE_APPROVAL_IMAGE_OUTPUT_DIR are optional overrides.' \
 	  '    Deployment checks that exact image ID is present locally; it does not establish image provenance.' \
 	  '    Each signed transaction is shown for approval; output retains the private audit and transaction records.' \
 	  '    Use the same CONFIG with <app>/release/verify after any required ownership handoffs.' \
@@ -996,9 +998,16 @@ escrow/release/check:
 .PHONY: release/approval/image/build
 release/approval/image/build:
 	@$(LANE_GUARD); \
-	: "$${SOURCE_COMMIT:?Set SOURCE_COMMIT to the reviewed approval-tool Git commit.}"; \
-	: "$${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR:?Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to a new output directory.}"; \
-	timeout -s TERM -k 90s 120s bash tools/release_approval_image_build.sh "$$SOURCE_COMMIT" "$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"
+	source tools/release_approval_images.sh; \
+	source_commit="$${SOURCE_COMMIT-$$(git rev-parse HEAD)}"; \
+	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then printf '%s\n' 'SOURCE_COMMIT must be a full Git commit hash.' >&2; exit 2; fi; \
+	if [[ "$${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR+x}" == x ]]; then output_dir="$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"; else output_dir="$$(release_approval_default_output "$$source_commit")"; fi; \
+	old_images="$$(release_approval_installed_images)"; \
+	printf 'Building approval tools from %s; build records: %s\n' "$$source_commit" "$$output_dir"; \
+	new_image="$$(release_approval_build_image "$$source_commit" "$$output_dir")"; \
+	if [[ ! "$$new_image" =~ ^sha256:[0-9a-f]{64}$$ ]]; then printf '%s\n' 'Approval-image build returned an invalid image identity; old images were not removed.' >&2; exit 2; fi; \
+	printf '%s\n' 'Retiring previous approval-tool images. Configurations pinned to removed images need setup again or image restoration.'; \
+	release_approval_retire_images "$$new_image" "$$old_images"
 
 bike-nft/release/check:
 	@$(LANE_GUARD); \

@@ -91,7 +91,7 @@ class _ReleaseCommandHarness:
         if kind in ("image", "image-target"):
             self.work.mkdir()
         self.events.touch()
-        for name in ("release_approval_image_build.sh", "release_rehearsal.sh", "release_process.sh"):
+        for name in ("release_approval_image_build.sh", "release_approval_images.sh", "release_rehearsal.sh", "release_process.sh"):
             destination = self.repo / "tools" / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / "tools" / name, destination)
@@ -150,8 +150,14 @@ setsid() {
   exec "$TEST_SETSID" "$TEST_BASH" -c '"$@"' bash "$@"
 }
 timeout() {
-  while [[ "$1" == --* ]]; do shift; done
+  while [[ "$1" == -* ]]; do
+    case "$1" in -s|-k) shift 2 ;; *) shift ;; esac
+  done
   shift
+  if [[ "$TEST_KIND" == rehearsal-full && "$1 $2" == 'bash tools/release_approval_image_build.sh' ]]; then
+    fixture_image_build
+    return
+  fi
   "$@"
 }
 id() { printf '1000\n'; }
@@ -189,6 +195,7 @@ block_child() {
 }
 docker() {
   local project= argument previous=
+  if [[ "$1 $2" == 'image ls' ]]; then return 0; fi
   if [[ "$1" == inspect ]]; then
     case "$*" in
       *NetworkSettings*) printf '172.20.0.2\n' ;;
@@ -237,8 +244,7 @@ docker() {
     *) event "unexpected compose $*"; return 90 ;;
   esac
 }
-make() {
-  if [[ "$1" != release/approval/image/build ]]; then event "unexpected make $*"; return 90; fi
+fixture_image_build() {
   event "fixture-image-build $*"
   if [[ "$TEST_BLOCK" == builder-fail ]]; then return 1; fi
   if [[ "$TEST_BLOCK" == builder ]]; then block_child; fi
@@ -281,6 +287,7 @@ python3() {
             "TEST_STAMP": self.stamp,
             "TEST_IMAGE": "sha256:" + "b" * 64,
             "TEST_BLOCK": block,
+            "TEST_KIND": kind,
             "TEST_HOLD_DOWN": str(int(hold_down)),
             "TEST_DOWN_STATUS": str(down_status),
             "TEST_CHILD_STATUS": str(child_status),
@@ -319,6 +326,9 @@ python3() {
             )
             recipe = generated.stdout
             recipe = recipe.replace(deadline, test_deadline)
+            if kind == "image-target":
+                library = self.repo / "tools/release_approval_images.sh"
+                library.write_text(library.read_text(encoding="utf-8").replace(deadline, test_deadline), encoding="utf-8")
             # Inner rehearsal timers remain mocked; only the target's outer
             # deadline uses the real executable in this fixture.
             argv = [bash, "-ec", "unset -f timeout\n" + recipe]

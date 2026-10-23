@@ -78,36 +78,8 @@ require_release_local_network() {
 }
 
 release_config_prepare_approval_images() {
-  local image_list image_id observations observed_id tool_source entrypoint
-  local -a image_ids=()
-  if ! image_list="$(docker image ls --all --filter label=org.opencontainers.image.revision --no-trunc --quiet)"; then
-    printf '%s\n' 'Cannot discover installed approval-tool images: Docker image listing failed.' >&2
-    return 2
-  fi
-  : > "$release_config_dir/approval-images"
-  while IFS= read -r image_id; do
-    if [[ -z "$image_id" ]]; then continue; fi
-    if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-      printf '%s\n' 'Docker image listing returned an invalid image ID.' >&2
-      return 2
-    fi
-    image_ids+=("$image_id")
-  done < <(printf '%s\n' "$image_list" | sort -u)
-  if [[ "${#image_ids[@]}" -gt 0 ]]; then
-    if ! observations="$(docker image inspect --format '{{.Id}}{{printf "\t"}}{{index .Config.Labels "org.opencontainers.image.revision"}}{{printf "\t"}}{{json (index .Config "Entrypoint")}}' "${image_ids[@]}")"; then
-      printf '%s\n' 'Cannot inspect the local image inventory; Docker batch inspection failed.' >&2
-      return 2
-    fi
-    while IFS=$'\t' read -r observed_id tool_source entrypoint; do
-      if [[ ! "$observed_id" =~ ^sha256:[0-9a-f]{64}$ || " ${image_ids[*]} " != *" $observed_id "* ]]; then
-        printf '%s\n' 'Docker inspection returned an image ID outside the requested inventory.' >&2
-        return 2
-      fi
-      if [[ ! "$tool_source" =~ ^[0-9a-f]{40}$ ]]; then continue; fi
-      if [[ "$entrypoint" != '["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]' ]]; then continue; fi
-      printf '%s\t%s\n' "$observed_id" "$tool_source" >> "$release_config_dir/approval-images"
-    done <<< "$observations"
-  fi
+  source tools/release_approval_images.sh
+  release_approval_installed_images > "$release_config_dir/approval-images"
   if [[ ! -s "$release_config_dir/approval-images" ]]; then
     printf '%s\n' 'No installed approval-tool builds were found. Build one with make release/approval/image/build; setup does not build, pull or substitute images.' >&2
     return 2

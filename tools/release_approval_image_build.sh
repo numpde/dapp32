@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Stdout carries only the immutable result; callers must also require exit 0.
+exec 3>&1
+exec 1>&2
 
 if [[ $# != 2 || ! $1 =~ ^[0-9a-f]{40}$ ]]; then
   printf '%s\n' 'Usage: release_approval_image_build.sh SOURCE_COMMIT NEW_OUTPUT_DIR' >&2
@@ -156,5 +159,6 @@ printf '{"imageId":"%s","approvalToolSourceCommit":"%s","packageLockSha256":"%s"
 validate_output_path "$output_dir" "$output_parent"
 mv -T -- "$artifact_dir" "$output_dir"
 unset artifact_dir
-printf 'Built approval tool image %s from source commit %s. Review %s before operator admission.\n' \
+printf 'Built approval tool image %s from source commit %s. Build record: %s\n' \
   "$image_id" "$source_commit" "$output_dir/approval-image.json"
+printf '%s\n' "$image_id" >&3

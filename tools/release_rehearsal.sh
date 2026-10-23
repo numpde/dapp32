@@ -175,7 +175,7 @@ run_logged() {
   shift
   local grace=15
   local release_progress_phase="$log"
-  if [[ "$1" == make ]]; then grace=330; fi
+  if [[ "$1" == make || "$log" == approval-image-build.log ]]; then grace=330; fi
   release_process_report "Starting $log; private output: $RELEASE_REHEARSAL_DIR/$log"
   if ! release_run_owned "$grace" timeout --foreground --kill-after="${grace}s" 900 "$@" >"$RELEASE_REHEARSAL_DIR/$log" 2>&1; then
     tail -n 60 "$RELEASE_REHEARSAL_DIR/$log" >&2
@@ -289,9 +289,9 @@ planner_started=0
 unset RELEASE_OUTPUT_DIR
 
 release_process_report 'Building the fixture approval image from the private candidate commit'
-run_logged approval-image-build.log make release/approval/image/build \
-  "SOURCE_COMMIT=$(git rev-parse HEAD)" \
-  "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=$RELEASE_REHEARSAL_DIR/approval-image"
+run_logged approval-image-build.log bash -c \
+  'source tools/release_approval_images.sh; release_approval_build_image "$@"' bash \
+  "$(git rev-parse HEAD)" "$RELEASE_REHEARSAL_DIR/approval-image"
 RELEASE_APPROVAL_IMAGE="$(python3 -I -B -c \
   'import json, sys; print(json.load(open(sys.argv[1]))["imageId"])' \
   "$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json")"
