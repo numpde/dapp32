@@ -61,6 +61,24 @@ function idKey(id: RpcId): string { return `${typeof id}:${String(id)}` }
 export interface FixedBackendOptions { url: string; timeoutMs: number; maxResponseBytes: number }
 export interface FixedBackend { readonly maxResponseBytes: number; read(request: RpcRequest, signal: AbortSignal): Promise<RpcResponse>; send(raw: Hex): Promise<Hex> }
 
+// Messages in this private class contain only facts selected at the backend boundary.
+class ApprovalBackendError extends Error {}
+
+function backendTransportError(cause: unknown, phase: string, deadline: AbortSignal, timeoutMs: number): ApprovalBackendError {
+  if (deadline.aborted) return new ApprovalBackendError(`Approval backend ${phase} timed out after ${timeoutMs} ms`)
+  const nested = object(cause) ? cause.cause : undefined
+  const code = [object(cause) ? cause.code : undefined, object(nested) ? nested.code : undefined].find(candidate =>
+    typeof candidate === "string" && ["ECONNREFUSED", "ECONNRESET", "ECONNABORTED", "ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT",
+      "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_SOCKET"].includes(candidate))
+  return new ApprovalBackendError(`Approval backend ${phase} failed${typeof code === "string" ? ` (${code})` : ""}`)
+}
+
+async function rejectBackendResponse(body: { cancel(): Promise<void> } | null, reason: string): Promise<never> {
+  try { if (body !== null) await body.cancel() }
+  catch { throw new ApprovalBackendError(`${reason}; cancelling the response also failed`) }
+  throw new ApprovalBackendError(reason)
+}
+
 export function createFixedBackend(options: FixedBackendOptions): FixedBackend {
   const url = new URL(options.url)
   if (url.protocol !== "http:" || url.username || url.password || url.hash ||
@@ -72,33 +90,46 @@ export function createFixedBackend(options: FixedBackendOptions): FixedBackend {
   async function forward(rpc: RpcRequest, signal?: AbortSignal): Promise<RpcResponse> {
     const deadline = AbortSignal.timeout(options.timeoutMs)
     const combined = signal ? AbortSignal.any([deadline, signal]) : deadline
-    const response = await fetch(url, {
-      method: "POST", headers: { "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify(rpc), signal: combined, redirect: "error",
-    })
-    if (!response.ok) throw new Error(`Approval backend returned HTTP ${response.status}`)
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: "POST", headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(rpc), signal: combined, redirect: "error",
+      })
+    } catch (cause) { throw backendTransportError(cause, "request", deadline, options.timeoutMs) }
+    if (!response.ok) return rejectBackendResponse(response.body, `Approval backend returned HTTP ${response.status}`)
     const length = response.headers.get("content-length")
-    if (length !== null && Number(length) > options.maxResponseBytes) throw new Error("Approval backend response is too large")
-    if (!response.body) throw new Error("Approval backend returned no body")
+    if (length !== null && Number(length) > options.maxResponseBytes) return rejectBackendResponse(response.body, "Approval backend response is too large")
+    if (!response.body) throw new ApprovalBackendError("Approval backend returned no body")
     const reader = response.body.getReader()
     const chunks: Uint8Array[] = []
     let size = 0
     try {
       for (;;) {
-        const next = await reader.read()
+        let next: ReadableStreamReadResult<Uint8Array>
+        try { next = await reader.read() }
+        catch (cause) { throw backendTransportError(cause, "response read", deadline, options.timeoutMs) }
         if (next.done) break
         size += next.value.byteLength
-        if (size > options.maxResponseBytes) throw new Error("Approval backend response is too large")
+        if (size > options.maxResponseBytes) return await rejectBackendResponse(reader, "Approval backend response is too large")
         chunks.push(next.value)
       }
-    } finally { await reader.cancel() }
+    } finally { reader.releaseLock() }
     const body = Buffer.concat(chunks, size)
-    const parsed = parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(body), "rpc")
+    let text: string
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(body) }
+    catch { throw new ApprovalBackendError("Approval backend response is not valid UTF-8") }
+    let parsed: unknown
+    try { parsed = parseStrictJson(text, "rpc") }
+    catch (cause) {
+      if (cause instanceof RpcJsonError) throw new ApprovalBackendError(`Approval backend response JSON is invalid (${cause.reason}, character ${cause.offset})`)
+      throw new ApprovalBackendError("Approval backend response JSON could not be parsed")
+    }
     if (!object(parsed) || parsed.jsonrpc !== "2.0" || parsed.id !== rpc.id ||
-        ("result" in parsed) === ("error" in parsed)) throw new Error("Approval backend returned an invalid or mismatched JSON-RPC response")
+        ("result" in parsed) === ("error" in parsed)) throw new ApprovalBackendError("Approval backend returned an invalid or mismatched JSON-RPC response")
     if ("result" in parsed) return { jsonrpc: "2.0", id: rpc.id, result: parsed.result }
     if (!object(parsed.error) || !Number.isSafeInteger(parsed.error.code) || typeof parsed.error.message !== "string") {
-      throw new Error("Approval backend returned an invalid JSON-RPC error")
+      throw new ApprovalBackendError("Approval backend returned an invalid JSON-RPC error")
     }
     const backendError: { code: number; message: string; data?: unknown } = {
       code: parsed.error.code as number, message: parsed.error.message,
@@ -208,8 +239,8 @@ export async function startRpcListener(options: ListenerOptions) {
 
   // No per-empty-connection logging. Trace output has both a rate and lifetime
   // bound, and never queues more writes while the pipe reports backpressure.
-  function traceRpc(message: string, summary: boolean) {
-    if (!tracing) return
+  function traceRpc(message: string, summary: boolean, failure?: boolean) {
+    if (!tracing && failure !== true) return
     const now = performance.now()
     if (now - detailStarted >= 1_000) { detailStarted = now; detailLines = 0 }
     const line = `approval RPC ${message}\n`
@@ -348,8 +379,9 @@ export async function startRpcListener(options: ListenerOptions) {
             trace("failure type=transaction-inspection")
             respond(error(rpc.id, -32000, "Transaction inspection failed"))
           } else {
-            trace("failure type=request-failed")
-            respond(error(rpc.id, -32000, "Approval request failed"))
+            const detail = cause instanceof ApprovalBackendError ? `RPC ${method} failed: ${cause.message}` : "Approval request failed"
+            traceRpc(`connection=${connection} request=${sequence} method=${method} failure=${detail}`, false, true)
+            respond(error(rpc.id, -32000, detail))
           }
         } else {
           stats.canceled++

@@ -11,6 +11,109 @@ import { parseStrictJson } from "./strict-json.ts"
 
 type Rpc = { jsonrpc: string; id: string | number | null; result?: unknown; error?: { code: number; message: string } }
 
+test("backend failures identify the RPC and safe cause without requiring trace mode or disclosing response contents", { timeout: 10_000 }, async t => {
+  const secret = "private-provider-token-and-request"
+  const cases = [
+    { status: 503, body: Buffer.from(secret), expected: /HTTP 503/ },
+    { status: 200, body: Buffer.from([0xff]), expected: /UTF-8/i },
+    { status: 200, body: Buffer.from(`{"${secret}":`), expected: /JSON.*syntax/i },
+    { status: 200, body: Buffer.from('{"jsonrpc":"2.0","id":"wrong","result":"0x1"}'), expected: /mismatched/i },
+    { status: 200, body: Buffer.from(secret.repeat(1000)), expected: /too large/i },
+  ]
+  const previous = process.env.RELEASE_APPROVAL_TRACE_RPC
+  process.env.RELEASE_APPROVAL_TRACE_RPC = "0"
+  t.after(() => { if (previous === undefined) delete process.env.RELEASE_APPROVAL_TRACE_RPC; else process.env.RELEASE_APPROVAL_TRACE_RPC = previous })
+  for (const scenario of cases) {
+    const directory = mkdtempSync(join(tmpdir(), "approval-backend-failure-"))
+    const server = createHttpServer((request, response) => { request.resume(); response.writeHead(scenario.status); response.end(scenario.body) })
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve))
+    const address = server.address()
+    assert.ok(address && typeof address !== "string")
+    const lines: string[] = []
+    const listener = await startRpcListener({
+      socketPath: join(directory, "rpc.sock"),
+      backend: createFixedBackend({ url: `http://127.0.0.1:${address.port}/${secret}`, timeoutMs: 2000, maxResponseBytes: 4096 }),
+      owner: { submit: async () => { assert.fail("a failed read must never submit a transaction") } },
+      maxMessageBytes: 4096, maxConnections: 2, maxInFlight: 2, maxConnectionAttempts: 256, connectionWindowMs: 1000,
+      traceOutput: { destroyed: false, writableNeedDrain: false, write(line) { lines.push(line); return true } },
+    })
+    const connection = await client(join(directory, "rpc.sock"))
+    try {
+      connection.write(JSON.stringify({ jsonrpc: "2.0", id: secret, method: "eth_chainId", params: [secret] }) + "\n")
+      const reply = await connection.next()
+      assert.ok(reply.error)
+      assert.equal(reply.error.code, -32000)
+      assert.match(reply.error.message, /eth_chainId/)
+      assert.match(reply.error.message, scenario.expected)
+      assert.match(lines.join(""), scenario.expected)
+      assert.equal(JSON.stringify([reply.error, lines]).includes(secret), false)
+    } finally {
+      connection.close(); await listener.close()
+      server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()))
+      rmSync(directory, { recursive: true, force: true })
+    }
+  }
+})
+
+test("transport diagnostics select known system codes without copying exception text", async t => {
+  const secret = "private-fetch-error-and-provider-key"
+  for (const scenario of [
+    { direct: "ECONNREFUSED", nested: undefined, expected: "ECONNREFUSED" },
+    { direct: undefined, nested: { code: "ECONNRESET", message: secret }, expected: "ECONNRESET" },
+    { direct: "ETIMEDOUT", nested: { message: secret }, expected: "ETIMEDOUT" },
+  ]) {
+    const failure = Object.assign(new Error(secret), { code: scenario.direct, cause: scenario.nested })
+    const mock = t.mock.method(globalThis, "fetch", async () => { throw failure })
+    try {
+      const backend = createFixedBackend({ url: `http://backend.invalid/${secret}`, timeoutMs: 1000, maxResponseBytes: 4096 })
+      await assert.rejects(backend.read({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }, new AbortController().signal), error => {
+        assert.ok(error instanceof Error)
+        assert.match(error.message, /request failed/)
+        assert.ok(error.message.includes(scenario.expected))
+        assert.equal(error.message.includes(secret), false)
+        return true
+      })
+    } finally { mock.mock.restore() }
+  }
+})
+
+test("a stalled backend reports its deadline rather than an opaque request failure", { timeout: 5000 }, async () => {
+  const server = createHttpServer(request => request.resume())
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve))
+  const address = server.address()
+  assert.ok(address && typeof address !== "string")
+  try {
+    const backend = createFixedBackend({ url: `http://127.0.0.1:${address.port}/`, timeoutMs: 25, maxResponseBytes: 4096 })
+    await assert.rejects(backend.read({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }, new AbortController().signal), /request timed out after 25 ms/)
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())) }
+})
+
+test("HTTP and size rejections cancel the response and preserve the primary reason if cancellation fails", async t => {
+  const secret = "private-response-cancellation-error"
+  const scenarios: { status: number; headers: Record<string, string>; reason: RegExp }[] = [{ status: 503, headers: {}, reason: /HTTP 503/ },
+    { status: 200, headers: { "content-length": "8192" }, reason: /too large/ },
+    { status: 200, headers: {}, reason: /too large/ }]
+  for (const scenario of scenarios) {
+    let cancellations = 0
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new Uint8Array(8192)) },
+      cancel() { cancellations++; throw new Error(secret) },
+    })
+    const mock = t.mock.method(globalThis, "fetch", async () => new Response(body, scenario))
+    try {
+      const backend = createFixedBackend({ url: "http://backend.invalid/", timeoutMs: 1000, maxResponseBytes: 4096 })
+      await assert.rejects(backend.read({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }, new AbortController().signal), error => {
+        assert.ok(error instanceof Error)
+        assert.match(error.message, scenario.reason)
+        assert.match(error.message, /cancelling the response also failed/)
+        assert.equal(error.message.includes(secret), false)
+        return true
+      })
+      assert.equal(cancellations, 1)
+    } finally { mock.mock.restore() }
+  }
+})
+
 async function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "cam-approval-listener-"))
   const socketPath = join(directory, "rpc.sock")

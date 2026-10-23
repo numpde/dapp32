@@ -330,7 +330,7 @@ compose_release() {
       if [[ "$service" == deploy-release ]]; then touch "$CASE_ROOT/signer"; fi
       ;;
     ps) printf '%064d\n' 1 ;;
-    stop) touch "$CASE_ROOT/stopped" ;;
+    stop) printf 'Stopping approval fixture\n' >&2; touch "$CASE_ROOT/stopped" ;;
     logs) printf '%s\n' 'fixture Forge output' ;;
     down)
       touch "$CASE_ROOT/down"
@@ -379,6 +379,10 @@ compose_release() {
                 self.assertEqual(expected_exit, (root / "output/forge-exit-code").read_text())
                 self.assertIn("fixture Forge output", (root / "output/deploy.log").read_text())
                 self.assertIn("Review broadcast and approval audit for possible earlier effects.", stderr)
+                if phase == "completed-rejection":
+                    self.assertLess(stderr.index("Deployment signer failed"), stderr.index("Stopping approval fixture"))
+                    self.assertIn(str(root / "output/deploy.log"), stderr)
+                    self.assertEqual(0o600, (root / "output/deploy.log").stat().st_mode & 0o777)
 
     def test_config_staging_stops_converter_before_removing_inputs(self) -> None:
         projects = []

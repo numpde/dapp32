@@ -132,6 +132,14 @@ release_approval_restore_terminal() {
   fi
 }
 
+release_approval_retain_signer_log() {
+  local output="$1"
+  if ! (umask 077; compose_release logs --no-color --no-log-prefix deploy-release > "$output/deploy.log" 2>&1); then
+    printf 'Could not retain complete signer diagnostics at %s/deploy.log.\n' "$output" >&2
+    return 1
+  fi
+}
+
 release_approval_retain_diagnostics() {
   local identity path="$release_approval_output/approval-diagnostics.log"
   identity="$(compose_release ps -a -q release-approval)" || return 1
@@ -202,8 +210,7 @@ release_approval_cleanup() {
     if [[ ! -f "$release_approval_output/forge-exit-code" ]]; then
       printf '%s\n' unknown > "$release_approval_output/forge-exit-code" || failed=1
     fi
-    compose_release logs --no-color --no-log-prefix deploy-release \
-      > "$release_approval_output/deploy.log" 2>&1 || failed=1
+    release_approval_retain_signer_log "$release_approval_output" || failed=1
   fi
   return "$failed"
 }
@@ -273,6 +280,10 @@ release_approval_run() {
     fi
     sleep 0.5
   done
+  if [[ "$forge_status" != 0 ]]; then
+    printf 'Deployment signer failed (exit %s). Forge diagnostics: %s/deploy.log\n' "$forge_status" "$output" >&2
+  fi
+  if ! release_approval_retain_signer_log "$output"; then attach_status=1; fi
   compose_release stop --timeout 10 release-approval >/dev/null
   started="$SECONDS"
   while kill -0 "$release_approval_attach_pid" 2>/dev/null; do
@@ -285,7 +296,6 @@ release_approval_run() {
   wait "$release_approval_attach_pid" || attach_status=$?
   declare -g release_approval_attach_pid=""
   release_approval_restore_terminal
-  compose_release logs --no-color --no-log-prefix deploy-release > "$output/deploy.log" 2>&1 || attach_status=1
   gate_status="$(docker inspect --format '{{.State.ExitCode}}' "$gate_id")"
   if [[ "$attach_status" != 0 || "$forge_status" != 0 || "$gate_status" != 0 ]]; then
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2
