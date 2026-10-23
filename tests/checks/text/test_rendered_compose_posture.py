@@ -878,6 +878,59 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn("release-anvil:8545", gateway["command"][-1])
         self.assertNotIn("location /cam", gateway["command"][-1])
 
+    def test_browser_viewer_runtime_preserves_each_lanes_routes_and_networks(self) -> None:
+        cases = [
+            (makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"), "bike-nft-browser-gateway", "bike_nft_local", "bike_nft_browser", "bike-nft", "BIKE_NFT_GUI_ORIGIN"),
+            (makefile_compose_unit("ESCROW_VIEWER_GUI_COMPOSE_FILES"), "escrow-browser-gateway", "escrow_local", "escrow_browser", "escrow", "ESCROW_GUI_ORIGIN"),
+            (makefile_compose_unit("PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES"), "pay-to-play-browser-gateway", "pay-to-play_local", "pay-to-play_browser", "pay-to-play", "PAY_TO_PLAY_GUI_ORIGIN"),
+            ("compose/release/viewer.yml", "browser-gateway", "viewer_internal", "browser_ingress", "release", "RELEASE_VIEWER_ORIGIN"),
+        ]
+        for files, gateway_name, private_network, browser_network, app, origin_name in cases:
+            with self.subTest(app=app):
+                env = compose_render_env()
+                config = rendered_compose_config(files, env=env)
+                web = compose_service(config, "cam-web")
+                gateway = compose_service(config, gateway_name)
+                self.assert_staged_package_workspace(web)
+                self.assert_read_only_volumes(web, "/input/js", "/work/js/node_modules")
+                self.assert_no_published_ports(web)
+                self.assertEqual({private_network}, set(web["networks"]))
+                self.assertTrue(config["networks"][private_network]["internal"])
+                self.assertEqual(env[origin_name], web["environment"]["CAM_WEB_DEV_ORIGIN"])
+                self.assertIn("exec npm run dev -w cam-web", compose_command_text(web))
+                self.assert_hardened(gateway)
+                self.assertEqual([{
+                    "type": "bind",
+                    "source": str(repo_path("compose/fragments/browser-http.conf")),
+                    "target": "/etc/nginx/browser-http.conf",
+                    "read_only": True,
+                    "bind": {},
+                }], gateway["volumes"])
+                networks = {private_network, browser_network}
+                if app == "release":
+                    networks.add("release_local")
+                    self.assertTrue(gateway["init"])
+                    self.assertEqual(1, gateway["cpus"])
+                else:
+                    self.assertNotIn("init", gateway)
+                    self.assertNotIn("cpus", gateway)
+                self.assertEqual(networks, set(gateway["networks"]))
+                ingress = config["networks"][browser_network]
+                if "internal" in ingress:
+                    self.assertFalse(ingress["internal"])
+                command = compose_command_text(gateway)
+                self.assertIn("include /etc/nginx/browser-http.conf;", command)
+                self.assertIn("proxy_pass http://cam-web:5173", command)
+                self.assertIn(f"proxy_pass http://{app}-anvil:8545/;", command)
+                if app == "release":
+                    self.assertNotIn("location /cam/", command)
+                    self.assertNotIn("location /rpc/", command)
+                    self.assertEqual({"cam-web"}, set(gateway["depends_on"]))
+                else:
+                    self.assertIn("location /rpc/", command)
+                    self.assertIn(f"proxy_pass http://{app}-cam-http:8080/;", command)
+                    self.assertEqual({"cam-web", f"{app}-anvil", f"{app}-cam-http"}, set(gateway["depends_on"]))
+
     def test_every_rpc_proxy_consumer_supplies_bounded_runtime_budgets(self) -> None:
         found = 0
         for compose_unit in compose_render_units():

@@ -29,38 +29,21 @@ services:
 
   cam-web:
     extends:
-      file: ../fragments/node-workspace.yml
-      service: hardened-node-workspace
-    working_dir: /work/js
+      file: ../fragments/browser-viewer.yml
+      service: cam-web
     environment:
       VITE_CAM_WEB_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN}"
       CAM_WEB_DEV_ORIGIN: "${RELEASE_VIEWER_ORIGIN:?missing_RELEASE_VIEWER_ORIGIN}"
-    volumes:
-      - ../../js:/input/js:ro
-      - ../../js/node_modules:/work/js/node_modules:ro
     networks: [viewer_internal]
-    command:
-      - run-js-workspace
-      - sh
-      - -eu
-      - -c
-      - |
-        npm run build:workspace
-        exec npm run dev -w cam-web -- --host 0.0.0.0 --port 5173 --strictPort
 
   browser-gateway:
-    image: ghcr.io/nginx/nginx-unprivileged:1.31.1-alpine3.23@sha256:8122337ed6c475bb486bc9340da453d4599f225e6b920ff0d92ca2267486b9b5
+    extends:
+      file: ../fragments/browser-viewer.yml
+      service: browser-gateway
     init: true
     depends_on:
       cam-web: {condition: service_started}
-    user: "101:101"
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 128
-    mem_limit: 128m
     cpus: 1
-    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m"]
     # Docker needs a non-internal bridge to activate the loopback published
     # port. Only this gateway gains that network's ordinary egress authority.
     networks: [viewer_internal, release_local, browser_ingress]
@@ -76,13 +59,7 @@ services:
         worker_processes 1;
         events { worker_connections 256; }
         http {
-          access_log /dev/stdout;
-          error_log /dev/stderr info;
-          client_body_temp_path /tmp/client_body;
-          fastcgi_temp_path /tmp/fastcgi;
-          scgi_temp_path /tmp/scgi;
-          uwsgi_temp_path /tmp/uwsgi;
-          proxy_temp_path /tmp/proxy;
+          include /etc/nginx/browser-http.conf;
           server {
             listen 8080;
             add_header Cache-Control "no-store" always;

@@ -28,9 +28,8 @@
 services:
   cam-web:
     extends:
-      file: ../../fragments/node-workspace.yml
-      service: hardened-node-workspace
-    working_dir: /work/js
+      file: ../../fragments/browser-viewer.yml
+      service: cam-web
     depends_on:
       bike-nft-cam-http:
         condition: service_healthy
@@ -42,22 +41,13 @@ services:
       # Vite sees the gateway-forwarded browser Host header. Keep that allowlist
       # tied to the same operator-declared origin that make prints.
       CAM_WEB_DEV_ORIGIN: "${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"
-    volumes:
-      - ../../../js:/input/js:ro
-      - ../../../js/node_modules:/work/js/node_modules:ro
     networks:
       - bike_nft_local
-    command:
-      - "run-js-workspace"
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        npm run build:workspace
-        npm run dev -w cam-web -- --host 0.0.0.0 --port 5173 --strictPort
 
   bike-nft-browser-gateway:
-    image: ghcr.io/nginx/nginx-unprivileged:1.31.1-alpine3.23@sha256:8122337ed6c475bb486bc9340da453d4599f225e6b920ff0d92ca2267486b9b5
+    extends:
+      file: ../../fragments/browser-viewer.yml
+      service: browser-gateway
     depends_on:
       bike-nft-anvil:
         condition: service_healthy
@@ -65,16 +55,6 @@ services:
         condition: service_healthy
       cam-web:
         condition: service_started
-    user: "101:101"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 128
-    mem_limit: 128m
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=32m
     networks:
       - bike_nft_local
       - bike_nft_browser
@@ -94,13 +74,7 @@ services:
         }
 
         http {
-          access_log /dev/stdout;
-          error_log /dev/stderr info;
-          client_body_temp_path /tmp/client_body;
-          fastcgi_temp_path /tmp/fastcgi;
-          proxy_temp_path /tmp/proxy;
-          scgi_temp_path /tmp/scgi;
-          uwsgi_temp_path /tmp/uwsgi;
+          include /etc/nginx/browser-http.conf;
 
           server {
             listen 8080;

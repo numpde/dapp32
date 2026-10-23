@@ -1,0 +1,34 @@
+# Browser runtime policy. Callers own origins, routes, dependencies and networks.
+services:
+  cam-web:
+    extends:
+      file: node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work/js
+    volumes:
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:workspace
+        exec npm run dev -w cam-web -- --host 0.0.0.0 --port 5173 --strictPort
+
+  browser-gateway:
+    image: ghcr.io/nginx/nginx-unprivileged:1.31.1-alpine3.23@sha256:8122337ed6c475bb486bc9340da453d4599f225e6b920ff0d92ca2267486b9b5
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 128m
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m"]
+    volumes:
+      - type: bind
+        source: ./browser-http.conf
+        target: /etc/nginx/browser-http.conf
+        read_only: true
+        bind: {create_host_path: false}
