@@ -6,6 +6,7 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
+import { setTimeout as delay } from "node:timers/promises"
 import test from "node:test"
 import { decodeFunctionData, encodeFunctionResult, keccak256, parseAbi, stringToHex } from "viem"
 import type { Address } from "viem"
@@ -69,6 +70,9 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
     ...shared, intendedCamRootOwner: OWNER, intendedManagerAdmin: OWNER,
     componentsPauser: OWNER, managerConfigurer: OWNER, registrars: [DEPLOYER, OWNER],
   }
+  const many: ReleasePlan = { ...shared, registrars: [DEPLOYER,
+    ...Array.from({ length: 40 }, (_, index) => `0x${(0x1000 + index).toString(16).padStart(40, "0")}` as Address),
+  ] }
   const sharedHolders = [
     roleKey(COMPONENTS, ROLES.MINTER_ROLE, MANAGER), roleKey(COMPONENTS, ROLES.TOKEN_URI_SETTER_ROLE, MANAGER),
     roleKey(COMPONENTS, ROLES.PAUSER_ROLE, DEPLOYER), roleKey(COMPONENTS, ROLES.CONFIGURER_ROLE, DEPLOYER),
@@ -81,9 +85,13 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
     roleKey(MANAGER, ROLES.PAUSER_ROLE, DEPLOYER), roleKey(MANAGER, ROLES.CONFIGURER_ROLE, OWNER),
     roleKey(MANAGER, ROLES.REGISTRAR_ROLE, DEPLOYER), roleKey(MANAGER, ROLES.REGISTRAR_ROLE, OWNER),
   ]
+  const manyHolders = [...sharedHolders, ...many.registrars.map(registrar => roleKey(MANAGER, ROLES.REGISTRAR_ROLE, registrar))]
   let plan = shared
   let altered = "none"
   let holders = new Set<string>()
+  let pendingRoleReads = 0
+  let roleOverloads = 0
+  const queriedRegistrars = new Set<string>()
   const server = createServer((request, response) => {
     void (async () => {
       const chunks: Buffer[] = []
@@ -127,7 +135,22 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
             case "pendingDefaultAdmin": observed = [ZERO, 0]; break
             case "defaultAdminDelay": observed = to === COMPONENTS ? plan.componentsAdminDelay : plan.managerAdminDelay; break
             case "pendingDefaultAdminDelay": observed = [0, 0]; break
-            case "hasRole": observed = holders.has(roleKey(to, decoded.args[0], decoded.args[1])); break
+            case "hasRole": {
+              if (altered.startsWith("many-registrars")) {
+                pendingRoleReads++
+                response.once("close", () => { pendingRoleReads-- })
+                if (pendingRoleReads > 34) {
+                  roleOverloads++
+                  response.statusCode = 503
+                  response.end("fixture role-read capacity exceeded")
+                  return
+                }
+                await delay(100)
+              }
+              if (to === MANAGER && decoded.args[0] === ROLES.REGISTRAR_ROLE) queriedRegistrars.add(decoded.args[1].toLowerCase())
+              observed = holders.has(roleKey(to, decoded.args[0], decoded.args[1]))
+              break
+            }
             case "name": observed = plan.tokenName; break
             case "symbol": observed = plan.tokenSymbol; break
             case "baseURI": observed = ""; break
@@ -162,6 +185,8 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
     for (const [label, selected, selectedHolders, diagnostic] of [
       ["shared", shared, sharedHolders, undefined],
       ["mixed", mixed, mixedHolders, undefined],
+      ["many-registrars", many, manyHolders, undefined],
+      ["many-registrars-missing-last", many, manyHolders.slice(0, -1), /registrar role mismatch/],
       ["extra-role", mixed, mixedHolders, /deployer components pauser role mismatch/],
       ["self-pending", shared, sharedHolders, /unexpected CamRoot ownership handoff/],
       ["ownership-binding", shared, sharedHolders, /CAM ownership binding/],
@@ -171,6 +196,8 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
       plan = selected
       altered = label
       holders = new Set(selectedHolders)
+      queriedRegistrars.clear()
+      roleOverloads = 0
       if (label === "extra-role") holders.add(roleKey(COMPONENTS, ROLES.PAUSER_ROLE, DEPLOYER))
       await writeFile(planPath, JSON.stringify(plan))
       const artifactPath = join(directory, `${label}.json`)
@@ -197,6 +224,10 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
         assert.deepEqual(artifact.registrars, plan.registrars)
         assert.equal(artifact.baseTokenURI, "")
         assert.equal(artifact.collectionURI, plan.collectionURI)
+      }
+      if (label.startsWith("many-registrars")) {
+        assert.equal(roleOverloads, 0, "registrar count must not overload bounded RPC admission")
+        for (const registrar of plan.registrars) assert.ok(queriedRegistrars.has(registrar.toLowerCase()), `registrar was not checked: ${registrar}`)
       }
     }
   } finally {

@@ -425,6 +425,7 @@ function verifyBikeConfiguration(
   assertAddress(configuration.uiManager, contracts.manager.address, "UI manager")
 }
 
+/** Verify the complete role policy without making RPC concurrency depend on registrar count. */
 async function verifyRolePolicy(
   read: ContractReader,
   plan: ReleasePlan,
@@ -454,7 +455,7 @@ async function verifyRolePolicy(
       "registrar",
     )),
   ]
-  await Promise.all(expectations.map(async (expectation) => {
+  for (const expectation of expectations) {
     const actual = await read<boolean>(
       expectation.contract,
       ADMIN_ABI,
@@ -464,7 +465,7 @@ async function verifyRolePolicy(
     if (actual !== expectation.expected) {
       throw new Error(`${expectation.label} role mismatch`)
     }
-  }))
+  }
 }
 
 function roleExpectation(
