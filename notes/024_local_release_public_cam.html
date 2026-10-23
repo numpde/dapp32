@@ -14,21 +14,21 @@
 <body>
 <main>
   <h1>Local releases with public CAM publication</h1>
-  <p>2026-10-23 · Implementation requirement</p>
+  <p>2026-10-23 · Implementation and local checks</p>
   <p>Deploy Bike NFT, Escrow and Pay-to-Play through the normal release workflow
   onto the persistent local chain, then render each deployed workflow in an
   existing browser tab. Publish each CAM bundle through GitHub over HTTPS and
   store its public root URI with an all-zero root hash. The viewer must visibly
   identify that root as unverified; declared resource integrity checks still apply.</p>
 
-  <h2>Current obstacle and ownership</h2>
-  <p><a href="../tools/release_config.py">Local setup</a> currently couples the
+  <h2>Original obstacle, now resolved</h2>
+  <p>Before this change, <a href="../tools/release_config.py">local setup</a> coupled the
   fixture chain, funded test deployer and internal
   <code>http://release-cam:8080/&lt;app&gt;/main.json</code> publication.
-  The <a href="../compose/release/local-network.yml">shared network</a> exposes
-  neither service to a host browser. Local chain selection and CAM publication
-  are independent facts: using that chain must permit a public GitHub manifest
-  without pretending the deployment is an isolated rehearsal.</p>
+  The <a href="../compose/release/local-network.yml">shared network</a> alone
+  exposed neither service to a host browser. Setup now accepts public publication
+  independently of chain selection; <code>network/local/viewer/up</code> attaches
+  a browser to an existing release without deploying another instance.</p>
   <p>Keep <code>make &lt;app&gt;/release/setup</code>,
   <code>release/deploy</code> and <code>release/verify</code> as the sole release
   path for all three apps. Preserve clean-source admission, protected configuration,
@@ -61,7 +61,13 @@
   public URI and zero hash. In the existing tab, observe successful cross-origin
   root/resource fetches, contract-driven discovery, the unverified-root indication
   and a rendered workflow. Keep these live observations distinct from automated
-  qualification; this note records the required outcome, not completed proof.</p>
+  qualification.</p>
+  <p>Observed on 2026-10-23: normal deployments of all three apps at
+  <code>29e6cf0</code> passed verification on local chain 31338. Browser checks
+  reused the existing tab, fetched GitHub roots and declared resources with HTTP
+  200, rendered each workflow and asserted a visible unverified-root notice.
+  This establishes local release/browser composition, not public RPC-provider
+  behavior or browser transaction submission.</p>
 </main>
 </body>
 </html>
