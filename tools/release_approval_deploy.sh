@@ -316,6 +316,9 @@ release_approval_run() {
     sleep 0.2
   done
   release_approval_attachment_running || return
+  # docker attach disables output postprocessing as well as input editing.
+  # Host progress needs newline translation; approval keys must remain raw.
+  stty opost onlcr
   compose_release up -d --no-build --no-deps deploy-release
   forge_id="$(release_approval_service_id deploy-release)" || return
 

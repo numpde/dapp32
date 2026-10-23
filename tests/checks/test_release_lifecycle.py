@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import pty
 import re
+import select
 import shlex
 import shutil
 import signal
@@ -389,7 +390,7 @@ release_run_owned 1 "$PYTHON" -c 'import os, time; from pathlib import Path; Pat
             self.assertLess(time.monotonic() - started, 5)
 
     def test_attachment_cancellation_and_completed_rejection_restore_terminal_and_remove_resources(self) -> None:
-        for phase in ("start", "review", "completed-rejection"):
+        for phase in ("start", "review", "completed-rejection", "presentation"):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory(
                 prefix=f"cam-release-{os.getuid()}-", dir="/tmp",
             ) as ceremony_directory:
@@ -399,6 +400,8 @@ release_run_owned 1 "$PYTHON" -c 'import os, time; from pathlib import Path; Pat
                 (root / "fake_docker.py").write_text(FAKE_DOCKER, encoding="utf-8")
                 env = self.environment(root, ceremony)
                 env["ATTACH_PHASE"] = phase
+                if phase == "presentation":
+                    env["ATTACH_PHASE"] = "review"
                 if phase == "completed-rejection":
                     env["ATTACH_PHASE"] = "review"
                     env["FORGE_STATE"] = "exited 1"
@@ -419,7 +422,10 @@ compose_release() {
     up)
       [[ ! -f "$CASE_ROOT/down" ]] || return 94
       printf 'up:%s\n' "$service" >> "$CASE_ROOT/events"
-      if [[ "$service" == deploy-release ]]; then touch "$CASE_ROOT/signer"; fi
+      if [[ "$service" == deploy-release ]]; then
+        printf 'Signer starting\nSigner started\n'
+        touch "$CASE_ROOT/signer"
+      fi
       ;;
     ps) printf '%064d\n' 1 ;;
     stop) printf 'Stopping approval fixture\n' >&2; touch "$CASE_ROOT/stopped" ;;
@@ -435,18 +441,31 @@ compose_release() {
 """
                 script += "\ncleanup() {\n" + make_cleanup() + "\n}\ntrap cleanup EXIT\n"
                 script += 'release_approval_run "$CASE_ROOT/output"\n'
+                if phase == "presentation":
+                    script = 'exec 1>&0 2>&0\n' + script
                 master, slave = pty.openpty()
                 original_terminal = termios.tcgetattr(slave)
                 process = self.launch(script, env, stdin=slave)
                 try:
                     self.wait_path(root / "attached", process)
-                    if phase in ("review", "completed-rejection"):
+                    if phase in ("review", "completed-rejection", "presentation"):
                         self.wait_path(root / "signer", process)
+                    if phase == "presentation":
+                        captured = bytearray()
+                        deadline = time.monotonic() + 2
+                        while b"Signer started" not in captured and time.monotonic() < deadline:
+                            if select.select([master], [], [], 0.1)[0]:
+                                captured.extend(os.read(master, 8192))
+                        self.assertIn(b"Signer starting\r\nSigner started\r\n", captured)
                     # Docker's raw attachment receives byte 0x03; this does not
                     # send SIGINT to the host launcher.
                     if phase != "completed-rejection":
                         os.write(master, b"\x03")
                     stdout, stderr = process.communicate(timeout=10)
+                    if phase == "presentation":
+                        while select.select([master], [], [], 0)[0]:
+                            captured.extend(os.read(master, 8192))
+                        stderr = captured.decode("utf-8", errors="replace")
                     self.assertEqual(original_terminal, termios.tcgetattr(slave))
                 finally:
                     self.emergency_cleanup(process, root)
@@ -456,7 +475,7 @@ compose_release() {
                 events = (root / "events").read_text().splitlines()
                 self.assertEqual(1, events.count("up:release-approval"))
                 expected_signers = 0
-                if phase in ("review", "completed-rejection"):
+                if phase in ("review", "completed-rejection", "presentation"):
                     expected_signers = 1
                 self.assertEqual(expected_signers, events.count("up:deploy-release"))
                 self.assertEqual(
