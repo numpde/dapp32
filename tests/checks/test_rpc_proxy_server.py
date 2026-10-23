@@ -35,7 +35,7 @@ def serve_fixture(upstream_path, ready, activity, release, overrides, stall_dns)
         def read(self, _limit):
             if self.request_id.startswith("block"):
                 deadline = time.monotonic() + 30
-                while release.value < (2 if self.request_id == "block-next" else 1):
+                while release.value == 0 or (self.request_id == "block-next" and release.value < 2):
                     if time.monotonic() >= deadline:
                         raise TimeoutError("fixture response was not released")
                     time.sleep(0.01)
@@ -291,10 +291,8 @@ class RpcProxyServerTest(unittest.TestCase):
             process.terminate()
             process.join(timeout=3)
             self.assertFalse(process.is_alive())
-            try:
-                self.assertEqual(b"", queued.recv(1))
-            except ConnectionResetError:
-                pass
+            with self.assertRaises((http.client.RemoteDisconnected, ConnectionResetError)):
+                self.response(queued)
             with self.assertRaises(ProcessLookupError):
                 os.kill(worker, 0)
 

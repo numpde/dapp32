@@ -84,10 +84,11 @@ CONNECT_TIMEOUT_SECONDS = required_positive_seconds_env("RPC_PROXY_CONNECT_TIMEO
 MAX_CONCURRENT_REQUESTS = required_bounded_positive_int_env(
     "RPC_PROXY_MAX_CONCURRENT_REQUESTS", MAX_CONCURRENT_REQUESTS_LIMIT,
 )
-_queued_requests = os.environ.get("RPC_PROXY_MAX_QUEUED_REQUESTS", "0")
-if re.fullmatch(r"0|[1-9][0-9]?", _queued_requests) is None or int(_queued_requests) > 64:
-    raise RuntimeError("RPC_PROXY_MAX_QUEUED_REQUESTS: expected a decimal integer from 0 through 64")
-MAX_QUEUED_REQUESTS = int(_queued_requests)
+MAX_QUEUED_REQUESTS = os.environ.get("RPC_PROXY_MAX_QUEUED_REQUESTS")
+if MAX_QUEUED_REQUESTS is not None:
+    if re.fullmatch(r"0|[1-9][0-9]?", MAX_QUEUED_REQUESTS) is None or int(MAX_QUEUED_REQUESTS) > 64:
+        raise RuntimeError("RPC_PROXY_MAX_QUEUED_REQUESTS: expected a decimal integer from 0 through 64")
+    MAX_QUEUED_REQUESTS = int(MAX_QUEUED_REQUESTS)
 MAX_BATCH_ITEMS = required_bounded_positive_int_env("RPC_PROXY_MAX_BATCH_ITEMS", MAX_BATCH_ITEMS_LIMIT)
 REQUEST_DEADLINE_SECONDS = required_bounded_seconds_env("RPC_PROXY_REQUEST_TIMEOUT_SECONDS")
 UPSTREAM_DEADLINE_SECONDS = required_bounded_seconds_env("RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS")
@@ -612,8 +613,10 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
             if request.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR):
                 return True
             return request.recv(1, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b""
+        # silent-defaults: allow-exception-fallback -- A nonblocking peek without available bytes provides no evidence that the peer has closed.
         except BlockingIOError:
             return False
+        # silent-defaults: allow-exception-fallback -- These transport errors establish cancellation even when unread request bytes remain buffered.
         except (ConnectionResetError, ConnectionAbortedError):
             return True
 
@@ -625,7 +628,7 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
         try:
             request.setblocking(False)
             request.sendall(
-                f"HTTP/1.0 {status} {'Service Unavailable' if status == 503 else 'Request Timeout'}\r\n".encode()
+                f"HTTP/1.0 {status} {http.HTTPStatus(status).phrase}\r\n".encode()
                 + b"Content-Length: 0\r\nConnection: close\r\nRetry-After: 1\r\n\r\n"
             )
         # silent-defaults: allow-exception-fallback -- An overloaded server closes the socket even if its nonblocking rejection cannot reach the client.
@@ -638,7 +641,7 @@ class BoundedForkingHTTPServer(http.server.HTTPServer):
         connection = PendingConnection(request, client_address, time.monotonic() + REQUEST_DEADLINE_SECONDS)
         self.pending.append(connection)
         self.service_actions()
-        if len(self.pending) > MAX_QUEUED_REQUESTS:
+        if self.pending and (MAX_QUEUED_REQUESTS is None or len(self.pending) > MAX_QUEUED_REQUESTS):
             self.pending.remove(connection)
             self.reject_busy(request)
 
