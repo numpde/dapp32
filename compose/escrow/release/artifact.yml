@@ -1,0 +1,9 @@
+# App-specific inputs to the shared read-only artifact runtime.
+services:
+  release-artifact:
+    environment:
+      RELEASE_TOOL_DIR: tools/escrow-release
+      ESCROW_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      ESCROW_RELEASE_BROADCAST_DIR: /release-broadcast
+      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /release-artifact/deployment.json
+      ESCROW_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080

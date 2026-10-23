@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import tomllib
 import unittest
+from .text.test_rendered_compose_posture import makefile_compose_unit
 
 from .common import (
     compose_command_text,
     compose_mapping,
     compose_service,
+    compose_sequence_or_empty,
     compose_volume,
     read_text,
     rendered_compose_config,
@@ -23,7 +25,7 @@ from .release_posture import (
 
 
 CHECK = ("compose/release/check.yml", "compose/escrow/release/check.yml")
-DEPLOY = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml", "compose/release/reference.yml", "compose/release/approval.yml")
+DEPLOY = makefile_compose_unit("ESCROW_RELEASE_APPROVAL_COMPOSE_FILES")
 VERIFY = ("compose/release/verify.yml", "compose/escrow/release/verify.yml")
 OUTPUT_DIR = "/tmp/escrow-release-output"
 ARTIFACT_FILE = "/tmp/escrow-release-output/artifact/deployment.json"
@@ -47,7 +49,7 @@ RELEASE_ENV = {
 
 class EscrowReleasePostureTest(unittest.TestCase):
     def test_base_signer_has_no_ungated_rpc_path(self) -> None:
-        config = rendered_compose_config(("compose/release/deploy.yml", "compose/escrow/release/deploy.yml"), env=RELEASE_ENV)
+        config = rendered_compose_config(makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"), env=RELEASE_ENV)
         services = compose_mapping(config, "services")
         signer = services["deploy-release"]
         self.assertNotIn("release-approval", services)
@@ -188,11 +190,14 @@ class EscrowReleasePostureTest(unittest.TestCase):
         artifact_rpc_url = compose_volume(artifact_proxy, "/run/inputs/rpc_url")
         self.assertEqual(RPC_URL_FILE, artifact_rpc_url["source"])
         self.assertIs(artifact_rpc_url["read_only"], True)
-        # Compose omits an explicit false create_host_path value when it renders
-        # JSON, so the checked-in source must retain this fail-closed boundary.
-        self.assertEqual(4, read_text(repo_path(DEPLOY[0])).count("create_host_path: false"))
-        self.assertEqual(4, read_text(repo_path("compose/release/reference.yml")).count("create_host_path: false"))
-        self.assertEqual(4, read_text(repo_path("compose/release/approval.yml")).count("create_host_path: false"))
+        evidence_targets = {"/release-plan", "/release-broadcast", "/release-artifact", "/run/inputs/rpc_url"}
+        for service in config["services"].values():
+            for mount in compose_sequence_or_empty(service, "volumes"):
+                if mount["target"] not in evidence_targets:
+                    continue
+                options = mount.get("bind")
+                if options is not None:
+                    self.assertIsNot(options.get("create_host_path"), True)
 
         deploy_command = compose_command_text(deploy)
         self.assertNotIn("release-plan.args", deploy_command)

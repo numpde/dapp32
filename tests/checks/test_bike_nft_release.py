@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from .text.test_rendered_compose_posture import makefile_compose_unit
 
 from .common import (
     compose_command_text,
@@ -22,7 +23,7 @@ from .release_posture import (
 
 
 CHECK = ("compose/release/check.yml", "compose/bike-nft/release/check.yml")
-DEPLOY = ("compose/release/deploy.yml", "compose/bike-nft/release/deploy.yml", "compose/release/reference.yml", "compose/release/approval.yml")
+DEPLOY = makefile_compose_unit("BIKE_NFT_RELEASE_APPROVAL_COMPOSE_FILES")
 VERIFY = ("compose/release/verify.yml", "compose/bike-nft/release/verify.yml")
 
 

@@ -103,22 +103,25 @@ BIKE_NFT_LOCAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml
 BIKE_NFT_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-gui.yml
 BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/bike-nft/release/check.yml
-BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml
+BIKE_NFT_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/bike-nft/release/artifact.yml
+BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml $(BIKE_NFT_RELEASE_ARTIFACT_COMPOSE_FILES)
 BIKE_NFT_RELEASE_REFERENCE_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml
-BIKE_NFT_RELEASE_APPROVAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
+BIKE_NFT_RELEASE_APPROVAL_COMPOSE_FILES := $(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
 BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/bike-nft/release/verify.yml
 ESCROW_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/scenario.yml
 ESCROW_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-terminal.yml
 ESCROW_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-gui.yml
 ESCROW_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/escrow/release/check.yml
-ESCROW_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml
+ESCROW_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/escrow/release/artifact.yml
+ESCROW_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml $(ESCROW_RELEASE_ARTIFACT_COMPOSE_FILES)
 ESCROW_RELEASE_REFERENCE_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml
-ESCROW_RELEASE_APPROVAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
+ESCROW_RELEASE_APPROVAL_COMPOSE_FILES := $(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
 ESCROW_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/escrow/release/verify.yml
 PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/pay-to-play/release/check.yml
-PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml
+PAY_TO_PLAY_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/pay-to-play/release/artifact.yml
+PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml $(PAY_TO_PLAY_RELEASE_ARTIFACT_COMPOSE_FILES)
 PAY_TO_PLAY_RELEASE_REFERENCE_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml
-PAY_TO_PLAY_RELEASE_APPROVAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
+PAY_TO_PLAY_RELEASE_APPROVAL_COMPOSE_FILES := $(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
 PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/pay-to-play/release/verify.yml
 export PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD PAY_TO_PLAY_RELEASE_OUTPUT_DIR PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY
 LOCAL_RELEASE_PROJECT := $(COMPOSE_PROJECT_NAME)-release-local
@@ -292,11 +295,15 @@ printf 'Release container project: %s-run\n' "$$ceremony_project"; \
 ceremony_source="$$ceremony_root/source"
 endef
 
-define release_snapshot_populate
+define release_snapshot_archive
 mkdir --mode=0700 -- "$$ceremony_source"; \
 GIT_NO_REPLACE_OBJECTS=1 git archive --format=tar --output="$$ceremony_root/source.tar" "$$source_commit"; \
 tar --extract --file="$$ceremony_root/source.tar" --directory="$$ceremony_source"; \
-rm -f -- "$$ceremony_root/source.tar"; \
+rm -f -- "$$ceremony_root/source.tar"
+endef
+
+define release_snapshot_populate
+$(release_snapshot_archive); \
 cp -a -- "$(DEPENDENCIES_DIR)" "$$ceremony_source/$(DEPENDENCIES_DIR)"; \
 cp -a -- "$(PACKAGE_NODE_MODULES_DIR)" "$$ceremony_source/$(PACKAGE_NODE_MODULES_DIR)"
 endef
@@ -434,6 +441,60 @@ $(release_prepare_snapshot); \
 release_run_started=1; \
 compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release
 endef
+
+# Complete deployment records from retained evidence, without starting a signer.
+define release_artifact_execution
+$(LANE_GUARD); \
+$(PACKAGE_DEPS_GUARD); \
+$(release_host_guard_functions); \
+app="$(patsubst %/release/artifact,%,$@)"; \
+source_commit="$$(git rev-parse HEAD)"; \
+$(release_config_compose); \
+if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Artifact completion requires the original CONFIG.' >&2; exit 2; fi; \
+load_release_config "$$app" artifact; \
+prefix="$${app^^}"; prefix="$${prefix//-/_}"; \
+source_name="$${prefix}_RELEASE_SOURCE_COMMIT"; output_name="$${prefix}_RELEASE_OUTPUT_DIR"; \
+source_commit="$${!source_name}"; output_dir="$${!output_name}"; \
+for path in "$$output_dir" "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; do \
+  reject_release_path_symlinks "$$path" 'Deployment records'; \
+  if [[ ! -d "$$path" ]]; then printf 'Missing deployment records directory: %s\n' "$$path" >&2; exit 2; fi; \
+done; \
+validate_new_release_output "$$output_dir/artifact/deployment.json" 'Deployment artifact'; \
+release_config_input="$$output_dir/plan/release-plan.json"; \
+require_release_file "$$release_config_input" 'Deployment plan'; \
+compose_release_config run --rm --no-deps -T release-config artifact-plan "$$app" "$$source_commit"; \
+unset release_config_input; \
+ceremony_root=""; release_rpc_started=0; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
+cleanup() { $(release_snapshot_cleanup); }; trap cleanup EXIT; \
+$(release_snapshot_allocate); \
+$(release_snapshot_archive); \
+cp -a -- "$(PACKAGE_NODE_MODULES_DIR)" "$$ceremony_source/$(PACKAGE_NODE_MODULES_DIR)"; \
+release_run_owned 15 bash tools/release_tool_images.sh artifact "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
+artifact_transport_args=(); \
+if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then \
+  require_release_local_network; artifact_transport_args=(-f "$(COMPOSE_DIR)/release/rehearsal-artifact.yml"); \
+fi; \
+compose_release() { \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+  RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" RPC_URL_FILE="$$RPC_URL_FILE" \
+  release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
+  -f "$(COMPOSE_DIR)/release/artifact.yml" -f "$(COMPOSE_DIR)/$$app/release/artifact.yml" \
+  "$${artifact_transport_args[@]}" -f "$$ceremony_root/images-artifact.yml" "$$@"; \
+}; \
+export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never; \
+completion_log="$$(mktemp "$$output_dir/artifact-completion-XXXXXXXX.log")"; \
+printf 'Completing artifact from source %s. Log: %s\n' "$$source_commit" "$$completion_log"; \
+release_run_started=1; \
+if ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy > "$$completion_log" 2>&1 || \
+   ! compose_release run --rm --no-deps -T release-artifact >> "$$completion_log" 2>&1; then \
+  printf 'Artifact completion failed. No transactions were submitted. Diagnostics: %s\n' "$$completion_log" >&2; exit 1; \
+fi; \
+printf 'Deployment artifact: %s/artifact/deployment.json\n' "$$output_dir"
+endef
+
+.PHONY: bike-nft/release/artifact escrow/release/artifact pay-to-play/release/artifact
+bike-nft/release/artifact escrow/release/artifact pay-to-play/release/artifact:
+	@$(release_artifact_execution)
 
 define compose_run
 @$(LANE_GUARD); \
@@ -683,6 +744,10 @@ help:
 	  '  make bike-nft/release/setup CONFIG=/absolute/private/release.json' \
 	  '  make escrow/release/setup CONFIG=/absolute/private/release.json' \
 	  '  make pay-to-play/release/setup CONFIG=/absolute/private/release.json' \
+	  '  make bike-nft/release/artifact CONFIG=/absolute/private/release.json' \
+	  '  make escrow/release/artifact CONFIG=/absolute/private/release.json' \
+	  '  make pay-to-play/release/artifact CONFIG=/absolute/private/release.json' \
+	  '    Complete missing deployment records from saved broadcasts and read-only RPC; sends no transactions.' \
 	  '    Walk through every input and save one ready-to-deploy configuration for bike-nft, escrow or pay-to-play.' \
 	  '    Choose public for an HTTPS RPC, or local for the running network/local/up infrastructure.' \
 	  '    Local setup saves its Docker network, exact RPC/CAM URLs and a funded public test key.' \
@@ -1735,7 +1800,7 @@ escrow/release/deploy:
 	validate_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"; \
 	compose_release() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-	    RELEASE_OUTPUT_DIR="$$output_dir" \
+	    RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" \
 	    ESCROW_RELEASE_CAM_URI="$$cam_uri" \
 	    ESCROW_RELEASE_CAM_HASH="$${ESCROW_RELEASE_CAM_HASH-auto}" \
 	    ESCROW_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
@@ -1797,7 +1862,7 @@ bike-nft/release/deploy:
 	output_dir="$$BIKE_NFT_RELEASE_OUTPUT_DIR"; \
 	validate_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"; \
 	compose_release() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RELEASE_OUTPUT_DIR="$$output_dir" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
+	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	  BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" BIKE_NFT_RELEASE_CAM_URI="$$cam_uri" \
 	  BIKE_NFT_RELEASE_CAM_HASH="$${BIKE_NFT_RELEASE_CAM_HASH-auto}" \
 	  BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER="$$BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER" BIKE_NFT_RELEASE_TOKEN_NAME="$$BIKE_NFT_RELEASE_TOKEN_NAME" BIKE_NFT_RELEASE_TOKEN_SYMBOL="$$BIKE_NFT_RELEASE_TOKEN_SYMBOL" \
@@ -1859,7 +1924,7 @@ pay-to-play/release/deploy:
 	validate_new_release_output "$$output_dir" "PAY_TO_PLAY_RELEASE_OUTPUT_DIR"; \
 	compose_release() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-	    RELEASE_OUTPUT_DIR="$$output_dir" \
+	    RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" \
 	    PAY_TO_PLAY_RELEASE_CAM_URI="$$cam_uri" \
 	    PAY_TO_PLAY_RELEASE_CAM_HASH="$${PAY_TO_PLAY_RELEASE_CAM_HASH-auto}" \
 	    PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \

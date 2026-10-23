@@ -12,6 +12,7 @@ from urllib.parse import unquote
 
 from tools import release_config
 from .common import compose_sequence_or_empty, rendered_compose_config
+from .text.test_rendered_compose_posture import makefile_compose_unit
 
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -51,6 +52,46 @@ def complete_setup(app, source_commit, output):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_artifact_completion_uses_the_saved_source_and_never_stages_signing_inputs(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config = configuration(app)
+                source = root / "config.json"
+                source.write_text(json.dumps(config))
+                output = root / "stage"
+                output.mkdir()
+                release_config.unpack(app, "f" * 40, "artifact", source, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                prefix = app.upper().replace("-", "_")
+                self.assertEqual(COMMIT, inputs[f"{prefix}_RELEASE_SOURCE_COMMIT"])
+                self.assertEqual(config["settings"]["OUTPUT_DIR"], inputs[f"{prefix}_RELEASE_OUTPUT_DIR"])
+                self.assertNotIn("RELEASE_APPROVAL_IMAGE", inputs)
+                self.assertNotIn(FIXTURE_KEY, (output / "inputs").read_text())
+                self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
+
+    def test_artifact_completion_does_not_require_retired_signing_settings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = {"schemaVersion": 3, "app": "bike-nft", "sourceCommit": COMMIT,
+                      "rpcUrl": FIXTURE_RPC, "settings": {"OUTPUT_DIR": "/tmp/retained-deployment"}}
+            source = root / "config.json"
+            source.write_text(json.dumps(config))
+            output = root / "stage"
+            output.mkdir()
+            release_config.unpack("bike-nft", "f" * 40, "artifact", source, output)
+            self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
+            with self.assertRaises(ValueError):
+                release_config.validate(config, "bike-nft", COMMIT)
+
+    def test_artifact_collector_revision_must_match_the_saved_plan(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "plan.json"
+            source.write_text(json.dumps({"sourceCommit": COMMIT}))
+            release_config.check_artifact_plan_source(COMMIT, source)
+            with self.assertRaisesRegex(ValueError, "different source commits"):
+                release_config.check_artifact_plan_source("f" * 40, source)
+
     def test_update_replaces_only_a_missing_approval_image_and_preserves_the_local_fixture(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -494,7 +535,7 @@ class ReleaseConfigTest(unittest.TestCase):
             for environment, expected in (({}, "auto"), ({name: zero}, zero)):
                 with self.subTest(app=app, expected=expected):
                     services = rendered_compose_config(
-                        ("compose/release/deploy.yml", f"compose/{app}/release/deploy.yml"), env=environment
+                        makefile_compose_unit(f"{app.upper().replace('-', '_')}_RELEASE_DEPLOY_COMPOSE_FILES"), env=environment
                     )["services"]
                     self.assertEqual(expected, services["release-plan"]["environment"][name])
 

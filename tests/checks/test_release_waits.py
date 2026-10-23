@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from .common import compose_sequence_or_empty, import_python_module_with_env, rendered_compose_config, repo_path
+from .text.test_rendered_compose_posture import makefile_compose_unit
 
 
 class ReleaseWaitOracleTest(unittest.TestCase):
@@ -100,7 +101,7 @@ class ReleaseWaitOracleTest(unittest.TestCase):
 
 class ReleaseWaitPostureTest(unittest.TestCase):
     def test_ipc_release_uses_stock_broadcast_with_only_the_proxy_networked(self):
-        files = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml", "compose/release/rehearsal-deploy.yml", "compose/release/rehearsal-ipc.yml")
+        files = (*makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"), "compose/release/rehearsal-deploy.yml", "compose/release/rehearsal-ipc.yml")
         services = rendered_compose_config(files)["services"]
         signer = services["deploy-release"]
         proxy = services["release-rpc-proxy"]
@@ -120,7 +121,7 @@ class ReleaseWaitPostureTest(unittest.TestCase):
                 self.assertIsNot(socket_mounts[0]["bind"].get("create_host_path"), True)
 
     def test_http_wait_probe_uses_its_fixture_transport_and_scopes_evidence(self):
-        files = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml", "compose/release/rehearsal-deploy.yml")
+        files = (*makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"), "compose/release/rehearsal-deploy.yml")
         baseline = rendered_compose_config(files)["services"]
         services = rendered_compose_config((*files, "compose/release/rehearsal-waits.yml"))["services"]
         base_signer = baseline["deploy-release"]

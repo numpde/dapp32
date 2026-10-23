@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from .common import ROOT, rendered_compose_config
+from .text.test_rendered_compose_posture import makefile_compose_unit
 
 
 STUBS = r'''
@@ -116,6 +117,36 @@ release_tool_images_prepare_network /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
             self.assertNotIn("build", after["rpc-proxy"])
             self.assertRegex(after["rpc-proxy"]["image"], r"^sha256:[0-9a-f]{64}$")
 
+    def test_artifact_completion_has_only_read_only_rpc_and_artifact_authority(self):
+        result, builds, overlays = self.run_case(r'''
+release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"
+release_tool_images_prepare_artifact /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
+''')
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(2, builds)
+        self.assertEqual({"images-artifact.yml"}, overlays.keys())
+        with tempfile.TemporaryDirectory() as temporary:
+            overlay = Path(temporary) / "images-artifact.yml"
+            overlay.write_text(overlays[overlay.name])
+            for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
+                files = makefile_compose_unit(f"{app}_RELEASE_ARTIFACT_COMPOSE_FILES")
+                config = rendered_compose_config((*files, str(overlay)), env={"RELEASE_SOURCE_DIR": "/tmp/original-source"})
+                self.assertEqual({"release-artifact", "release-artifact-rpc-proxy"}, config["services"].keys())
+                self.assertNotIn("secrets", config)
+                proxy = config["services"]["release-artifact-rpc-proxy"]
+                methods = set(proxy["environment"]["RPC_ALLOWED_METHODS"].split())
+                self.assertNotIn("eth_sendRawTransaction", methods)
+                self.assertNotIn("eth_sendTransaction", methods)
+                artifact = config["services"]["release-artifact"]
+                self.assertEqual({"release-artifact-rpc-proxy"}, artifact["depends_on"].keys())
+                writable = [mount["target"] for mount in artifact["volumes"] if not mount.get("read_only")]
+                self.assertEqual(["/release-artifact"], writable)
+                sources = {mount["source"] for mount in artifact["volumes"]}
+                self.assertIn("/tmp/original-source/js", sources)
+                for service in config["services"].values():
+                    self.assertNotIn("build", service)
+                    self.assertEqual("never", service["pull_policy"])
+
     def test_engine_or_build_failure_publishes_no_runtime_overrides(self):
         for failure in ("inventory", "build", "inspect"):
             with self.subTest(failure=failure):
@@ -134,9 +165,11 @@ release_tool_images_prepare_network /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
         phases = [("dependencies", ("compose/deps.yml",), {"soldeer-verify"})]
         for app in ("bike-nft", "escrow", "pay-to-play"):
             for phase in ("check", "deploy", "verify"):
-                files = (f"compose/release/{phase}.yml", f"compose/{app}/release/{phase}.yml")
+                prefix = app.upper().replace("-", "_")
+                unit = f"{prefix}_RELEASE_{phase.upper()}_COMPOSE_FILES"
                 if phase == "deploy":
-                    files += ("compose/release/reference.yml", "compose/release/approval.yml")
+                    unit = f"{prefix}_RELEASE_APPROVAL_COMPOSE_FILES"
+                files = makefile_compose_unit(unit)
                 phases.append((phase, files, None))
         with tempfile.TemporaryDirectory() as temporary:
             for phase, files, selected in phases:

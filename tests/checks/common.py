@@ -97,6 +97,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "REFUND_PRIVATE_KEY_FILE": "/tmp/refund-relayer-key",
     "REFUND_STATE_DIR": "/tmp/refund-state",
     "RELEASE_OUTPUT_DIR": "/tmp/release-output",
+    "RELEASE_SOURCE_DIR": str(ROOT),
     "RELEASE_REHEARSAL_DIR": "/tmp/release-rehearsal",
     "RELEASE_RPC_OUTPUT_DIR": "/tmp/release-rpc-output",
     "RELEASE_CONFIG_STAGE_DIR": "/tmp/release-config-stage",

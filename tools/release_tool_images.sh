@@ -61,12 +61,20 @@ release_tool_images_prepare_network() {
   release_tool_image_overlay "$output/images-setup-rpc.yml" "rpc-proxy $rpc"
 }
 
+release_tool_images_prepare_artifact() {
+  local repository="$1" commit="$2" output="$3" node rpc
+  node=$(release_tool_image "$repository" "$commit" node-deps) || return
+  rpc=$(release_tool_image "$repository" "$commit" rpc-proxy) || return
+  release_tool_image_overlay "$output/images-artifact.yml" "release-artifact-rpc-proxy $rpc" "release-artifact $node"
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
-  if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh release|network REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
+  if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh release|network|artifact REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
   case "$1" in
     release) release_tool_images_prepare "$2" "$3" "$4" ;;
     network) release_tool_images_prepare_network "$2" "$3" "$4" ;;
-    *) printf '%s\n' 'Choose release or network tool images.' >&2; exit 2 ;;
+    artifact) release_tool_images_prepare_artifact "$2" "$3" "$4" ;;
+    *) printf '%s\n' 'Choose release, network or artifact tool images.' >&2; exit 2 ;;
   esac
 fi

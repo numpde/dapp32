@@ -49,7 +49,7 @@ BIKE_NFT_BROADCAST_DIR = "/foundry-broadcast"
 BIKE_NFT_BROADCAST_PATH = f"{BIKE_NFT_BROADCAST_DIR}/DeployBikeNftLocal.s.sol/31337/run-latest.json"
 REQUIRED_COMPOSE_ENV_RE = re.compile(r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*):\?[^}]+\}")
 MAKE_COMPOSE_FILES_RE = re.compile(
-    r"^(?P<name>[A-Z0-9_]+_COMPOSE_FILES) := (?P<value>(?:-f \$\(COMPOSE_DIR\)/[-./A-Za-z0-9_]+(?: )*)+)$",
+    r"^(?P<name>[A-Z0-9_]+_COMPOSE_FILES) := (?P<value>(?:(?:-f \$\(COMPOSE_DIR\)/[-./A-Za-z0-9_]+|\$\([A-Z0-9_]+_COMPOSE_FILES\))(?: )*)+)$",
     re.MULTILINE,
 )
 
@@ -109,9 +109,17 @@ def compose_files() -> tuple[str, ...]:
 
 def makefile_compose_units() -> dict[str, tuple[str, ...]]:
     units: dict[str, tuple[str, ...]] = {}
-    for match in MAKE_COMPOSE_FILES_RE.finditer(read_text(repo_path("Makefile"))):
-        paths = tuple(f"compose/{path}" for path in re.findall(r"-f \$\(COMPOSE_DIR\)/([-./A-Za-z0-9_]+)", match.group("value")))
-        units[match.group("name")] = paths
+    definitions = {match.group("name"): match.group("value") for match in MAKE_COMPOSE_FILES_RE.finditer(read_text(repo_path("Makefile")))}
+
+    def expand(name, visiting):
+        if name in visiting:
+            raise AssertionError(f"Cyclic Compose file list: {name}")
+        return re.sub(r"\$\(([A-Z0-9_]+_COMPOSE_FILES)\)",
+                      lambda match: expand(match.group(1), visiting | {name}), definitions[name])
+
+    for name in definitions:
+        paths = tuple(f"compose/{path}" for path in re.findall(r"-f \$\(COMPOSE_DIR\)/([-./A-Za-z0-9_]+)", expand(name, set())))
+        units[name] = paths
 
     return units
 

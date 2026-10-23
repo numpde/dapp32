@@ -1,0 +1,45 @@
+# Shared release RPC process, network-request and diagnostic bounds.
+services:
+  release-rpc-proxy-base:
+    build:
+      context: ../../containers/rpc-proxy
+      dockerfile: Dockerfile
+    init: true
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 256m
+    logging:
+      driver: local
+      options:
+        max-size: 64k
+        max-file: "1"
+        compress: "false"
+    environment:
+      RPC_PROXY_HOST: 0.0.0.0
+      RPC_PROXY_PORT: "8080"
+      RPC_UPSTREAM_FILE: /run/secrets/rpc_url
+      RPC_PROXY_MAX_REQUEST_BYTES: "16777216"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
+      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
+      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
+      RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "25"
+      RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "40"
+      RPC_PROXY_MAX_CONCURRENT_REQUESTS: "2"
+      RPC_PROXY_MAX_QUEUED_REQUESTS: "32"
+      RPC_PROXY_MAX_BATCH_ITEMS: "100"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
+      interval: 2s
+      timeout: 2s
+      retries: 10

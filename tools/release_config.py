@@ -125,23 +125,29 @@ def unique_fields(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise ValueError("The configuration contains duplicate JSON keys.")
+            raise ValueError("JSON input contains duplicate keys.")
         result[key] = value
     return result
 
 
-def validate(config, app, source_commit):
+def validate_identity(config, app):
+    """Admit the configuration format, app and exact saved program revision."""
     if not isinstance(config, dict) or type(config.get("schemaVersion")) is not int or config["schemaVersion"] != CONFIG_VERSION:
         raise ValueError("The saved release configuration has an unsupported version; run the release setup again.")
+    if config.get("app") != app:
+        raise ValueError("The configuration belongs to a different app; use its release target.")
+    if not isinstance(config.get("sourceCommit"), str) or not re.fullmatch(r"[0-9a-f]{40}", config["sourceCommit"]):
+        raise ValueError("The saved source commit must be an exact 40-character Git commit hash.")
+
+
+def validate(config, app, source_commit):
+    """Validate all saved inputs; None leaves source selection with the saved pin."""
+    validate_identity(config, app)
     expected = {"schemaVersion", "app", "sourceCommit", "rpcUrl", "deployerPrivateKey", "settings", "confirmDeploy", "approvalImageId"}
     if isinstance(config, dict) and "localNetwork" in config:
         expected.add("localNetwork")
     if config.keys() != expected:
         raise ValueError("The release configuration has missing or unknown fields; run the release setup again.")
-    if config["app"] != app:
-        raise ValueError("The configuration belongs to a different app; use its release target.")
-    if not isinstance(config["sourceCommit"], str) or not re.fullmatch(r"[0-9a-f]{40}", config["sourceCommit"]):
-        raise ValueError("The saved source commit must be an exact 40-character Git commit hash.")
     if config["confirmDeploy"] is not True:
         raise ValueError("The configuration has no saved deployment confirmation; finish the walkthrough.")
     check_value(config["approvalImageId"], "approval-image")
@@ -167,7 +173,7 @@ def validate(config, app, source_commit):
             check_value(settings[name], kind, local_cam_uri=local_cam_uri)
         except ValueError as error:
             raise ValueError(f"Invalid {name}: {error}") from error
-    if config["sourceCommit"] != source_commit:
+    if source_commit is not None and config["sourceCommit"] != source_commit:
         raise SourceCommitMismatch("The configuration pins a different source commit; deploy interactively to update it, or use the saved commit.")
     return config
 
@@ -393,21 +399,22 @@ def setup(app, source_commit, output):
             raise ValueError("Setup cancelled; no deployment configuration was saved.")
 
 
-def read_config(source):
+def read_json_file(source, label):
+    """Admit UTF-8 JSON up to 64 KiB with unique object keys."""
     with source.open("rb") as handle:
         raw = handle.read(MAX_CONFIG_BYTES + 1)
     if len(raw) > MAX_CONFIG_BYTES:
-        raise ValueError("The configuration exceeds 65536 bytes.")
+        raise ValueError(f"The {label} exceeds 65536 bytes.")
     try:
         config = json.loads(raw, object_pairs_hook=unique_fields)
     except (json.JSONDecodeError, UnicodeError):
-        raise ValueError("The configuration is not valid UTF-8 JSON; no inputs were loaded.") from None
+        raise ValueError(f"The {label} is not valid UTF-8 JSON; no inputs were loaded.") from None
     return config
 
 
 def update_source(app, source_commit, source, output):
-    config = read_config(source)
-    validate(config, app, config.get("sourceCommit") if isinstance(config, dict) else None)
+    config = read_json_file(source, "configuration")
+    validate(config, app, None)
     print(f"Saved source commit:   {config['sourceCommit']}\nCurrent source commit: {source_commit}")
     print("Updating keeps your RPC, signing key, chain and contract settings. It does not resume an earlier deployment.")
     print(f"Previous deployment records: {config['settings']['OUTPUT_DIR']} (left untouched)")
@@ -427,10 +434,27 @@ def update_source(app, source_commit, source, output):
 
 
 def unpack(app, source_commit, mode, source, output):
-    config = read_config(source)
-    validate(config, app, source_commit)
+    config = read_json_file(source, "configuration")
+    if mode == "artifact":
+        # The saved plan owns expected contract state; retired signing settings
+        # and the current checkout do not govern this read-only operation.
+        validate_identity(config, app)
+        if not isinstance(config.get("settings"), dict) or "OUTPUT_DIR" not in config["settings"]:
+            raise ValueError("Artifact completion requires the saved deployment output directory.")
+        check_value(config["settings"]["OUTPUT_DIR"], "path")
+        if "localNetwork" in config:
+            check_value(config["localNetwork"], "docker-network")
+            if config.get("rpcUrl") != LOCAL_RPC_URL:
+                raise ValueError("Local artifact completion requires the fixture RPC.")
+        else:
+            check_value(config.get("rpcUrl"), "rpc")
+    else:
+        validate(config, app, source_commit)
     prefix = app.upper().replace("-", "_")
-    if mode == "verify":
+    if mode == "artifact":
+        settings = {f"{prefix}_RELEASE_SOURCE_COMMIT": config["sourceCommit"],
+                    f"{prefix}_RELEASE_OUTPUT_DIR": config["settings"]["OUTPUT_DIR"]}
+    elif mode == "verify":
         settings = {f"{prefix}_DEPLOYMENT_ARTIFACT_FILE": config["settings"]["OUTPUT_DIR"] + "/artifact/deployment.json"}
     else:
         settings = {f"{prefix}_RELEASE_CAM_HASH": "auto"}
@@ -449,9 +473,16 @@ def unpack(app, source_commit, mode, source, output):
         write_private(output / "deployer-key", (config["deployerPrivateKey"] + "\n").encode())
 
 
+def check_artifact_plan_source(source_commit, source):
+    """Refuse to execute a collector from a revision different from its saved plan."""
+    plan = read_json_file(source, "deployment plan")
+    if not isinstance(plan, dict) or plan.get("sourceCommit") != source_commit:
+        raise ValueError("The deployment plan and configuration pin different source commits; use the original release configuration.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "update", "deploy", "verify"))
+    parser.add_argument("mode", choices=("network", "setup", "update", "deploy", "verify", "artifact", "artifact-plan"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
@@ -464,6 +495,8 @@ def main():
             setup(args.app, args.source_commit, Path("/out"))
         elif args.mode == "update":
             update_source(args.app, args.source_commit, Path("/run/release.json"), Path("/out"))
+        elif args.mode == "artifact-plan":
+            check_artifact_plan_source(args.source_commit, Path("/run/release.json"))
         else:
             unpack(args.app, args.source_commit, args.mode, Path("/run/release.json"), Path("/out"))
     except SourceCommitMismatch as error:

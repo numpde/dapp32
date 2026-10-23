@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from .text.test_rendered_compose_posture import makefile_compose_unit
 
 from .common import compose_mapping, compose_service, rendered_compose_config
 from .release_posture import (
@@ -14,7 +15,7 @@ from .release_posture import (
 
 class PayToPlayReleasePostureTest(unittest.TestCase):
     def test_payments_use_shared_deployment_authority_boundaries(self) -> None:
-        config = rendered_compose_config(("compose/release/deploy.yml", "compose/pay-to-play/release/deploy.yml", "compose/release/reference.yml", "compose/release/approval.yml"))
+        config = rendered_compose_config(makefile_compose_unit("PAY_TO_PLAY_RELEASE_APPROVAL_COMPOSE_FILES"))
         services = compose_mapping(config, "services")
         assert_deployment_authority_split(self, config, planner_name="release-plan", signer_name="deploy-release",
             materializer_name="release-artifact", signing_proxy_name="release-rpc-proxy", materializer_proxy_name="release-artifact-rpc-proxy")

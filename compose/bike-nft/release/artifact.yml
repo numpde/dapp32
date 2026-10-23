@@ -1,0 +1,9 @@
+# App-specific inputs to the shared read-only artifact runtime.
+services:
+  release-artifact:
+    environment:
+      RELEASE_TOOL_DIR: tools/bike-nft-release
+      BIKE_NFT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      BIKE_NFT_RELEASE_BROADCAST_DIR: /release-broadcast
+      BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /release-artifact/deployment.json
+      BIKE_NFT_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080

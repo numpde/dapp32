@@ -1,0 +1,81 @@
+# Read-only chain observation and exclusive artifact publication, shared by deploy and completion.
+x-plan-read: &plan_read
+  type: bind
+  source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+  target: /release-plan
+  read_only: true
+  bind: {create_host_path: false}
+x-broadcast-read: &broadcast_read
+  type: bind
+  source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/broadcast"
+  target: /release-broadcast
+  read_only: true
+  bind: {create_host_path: false}
+x-artifact-write: &artifact_write
+  type: bind
+  source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/artifact"
+  target: /release-artifact
+  bind: {create_host_path: false}
+x-rpc-url-bind: &rpc_url_bind
+  type: bind
+  source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+  target: /run/inputs/rpc_url
+  read_only: true
+  bind: {create_host_path: false}
+
+services:
+  release-artifact-rpc-proxy:
+    extends:
+      file: ../fragments/release-rpc-proxy.yml
+      service: release-rpc-proxy-base
+    environment:
+      RPC_UPSTREAM_FILE: /run/inputs/rpc_url
+      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getTransactionReceipt eth_getTransactionByHash eth_getCode eth_call
+    volumes:
+      - *rpc_url_bind
+    networks:
+      release_artifact_internal:
+        aliases:
+          - release-artifact-rpc-proxy
+      release_artifact_egress: {}
+
+  release-artifact:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    depends_on:
+      release-artifact-rpc-proxy:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js"
+        target: /input/js
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules"
+        target: /work/js/node_modules
+        read_only: true
+        bind: {create_host_path: false}
+      - *plan_read
+      - *broadcast_read
+      - *artifact_write
+    networks:
+      - release_artifact_internal
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:packages
+        ./node_modules/.bin/tsc -p "$${RELEASE_TOOL_DIR}/tsconfig.json"
+        node --experimental-strip-types "$${RELEASE_TOOL_DIR}/artifact.ts"
+
+networks:
+  release_artifact_internal:
+    internal: true
+  release_artifact_egress: {}

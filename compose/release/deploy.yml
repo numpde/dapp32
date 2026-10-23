@@ -15,68 +15,6 @@ x-broadcast-write: &broadcast_write
   target: /release-broadcast
   bind:
     create_host_path: false
-x-broadcast-read: &broadcast_read
-  <<: *broadcast_write
-  read_only: true
-x-artifact-write: &artifact_write
-  type: bind
-  source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/artifact"
-  target: /release-artifact
-  bind:
-    create_host_path: false
-
-x-rpc-url-bind: &rpc_url_bind
-  type: bind
-  source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
-  target: /run/inputs/rpc_url
-  read_only: true
-  bind:
-    create_host_path: false
-
-x-rpc-proxy-base: &rpc_proxy_base
-  build:
-    context: ../../containers/rpc-proxy
-    dockerfile: Dockerfile
-  init: true
-  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-  read_only: true
-  security_opt:
-    - no-new-privileges:true
-  cap_drop:
-    - ALL
-  pids_limit: 64
-  mem_limit: 256m
-  logging:
-    driver: local
-    options:
-      max-size: 64k
-      max-file: "1"
-      compress: "false"
-  environment:
-    RPC_PROXY_HOST: 0.0.0.0
-    RPC_PROXY_PORT: "8080"
-    RPC_UPSTREAM_FILE: /run/secrets/rpc_url
-    RPC_PROXY_MAX_REQUEST_BYTES: "16777216"
-    RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
-    RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
-    RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
-    RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "25"
-    RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "40"
-    RPC_PROXY_MAX_CONCURRENT_REQUESTS: "2"
-    RPC_PROXY_MAX_QUEUED_REQUESTS: "32"
-    RPC_PROXY_MAX_BATCH_ITEMS: "100"
-  tmpfs:
-    - /tmp:rw,nosuid,nodev,noexec,size=16m
-  healthcheck:
-    test:
-      - CMD
-      - python3
-      - -c
-      - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
-    interval: 2s
-    timeout: 2s
-    retries: 10
-
 services:
   release-plan:
     environment:
@@ -110,23 +48,13 @@ services:
         node --experimental-strip-types "$${RELEASE_TOOL_DIR}/plan.ts"
 
   release-rpc-proxy:
-    <<: *rpc_proxy_base
+    extends:
+      file: ../fragments/release-rpc-proxy.yml
+      service: release-rpc-proxy-base
     depends_on:
       release-plan:
         condition: service_completed_successfully
     environment:
-      RPC_PROXY_HOST: 0.0.0.0
-      RPC_PROXY_PORT: "8080"
-      RPC_UPSTREAM_FILE: /run/secrets/rpc_url
-      RPC_PROXY_MAX_REQUEST_BYTES: "16777216"
-      RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
-      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
-      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
-      RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "25"
-      RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "40"
-      RPC_PROXY_MAX_CONCURRENT_REQUESTS: "2"
-      RPC_PROXY_MAX_QUEUED_REQUESTS: "32"
-      RPC_PROXY_MAX_BATCH_ITEMS: "100"
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBlockByHash
         eth_getBalance eth_getTransactionCount eth_getStorageAt eth_getProof
@@ -197,61 +125,15 @@ services:
           --broadcast --slow \
           -vvv
 
-  release-artifact-rpc-proxy:
-    <<: *rpc_proxy_base
-    depends_on:
-      release-plan:
-        condition: service_completed_successfully
-    environment:
-      RPC_PROXY_HOST: 0.0.0.0
-      RPC_PROXY_PORT: "8080"
-      RPC_UPSTREAM_FILE: /run/inputs/rpc_url
-      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
-      RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
-      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
-      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
-      RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "25"
-      RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "40"
-      RPC_PROXY_MAX_CONCURRENT_REQUESTS: "2"
-      RPC_PROXY_MAX_QUEUED_REQUESTS: "32"
-      RPC_PROXY_MAX_BATCH_ITEMS: "100"
-      RPC_ALLOWED_METHODS: >-
-        eth_chainId eth_blockNumber eth_getTransactionReceipt eth_getTransactionByHash eth_getCode eth_call
-    volumes:
-      - *rpc_url_bind
-    networks:
-      release_artifact_internal:
-        aliases:
-          - release-artifact-rpc-proxy
-      release_artifact_egress: {}
 
   release-artifact:
-    extends:
-      file: ../fragments/node-workspace.yml
-      service: hardened-node-workspace
-    working_dir: /work
     depends_on:
       deploy-release:
         condition: service_completed_successfully
-      release-artifact-rpc-proxy:
-        condition: service_healthy
-    volumes:
-      - ../../js:/input/js:ro
-      - ../../js/node_modules:/work/js/node_modules:ro
-      - *plan_read
-      - *broadcast_read
-      - *artifact_write
-    networks:
-      - release_artifact_internal
-    command:
-      - "run-js-workspace"
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        npm run build:workspace
-        ./node_modules/.bin/tsc -p "$${RELEASE_TOOL_DIR}/tsconfig.json"
-        node --experimental-strip-types "$${RELEASE_TOOL_DIR}/artifact.ts"
+  release-artifact-rpc-proxy:
+    depends_on:
+      release-plan:
+        condition: service_completed_successfully
 
 secrets:
   rpc_url:
@@ -263,6 +145,3 @@ networks:
   release_deploy_internal:
     internal: true
   release_deploy_egress: {}
-  release_artifact_internal:
-    internal: true
-  release_artifact_egress: {}

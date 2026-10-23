@@ -54,10 +54,3 @@ services:
       BIKE_NFT_RELEASE_MANAGER_PAUSER: "${BIKE_NFT_RELEASE_MANAGER_PAUSER:?missing_BIKE_NFT_RELEASE_MANAGER_PAUSER}"
       BIKE_NFT_RELEASE_MANAGER_CONFIGURER: "${BIKE_NFT_RELEASE_MANAGER_CONFIGURER:?missing_BIKE_NFT_RELEASE_MANAGER_CONFIGURER}"
       BIKE_NFT_RELEASE_REGISTRARS: "${BIKE_NFT_RELEASE_REGISTRARS:?missing_BIKE_NFT_RELEASE_REGISTRARS}"
-  release-artifact:
-    environment:
-      RELEASE_TOOL_DIR: tools/bike-nft-release
-      BIKE_NFT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
-      BIKE_NFT_RELEASE_BROADCAST_DIR: /release-broadcast
-      BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /release-artifact/deployment.json
-      BIKE_NFT_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
