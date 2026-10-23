@@ -10,7 +10,7 @@ release_approval_require_terminal() {
 release_approval_require_image() {
   local actual digest
   if [ "${RELEASE_APPROVAL_IMAGE+x}" != x ]; then
-    printf '%s\n' 'Review the approval image provenance separately, then set RELEASE_APPROVAL_IMAGE to its exact local sha256 image ID.' >&2
+    printf '%s\n' 'Select an existing approval-tool image by its exact local sha256 image ID.' >&2
     return 2
   fi
   case "$RELEASE_APPROVAL_IMAGE" in
@@ -18,11 +18,11 @@ release_approval_require_image() {
     *) digest="" ;;
   esac
   if [ "${#digest}" -ne 64 ] || [ -n "$(printf '%s' "$digest" | tr -d '0-9a-f')" ]; then
-    printf '%s\n' 'Review the approval image provenance separately, then set RELEASE_APPROVAL_IMAGE to its exact local sha256 image ID.' >&2
+    printf '%s\n' 'Select an existing approval-tool image by its exact local sha256 image ID.' >&2
     return 2
   fi
   if ! actual="$(docker image inspect --format '{{.Id}}' "$RELEASE_APPROVAL_IMAGE")"; then
-    printf '%s\n' 'The selected release approval image is not present locally; obtain and review it before deployment.' >&2
+    printf '%s\n' 'The selected release approval image is not present locally; install that exact image before deployment.' >&2
     return 2
   fi
   if [ "$actual" != "$RELEASE_APPROVAL_IMAGE" ]; then

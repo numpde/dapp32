@@ -19,6 +19,8 @@ FIXTURE_KEY = "0x" + "11" * 32
 FIXTURE_ADDRESS = "0x" + "22" * 20
 FIXTURE_DEPLOYER_ADDRESS = "0x" + "ab" * 20
 FIXTURE_RPC = "https://rpc.example.test/private-fixture-credential"
+APPROVAL_IMAGE = "sha256:" + "aa" * 32
+APPROVAL_SOURCE = "b" * 40
 
 
 def configuration(app):
@@ -33,7 +35,8 @@ def configuration(app):
     settings = {name: values[kind] for name, _, kind in release_config.fields(app)}
     settings["EXPECTED_DEPLOYER_ADDRESS"] = FIXTURE_DEPLOYER_ADDRESS
     return {
-        "schemaVersion": 2, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
+        "schemaVersion": 3, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
+        "approvalImageId": APPROVAL_IMAGE,
         "deployerPrivateKey": FIXTURE_KEY, "confirmDeploy": True,
         "settings": settings,
     }
@@ -44,6 +47,44 @@ class ReleaseConfigTest(unittest.TestCase):
         self.setup_environment = patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": "/tmp/fixture-release.json"})
         self.setup_environment.start()
         self.addCleanup(self.setup_environment.stop)
+        self.image_choice = patch.object(release_config, "ask_approval_image", return_value=APPROVAL_IMAGE, create=True)
+        self.image_choice.start()
+        self.addCleanup(self.image_choice.stop)
+
+    def test_setup_selects_a_checked_image_and_deploy_unpack_uses_the_saved_id_for_every_app(self):
+        self.image_choice.stop()
+        other_image = "sha256:" + "cc" * 32
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / "approval-images").write_text(f"{other_image}\t{'d' * 40}\n{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+                expected = configuration(app)
+                answers = ["2", "public", *expected["settings"].values(), "save"]
+                transcript = io.StringIO()
+                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
+                    release_config.setup(app, COMMIT, root)
+                saved = root / "release.json"
+                self.assertEqual(expected, json.loads(saved.read_text()))
+                self.assertIn(APPROVAL_IMAGE, transcript.getvalue())
+                self.assertIn(APPROVAL_SOURCE, transcript.getvalue())
+                output = root / "unpacked"
+                output.mkdir()
+                with patch.dict(release_config.os.environ, {"RELEASE_APPROVAL_IMAGE": other_image}):
+                    release_config.unpack(app, COMMIT, "deploy", saved, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                self.assertEqual(APPROVAL_IMAGE, inputs["RELEASE_APPROVAL_IMAGE"])
+
+    def test_approval_record_parser_reports_invalid_record_and_keeps_valid_provenance(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "approval-image-0.json").write_text(json.dumps({"imageId": APPROVAL_IMAGE, "approvalToolSourceCommit": APPROVAL_SOURCE, "packageLockSha256": "c" * 64, "dockerfileSha256": "d" * 64}))
+            (root / "approval-image-1.json").write_text('{"imageId":"private-fixture-record-content"}')
+            output, errors = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                release_config.approval_records(root)
+            self.assertEqual(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n", output.getvalue())
+            self.assertIn("approval-image-1.json", errors.getvalue())
+            self.assertNotIn("private-fixture-record-content", errors.getvalue())
 
     def test_authority_help_at_address_choices_and_review_preserves_each_apps_settings(self):
         heading = "Changing addresses after deployment:"

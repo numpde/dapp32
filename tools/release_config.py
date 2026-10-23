@@ -44,7 +44,7 @@ APP_FIELDS = {
 OUTPUT_FIELD = ("OUTPUT_DIR", "New deployment output directory (absolute, outside this checkout; parent must exist)", "path")
 KEY_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 MAX_CONFIG_BYTES = 65536
-CONFIG_VERSION = 2
+CONFIG_VERSION = 3
 # Public repeated-pattern key, pre-funded by the local network's genesis.
 # This preset is a test fixture, never an operator credential.
 LOCAL_DEPLOYER_KEY = "0x" + "ba" * 32
@@ -102,6 +102,9 @@ def check_value(value, kind, *, local_cam_uri=None):
     elif kind == "cam-hash":
         if value != "auto" and not re.fullmatch(r"0x[0-9a-fA-F]{64}", value):
             raise ValueError("Enter auto or 0x followed by 64 hexadecimal digits.")
+    elif kind == "approval-image":
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", value):
+            raise ValueError("The approval image must be an exact lowercase sha256 image ID.")
     elif kind == "network":
         if value not in ("public", "local"):
             raise ValueError("Choose public or local.")
@@ -123,7 +126,7 @@ def unique_fields(pairs):
 def validate(config, app, source_commit):
     if not isinstance(config, dict) or type(config.get("schemaVersion")) is not int or config["schemaVersion"] != CONFIG_VERSION:
         raise ValueError("The saved release configuration has an unsupported version; run the release setup again.")
-    expected = {"schemaVersion", "app", "sourceCommit", "rpcUrl", "deployerPrivateKey", "settings", "confirmDeploy"}
+    expected = {"schemaVersion", "app", "sourceCommit", "rpcUrl", "deployerPrivateKey", "settings", "confirmDeploy", "approvalImageId"}
     if isinstance(config, dict) and "localNetwork" in config:
         expected.add("localNetwork")
     if config.keys() != expected:
@@ -134,6 +137,7 @@ def validate(config, app, source_commit):
         raise ValueError("The configuration pins a different source commit; use that commit or run the walkthrough again.")
     if config["confirmDeploy"] is not True:
         raise ValueError("The configuration has no saved deployment confirmation; finish the walkthrough.")
+    check_value(config["approvalImageId"], "approval-image")
     check_value(config["deployerPrivateKey"], "key")
     settings = config["settings"]
     names = {name for name, _, _ in fields(app)}
@@ -177,6 +181,51 @@ def ask(label, kind, previous, *, secret, local_cam_uri=None):
             return check_value(value, kind, local_cam_uri=local_cam_uri)
         except ValueError as error:
             print(error, file=sys.stderr)
+
+
+def approval_records(output):
+    expected = {"imageId", "approvalToolSourceCommit", "packageLockSha256", "dockerfileSha256"}
+    for path in sorted(output.glob("approval-image-*.json")):
+        try:
+            if path.is_symlink():
+                raise ValueError("record must be a regular file")
+            with path.open("rb") as source:
+                raw = source.read(4097)
+            if len(raw) > 4096:
+                raise ValueError("record exceeds 4096 bytes")
+            record = json.loads(raw, object_pairs_hook=unique_fields)
+            if not isinstance(record, dict) or record.keys() != expected:
+                raise ValueError("record must contain imageId, approvalToolSourceCommit, packageLockSha256 and dockerfileSha256")
+            check_value(record["imageId"], "approval-image")
+            for name, length in (("approvalToolSourceCommit", 40), ("packageLockSha256", 64), ("dockerfileSha256", 64)):
+                if not isinstance(record[name], str) or not re.fullmatch(f"[0-9a-f]{{{length}}}", record[name]):
+                    raise ValueError(f"{name} must contain {length} lowercase hexadecimal digits")
+            print(f"{record['imageId']}\t{record['approvalToolSourceCommit']}")
+        except (OSError, ValueError, RecursionError):
+            print(f"Skipping {path.name}: malformed or unreadable approval-image record.", file=sys.stderr)
+
+
+def ask_approval_image(output):
+    with (output / "approval-images").open("rb") as source:
+        raw = source.read(MAX_CONFIG_BYTES + 1)
+    if len(raw) > MAX_CONFIG_BYTES:
+        raise ValueError("Checked approval-image choices exceed 65536 bytes.")
+    choices = {}
+    print("Select a saved approval-tool build:")
+    for index, line in enumerate(raw.decode("ascii").splitlines(), 1):
+        parts = line.split("\t")
+        if len(parts) != 2 or not re.fullmatch(r"[0-9a-f]{40}", parts[1]):
+            raise ValueError("Checked approval-image choices must contain an image ID and tool source commit.")
+        image = check_value(parts[0], "approval-image")
+        choices[str(index)] = image
+        print(f"{index}: {image}  tool source: {parts[1]}")
+    if not choices:
+        raise ValueError("No checked local approval images are available; provide an existing reviewed approval-image record.")
+    while True:
+        selected = input("Approval image number: ").strip()
+        if selected in choices:
+            return choices[selected]
+        print("Choose one of the listed approval image numbers.", file=sys.stderr)
 
 
 def ask_collection_uri(label, token_name, previous):
@@ -253,10 +302,11 @@ def setup(app, source_commit, output):
         raise ValueError("Release setup requires the original host configuration path in RELEASE_CONFIG_FILE; run it through make <app>/release/setup.")
     host_config_file = check_value(os.environ["RELEASE_CONFIG_FILE"], "path")
     print(f"Release setup: {app}, source {source_commit}")
+    approval_image = ask_approval_image(output)
     network = ask("Target network [public/local]", "network", "", secret=False)
     print("Enter the actual deployment values. RPC URL and signing key are stored in the protected configuration.")
     print("Saving records approval to deploy these settings later. Setup itself sends no transactions.")
-    config = {"schemaVersion": CONFIG_VERSION, "app": app, "sourceCommit": source_commit, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in fields(app)}, "confirmDeploy": True}
+    config = {"schemaVersion": CONFIG_VERSION, "app": app, "sourceCommit": source_commit, "approvalImageId": approval_image, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in fields(app)}, "confirmDeploy": True}
     config["settings"]["CAM_HASH"] = "auto"
     local_cam_uri = None
     if network == "local":
@@ -296,6 +346,7 @@ def setup(app, source_commit, output):
                 config["settings"][name] = ask(label, kind, previous, secret=False, local_cam_uri=local_cam_uri)
         validate(config, app, source_commit)
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
+        print(f"Approval image: {config['approvalImageId']}")
         for name, value in config["settings"].items():
             print(f"{name}: {value}")
         print_authority_help(app)
@@ -325,6 +376,7 @@ def unpack(app, source_commit, mode, source, output):
         settings = {f"{prefix}_DEPLOYMENT_ARTIFACT_FILE": config["settings"]["OUTPUT_DIR"] + "/artifact/deployment.json"}
     else:
         settings = {f"{prefix}_RELEASE_CAM_HASH": "auto"}
+        settings["RELEASE_APPROVAL_IMAGE"] = config["approvalImageId"]
         settings.update({f"{prefix}_RELEASE_{name}": value for name, value in config["settings"].items()})
         settings[f"CONFIRM_{prefix}_RELEASE_DEPLOY"] = "YES"
     if "localNetwork" in config:
@@ -341,14 +393,16 @@ def unpack(app, source_commit, mode, source, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("setup", "deploy", "verify"))
+    parser.add_argument("mode", choices=("setup", "deploy", "verify", "approval-records"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
     try:
         if not re.fullmatch(r"[0-9a-f]{40}", args.source_commit):
             raise ValueError("Release setup requires one exact 40-character source commit.")
-        if args.mode == "setup":
+        if args.mode == "approval-records":
+            approval_records(Path("/out"))
+        elif args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))
         else:
             unpack(args.app, args.source_commit, args.mode, Path("/run/release.json"), Path("/out"))

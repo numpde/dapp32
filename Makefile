@@ -679,7 +679,9 @@ help:
 	  '    Keep that directory: verification reads its artifact/deployment.json. Do not create it beforehand.' \
 	  '    CONFIG must be new, outside the checkout, with an existing parent and no symlink path components.' \
 	  '    Saves the concrete RPC URL, deployer key, source commit, app settings and deployment confirmation; mode 0600.' \
-	  '    Review the approval image provenance separately. Deploy from a terminal with CONFIG and RELEASE_APPROVAL_IMAGE=sha256:<local image ID>.' \
+	  '    Select an approval-image build record during setup; its exact installed image ID is saved in CONFIG.' \
+	  '    Discovery checks the selected folder and immediate build subfolders only; it does not scan your home or build images.' \
+	  '    Deploy from a terminal with CONFIG. A missing saved approval image stops deployment; no image is substituted.' \
 	  '  make release/approval/image/build SOURCE_COMMIT=<reviewed tool commit> RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<new directory>' \
 	  '    Build the approval tool image from that committed source and fresh locked dependencies.' \
 	  '    Two-minute deadline; allows up to 90 additional seconds for cleanup before forced termination.' \
@@ -1633,12 +1635,14 @@ validate_new_release_output "$${CONFIG:?Set CONFIG to a new absolute off-repo fi
 source_commit="$$(git rev-parse HEAD)"; \
 release_config_stage "$$(dirname -- "$$CONFIG")"; \
 $(release_config_compose); \
+release_config_prepare_approval_images "$$app" "$$source_commit"; \
 compose_release_config run --rm --no-deps release-setup setup "$$app" "$$source_commit"; \
 release_config_input="$$release_config_dir/release.json"; \
 require_release_config "$$release_config_input"; \
 compose_release_config run --rm --no-deps -T release-config deploy "$$app" "$$source_commit"; \
 mapfile -d '' -t inputs < "$$release_config_dir/inputs"; \
 export "$${inputs[@]}"; \
+release_approval_require_image; \
 if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then require_release_local_network; fi; \
 prefix="$${app^^}"; prefix="$${prefix//-/_}"; output_name="$${prefix}_RELEASE_OUTPUT_DIR"; \
 validate_new_release_output "$${!output_name}" "$$output_name"; \
@@ -1647,8 +1651,8 @@ ln -T -- "$$release_config_input" "$$CONFIG"; \
 printf 'Saved release configuration: %s\nNo transactions were sent.\n' "$$CONFIG"; \
 printf 'Run the next commands from a checkout at saved source commit %s.\n' "$$source_commit"; \
 printf '%s\n' 'If the checkout has changed, rerun setup with a new CONFIG path.'; \
-printf '%s\n' 'Before deployment, review and admit the approval tool image, then set RELEASE_APPROVAL_IMAGE to its reviewed local sha256 image ID.'; \
-printf '  make %s/release/deploy CONFIG=%q RELEASE_APPROVAL_IMAGE="$$RELEASE_APPROVAL_IMAGE"\n' "$$app" "$$CONFIG"; \
+printf 'Approval image selected in CONFIG: %s\n' "$$RELEASE_APPROVAL_IMAGE"; \
+printf '  make %s/release/deploy CONFIG=%q\n' "$$app" "$$CONFIG"; \
 printf '%s\n' 'Deployment starts required handovers but does not finish them; selecting the deployer as owner/admin skips that handover.'; \
 if [[ "$$app" == bike-nft ]]; then \
   printf '%s\n' 'After deployment, each nominated CAM owner must submit a separate ownership acceptance transaction; each nominated collection/manager admin must submit a separate admin acceptance transaction after the delay from nomination.'; \

@@ -505,11 +505,13 @@ require_release_config() { [[ -f "$1" ]]; }
 release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
 '''
                     composition = '''
+release_config_prepare_approval_images() { :; }
+release_approval_require_image() { [[ "$RELEASE_APPROVAL_IMAGE" == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ]]; }
 compose_release_config() {
   if [[ " $* " == *" release-setup "* ]]; then
     printf '{}' > "$release_config_dir/release.json"
   else
-    printf 'RELEASE_REHEARSAL=0\\0%s_RELEASE_OUTPUT_DIR=%s/deployment\\0' "$PREFIX" "$CASE_ROOT" > "$release_config_dir/inputs"
+    printf 'RELEASE_REHEARSAL=0\\0RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\0%s_RELEASE_OUTPUT_DIR=%s/deployment\\0' "$PREFIX" "$CASE_ROOT" > "$release_config_dir/inputs"
   fi
 }
 '''
@@ -535,14 +537,14 @@ compose_release_config() {
                     self.assertIn("No transactions", stdout)
                     self.assertIn("source commit", stdout)
                     self.assertIn("make " + app + "/release/deploy", stdout)
-                    self.assertIn('RELEASE_APPROVAL_IMAGE="$RELEASE_APPROVAL_IMAGE"', stdout)
+                    self.assertNotIn('RELEASE_APPROVAL_IMAGE=', stdout)
                     self.assertIn("make " + app + "/release/verify", stdout)
                     self.assertNotIn(env["RELEASE_APPROVAL_IMAGE"], stdout)
                     if app == "pay-to-play":
                         self.assertIn("payment admin", stdout)
                     commands = [shlex.split(line) for line in stdout.splitlines() if line.startswith("  make ")]
                     self.assertEqual([
-                        ["make", f"{app}/release/deploy", f"CONFIG={env['CONFIG']}", "RELEASE_APPROVAL_IMAGE=$RELEASE_APPROVAL_IMAGE"],
+                        ["make", f"{app}/release/deploy", f"CONFIG={env['CONFIG']}"],
                         ["make", f"{app}/release/verify", f"CONFIG={env['CONFIG']}"],
                     ], commands)
 
