@@ -91,6 +91,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
         gate, foreign_gate, foreign_signer = "b" * 64, "c" * 64, "d" * 64
         signer = "9" * 64
         started = finished = False
+        transcript = None
         deployer, source = "0x" + "1" * 40, "2" * 40
         prefix = app.upper().replace("-", "_")
         with tempfile.TemporaryDirectory() as directory:
@@ -107,6 +108,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
 
             @contextmanager
             def terminal(path, selected_app):
+                nonlocal transcript
                 self.assertEqual(app, selected_app)
                 output = root / "deployment"
                 (output / "broadcast").mkdir(parents=True)
@@ -149,11 +151,21 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
 
             def write(_descriptor, wire):
                 nonlocal started
-                if wire == b"start\n":
+                if wire == b"\n":
+                    self.assertFalse(started)
+                elif wire == b"start\n":
+                    self.assertEqual(2, transcript.identity_lines.count(self.rehearsal.PROMPT))
                     started = True
                 else:
                     self.assertEqual(b"reject fixture-challenge\n", wire)
                 return len(wire)
+
+            def read(_master, _process, observed, predicate, _deadline, explanation):
+                if "blank Enter" in explanation:
+                    self.assertFalse(started)
+                    self.assertFalse(predicate(), "The driver must wait for the terminal to repeat its prompt")
+                    observed.extend((self.rehearsal.PROMPT + "\n").encode())
+                    self.assertTrue(predicate())
 
             def exited(*_args):
                 nonlocal finished
@@ -163,7 +175,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
                 self.rehearsal, "release_terminal", side_effect=terminal,
             ), mock.patch.object(self.rehearsal, "fixture_nonce", return_value=0), mock.patch.object(
-                self.rehearsal, "read_until",
+                self.rehearsal, "read_until", side_effect=read,
             ), mock.patch.object(self.rehearsal, "docker", side_effect=docker), mock.patch.object(
                 self.rehearsal, "approval_socket_source", return_value=root / "absent.sock",
             ), mock.patch.object(
@@ -181,6 +193,8 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     return
                 self.rehearsal.main(app, "reject")
                 backend.assert_called_once_with(gate)
+                self.assertEqual([b"\n", b"start\n", b"reject fixture-challenge\n"],
+                                 [call.args[1] for call in commands.call_args_list])
             facts = json.loads((root / "approval-diagnostics.json").read_text())
             self.assertEqual("passed", facts["result"])
             self.assertTrue((root / "deployment/broadcast/run-latest.json").is_file())

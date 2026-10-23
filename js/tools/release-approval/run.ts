@@ -29,10 +29,25 @@ export interface RuntimeSettings {
 
 type RuntimeIO = { input: OperatorInput; output: OperatorOutput; signal?: AbortSignal }
 
+// Only fixed, locally owned explanations may cross the CLI diagnostic boundary.
+class ApprovalStartupError extends Error {}
+
+function startupDiagnostic(error: unknown): string {
+  if (error instanceof ApprovalStartupError) return error.message
+  const facts: string[] = []
+  if (error !== null && typeof error === "object") {
+    for (const field of ["code", "syscall"] as const) {
+      const value = (error as NodeJS.ErrnoException)[field]
+      if (typeof value === "string" && /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(value)) facts.push(`${field}=${value}`)
+    }
+  }
+  return `Unexpected error${facts.length ? ` (${facts.join(", ")})` : ""}`
+}
+
 function waitForOperatorStart(reference: ReferenceSnapshot, io: RuntimeIO): Promise<void> {
-  if (io.signal?.aborted) return Promise.reject(new Error("Operator start was interrupted"))
+  if (io.signal?.aborted) return Promise.reject(new ApprovalStartupError("Operator start was interrupted"))
   if (io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
-    return Promise.reject(new Error("Operator terminal detached before start"))
+    return Promise.reject(new ApprovalStartupError("Operator terminal detached before start"))
   }
   return new Promise<void>((resolve, reject) => {
     let command = ""
@@ -53,7 +68,7 @@ function waitForOperatorStart(reference: ReferenceSnapshot, io: RuntimeIO): Prom
       if (settled) return
       settled = true
       clean()
-      reject(new Error(message))
+      reject(new ApprovalStartupError(message))
     }
     const onDetach = () => fail("Operator terminal detached before start")
     const onAbort = () => fail("Operator start was interrupted")
@@ -69,6 +84,11 @@ function waitForOperatorStart(reference: ReferenceSnapshot, io: RuntimeIO): Prom
       if (Buffer.byteLength(command) + bytes.byteLength > 32) { fail("Operator start command exceeds 32 bytes"); return }
       command += bytes.toString("utf8")
       if (!command.includes("\n")) return
+      if (command === "\n" || command === "\r\n") {
+        command = ""
+        if (!promptPending) writePrompt()
+        return
+      }
       if (command !== "start\n" && command !== "start\r\n") { fail("Operator start requires one exact start command without extra input"); return }
       commandAccepted = true
       maybeStart()
@@ -91,32 +111,36 @@ function waitForOperatorStart(reference: ReferenceSnapshot, io: RuntimeIO): Prom
       "Type start and press Enter to open the approval socket.",
       "",
     ].join("\n")
-    try { if (io.output.write(prompt)) { promptPending = false; maybeStart() } }
-    catch { fail("Operator terminal output failed before start") }
+    function writePrompt(): void {
+      promptPending = true
+      try { if (io.output.write(prompt)) { promptPending = false; maybeStart() } }
+      catch { fail("Operator terminal output failed before start") }
+    }
+    writePrompt()
     if (io.signal?.aborted) onAbort()
   })
 }
 
 function envValue(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]
-  if (value === undefined || value.length === 0) throw new Error(`Approval requires ${name}`)
+  if (value === undefined || value.length === 0) throw new ApprovalStartupError(`Approval requires ${name}`)
   return value
 }
 
 function digest(value: string, name: string): Hex {
-  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) throw new Error(`${name} must be 32 hex bytes`)
+  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) throw new ApprovalStartupError(`${name} must be 32 hex bytes`)
   return value.toLowerCase() as Hex
 }
 
 export function settingsFromEnv(env: NodeJS.ProcessEnv): RuntimeSettings {
   const app = envValue(env, "RELEASE_APPROVAL_APP")
-  if (app !== "escrow" && app !== "bike-nft" && app !== "pay-to-play") throw new Error("Approval app must name an existing release")
+  if (app !== "escrow" && app !== "bike-nft" && app !== "pay-to-play") throw new ApprovalStartupError("Approval app must name an existing release")
   const sourceCommit = envValue(env, "RELEASE_APPROVAL_SOURCE_COMMIT")
-  if (!/^[0-9a-f]{40}$/.test(sourceCommit)) throw new Error("Approval source commit must be a full lowercase Git commit")
+  if (!/^[0-9a-f]{40}$/.test(sourceCommit)) throw new ApprovalStartupError("Approval source commit must be a full lowercase Git commit")
   const chainText = envValue(env, "RELEASE_APPROVAL_CHAIN_ID")
-  if (!/^[1-9][0-9]*$/.test(chainText)) throw new Error("Approval chain ID must be a positive decimal integer")
+  if (!/^[1-9][0-9]*$/.test(chainText)) throw new ApprovalStartupError("Approval chain ID must be a positive decimal integer")
   const chainId = Number(chainText)
-  if (!Number.isSafeInteger(chainId) || chainId < 1) throw new Error("Approval chain ID must be a positive safe integer")
+  if (!Number.isSafeInteger(chainId) || chainId < 1) throw new ApprovalStartupError("Approval chain ID must be a positive safe integer")
   const deployer = getAddress(envValue(env, "RELEASE_APPROVAL_DEPLOYER"))
   return {
     referencePath: envValue(env, "RELEASE_APPROVAL_REFERENCE_PATH"),
@@ -136,7 +160,7 @@ export function assertReferenceIdentity(reference: ReferenceSnapshot, selected: 
       reference.planSha256.toLowerCase() !== selected.planSha256.toLowerCase() ||
       reference.app !== selected.app || reference.expectedChainId !== selected.chainId ||
       getAddress(reference.expectedDeployer) !== getAddress(selected.deployer)) {
-    throw new Error("Selected ceremony identity differs from release approval reference")
+    throw new ApprovalStartupError("Selected ceremony identity differs from release approval reference")
   }
 }
 
@@ -174,11 +198,11 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
   finished: Promise<string>
 }> {
   if (!isAbsolute(settings.referencePath) || !isAbsolute(settings.socketPath) || !isAbsolute(settings.auditDir)) {
-    throw new Error("Approval reference, socket and audit paths must be absolute")
+    throw new ApprovalStartupError("Approval reference, socket and audit paths must be absolute")
   }
   const reference = parseReferenceSnapshot(await readBoundedRegularFile(settings.referencePath, "release approval reference", 1024 * 1024))
   assertReferenceIdentity(reference, settings)
-  if (io.input.isTTY !== true || io.output.isTTY !== true) throw new Error("Approval requires an attached operator TTY")
+  if (io.input.isTTY !== true || io.output.isTTY !== true) throw new ApprovalStartupError("Approval requires an attached operator TTY")
   let detached = false
   const markDetached = () => { detached = true }
   const stopWatchingHandoff = () => {
@@ -195,9 +219,9 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
   io.output.on("error", markDetached)
   try {
     await waitForOperatorStart(reference, io)
-    if (io.signal?.aborted) throw new Error("Operator start was interrupted")
+    if (io.signal?.aborted) throw new ApprovalStartupError("Operator start was interrupted")
     if (detached || io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
-      throw new Error("Operator terminal detached before approval startup")
+      throw new ApprovalStartupError("Operator terminal detached before approval startup")
     }
   } catch (error) {
     stopWatchingHandoff()
@@ -306,14 +330,14 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
         if (startupComplete) void close(reason).catch(() => { process.exitCode = 1 })
       },
     })
-    if (io.signal?.aborted) throw new Error("Approval startup was interrupted")
+    if (io.signal?.aborted) throw new ApprovalStartupError("Approval startup was interrupted")
     if (detached || io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
-      throw new Error("Operator terminal detached during approval startup")
+      throw new ApprovalStartupError("Operator terminal detached during approval startup")
     }
     // The owner also closes on terminal loss or inspection failure. Only the
     // listener callback may classify a startup failure as an IPC failure.
-    if (listenerFailure !== null) throw new Error("Approval IPC listener failed during startup")
-    if (fatalReason !== null) throw new Error("Approval ceremony closed during startup")
+    if (listenerFailure !== null) throw new ApprovalStartupError("Approval IPC listener failed during startup")
+    if (fatalReason !== null) throw new ApprovalStartupError("Approval ceremony closed during startup")
     timer = setInterval(() => {
       try {
         terminal.poll()
@@ -360,7 +384,7 @@ async function main(): Promise<void> {
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch(error => {
-    process.stderr.write(`Approval startup failed (${error instanceof Error ? error.name : "UnknownError"})\n`)
+    process.stderr.write(`Approval startup failed: ${startupDiagnostic(error)}\n`)
     process.exitCode = 1
   })
 }

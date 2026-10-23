@@ -801,7 +801,18 @@ def main(app: str, scenario: str) -> None:
             raise RuntimeError("Approval socket existed before the operator entered start")
         if containers("deploy-release", project):
             raise RuntimeError("Forge container existed before the operator entered start")
-        progress("Identity verified; checking the backend, then entering start automatically")
+        prompt_count = transcript.identity_lines.count(PROMPT)
+        os.write(master, b"\n")
+        read_until(master, process, transcript,
+                   lambda: transcript.identity_lines.count(PROMPT) > prompt_count,
+                   time.monotonic() + 30, "the start prompt to repeat after blank Enter")
+        if containers("release-approval", project) != {approval_id} or state(approval_id) != "running":
+            raise RuntimeError("Blank Enter stopped or replaced the approval service before start")
+        if socket_path.exists() or socket_path.is_symlink():
+            raise RuntimeError("Blank Enter opened the approval socket before start")
+        if containers("deploy-release", project):
+            raise RuntimeError("Blank Enter started Forge before the operator entered start")
+        progress("Blank Enter kept approval waiting; checking the backend, then entering start automatically")
         backend_chain_id(approval_id)
         os.write(master, b"start\n")
         read_until(master, process, transcript, socket_path.is_socket,

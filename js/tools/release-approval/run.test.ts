@@ -125,15 +125,16 @@ test("runtime requires an attached operator terminal before accepting connection
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
-for (const phase of ["before start", "after start"] as const) {
-  test(`executable releases its open operator input on cancellation ${phase}`, async t => {
+for (const phase of ["before start", "after start", "wrong command", "input EOF", "missing reference"] as const) {
+  test(`executable reports its cause and releases operator input: ${phase}`, async t => {
     const root = await mkdtemp(join(tmpdir(), "approval-process-"))
     t.after(() => rm(root, { recursive: true, force: true }))
     const reference = snapshot()
     const selected = settings(root, reference)
     await mkdir(join(root, "socket"), { mode: 0o700 })
     await mkdir(selected.auditDir, { mode: 0o700 })
-    await writeFile(selected.referencePath, JSON.stringify(reference))
+    if (phase === "missing reference") selected.referencePath = join(root, "private-reference-secret")
+    else await writeFile(selected.referencePath, JSON.stringify(reference))
     const entrypoint = new URL("./run.ts", import.meta.url)
     const child = spawn(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
       import { fileURLToPath } from 'node:url';
@@ -158,21 +159,32 @@ for (const phase of ["before start", "after start"] as const) {
     async function waitFor(text: string): Promise<void> {
       while (!printed.includes(text)) await once(child.stdout, "data", { signal: AbortSignal.timeout(3000) })
     }
-    await waitFor("Type start and press Enter")
+    if (phase !== "missing reference") await waitFor("Type start and press Enter")
     if (phase === "after start") {
       child.stdin.write("start\n")
       await waitFor("Approval ready")
     }
     // Leave the operator pipe open: shutdown must release its own read handle.
     const ended = once(child, "exit", { signal: AbortSignal.timeout(1500) })
-    child.kill("SIGTERM")
+    if (phase === "wrong command") child.stdin.write("START\n")
+    else if (phase === "input EOF") child.stdin.end()
+    else if (phase !== "missing reference") child.kill("SIGTERM")
     const [status, signal] = await ended
     assert.equal(signal, null, errors)
     assert.equal(status, 1, errors)
+    if (phase !== "after start") {
+      const cause = phase === "wrong command" ? /exact start command/ :
+        phase === "input EOF" ? /terminal detached before start/ :
+        phase === "missing reference" ? /ENOENT.*open/ : /Operator start was interrupted/
+      assert.match(errors, cause)
+      assert.doesNotMatch(errors, /private-reference-secret/)
+      await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+      await assert.rejects(stat(join(selected.auditDir, "approval.jsonl")), { code: "ENOENT" })
+    }
   })
 }
 
-test("operator must see selected release facts and enter exact start before audit or socket exists", async () => {
+test("blank Enter repeats the selected release prompt without effects before exact start", async () => {
   const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
   try {
     const reference = snapshot()
@@ -189,6 +201,14 @@ test("operator must see selected release facts and enter exact start before audi
     }
     await assert.rejects(stat(join(selected.auditDir, "approval.jsonl")), { code: "ENOENT" })
     await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+    for (const blank of ["\n", "\r\n"]) {
+      const repeated = once(output, "data")
+      input.write(blank)
+      const [again] = await repeated
+      assert.match(String(again), /Type start and press Enter/)
+      await assert.rejects(stat(join(selected.auditDir, "approval.jsonl")), { code: "ENOENT" })
+      await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+    }
     input.write("start\n")
     const runtime = await starting
     try { assert.equal((await stat(selected.socketPath)).isSocket(), true) }
@@ -225,6 +245,9 @@ test("a buffered operator prompt opens the socket only after the prompt drains a
     await promptReceived
     assert.match(prompt, /Type start and press Enter/)
     assert.equal(output.writableNeedDrain, true)
+    input.write("\n")
+    input.write("\r\n")
+    assert.equal(output.writableLength, Buffer.byteLength(prompt), "blank retries must not queue prompts behind blocked output")
     input.write("start\n")
     await assert.rejects(stat(join(selected.auditDir, "approval.jsonl")), { code: "ENOENT" })
     await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
