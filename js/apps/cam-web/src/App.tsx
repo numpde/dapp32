@@ -89,7 +89,7 @@ const RECEIPT_WAIT_TIMEOUT_MS = 20_000
 const RECEIPT_POLLING_INTERVAL_MS = 500
 const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
   ReturnType<typeof createInjectedWalletClient>,
-  ReturnType<typeof walletChain>
+  Awaited<ReturnType<typeof walletChain>>
 > = {
   ensureAccount: ensureConnectedWalletAccount,
   simulate: simulateCamContractCall,

@@ -82,13 +82,13 @@ test("wallet account check rejects stale connected account state", async () => {
   )
 })
 
-test("wallet chain helper validates RPC URLs at the wallet boundary", () => {
-  assert.deepEqual(walletChain({
+test("wallet chain helper validates RPC URLs at the wallet boundary", async () => {
+  assert.deepEqual((await walletChain({
     chainId: "eip155:31337",
     rpcUrl: "http://127.0.0.1:8545/rpc",
-  }).rpcUrls.default.http, ["http://127.0.0.1:8545/rpc"])
+  })).rpcUrls.default.http, ["http://127.0.0.1:8545/rpc"])
 
-  assert.throws(
+  await assert.rejects(
     () => walletChain({
       chainId: "eip155:31337",
       rpcUrl: "javascript:alert(1)",
@@ -131,6 +131,55 @@ test("wallet chain setup switches again after adding an unknown chain", async ()
     "wallet_switchEthereumChain",
     "eth_chainId",
   ])
+})
+
+for (const [id, name, currency, symbol] of [
+  [43113, "Avalanche Fuji", "Avalanche Fuji", "AVAX"],
+  [56, "BNB Smart Chain", "BNB", "BNB"],
+  [31338, "CAM release rehearsal", "Ether", "ETH"],
+] as const) {
+  test(`adding chain ${id} uses its own currency and the viewer RPC`, async () => {
+    const requests: { method: string; params?: unknown }[] = []
+    let added = false
+    Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: {
+      async request(request: { method: string; params?: unknown }) {
+        requests.push(request)
+        if (request.method === "wallet_switchEthereumChain" && !added) throw Object.assign(new Error("not configured"), { code: 4902 })
+        if (request.method === "wallet_addEthereumChain") added = true
+        if (request.method === "eth_chainId") return `0x${id.toString(16)}`
+        return null
+      },
+    } } })
+    await ensureInjectedWalletChain({ chainId: `eip155:${id}`, rpcUrl: "https://rpc.example.test/selected" })
+    assert.deepEqual(requests.find(request => request.method === "wallet_addEthereumChain")?.params, [{
+      chainId: `0x${id.toString(16)}`, chainName: name,
+      nativeCurrency: { name: currency, symbol, decimals: 18 }, rpcUrls: ["https://rpc.example.test/selected"],
+    }])
+  })
+}
+
+test("a network without known metadata can still use its existing wallet configuration", async () => {
+  const requests: string[] = []
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: {
+    async request({ method }: { method: string }) {
+      requests.push(method)
+      return method === "eth_chainId" ? "0x7ffffffe" : null
+    },
+  } } })
+  await ensureInjectedWalletChain({ chainId: "eip155:2147483646", rpcUrl: "https://rpc.example.test" })
+  assert.deepEqual(requests, ["wallet_switchEthereumChain", "eth_chainId"])
+})
+
+test("missing network metadata explains the add and send limitations without inventing a currency", async () => {
+  const requests: string[] = []
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: {
+    async request({ method }: { method: string }) {
+      requests.push(method)
+      throw Object.assign(new Error("not configured"), { code: 4902 })
+    },
+  } } })
+  await assert.rejects(ensureInjectedWalletChain({ chainId: "eip155:2147483646", rpcUrl: "https://rpc.example.test" }), /2147483646.*cannot add.*prepare transactions/)
+  assert.deepEqual(requests, ["wallet_switchEthereumChain"])
 })
 
 test("wallet chain setup rejects a wallet that remains on the wrong chain", async () => {

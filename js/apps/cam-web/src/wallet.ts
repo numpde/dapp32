@@ -2,7 +2,7 @@ import {
   createWalletClient,
   custom,
 } from "viem"
-import type { Address } from "viem"
+import type { Address, Chain } from "viem"
 import {
   evmChainIdHex,
   evmChainIdNumber,
@@ -79,17 +79,24 @@ export function subscribeInjectedWallet(
   }
 }
 
-export function walletChain(options: WalletChainOptions) {
+export async function walletChain(options: WalletChainOptions): Promise<Chain> {
   const id = evmChainIdNumber(options.chainId)
   const rpcUrl = requireHttpURL(options.rpcUrl, "rpcUrl").href
+  // Network registration and viem transaction requests need chain metadata.
+  // Switching an installed network does not; load the definitions on demand.
+  const chains = await import("viem/chains")
+  // The repository's release rehearsal uses a separate Anvil chain ID.
+  const knownChains = Object.values(chains)
+  const chain = id === 31338
+    ? { ...chains.foundry, id, name: "CAM release rehearsal" }
+    : knownChains.find(chain => "id" in chain && chain.id === id)
+  if (chain === undefined || !("id" in chain)) {
+    throw new Error(`Network ${id} is missing from this viewer's network definitions. The viewer cannot add it or prepare transactions for it.`)
+  }
   return {
     id,
-    name: `CAM ${options.chainId}`,
-    nativeCurrency: {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18,
-    },
+    name: chain.name,
+    nativeCurrency: chain.nativeCurrency,
     rpcUrls: {
       default: {
         http: [rpcUrl],
@@ -143,7 +150,7 @@ export async function ensureInjectedWalletChain(options: WalletChainOptions): Pr
       throw error
     }
 
-    const chain = walletChain(options)
+    const chain = await walletChain(options)
     await provider.request({
       method: "wallet_addEthereumChain",
       params: [{
