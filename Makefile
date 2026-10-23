@@ -731,7 +731,7 @@ help:
 	  '      BIKE_NFT_RELEASE_REGISTRARS              Comma-separated unique nonzero registrar addresses.' \
 	  '      BIKE_NFT_RELEASE_OUTPUT_DIR              New absolute directory outside this repository.' \
 	  '    Copyable commands: each app README under dapps/, release section.' \
-	  '    Every lasting Bike NFT authority must differ from the funded deployer.' \
+	  '    Separate lasting Bike NFT authorities from the funded deployer when useful; explicitly selecting the deployer is allowed.' \
 	  '    The output directory retains plans, broadcasts and deployment records, including partial failures.' \
 	  '    Requested new owners/admins must accept their transfers separately; Bike admin transfers have a wait.' \
 	  '    CAM host owners and Pay-to-Play admins call acceptOwnership() on their respective contracts.' \

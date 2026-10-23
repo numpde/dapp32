@@ -94,7 +94,7 @@ test("Bike verification publishes one canonical no-clobber snapshot", () => {
   }
 })
 
-test("deployment artifact parsing rejects unknown fields and inconsistent authority", () => {
+test("deployment artifact parsing rejects malformed evidence and preserves selected deployer authority", () => {
   const artifact = deployment()
   assert.deepEqual(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))), artifact)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, extra: true }))), /unexpected=\[extra\]/)
@@ -105,7 +105,7 @@ test("deployment artifact parsing rejects unknown fields and inconsistent author
   )
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, managerCreationTransaction: artifact.uiCreationTransaction }))), /must be distinct/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, camRootCreationTransaction: hash("0") }))), /must not be zero/)
-  assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, componentsPauser: DEPLOYER }))), /must not retain/)
+  assert.equal(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, componentsPauser: DEPLOYER }))).componentsPauser, DEPLOYER)
 })
 
 test("Bike release parsing uses shared identity rules", () => {
@@ -269,6 +269,8 @@ test("broadcast and receipts bind four exact creations", () => {
 test("handoff accepts only intended pending or completed state", () => {
   assert.doesNotThrow(() => requireHandoff("root", DEPLOYER, OWNER, DEPLOYER, OWNER))
   assert.doesNotThrow(() => requireHandoff("root", DEPLOYER, OWNER, OWNER, address("0")))
+  assert.doesNotThrow(() => requireHandoff("root", DEPLOYER, DEPLOYER, DEPLOYER, address("0")))
+  assert.throws(() => requireHandoff("root", DEPLOYER, DEPLOYER, DEPLOYER, DEPLOYER), /unexpected root handoff/)
   assert.throws(() => requireHandoff("root", DEPLOYER, OWNER, DEPLOYER, address("0")), /unexpected root handoff/)
 })
 

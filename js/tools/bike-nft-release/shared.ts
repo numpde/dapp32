@@ -128,7 +128,6 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   }
   const transactions = [artifact.camRootCreationTransaction, artifact.componentsCreationTransaction, artifact.managerCreationTransaction, artifact.uiCreationTransaction]
   requireDistinctHexValues(transactions, "deployment creation transaction hashes")
-  rejectDeployerAuthorities(artifact)
   return artifact
 }
 
@@ -154,12 +153,6 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
     managerPauser: addressField(value, "managerPauser"), managerConfigurer: addressField(value, "managerConfigurer"),
     registrars: requiredAddresses(value.registrars, "registrars"),
   }
-}
-
-export function rejectDeployerAuthorities(value: Pick<DeploymentArtifact, "deployer"> & ReleaseAuthorities): void {
-  const deployer = value.deployer.toLowerCase()
-  const authorities = [value.intendedCamRootOwner, value.intendedComponentsAdmin, value.componentsPauser, value.componentsConfigurer, value.intendedManagerAdmin, value.managerPauser, value.managerConfigurer, ...value.registrars]
-  if (authorities.some((address) => address.toLowerCase() === deployer)) throw new Error("deployment deployer must not retain a final or operational authority")
 }
 
 function addressField(value: Record<string, unknown>, key: string): CamHost["address"] { return requiredNonzeroAddress(value[key], key) }

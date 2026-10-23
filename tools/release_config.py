@@ -120,15 +120,6 @@ def unique_fields(pairs):
     return result
 
 
-def check_bike_deployer_authority(field, value, deployer):
-    roles = (
-        "INTENDED_CAM_ROOT_OWNER", "INTENDED_COMPONENTS_ADMIN", "COMPONENTS_PAUSER", "COMPONENTS_CONFIGURER",
-        "INTENDED_MANAGER_ADMIN", "MANAGER_PAUSER", "MANAGER_CONFIGURER", "REGISTRARS",
-    )
-    if field in roles and any(address.lower() == deployer.lower() for address in value.split(",")):
-        raise ValueError(f"{field} must differ from EXPECTED_DEPLOYER_ADDRESS ({deployer}); the Bike NFT deployer cannot retain final or operational authority.")
-
-
 def validate(config, app, source_commit):
     if not isinstance(config, dict) or type(config.get("schemaVersion")) is not int or config["schemaVersion"] != CONFIG_VERSION:
         raise ValueError("The saved release configuration has an unsupported version; run the release setup again.")
@@ -165,8 +156,6 @@ def validate(config, app, source_commit):
             check_value(settings[name], kind, local_cam_uri=local_cam_uri)
         except ValueError as error:
             raise ValueError(f"Invalid {name}: {error}") from error
-        if app == "bike-nft":
-            check_bike_deployer_authority(name, settings[name], settings["EXPECTED_DEPLOYER_ADDRESS"])
     return config
 
 
@@ -239,6 +228,7 @@ def print_authority_help(app):
     print("INTENDED_CAM_ROOT_OWNER: CamRoot's current owner nominates the next owner, who must accept.")
     print("CAM ownership does not by itself grant roles on the other contracts.")
     if app == "bike-nft":
+        print("Separate deployment and role-holding accounts are recommended; the deployer may keep roles you explicitly select.")
         print("INTENDED_COMPONENTS_ADMIN / INTENDED_MANAGER_ADMIN: each contract's current default admin nominates its successor. The nominee accepts after that contract's current delay (initially COMPONENTS_ADMIN_DELAY / MANAGER_ADMIN_DELAY).")
         print("COMPONENTS_PAUSER / COMPONENTS_CONFIGURER: Components' current default admin adds or removes holders.")
         print("MANAGER_PAUSER / MANAGER_CONFIGURER / REGISTRARS: Manager's current default admin adds or removes holders.")
@@ -302,16 +292,7 @@ def setup(app, source_commit, output):
             if name == "COLLECTION_URI":
                 config["settings"][name] = ask_collection_uri(label, config["settings"]["TOKEN_NAME"], previous)
             else:
-                while True:
-                    value = ask(label, kind, previous, secret=False, local_cam_uri=local_cam_uri)
-                    try:
-                        if app == "bike-nft":
-                            check_bike_deployer_authority(name, value, config["settings"]["EXPECTED_DEPLOYER_ADDRESS"])
-                    except ValueError as error:
-                        print(error, file=sys.stderr)
-                        continue
-                    config["settings"][name] = value
-                    break
+                config["settings"][name] = ask(label, kind, previous, secret=False, local_cam_uri=local_cam_uri)
         validate(config, app, source_commit)
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
         for name, value in config["settings"].items():

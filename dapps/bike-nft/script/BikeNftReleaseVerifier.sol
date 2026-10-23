@@ -144,10 +144,19 @@ abstract contract BikeNftReleaseVerifier {
         _requireRole(
             "components configurer", components, components.CONFIGURER_ROLE(), artifact.componentsConfigurer, true
         );
-        _requireRole("deployer components admin", components, bytes32(0), artifact.deployer, false);
-        _requireRole("deployer components pauser", components, components.PAUSER_ROLE(), artifact.deployer, false);
         _requireRole(
-            "deployer components configurer", components, components.CONFIGURER_ROLE(), artifact.deployer, false
+            "deployer components pauser",
+            components,
+            components.PAUSER_ROLE(),
+            artifact.deployer,
+            artifact.componentsPauser == artifact.deployer
+        );
+        _requireRole(
+            "deployer components configurer",
+            components,
+            components.CONFIGURER_ROLE(),
+            artifact.deployer,
+            artifact.componentsConfigurer == artifact.deployer
         );
         _requireRole("deployer components minter", components, components.MINTER_ROLE(), artifact.deployer, false);
         _requireRole(
@@ -175,13 +184,28 @@ abstract contract BikeNftReleaseVerifier {
         }
         _requireRole("manager pauser", manager, manager.PAUSER_ROLE(), artifact.managerPauser, true);
         _requireRole("manager configurer", manager, manager.CONFIGURER_ROLE(), artifact.managerConfigurer, true);
+        bool deployerRegistrar;
         for (uint256 i = 0; i < artifact.registrars.length; i++) {
             _requireRole("manager registrar", manager, manager.REGISTRAR_ROLE(), artifact.registrars[i], true);
+            if (artifact.registrars[i] == artifact.deployer) deployerRegistrar = true;
         }
-        _requireRole("deployer manager admin", manager, bytes32(0), artifact.deployer, false);
-        _requireRole("deployer manager pauser", manager, manager.PAUSER_ROLE(), artifact.deployer, false);
-        _requireRole("deployer manager configurer", manager, manager.CONFIGURER_ROLE(), artifact.deployer, false);
-        _requireRole("deployer manager registrar", manager, manager.REGISTRAR_ROLE(), artifact.deployer, false);
+        _requireRole(
+            "deployer manager pauser",
+            manager,
+            manager.PAUSER_ROLE(),
+            artifact.deployer,
+            artifact.managerPauser == artifact.deployer
+        );
+        _requireRole(
+            "deployer manager configurer",
+            manager,
+            manager.CONFIGURER_ROLE(),
+            artifact.deployer,
+            artifact.managerConfigurer == artifact.deployer
+        );
+        _requireRole(
+            "deployer manager registrar", manager, manager.REGISTRAR_ROLE(), artifact.deployer, deployerRegistrar
+        );
     }
 
     function _verifyInterfaces(Artifact memory artifact) private view {

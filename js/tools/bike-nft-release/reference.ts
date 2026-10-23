@@ -1,14 +1,14 @@
 import { keccak256, stringToHex } from "viem"
 import type { ReleaseReference, ExpectedStep } from "../release-approval/reference.ts"
 import { createdContract, expectedDeployer } from "../release-approval/reference.ts"
-import { parseReleasePlan, rejectDeployerAuthorities } from "./shared.ts"
+import { parseReleasePlan } from "./shared.ts"
 
 const roleId = (name: string) => keccak256(stringToHex(name))
 
 export function bikeReference(planBytes: Uint8Array, independentDeployer: string): ReleaseReference {
   const plan = parseReleasePlan(planBytes)
   const deployer = expectedDeployer(independentDeployer)
-  rejectDeployerAuthorities({ ...plan, deployer })
+  const sender = deployer.toLowerCase()
 
   const steps: ExpectedStep[] = [
     { kind: "create", role: "camRoot", name: "CamRoot", constructorTypes: ["address", "string", "bytes32"], args: [deployer, plan.camURI, plan.camHash] },
@@ -34,17 +34,17 @@ export function bikeReference(planBytes: Uint8Array, independentDeployer: string
   grant("manager", "CONFIGURER_ROLE", plan.managerConfigurer)
   for (const registrar of plan.registrars) grant("manager", "REGISTRAR_ROLE", registrar)
 
-  revoke("components", "PAUSER_ROLE")
-  revoke("components", "CONFIGURER_ROLE")
-  revoke("manager", "PAUSER_ROLE")
-  revoke("manager", "CONFIGURER_ROLE")
+  if (plan.componentsPauser.toLowerCase() !== sender) revoke("components", "PAUSER_ROLE")
+  if (plan.componentsConfigurer.toLowerCase() !== sender) revoke("components", "CONFIGURER_ROLE")
+  if (plan.managerPauser.toLowerCase() !== sender) revoke("manager", "PAUSER_ROLE")
+  if (plan.managerConfigurer.toLowerCase() !== sender) revoke("manager", "CONFIGURER_ROLE")
 
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "BicycleComponentManager", createdContract("manager"))
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "BicycleComponentManagerUI", createdContract("ui"))
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "BicycleComponents", createdContract("components"))
-  call("camRoot", "transferOwnership", "transferOwnership(address)", plan.intendedCamRootOwner)
-  call("components", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", plan.intendedComponentsAdmin)
-  call("manager", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", plan.intendedManagerAdmin)
+  if (plan.intendedCamRootOwner.toLowerCase() !== sender) call("camRoot", "transferOwnership", "transferOwnership(address)", plan.intendedCamRootOwner)
+  if (plan.intendedComponentsAdmin.toLowerCase() !== sender) call("components", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", plan.intendedComponentsAdmin)
+  if (plan.intendedManagerAdmin.toLowerCase() !== sender) call("manager", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", plan.intendedManagerAdmin)
 
   return { sourceCommit: plan.sourceCommit, expectedChainId: plan.expectedChainId, expectedDeployer: deployer, steps }
 }

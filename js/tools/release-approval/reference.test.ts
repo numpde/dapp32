@@ -76,6 +76,14 @@ test("Bike reference includes every registrar and ordered authority handoff", ()
   assert.ok(registrarGrants.length >= 1)
   const zero = bikeReference(parse({ ...plan, camHash: zeroCamHash }), deployer)
   assert.deepEqual(zero.steps[0]?.args, [deployer, common.camURI, zeroCamHash])
+  const retained = bikeReference(parse({ ...plan, intendedCamRootOwner: deployer, intendedComponentsAdmin: deployer,
+    intendedManagerAdmin: deployer, componentsPauser: deployer, componentsConfigurer: deployer,
+    managerPauser: deployer, managerConfigurer: deployer, registrars: [deployer, other] }), deployer)
+  assert.equal(retained.steps.filter(step => step.name === "revokeRole" || step.name === "transferOwnership" || step.name === "beginDefaultAdminTransfer").length, 0)
+  const mixed = bikeReference(parse({ ...plan, intendedCamRootOwner: deployer, intendedComponentsAdmin: deployer,
+    componentsPauser: deployer, managerConfigurer: deployer, registrars: [deployer, other] }), deployer)
+  assert.deepEqual(mixed.steps.filter(step => step.name === "revokeRole").map(step => step.role), ["components", "manager"])
+  assert.deepEqual(mixed.steps.filter(step => step.name === "transferOwnership" || step.name === "beginDefaultAdminTransfer").map(step => step.role), ["manager"])
 })
 
 test("references reject invalid plans and invalid independent sender", () => {

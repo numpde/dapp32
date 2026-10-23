@@ -74,48 +74,26 @@ class ReleaseConfigTest(unittest.TestCase):
                     for group in ("INTENDED_COMPONENTS_ADMIN / INTENDED_MANAGER_ADMIN:", "COMPONENTS_PAUSER / COMPONENTS_CONFIGURER:", "MANAGER_PAUSER / MANAGER_CONFIGURER / REGISTRARS:"):
                         self.assertEqual(app == "bike-nft", group in help_text)
 
-    def test_bike_reprompts_only_the_deployer_conflicting_role_before_saving(self):
+    def test_bike_selected_deployer_authorities_survive_setup_and_unpack(self):
         roles = ("INTENDED_CAM_ROOT_OWNER", "INTENDED_COMPONENTS_ADMIN", "COMPONENTS_PAUSER", "COMPONENTS_CONFIGURER", "INTENDED_MANAGER_ADMIN", "MANAGER_PAUSER", "MANAGER_CONFIGURER", "REGISTRARS")
-        for role in roles:
-            with self.subTest(role=role), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
+        for selected in (roles, ("INTENDED_CAM_ROOT_OWNER", "COMPONENTS_PAUSER", "MANAGER_CONFIGURER", "REGISTRARS")):
+            with self.subTest(selected=selected), tempfile.TemporaryDirectory() as temporary:
                 expected = configuration("bike-nft")
-                conflict = "0x" + FIXTURE_DEPLOYER_ADDRESS[2:].upper()
-                if role == "REGISTRARS":
-                    conflict = "0x" + "44" * 20 + "," + conflict
+                for role in selected:
+                    expected["settings"][role] = "0x" + FIXTURE_DEPLOYER_ADDRESS[2:].upper()
+                expected["settings"]["REGISTRARS"] += "," + FIXTURE_ADDRESS
                 answers = ["public", *expected["settings"].values(), "save"]
-                index = 1 + list(expected["settings"]).index(role)
-                answers.insert(index, conflict)
-                if role == "INTENDED_CAM_ROOT_OWNER":
-                    answers.insert(index, "not-an-address")
-                errors = io.StringIO()
-                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
-                    release_config.setup("bike-nft", COMMIT, root)
-                self.assertEqual(expected, json.loads((root / "release.json").read_text()))
-                self.assertIn(role, errors.getvalue())
-                self.assertIn("deployer", errors.getvalue())
-                if role == "INTENDED_CAM_ROOT_OWNER":
-                    self.assertIn("nonzero EVM addresses", errors.getvalue())
-                self.assertNotIn(FIXTURE_KEY, errors.getvalue())
-                self.assertNotIn(FIXTURE_RPC, errors.getvalue())
-
-    def test_bike_saved_deployer_authorities_fail_before_unpack_writes(self):
-        roles = ("INTENDED_CAM_ROOT_OWNER", "INTENDED_COMPONENTS_ADMIN", "COMPONENTS_PAUSER", "COMPONENTS_CONFIGURER", "INTENDED_MANAGER_ADMIN", "MANAGER_PAUSER", "MANAGER_CONFIGURER", "REGISTRARS")
-        for role in roles:
-            with self.subTest(role=role), tempfile.TemporaryDirectory() as temporary:
-                config = configuration("bike-nft")
-                conflict = "0x" + FIXTURE_DEPLOYER_ADDRESS[2:].upper()
-                if role == "REGISTRARS":
-                    conflict = FIXTURE_ADDRESS + "," + conflict
-                config["settings"][role] = conflict
                 root = Path(temporary)
-                saved = root / "config.json"
-                saved.write_text(json.dumps(config))
+                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    release_config.setup("bike-nft", COMMIT, root)
+                saved = root / "release.json"
+                self.assertEqual(expected, json.loads(saved.read_text()))
                 output = root / "out"
                 output.mkdir()
-                with self.assertRaisesRegex(ValueError, role):
-                    release_config.unpack("bike-nft", COMMIT, "deploy", saved, output)
-                self.assertEqual([], list(output.iterdir()))
+                release_config.unpack("bike-nft", COMMIT, "deploy", saved, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                for role in roles:
+                    self.assertEqual(expected["settings"][role], inputs[f"BIKE_NFT_RELEASE_{role}"])
 
     def test_other_apps_can_keep_the_deployer_as_final_authority(self):
         for app in ("escrow", "pay-to-play"):

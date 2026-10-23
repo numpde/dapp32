@@ -10,8 +10,8 @@ contract DeployBikeNftReleaseHarness is DeployBikeNftRelease {
         return _parsePlan(json);
     }
 
-    function validatePlan(ReleasePlan memory plan, address deployer) external view {
-        _validatePlan(plan, deployer);
+    function validatePlan(ReleasePlan memory plan) external view {
+        _validatePlan(plan);
     }
 
     function requireOperatorInputs(ReleasePlan memory plan, OperatorInputs memory inputs) external pure {
@@ -66,14 +66,14 @@ contract DeployBikeNftReleaseTest is Test {
         assertEq(plan.registrars[0], REGISTRAR_ONE);
         assertEq(plan.registrars[1], REGISTRAR_TWO);
         harness.requireOperatorInputs(plan, _operatorInputs(plan));
-        harness.validatePlan(plan, address(0x99));
+        harness.validatePlan(plan);
     }
 
     function testReleaseWithEmptyBasePreservesIndependentTokenMetadataAndOwnerGating() external {
         DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
         plan.baseTokenURI = "";
         harness.requireOperatorInputs(plan, _operatorInputs(plan));
-        harness.validatePlan(plan, address(harness));
+        harness.validatePlan(plan);
         DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(plan);
         assertEq(deployment.components.baseURI(), "");
         address owner = address(0xB001);
@@ -125,7 +125,7 @@ contract DeployBikeNftReleaseTest is Test {
     function testAcceptsExplicitlyUnpinnedCam() external view {
         DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
         plan.camHash = bytes32(0);
-        harness.validatePlan(plan, address(0x99));
+        harness.validatePlan(plan);
     }
 
     function testRejectsNonzeroHashThatDoesNotMatchSource() external {
@@ -135,7 +135,7 @@ contract DeployBikeNftReleaseTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(DeployBikeNftRelease.CamHashSourceMismatch.selector, plan.camHash, sourceHash)
         );
-        harness.validatePlan(plan, address(0x99));
+        harness.validatePlan(plan);
     }
 
     function testRejectsEveryOperatorFieldMismatch() external {
@@ -219,12 +219,9 @@ contract DeployBikeNftReleaseTest is Test {
         harness.readDelay('{"componentsAdminDelay":281474976710656}', ".componentsAdminDelay");
     }
 
-    function testRejectsDeployerAsFinalAuthority() external {
+    function testAcceptsExplicitDeployerAsFinalAuthority() external view {
         DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
-        vm.expectRevert(
-            abi.encodeWithSelector(DeployBikeNftRelease.DeployerRetainsAuthority.selector, "intendedCamRootOwner")
-        );
-        harness.validatePlan(plan, CAM_ROOT_OWNER);
+        harness.validatePlan(plan);
     }
 
     function testRejectsMultilineReleaseText() external {
@@ -284,6 +281,6 @@ contract DeployBikeNftReleaseTest is Test {
 
     function _expectLineBreak(DeployBikeNftRelease.ReleasePlan memory plan, string memory field) private {
         vm.expectRevert(abi.encodeWithSelector(DeployBikeNftRelease.LineBreakInValue.selector, field));
-        harness.validatePlan(plan, address(0x99));
+        harness.validatePlan(plan);
     }
 }

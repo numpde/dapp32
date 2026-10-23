@@ -78,14 +78,13 @@ contract DeployBikeNftRelease is Script {
     error AdminDelayOutOfRange(string field, uint256 value);
     error NoRegistrars();
     error DuplicateRegistrar(address registrar);
-    error DeployerRetainsAuthority(string field);
 
     function run() external returns (Deployment memory deployment) {
         ReleasePlan memory plan = _readPlan(vm.envString("BIKE_NFT_RELEASE_PLAN_PATH"));
         _requireOperatorInputs(plan, _readOperatorInputs());
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        _validatePlan(plan, deployer);
+        _validatePlan(plan);
 
         vm.startBroadcast(deployerKey);
         deployment = _deployRelease(plan, deployer);
@@ -119,17 +118,27 @@ contract DeployBikeNftRelease is Script {
             deployment.manager.grantRole(deployment.manager.REGISTRAR_ROLE(), plan.registrars[i]);
         }
 
-        deployment.components.revokeRole(deployment.components.PAUSER_ROLE(), deployer);
-        deployment.components.revokeRole(deployment.components.CONFIGURER_ROLE(), deployer);
-        deployment.manager.revokeRole(deployment.manager.PAUSER_ROLE(), deployer);
-        deployment.manager.revokeRole(deployment.manager.CONFIGURER_ROLE(), deployer);
+        if (plan.componentsPauser != deployer) {
+            deployment.components.revokeRole(deployment.components.PAUSER_ROLE(), deployer);
+        }
+        if (plan.componentsConfigurer != deployer) {
+            deployment.components.revokeRole(deployment.components.CONFIGURER_ROLE(), deployer);
+        }
+        if (plan.managerPauser != deployer) deployment.manager.revokeRole(deployment.manager.PAUSER_ROLE(), deployer);
+        if (plan.managerConfigurer != deployer) {
+            deployment.manager.revokeRole(deployment.manager.CONFIGURER_ROLE(), deployer);
+        }
 
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_COMPONENTS, address(deployment.components));
-        deployment.camRoot.transferOwnership(plan.intendedCamRootOwner);
-        deployment.components.beginDefaultAdminTransfer(plan.intendedComponentsAdmin);
-        deployment.manager.beginDefaultAdminTransfer(plan.intendedManagerAdmin);
+        if (plan.intendedCamRootOwner != deployer) deployment.camRoot.transferOwnership(plan.intendedCamRootOwner);
+        if (plan.intendedComponentsAdmin != deployer) {
+            deployment.components.beginDefaultAdminTransfer(plan.intendedComponentsAdmin);
+        }
+        if (plan.intendedManagerAdmin != deployer) {
+            deployment.manager.beginDefaultAdminTransfer(plan.intendedManagerAdmin);
+        }
     }
 
     function _readPlan(string memory path) internal view returns (ReleasePlan memory plan) {
@@ -229,7 +238,7 @@ contract DeployBikeNftRelease is Script {
         if (actual != expected) revert OperatorInputMismatch(field);
     }
 
-    function _validatePlan(ReleasePlan memory plan, address deployer) internal view {
+    function _validatePlan(ReleasePlan memory plan) internal view {
         if (!_isSourceCommit(plan.sourceCommit)) revert InvalidSourceCommit(plan.sourceCommit);
         if (plan.expectedChainId != block.chainid) revert ChainIdMismatch(plan.expectedChainId, block.chainid);
         if (plan.expectedChainId == 1337 || plan.expectedChainId == 31337) {
@@ -251,16 +260,8 @@ contract DeployBikeNftRelease is Script {
         if (plan.managerAdminDelay == 0) revert ZeroAdminDelay("managerAdminDelay");
         if (plan.registrars.length == 0) revert NoRegistrars();
 
-        _rejectDeployer(deployer, plan.intendedCamRootOwner, "intendedCamRootOwner");
-        _rejectDeployer(deployer, plan.intendedComponentsAdmin, "intendedComponentsAdmin");
-        _rejectDeployer(deployer, plan.componentsPauser, "componentsPauser");
-        _rejectDeployer(deployer, plan.componentsConfigurer, "componentsConfigurer");
-        _rejectDeployer(deployer, plan.intendedManagerAdmin, "intendedManagerAdmin");
-        _rejectDeployer(deployer, plan.managerPauser, "managerPauser");
-        _rejectDeployer(deployer, plan.managerConfigurer, "managerConfigurer");
         for (uint256 i = 0; i < plan.registrars.length; i++) {
             _requireAddress(plan.registrars[i], "registrar");
-            _rejectDeployer(deployer, plan.registrars[i], "registrar");
             for (uint256 j = 0; j < i; j++) {
                 if (plan.registrars[i] == plan.registrars[j]) revert DuplicateRegistrar(plan.registrars[i]);
             }
@@ -286,10 +287,6 @@ contract DeployBikeNftRelease is Script {
 
     function _requireAddress(address value, string memory field) private pure {
         if (value == address(0)) revert ZeroAddress(field);
-    }
-
-    function _rejectDeployer(address deployer, address authority, string memory field) private pure {
-        if (deployer == authority) revert DeployerRetainsAuthority(field);
     }
 
     function _isSourceCommit(string memory value) private pure returns (bool) {

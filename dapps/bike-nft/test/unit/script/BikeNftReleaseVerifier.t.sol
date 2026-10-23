@@ -19,6 +19,10 @@ contract BikeNftReleaseDeploymentHarness is DeployBikeNftRelease {
     function deployRelease(ReleasePlan memory plan) external returns (Deployment memory) {
         return _deployRelease(plan, address(this));
     }
+
+    function validatePlan(ReleasePlan memory plan) external view {
+        _validatePlan(plan);
+    }
 }
 
 contract BikeNftReleaseVerifierTest is Test {
@@ -73,6 +77,51 @@ contract BikeNftReleaseVerifierTest is Test {
     function testVerifierAcceptsCompletedRelease() public {
         _acceptHandoffs();
         verifier.verify(_artifact(), SOURCE_COMMIT);
+    }
+
+    function testExplicitDeployerAuthoritiesNeedNoSelfHandoffs() public {
+        BikeNftReleaseVerifier.Artifact memory artifact = _deploySelectedDeployerAuthorities(false);
+        verifier.verify(artifact, SOURCE_COMMIT);
+        assertEq(root.owner(), deployer);
+        assertEq(root.pendingOwner(), address(0));
+        assertEq(components.defaultAdmin(), deployer);
+        assertEq(manager.defaultAdmin(), deployer);
+        assertTrue(components.hasRole(components.PAUSER_ROLE(), deployer));
+        assertTrue(components.hasRole(components.CONFIGURER_ROLE(), deployer));
+        assertTrue(manager.hasRole(manager.PAUSER_ROLE(), deployer));
+        assertTrue(manager.hasRole(manager.CONFIGURER_ROLE(), deployer));
+        assertTrue(manager.hasRole(manager.REGISTRAR_ROLE(), deployer));
+    }
+
+    function testMixedAuthoritiesKeepOnlySelectedDeployerRolesAndRequireTheOtherHandoff() public {
+        BikeNftReleaseVerifier.Artifact memory artifact = _deploySelectedDeployerAuthorities(true);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BikeNftReleaseVerifier.AddressMismatch.selector, "intendedManagerAdmin", MANAGER_ADMIN, deployer
+            )
+        );
+        verifier.verify(artifact, SOURCE_COMMIT);
+        vm.warp(block.timestamp + ADMIN_DELAY + 1);
+        vm.prank(MANAGER_ADMIN);
+        manager.acceptDefaultAdminTransfer();
+        verifier.verify(artifact, SOURCE_COMMIT);
+        assertTrue(components.hasRole(components.PAUSER_ROLE(), deployer));
+        assertFalse(components.hasRole(components.CONFIGURER_ROLE(), deployer));
+        assertFalse(manager.hasRole(manager.PAUSER_ROLE(), deployer));
+        assertTrue(manager.hasRole(manager.CONFIGURER_ROLE(), deployer));
+        bytes32 pauserRole = manager.PAUSER_ROLE();
+        vm.prank(MANAGER_ADMIN);
+        manager.grantRole(pauserRole, deployer);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BikeNftReleaseVerifier.RoleMismatch.selector,
+                "deployer manager pauser",
+                manager.PAUSER_ROLE(),
+                deployer,
+                false
+            )
+        );
+        verifier.verify(artifact, SOURCE_COMMIT);
     }
 
     function testVerifierRejectsPendingRootOwnership() public {
@@ -158,6 +207,44 @@ contract BikeNftReleaseVerifierTest is Test {
             )
         );
         verifier.verify(artifact, SOURCE_COMMIT);
+    }
+
+    function _deploySelectedDeployerAuthorities(bool mixed)
+        private
+        returns (BikeNftReleaseVerifier.Artifact memory artifact)
+    {
+        BikeNftReleaseDeploymentHarness deploymentHarness = new BikeNftReleaseDeploymentHarness();
+        deployer = address(deploymentHarness);
+        DeployBikeNftRelease.ReleasePlan memory plan = _releasePlan();
+        plan.camHash = sha256(vm.readFileBinary("bike-nft/cam/main.json"));
+        plan.intendedCamRootOwner = deployer;
+        plan.intendedComponentsAdmin = deployer;
+        plan.componentsPauser = deployer;
+        plan.managerConfigurer = deployer;
+        if (!mixed) {
+            plan.componentsConfigurer = deployer;
+            plan.intendedManagerAdmin = deployer;
+            plan.managerPauser = deployer;
+        }
+        plan.registrars = new address[](2);
+        plan.registrars[0] = deployer;
+        plan.registrars[1] = REGISTRAR;
+        deploymentHarness.validatePlan(plan);
+        DeployBikeNftRelease.Deployment memory deployment = deploymentHarness.deployRelease(plan);
+        root = deployment.camRoot;
+        components = deployment.components;
+        manager = deployment.manager;
+        ui = deployment.ui;
+        artifact = _artifact();
+        artifact.camHash = plan.camHash;
+        artifact.intendedCamRootOwner = plan.intendedCamRootOwner;
+        artifact.intendedComponentsAdmin = plan.intendedComponentsAdmin;
+        artifact.componentsPauser = plan.componentsPauser;
+        artifact.componentsConfigurer = plan.componentsConfigurer;
+        artifact.intendedManagerAdmin = plan.intendedManagerAdmin;
+        artifact.managerPauser = plan.managerPauser;
+        artifact.managerConfigurer = plan.managerConfigurer;
+        artifact.registrars = plan.registrars;
     }
 
     function _acceptHandoffs() private {

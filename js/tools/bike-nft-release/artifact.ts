@@ -18,7 +18,6 @@ import {
 } from "../release-provenance.ts"
 import {
   parseReleasePlan,
-  rejectDeployerAuthorities,
 } from "./shared.ts"
 import type { ReleasePlan } from "./shared.ts"
 
@@ -144,7 +143,6 @@ async function main(): Promise<void> {
     throw new Error(`release RPC chain mismatch: expected ${plan.expectedChainId}, got ${chainId}`)
   }
   const deployer = await proveCreationProvenance(client, contracts)
-  rejectDeployerAuthorities({ ...plan, deployer })
 
   const blockNumber = await client.getBlockNumber()
   const read: ContractReader = <T>(address: Address, abi: Abi, functionName: string, args?: readonly unknown[]) => client.readContract({
@@ -437,15 +435,15 @@ async function verifyRolePolicy(
     roleExpectation(contracts.components.address, configuration.components.setterRole, contracts.manager.address, true, "manager URI setter"),
     roleExpectation(contracts.components.address, configuration.components.pauserRole, plan.componentsPauser, true, "components pauser"),
     roleExpectation(contracts.components.address, configuration.components.configurerRole, plan.componentsConfigurer, true, "components configurer"),
-    roleExpectation(contracts.components.address, configuration.components.pauserRole, deployer, false, "deployer components pauser"),
-    roleExpectation(contracts.components.address, configuration.components.configurerRole, deployer, false, "deployer components configurer"),
+    roleExpectation(contracts.components.address, configuration.components.pauserRole, deployer, plan.componentsPauser.toLowerCase() === deployer.toLowerCase(), "deployer components pauser"),
+    roleExpectation(contracts.components.address, configuration.components.configurerRole, deployer, plan.componentsConfigurer.toLowerCase() === deployer.toLowerCase(), "deployer components configurer"),
     roleExpectation(contracts.components.address, configuration.components.minterRole, deployer, false, "deployer components minter"),
     roleExpectation(contracts.components.address, configuration.components.setterRole, deployer, false, "deployer components URI setter"),
     roleExpectation(contracts.manager.address, configuration.manager.pauserRole, plan.managerPauser, true, "manager pauser"),
     roleExpectation(contracts.manager.address, configuration.manager.configurerRole, plan.managerConfigurer, true, "manager configurer"),
-    roleExpectation(contracts.manager.address, configuration.manager.pauserRole, deployer, false, "deployer manager pauser"),
-    roleExpectation(contracts.manager.address, configuration.manager.configurerRole, deployer, false, "deployer manager configurer"),
-    roleExpectation(contracts.manager.address, configuration.manager.registrarRole, deployer, false, "deployer registrar"),
+    roleExpectation(contracts.manager.address, configuration.manager.pauserRole, deployer, plan.managerPauser.toLowerCase() === deployer.toLowerCase(), "deployer manager pauser"),
+    roleExpectation(contracts.manager.address, configuration.manager.configurerRole, deployer, plan.managerConfigurer.toLowerCase() === deployer.toLowerCase(), "deployer manager configurer"),
+    roleExpectation(contracts.manager.address, configuration.manager.registrarRole, deployer, plan.registrars.some(registrar => registrar.toLowerCase() === deployer.toLowerCase()), "deployer registrar"),
     ...plan.registrars.map((registrar) => roleExpectation(
       contracts.manager.address,
       configuration.manager.registrarRole,
