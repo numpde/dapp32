@@ -2,9 +2,13 @@ pragma solidity 0.8.35;
 
 import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 import {IBicycleComponents} from "./IBicycleComponents.sol";
+import {ICamRootOwnership} from "./ICamRootOwnership.sol";
+import {
+    IAccessControlDefaultAdminRules
+} from "@openzeppelin-contracts-5.6.1/access/extensions/IAccessControlDefaultAdminRules.sol";
 
 /// @title BicycleComponentManagerUI
-/// @notice Read-only CAM route projection for BicycleComponentManager.
+/// @notice Read-only CAM projection for registry workflows and deployment handovers.
 /// @dev
 /// This contract is intentionally not part of the authorization path:
 ///
@@ -13,10 +17,11 @@ import {IBicycleComponents} from "./IBicycleComponents.sol";
 /// - it has no write functions;
 /// - it never calls manager write functions;
 /// - it never forwards user actions;
-/// - it only reads manager state and returns semantic UI view data.
+/// - it reads contract state and returns semantic UI view data.
 ///
 /// Registry write actions target the manager; handover targets the recorded
 /// ERC-721 collection. Each remains the authority for its own state changes.
+/// Deployment acceptance calls target the CAM host or the relevant admin contract directly.
 contract BicycleComponentManagerUI {
     IBicycleComponentManagerView public immutable manager;
 
@@ -114,6 +119,22 @@ contract BicycleComponentManagerUI {
         uint48 validUntil;
     }
 
+    struct AuthorityHandover {
+        address target;
+        address current;
+        address pending;
+        uint48 readyAt;
+        string status;
+        bool canAccept;
+    }
+
+    struct DeploymentHandovers {
+        AuthorityHandover cam;
+        AuthorityHandover components;
+        AuthorityHandover manager;
+        string[] actions;
+    }
+
     error ZeroAddress();
     error ManagerHasNoCode(address managerAddress);
     error ManagerUnsupported(address managerAddress);
@@ -145,6 +166,63 @@ contract BicycleComponentManagerUI {
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
         view_.actions = _entryActions(account, view_.canRegister, view_.paused, view_.componentTokenPaused);
+    }
+
+    /// @notice Projects each independent handover from the selected host's current bindings.
+    function viewDeploymentHandovers(address camHost, address account)
+        external
+        view
+        returns (DeploymentHandovers memory view_)
+    {
+        (address rootAddress, address componentsAddress, address managerAddress) = deploymentTargets(camHost);
+        ICamRootOwnership root = ICamRootOwnership(rootAddress);
+        view_.cam = _handover(camHost, root.owner(), root.pendingOwner(), 0, account, true);
+        view_.components = _adminHandover(componentsAddress, account);
+        view_.manager = _adminHandover(managerAddress, account);
+        uint256 count =
+            (view_.cam.canAccept ? 1 : 0) + (view_.components.canAccept ? 1 : 0) + (view_.manager.canAccept ? 1 : 0);
+        view_.actions = new string[](count);
+        uint256 index;
+        if (view_.cam.canAccept) view_.actions[index++] = "acceptCamOwnership";
+        if (view_.components.canAccept) view_.actions[index++] = "acceptComponentsAdmin";
+        if (view_.manager.canAccept) view_.actions[index++] = "acceptManagerAdmin";
+    }
+
+    /// @notice Resolves direct acceptance destinations from the selected host at transaction preparation time.
+    function deploymentTargets(address camHost)
+        public
+        view
+        returns (address cam, address components, address registry)
+    {
+        ICamRootOwnership root = ICamRootOwnership(camHost);
+        return (camHost, root.contractAddress("BicycleComponents"), root.contractAddress("BicycleComponentManager"));
+    }
+
+    function _adminHandover(address target, address account) private view returns (AuthorityHandover memory) {
+        IAccessControlDefaultAdminRules authority = IAccessControlDefaultAdminRules(target);
+        (address pending, uint48 schedule) = authority.pendingDefaultAdmin();
+        return _handover(
+            target, authority.defaultAdmin(), pending, schedule, account, schedule != 0 && block.timestamp > schedule
+        );
+    }
+
+    function _handover(
+        address target,
+        address current,
+        address pending,
+        uint48 readyAt,
+        address account,
+        bool timeReady
+    ) private pure returns (AuthorityHandover memory view_) {
+        view_.target = target;
+        view_.current = current;
+        view_.pending = pending;
+        view_.readyAt = readyAt;
+        view_.canAccept = pending != address(0) && account == pending && timeReady;
+        if (pending == address(0)) view_.status = "No transfer pending";
+        else if (!timeReady) view_.status = "Waiting for acceptance time";
+        else if (account != pending) view_.status = "Only the nominated account can accept";
+        else view_.status = "Ready to accept";
     }
 
     /// @notice Route projection for component lookup and detail views.

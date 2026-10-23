@@ -111,6 +111,7 @@ abstract contract BikeNftReleaseVerifier {
         _requireAddress("BicycleComponentManager binding", artifact.manager, root.contractAddress(CAM_CONTRACT_MANAGER));
         _requireAddress("BicycleComponentManagerUI binding", artifact.ui, root.contractAddress(CAM_CONTRACT_MANAGER_UI));
         _requireAddress("BicycleComponents binding", artifact.components, root.contractAddress(CAM_CONTRACT_COMPONENTS));
+        _requireAddress("CAM ownership binding", artifact.camRoot, root.contractAddress("ICamRootOwnership"));
         _requireAddress(
             "UI manager", artifact.manager, address(BicycleComponentManagerUI(payable(artifact.ui)).manager())
         );

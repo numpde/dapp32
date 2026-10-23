@@ -20,6 +20,35 @@
   },
   {
     "type": "function",
+    "name": "deploymentTargets",
+    "inputs": [
+      {
+        "name": "camHost",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "cam",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "components",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "registry",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "manager",
     "inputs": [],
     "outputs": [
@@ -337,6 +366,148 @@
             "name": "validUntil",
             "type": "uint48",
             "internalType": "uint48"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "viewDeploymentHandovers",
+    "inputs": [
+      {
+        "name": "camHost",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "view_",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.DeploymentHandovers",
+        "components": [
+          {
+            "name": "cam",
+            "type": "tuple",
+            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
+            "components": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "current",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "pending",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "readyAt",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "canAccept",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "components",
+            "type": "tuple",
+            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
+            "components": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "current",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "pending",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "readyAt",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "canAccept",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "manager",
+            "type": "tuple",
+            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
+            "components": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "current",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "pending",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "readyAt",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "canAccept",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
           }
         ]
       }

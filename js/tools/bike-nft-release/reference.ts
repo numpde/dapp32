@@ -45,6 +45,7 @@ export function bikeReference(planBytes: Uint8Array, independentDeployer: string
   if (plan.managerPauser.toLowerCase() !== sender) revoke("manager", "PAUSER_ROLE", managerPausing)
   if (plan.managerConfigurer.toLowerCase() !== sender) revoke("manager", "CONFIGURER_ROLE", managerConfiguration)
 
+  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind CAM ownership acceptance to the CAM host", ["CAM contract name", "Verified CamRoot contract"], "ICamRootOwnership", createdContract("camRoot"))
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind the component registry in CAM", ["CAM contract name", "Verified BicycleComponentManager contract"], "BicycleComponentManager", createdContract("manager"))
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind the Bike workflow interface in CAM", ["CAM contract name", "Verified BicycleComponentManagerUI contract"], "BicycleComponentManagerUI", createdContract("ui"))
   call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind the component NFT collection in CAM", ["CAM contract name", "Verified BicycleComponents contract"], "BicycleComponents", createdContract("components"))

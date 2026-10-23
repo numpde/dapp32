@@ -53,6 +53,7 @@ contract BikeNftLocalFixtureTest is Test {
         BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
 
         BikeNftLocalFixture.Deployment memory deployment = harness.deployCleanForTest();
+        assertEq(deployment.camRoot.contractAddress("ICamRootOwnership"), address(deployment.camRoot));
 
         assertEq(
             deployment.camRoot.contractAddress("BicycleComponents"),

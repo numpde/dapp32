@@ -9,6 +9,7 @@ export const BIKE_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 export const BIKE_UI_CONTRACT = "BicycleComponentManagerUI"
 export const BIKE_MANAGER_CONTRACT = "BicycleComponentManager"
 export const BIKE_COMPONENTS_CONTRACT = "BicycleComponents"
+export const BIKE_ROOT_OWNERSHIP_CONTRACT = "ICamRootOwnership"
 export const BIKE_UI_NAMESPACE = `contracts.${BIKE_UI_CONTRACT}`
 export const BIKE_MANAGER_NAMESPACE = `contracts.${BIKE_MANAGER_CONTRACT}`
 export const BIKE_COMPONENTS_NAMESPACE = `contracts.${BIKE_COMPONENTS_CONTRACT}`
@@ -32,6 +33,7 @@ const BIKE_RELATIVE_UI_URI = "./ui.json"
 export const BIKE_UI_ABI_URI = bikeResourceURI(BIKE_RELATIVE_UI_ABI_URI)
 export const BIKE_MANAGER_ABI_URI = bikeResourceURI(BIKE_RELATIVE_MANAGER_ABI_URI)
 export const BIKE_COMPONENTS_ABI_URI = bikeResourceURI("./abi/BicycleComponents.json")
+export const BIKE_ROOT_OWNERSHIP_ABI_URI = bikeResourceURI("./abi/ICamRootOwnership.json")
 export const BIKE_UI_URI = bikeResourceURI(BIKE_RELATIVE_UI_URI)
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
@@ -56,7 +58,8 @@ export const bikeContractAddresses = {
   [BIKE_UI_CONTRACT]: BIKE_UI_ADDRESS,
   [BIKE_MANAGER_CONTRACT]: BIKE_MANAGER_ADDRESS,
   [BIKE_COMPONENTS_CONTRACT]: BIKE_COMPONENTS_ADDRESS,
-} satisfies Record<typeof BIKE_UI_CONTRACT | typeof BIKE_MANAGER_CONTRACT | typeof BIKE_COMPONENTS_CONTRACT, BikeFixtureAddress>
+  [BIKE_ROOT_OWNERSHIP_CONTRACT]: BIKE_HOST_ADDRESS,
+} satisfies Record<typeof BIKE_UI_CONTRACT | typeof BIKE_MANAGER_CONTRACT | typeof BIKE_COMPONENTS_CONTRACT | typeof BIKE_ROOT_OWNERSHIP_CONTRACT, BikeFixtureAddress>
 
 export function bikeAddressForContract(name: string): BikeFixtureAddress {
   switch (name) {
@@ -66,6 +69,8 @@ export function bikeAddressForContract(name: string): BikeFixtureAddress {
       return BIKE_MANAGER_ADDRESS
     case BIKE_COMPONENTS_CONTRACT:
       return BIKE_COMPONENTS_ADDRESS
+    case BIKE_ROOT_OWNERSHIP_CONTRACT:
+      return BIKE_HOST_ADDRESS
   }
 
   throw new Error(`unknown bike fixture contract: ${name}`)

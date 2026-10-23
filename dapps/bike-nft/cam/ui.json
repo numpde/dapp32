@@ -1,6 +1,40 @@
 {
   "ui": "1.0.0",
   "nodes": {
+    "deploymentHandovers": {
+      "element": "Screen", "requires": ["view"], "props": {"title": "Deployment handovers"},
+      "children": [
+        {"element": "Text", "props": {"text": "Each authority transfers separately. Connect the nominated wallet to accept. The current owner or administrator keeps authority until acceptance succeeds. The two admin waits use chain time; refresh after the acceptance time has passed."}},
+        {"element": "Button", "props": {"label": "Refresh handovers"}, "call": {"namespace": "routes", "function": "deploymentHandovers", "args": {}}},
+        {"element": "Screen", "props": {"title": "CAM ownership"}, "children": [
+          {"element": "Status", "props": {"label": "CAM host", "value": "$view.cam.target"}},
+          {"element": "Status", "props": {"label": "Current owner", "value": "$view.cam.current"}},
+          {"element": "Status", "props": {"label": "Nominated owner (zero means none)", "value": "$view.cam.pending"}},
+          {"element": "Status", "props": {"label": "Acceptance", "value": "$view.cam.status"}},
+          {"element": "Text", "props": {"text": "The owner can change the CAM manifest and contract bindings. There is no acceptance delay."}},
+          {"element": "Button", "props": {"label": "Accept CAM ownership"}, "enabledWhen": {"member": "acceptCamOwnership", "in": "$view.actions"}, "call": {"namespace": "routes", "function": "acceptCamOwnership", "args": {}}}
+        ]},
+        {"element": "Screen", "props": {"title": "Components administrator"}, "children": [
+          {"element": "Status", "props": {"label": "NFT collection", "value": "$view.components.target"}},
+          {"element": "Status", "props": {"label": "Current administrator", "value": "$view.components.current"}},
+          {"element": "Status", "props": {"label": "Nominated administrator (zero means none)", "value": "$view.components.pending"}},
+          {"element": "Status", "props": {"label": "Acceptance time", "value": "$view.components.readyAt", "format": "timestampSeconds", "zeroText": "Not scheduled"}},
+          {"element": "Status", "props": {"label": "Acceptance", "value": "$view.components.status"}},
+          {"element": "Text", "props": {"text": "The administrator manages the collection's operational roles and future administrator transfers."}},
+          {"element": "Button", "props": {"label": "Accept Components administration"}, "enabledWhen": {"member": "acceptComponentsAdmin", "in": "$view.actions"}, "call": {"namespace": "routes", "function": "acceptComponentsAdmin", "args": {}}}
+        ]},
+        {"element": "Screen", "props": {"title": "Manager administrator"}, "children": [
+          {"element": "Status", "props": {"label": "Registry manager", "value": "$view.manager.target"}},
+          {"element": "Status", "props": {"label": "Current administrator", "value": "$view.manager.current"}},
+          {"element": "Status", "props": {"label": "Nominated administrator (zero means none)", "value": "$view.manager.pending"}},
+          {"element": "Status", "props": {"label": "Acceptance time", "value": "$view.manager.readyAt", "format": "timestampSeconds", "zeroText": "Not scheduled"}},
+          {"element": "Status", "props": {"label": "Acceptance", "value": "$view.manager.status"}},
+          {"element": "Text", "props": {"text": "The administrator manages registrar and operational roles and future administrator transfers."}},
+          {"element": "Button", "props": {"label": "Accept Manager administration"}, "enabledWhen": {"member": "acceptManagerAdmin", "in": "$view.actions"}, "call": {"namespace": "routes", "function": "acceptManagerAdmin", "args": {}}}
+        ]},
+        {"element": "Button", "props": {"label": "Back to registry"}, "call": {"namespace": "routes", "function": "entry", "args": {}}}
+      ]
+    },
     "app": {
       "element": "Screen",
       "requires": [
@@ -50,6 +84,7 @@
       ],
       "element": "Fragment",
       "children": [
+        {"element": "Button", "props": {"label": "Deployment handovers"}, "call": {"namespace": "routes", "function": "deploymentHandovers", "args": {}}},
         {
           "element": "Screen",
           "props": {

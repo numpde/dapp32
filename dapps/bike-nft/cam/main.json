@@ -6,10 +6,15 @@
   },
   "entry": "entry",
   "namespaces": {
+    "contracts.ICamRootOwnership": {
+      "type": "contract",
+      "abiURI": "./abi/ICamRootOwnership.json",
+      "integrity": "sha256:0xa33fcedfa63189578f590f027518c7690deccdc308cf13da073030e1d039427e"
+    },
     "contracts.BicycleComponentManagerUI": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManagerUI.json",
-      "integrity": "sha256:0x78a595fde6f3895807e847397f2a2104e010c391b665ccb6b64367f4803d4ad8"
+      "integrity": "sha256:0xd49b4cfd1f9bfb5fd9b3b02b36af1f1243ff696cfbd35acd9dc35cd688d89a03"
     },
     "contracts.BicycleComponentManager": {
       "type": "contract",
@@ -22,7 +27,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x6cbb50b6c00dd2e481728dc77cebd338a5a68159fe3e6e5862b77281a2868e2e"
+      "integrity": "sha256:0xc1a231587aa6ab497d8f3e94499d7e543a6fff79a7c101ddfcfd3fd99ed5c75b"
     },
     "contracts.BicycleComponents": {
       "type": "contract",
@@ -31,6 +36,91 @@
     }
   },
   "routes": {
+    "deploymentHandovers": {
+      "kind": "read",
+      "inputs": [],
+      "call": {
+        "namespace": "contracts.BicycleComponentManagerUI",
+        "function": "viewDeploymentHandovers",
+        "args": {
+          "camHost": "$host.address",
+          "account": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "deploymentHandovers",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "acceptCamOwnership": {
+      "kind": "write",
+      "inputs": [],
+      "resolve": {
+        "namespace": "contracts.BicycleComponentManagerUI",
+        "function": "deploymentTargets",
+        "args": {
+          "camHost": "$host.address"
+        }
+      },
+      "call": {
+        "namespace": "contracts.ICamRootOwnership",
+        "target": "$outputs.0",
+        "function": "acceptOwnership",
+        "args": {}
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "deploymentHandovers",
+        "args": {}
+      }
+    },
+    "acceptComponentsAdmin": {
+      "kind": "write",
+      "inputs": [],
+      "resolve": {
+        "namespace": "contracts.BicycleComponentManagerUI",
+        "function": "deploymentTargets",
+        "args": {
+          "camHost": "$host.address"
+        }
+      },
+      "call": {
+        "namespace": "contracts.BicycleComponents",
+        "target": "$outputs.1",
+        "function": "acceptDefaultAdminTransfer",
+        "args": {}
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "deploymentHandovers",
+        "args": {}
+      }
+    },
+    "acceptManagerAdmin": {
+      "kind": "write",
+      "inputs": [],
+      "resolve": {
+        "namespace": "contracts.BicycleComponentManagerUI",
+        "function": "deploymentTargets",
+        "args": {
+          "camHost": "$host.address"
+        }
+      },
+      "call": {
+        "namespace": "contracts.BicycleComponentManager",
+        "target": "$outputs.2",
+        "function": "acceptDefaultAdminTransfer",
+        "args": {}
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "deploymentHandovers",
+        "args": {}
+      }
+    },
     "entry": {
       "kind": "read",
       "inputs": [],

@@ -129,6 +129,7 @@ contract DeployBikeNftRelease is Script {
             deployment.manager.revokeRole(deployment.manager.CONFIGURER_ROLE(), deployer);
         }
 
+        deployment.camRoot.setContractAddress("ICamRootOwnership", address(deployment.camRoot));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_COMPONENTS, address(deployment.components));

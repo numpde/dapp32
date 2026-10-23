@@ -85,6 +85,7 @@ test("Bike reference includes every registrar and ordered authority handoff", ()
     "setContractAddress", "setContractAddress", "setContractAddress", "transferOwnership", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer",
   ])
   assert.deepEqual(reference.steps.filter(step => step.name === "setContractAddress").map(step => step.args), [
+    ["ICamRootOwnership", { createdContract: "camRoot" }],
     ["BicycleComponentManager", { createdContract: "manager" }],
     ["BicycleComponentManagerUI", { createdContract: "ui" }],
     ["BicycleComponents", { createdContract: "components" }],

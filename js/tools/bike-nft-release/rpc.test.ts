@@ -115,6 +115,7 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
           switch (decoded.functionName) {
             case "camManifest": observed = { uri: plan.camURI, sha256Digest: HASH }; break
             case "contractAddress": {
+              if (decoded.args[0] === "ICamRootOwnership") { observed = altered === "ownership-binding" ? OWNER : ROOT; break }
               const created = CREATED.find(entry => entry.contractName === decoded.args[0])
               assert.ok(created)
               observed = created.contractAddress
@@ -163,6 +164,7 @@ test("Bike materializer accepts selected deployer authorities and rejects extra 
       ["mixed", mixed, mixedHolders, undefined],
       ["extra-role", mixed, mixedHolders, /deployer components pauser role mismatch/],
       ["self-pending", shared, sharedHolders, /unexpected CamRoot ownership handoff/],
+      ["ownership-binding", shared, sharedHolders, /CAM ownership binding/],
       ["receipt-hash", shared, sharedHolders, /receipt transaction hash does not match/],
       ["receipt-sender", shared, sharedHolders, /share one deployer/],
     ] as const) {

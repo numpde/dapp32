@@ -229,14 +229,16 @@ async function observeCode(
 }
 
 async function observeRoot(read: ContractReader, address: Address): Promise<RootObservation> {
-  const [manifest, managerBinding, uiBinding, componentsBinding, owner, pendingOwner] = await Promise.all([
+  const [manifest, managerBinding, uiBinding, componentsBinding, owner, pendingOwner, ownershipBinding] = await Promise.all([
     read<{ uri: string; sha256Digest: Hex }>(address, ROOT_ABI, "camManifest"),
     read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponentManager"]),
     read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponentManagerUI"]),
     read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponents"]),
     read<Address>(address, ROOT_ABI, "owner"),
     read<Address>(address, ROOT_ABI, "pendingOwner"),
+    read<Address>(address, ROOT_ABI, "contractAddress", ["ICamRootOwnership"]),
   ])
+  assertAddress(ownershipBinding, address, "CAM ownership binding")
   return {
     camURI: manifest.uri,
     camHash: manifest.sha256Digest,
