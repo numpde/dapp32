@@ -77,6 +77,22 @@ class ApprovalSuccessTest(unittest.TestCase):
             finally:
                 transcript.finish()
 
+    def test_argument_overflow_summary_preserves_numbered_arguments(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = self.rehearsal.Transcript(Path(directory) / "approval-pty.log")
+            try:
+                transcript.extend(b"Review transaction 2\n")
+                transcript.extend(b"    1 Collection name: Test\n    2 Collection symbol: TEST\n")
+                transcript.extend(b"    3 Initial admin: 0x123\n    4 Delay (seconds): 3600\n")
+                for hidden_count in (1, 2, 3, 4, 10):
+                    transcript.extend(f"    {hidden_count} more; inspect full data\n".encode())
+                    self.assertEqual({
+                        1: "Collection name: Test", 2: "Collection symbol: TEST",
+                        3: "Initial admin: 0x123", 4: "Delay (seconds): 3600",
+                    }, transcript.review_arguments)
+            finally:
+                transcript.finish()
+
     def test_approval_audit_requires_exact_order_hashes_and_challenges(self) -> None:
         approvals = [("0x" + "a" * 64, "first"), ("0x" + "b" * 64, "second")]
         events = []

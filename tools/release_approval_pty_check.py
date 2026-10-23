@@ -176,7 +176,7 @@ class Transcript(bytearray):
         match = re.fullmatch(r"  (Chain ID|Sender|Nonce|Transaction hash|Step): (.+)", line)
         if self.review_number and match:
             self.review[match.group(1)] = match.group(2)
-        match = re.fullmatch(r"    ([1-4]) (.*)", line)
+        match = re.fullmatch(r"    ([1-4]) (.+: .*)", line)
         if self.review_number and match:
             self.review_arguments[int(match.group(1))] = match.group(2)
         if self.review_number and line == "  Press a to approve and send, r to reject and stop. No Enter for any key.":
