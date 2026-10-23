@@ -233,6 +233,24 @@ def ask_output_directory(app, host_config_file, previous):
             print(error, file=sys.stderr)
 
 
+def print_authority_help(app):
+    print("Changing addresses after deployment:")
+    print("EXPECTED_DEPLOYER_ADDRESS: the expected signer before deployment; afterward its history is fixed. This field grants no ongoing role by itself.")
+    print("INTENDED_CAM_ROOT_OWNER: CamRoot's current owner nominates the next owner, who must accept.")
+    print("CAM ownership does not by itself grant roles on the other contracts.")
+    if app == "bike-nft":
+        print("INTENDED_COMPONENTS_ADMIN / INTENDED_MANAGER_ADMIN: each contract's current default admin nominates its successor. The nominee accepts after that contract's current delay (initially COMPONENTS_ADMIN_DELAY / MANAGER_ADMIN_DELAY).")
+        print("COMPONENTS_PAUSER / COMPONENTS_CONFIGURER: Components' current default admin adds or removes holders.")
+        print("MANAGER_PAUSER / MANAGER_CONFIGURER / REGISTRARS: Manager's current default admin adds or removes holders.")
+        print("Operational roles can have several holders. Adding one does not replace another: the admin removes old holders, or holders renounce their own roles. These changes have no admin-transfer wait.")
+        print("During ownership/admin transfers, the current holder retains that authority until the replacement accepts.")
+    else:
+        if app == "pay-to-play":
+            print("INTENDED_PAYMENT_ADMIN: PayToPlay's current owner nominates the next owner, who must accept.")
+        print("Ownership transfers have no admin-transfer wait. The current owner retains ownership until the replacement accepts.")
+    print("Later changes need onchain transactions; editing the saved configuration does not change contracts.")
+
+
 def write_private(path, content):
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as output:
@@ -270,6 +288,7 @@ def setup(app, source_commit, output):
         if network == "public":
             config["rpcUrl"] = ask("Complete RPC URL (including any API key)", "rpc", config["rpcUrl"], secret=True)
             config["deployerPrivateKey"] = ask("Funded deployer private key", "key", config["deployerPrivateKey"], secret=True)
+        print_authority_help(app)
         for name, label, kind in fields(app):
             if network == "local" and name in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"):
                 print(f"{name}: {config['settings'][name]}")
@@ -297,6 +316,7 @@ def setup(app, source_commit, output):
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
         for name, value in config["settings"].items():
             print(f"{name}: {value}")
+        print_authority_help(app)
         print("Deployment confirmation: YES")
         decision = input("Save this release configuration, change inputs, or cancel? [save/change/cancel]: ").strip().lower()
         while decision not in ("save", "change", "cancel"):

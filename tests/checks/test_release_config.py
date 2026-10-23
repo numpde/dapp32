@@ -45,6 +45,35 @@ class ReleaseConfigTest(unittest.TestCase):
         self.setup_environment.start()
         self.addCleanup(self.setup_environment.stop)
 
+    def test_authority_help_at_address_choices_and_review_preserves_each_apps_settings(self):
+        heading = "Changing addresses after deployment:"
+        deployer_label = next(label for name, label, _ in release_config.COMMON_FIELDS if name == "EXPECTED_DEPLOYER_ADDRESS")
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                expected = configuration(app)
+                answers = iter(["public", *expected["settings"].values(), "save"])
+                transcript = io.StringIO()
+                surfaces = {}
+                def respond(prompt):
+                    if prompt.startswith(deployer_label):
+                        surfaces["choice"] = transcript.getvalue()
+                    elif prompt.startswith("Save this release configuration"):
+                        surfaces["review"] = transcript.getvalue()
+                    return next(answers)
+                root = Path(temporary)
+                with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
+                    release_config.setup(app, COMMIT, root)
+                self.assertEqual(expected, json.loads((root / "release.json").read_text()))
+                self.assertEqual(1, surfaces["choice"].count(heading))
+                self.assertEqual(2, surfaces["review"].count(heading))
+                for surface in surfaces.values():
+                    help_text = surface.rsplit(heading, 1)[1]
+                    self.assertIn("EXPECTED_DEPLOYER_ADDRESS:", help_text)
+                    self.assertIn("INTENDED_CAM_ROOT_OWNER:", help_text)
+                    self.assertEqual(app == "pay-to-play", "INTENDED_PAYMENT_ADMIN:" in help_text)
+                    for group in ("INTENDED_COMPONENTS_ADMIN / INTENDED_MANAGER_ADMIN:", "COMPONENTS_PAUSER / COMPONENTS_CONFIGURER:", "MANAGER_PAUSER / MANAGER_CONFIGURER / REGISTRARS:"):
+                        self.assertEqual(app == "bike-nft", group in help_text)
+
     def test_bike_reprompts_only_the_deployer_conflicting_role_before_saving(self):
         roles = ("INTENDED_CAM_ROOT_OWNER", "INTENDED_COMPONENTS_ADMIN", "COMPONENTS_PAUSER", "COMPONENTS_CONFIGURER", "INTENDED_MANAGER_ADMIN", "MANAGER_PAUSER", "MANAGER_CONFIGURER", "REGISTRARS")
         for role in roles:
