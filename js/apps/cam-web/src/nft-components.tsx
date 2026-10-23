@@ -69,7 +69,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
   </section>
 }
 
-export function NftMetadataPreview({ metadata, baseURI, loadImage = false }: { readonly metadata: InertRecord; readonly baseURI: string | undefined; readonly loadImage?: boolean }): ReactElement {
+export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly metadata: InertRecord; readonly baseURI: string | undefined; readonly loadImage: boolean }): ReactElement {
   const attributes = Array.isArray(metadata.attributes) ? metadata.attributes : []
   return <section className="nft-preview" aria-label="Metadata preview">
     {typeof metadata.image === "string" && metadata.image !== "" ? <NftImage key={JSON.stringify([baseURI, metadata.image])} uri={metadata.image} baseURI={baseURI} autoLoad={loadImage} alt={typeof metadata.name === "string" ? metadata.name : "NFT image"} /> : null}
@@ -172,7 +172,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
         onChange={event => { if (!("error" in draft)) editDraft(JSON.stringify({ ...draft.metadata, [key]: event.currentTarget.value }, null, 2)) }} /></label>)}
       <label className="field"><span>Metadata JSON (including attributes and other fields)</span><textarea id={`${id}-json`} name={`${name}.metadata.json`} maxLength={NFT_METADATA_MAX_BYTES} value={text} aria-invalid={"error" in draft} aria-describedby={`${id}-feedback`} onChange={event => editDraft(event.currentTarget.value)} /></label>
       {"error" in draft ? <ResourceFeedback resource={{ status: "failed", error: draft.error }} /> : <>
-        <NftMetadataPreview metadata={draft.metadata} baseURI={baseURI} />
+        <NftMetadataPreview metadata={draft.metadata} baseURI={baseURI} loadImage={false} />
         <div className="nft-actions"><button className="button-quiet" type="button" onClick={() => { void copy(draft.json) }}>Copy JSON</button><button className="button-quiet" type="button" onClick={download}>Download JSON</button></div>
       </>}
   </>

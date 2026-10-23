@@ -219,7 +219,7 @@ async function clickButton(label) {
   assert(events.includes('click'), `${label} received no browser click (${events.join(', ')})`)
 }
 async function feedback(kind) {
-  return evaluate(`(() => { const node = ${kind === 'notice' ? "[...document.querySelectorAll('.notice')].at(-1)" : "document.querySelector('.prepared-call')"}; if (!node) return null; const r=node.getBoundingClientRect(); return {text:node.querySelector('.feedback-message')?.innerText??node.innerText, diagnostic:node.querySelector('.feedback-diagnostic')?.textContent, role:node.getAttribute('role'), top:r.top,bottom:r.bottom,height:innerHeight, focus:node.contains(document.activeElement), active:document.activeElement?.tagName} })()`)
+  return evaluate(`(() => { const node = ${kind === 'notice' ? "[...document.querySelectorAll('.notice')].at(-1)" : "document.querySelector('.prepared-call')"}; if (!node) return null; const r=node.getBoundingClientRect(); const message=node.querySelector('.feedback-message'); return {text:message===null?node.innerText:message.innerText, diagnostic:node.querySelector('.feedback-diagnostic')?.textContent, role:node.getAttribute('role'), top:r.top,bottom:r.bottom,height:innerHeight, focus:node.contains(document.activeElement), active:document.activeElement?.tagName} })()`)
 }
 async function waitFor(predicate, label, failOnViewerError) {
   let lastState

@@ -120,7 +120,7 @@ export function UiView({
         </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView root scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView root={true} headingLevel={2} scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -173,8 +173,8 @@ export function PreparedCallView({
 
 function UiNodeView({
   node,
-  root = false,
-  headingLevel = 2,
+  root,
+  headingLevel,
   actionKind,
   scopeKey,
   state,
@@ -188,8 +188,8 @@ function UiNodeView({
   onCancelDocumentHash,
 }: {
   readonly node: ResolvedUiNode
-  readonly root?: boolean
-  readonly headingLevel?: number
+  readonly root: boolean
+  readonly headingLevel: number
   readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
   readonly scopeKey: string
   readonly state: Record<string, InertValue>
@@ -207,7 +207,7 @@ function UiNodeView({
     case "Fragment": {
       const titled = node.element === "Screen" && !root
       const children = node.children.map((child, index) => (
-        <UiNodeView key={index} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView key={index} root={false} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       ))
       if (!titled) return <>{children}</>
       const title = displayText(stringProp(node.props, "title"))
