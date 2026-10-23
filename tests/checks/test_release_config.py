@@ -8,6 +8,7 @@ import stat
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.parse import unquote
 
 from tools import release_config
 from .common import compose_sequence_or_empty, rendered_compose_config
@@ -26,6 +27,7 @@ def configuration(app):
         "claim-period": "86400", "delay": "86400", "text": "Fixture collection",
         "path": "/tmp/new-release-output",
         "cam-hash": "auto",
+        "optional-text": "https://metadata.example.test/tokens/",
     }
     return {
         "schemaVersion": 2, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
@@ -35,6 +37,69 @@ def configuration(app):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_bike_metadata_choices_save_canonical_values_and_unpack_empty_prefix(self):
+        for prefix_answer, collection_answer in (("", ""), ("none", "inline"), ("https://metadata.example.test/tokens/", "https://metadata.example.test/collection.json"), ("", "data:application/json,%7B%22name%22%3A%22Custom%22%7D")):
+            with self.subTest(prefix=prefix_answer, collection=collection_answer), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                expected = configuration("bike-nft")
+                expected["settings"]["TOKEN_NAME"] = 'Vélos "東京"'
+                expected["settings"]["TOKEN_SYMBOL"] = 'VÉ"東京'
+                answers = ["public", *expected["settings"].values(), "save"]
+                answers[1 + list(expected["settings"]).index("BASE_TOKEN_URI")] = prefix_answer
+                answers[1 + list(expected["settings"]).index("COLLECTION_URI")] = collection_answer
+                transcript = io.StringIO()
+                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
+                    release_config.setup("bike-nft", COMMIT, root)
+                saved = root / "release.json"
+                config = json.loads(saved.read_text())
+                self.assertEqual(expected["settings"]["TOKEN_SYMBOL"], config["settings"]["TOKEN_SYMBOL"])
+                prefix = prefix_answer
+                if prefix_answer == "none":
+                    prefix = ""
+                self.assertEqual(prefix, config["settings"]["BASE_TOKEN_URI"])
+                collection = config["settings"]["COLLECTION_URI"]
+                if collection_answer in ("", "inline"):
+                    self.assertTrue(collection.startswith("data:application/json,"))
+                    metadata = json.loads(unquote(collection.split(",", 1)[1]))
+                    self.assertEqual({"name": expected["settings"]["TOKEN_NAME"]}, metadata)
+                    self.assertIn(json.dumps(metadata, ensure_ascii=False), transcript.getvalue())
+                else:
+                    self.assertEqual(collection_answer, collection)
+                output = root / "out"
+                output.mkdir()
+                release_config.unpack("bike-nft", COMMIT, "deploy", saved, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                self.assertIn("BIKE_NFT_RELEASE_BASE_TOKEN_URI", inputs)
+                self.assertEqual(prefix, inputs["BIKE_NFT_RELEASE_BASE_TOKEN_URI"])
+                self.assertEqual(collection, inputs["BIKE_NFT_RELEASE_COLLECTION_URI"])
+
+    def test_bike_token_prefix_can_be_cleared_when_reviewing_settings(self):
+        expected = configuration("bike-nft")
+        initial = ["public", *expected["settings"].values(), "change"]
+        revised = list(expected["settings"].values())
+        revised[list(expected["settings"]).index("BASE_TOKEN_URI")] = "none"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(release_config, "input", side_effect=[*initial, *revised, "save"], create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY, FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
+                release_config.setup("bike-nft", COMMIT, root)
+            self.assertEqual("", json.loads((root / "release.json").read_text())["settings"]["BASE_TOKEN_URI"])
+
+    def test_bike_inline_metadata_overflow_reprompts_collection_without_losing_settings(self):
+        expected = configuration("bike-nft")
+        expected["settings"]["TOKEN_NAME"] = "x" * 4096
+        expected["settings"]["COLLECTION_URI"] = "https://metadata.example.test/collection.json"
+        answers = ["public", *expected["settings"].values(), "save"]
+        collection_index = 1 + list(expected["settings"]).index("COLLECTION_URI")
+        answers.insert(collection_index, "inline")
+        errors = io.StringIO()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                release_config.setup("bike-nft", COMMIT, root)
+            self.assertEqual(expected, json.loads((root / "release.json").read_text()))
+        self.assertIn("inline collection metadata", errors.getvalue())
+        self.assertIn("4096", errors.getvalue())
+
     def test_omitted_cam_hash_keeps_automatic_selection(self):
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
@@ -198,7 +263,8 @@ class ReleaseConfigTest(unittest.TestCase):
             "uri": ["http://example.test/main.json", "https://example.test/$(code)"],
             "rpc": ["http://rpc.example.test", "https://user:secret@rpc.example.test", "https://rpc.example.test:8545", "https://rpc.example.test/#secret"],
             "key": ["0x" + "00" * 32, "0x" + "ff" * 32, "private-fixture-credential"],
-            "text": ["two\nlines", "embedded\0separator"],
+            "text": ["", "two\nlines", "embedded\0separator"],
+            "optional-text": ["two\nlines", "embedded\0separator", "x" * 4097],
             "cam-hash": ["0", "0x0", "0x" + "00" * 31, "0x" + "gg" * 32],
         }
         for kind, values in cases.items():

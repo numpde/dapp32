@@ -38,8 +38,8 @@ export function releaseInputs(app: RehearsalApp, directory: string): Record<stri
   if (app === "bike-nft") {
     Object.assign(settings, {
       BIKE_NFT_RELEASE_TOKEN_NAME: "Rehearsal components", BIKE_NFT_RELEASE_TOKEN_SYMBOL: "TEST",
-      BIKE_NFT_RELEASE_BASE_TOKEN_URI: `${camOrigin}/tokens/`,
-      BIKE_NFT_RELEASE_COLLECTION_URI: `${camOrigin}/collection.json`,
+      BIKE_NFT_RELEASE_BASE_TOKEN_URI: "",
+      BIKE_NFT_RELEASE_COLLECTION_URI: "data:application/json,%7B%22name%22%3A%22Rehearsal%20components%22%7D",
       BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN: owners.payment.address,
       BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY: "3600",
       BIKE_NFT_RELEASE_COMPONENTS_PAUSER: owners.root.address,

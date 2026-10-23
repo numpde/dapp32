@@ -130,12 +130,55 @@ test("release plans and deployment artifacts share the single-line text domain",
   for (const field of ["tokenName", "tokenSymbol", "baseTokenURI", "collectionURI"] as const) {
     assert.throws(
       () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, [field]: "line one\nline two" }))),
-      new RegExp(`${field} must be a non-empty single-line string`),
+      new RegExp(`${field} must be a .*single-line string`),
     )
     assert.throws(
       () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, [field]: "line one\rline two" }))),
-      new RegExp(`${field} must be a non-empty single-line string`),
+      new RegExp(`${field} must be a .*single-line string`),
     )
+  }
+})
+
+test("Bike release keeps an explicitly empty metadata base in plans, artifacts and verification", () => {
+  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a"), baseTokenURI: "" }
+  assert.equal(parseReleasePlan(new TextEncoder().encode(JSON.stringify(plan))).baseTokenURI, "")
+  const artifact = { ...verifiedDeployment(), baseTokenURI: "" }
+  assert.equal(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))).baseTokenURI, "")
+  const directory = mkdtempSync(join(tmpdir(), "bike-release-empty-base-"))
+  try {
+    const planPath = join(directory, "plan.json")
+    const env = { ...process.env, ...plannerEnv(planPath), BIKE_NFT_RELEASE_BASE_TOKEN_URI: "" }
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], { encoding: "utf8", env })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(parseReleasePlan(new TextEncoder().encode(readFileSync(planPath, "utf8"))).baseTokenURI, "")
+    const verified = runBikeVerifyInput(directory, "empty-base", artifact)
+    assert.equal(verified.result.status, 0, verified.result.stderr)
+    assert.equal(parseDeploymentArtifact(new TextEncoder().encode(readFileSync(verified.snapshotPath, "utf8"))).baseTokenURI, "")
+  } finally {
+    rmSync(directory, { recursive: true })
+  }
+})
+
+test("Bike release requires a present string metadata base and keeps other metadata mandatory", () => {
+  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a") }
+  for (const invalid of [undefined, null, 0, "line\nbreak", "line\rbreak"]) {
+    assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, baseTokenURI: invalid }))), /baseTokenURI/)
+    assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...deployment(), baseTokenURI: invalid }))), /baseTokenURI/)
+  }
+  for (const field of ["tokenName", "tokenSymbol", "collectionURI"] as const) {
+    assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, [field]: "" }))), new RegExp(field))
+  }
+  const directory = mkdtempSync(join(tmpdir(), "bike-release-missing-base-"))
+  try {
+    const planPath = join(directory, "plan.json")
+    const env: NodeJS.ProcessEnv = { ...process.env, ...plannerEnv(planPath) }
+    delete env.BIKE_NFT_RELEASE_BASE_TOKEN_URI
+    const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], { encoding: "utf8", env })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /baseTokenURI|BIKE_NFT_RELEASE_BASE_TOKEN_URI/)
+    assert.equal(existsSync(planPath), false)
+  } finally {
+    rmSync(directory, { recursive: true })
   }
 })
 
@@ -154,7 +197,7 @@ test("the Bike planner rejects multiline release text before publishing a plan",
         env: { ...process.env, ...plannerEnv(planPath), [variable]: "line one\nline two" },
       })
       assert.notEqual(result.status, 0, `${field} unexpectedly produced a release plan`)
-      assert.match(result.stderr, new RegExp(`${field} must be a non-empty single-line string`))
+      assert.match(result.stderr, new RegExp(`${field} must be a .*single-line string`))
       assert.match(result.stderr, /\n\s+at /)
       assert.equal(existsSync(planPath), false)
     }

@@ -7,7 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 
 # These are operator inputs, not the generated release plan or contract validation.
@@ -27,8 +27,8 @@ APP_FIELDS = {
     "bike-nft": (
         ("TOKEN_NAME", "NFT collection name", "text"),
         ("TOKEN_SYMBOL", "NFT symbol", "text"),
-        ("BASE_TOKEN_URI", "Base token metadata URI", "text"),
-        ("COLLECTION_URI", "Collection metadata URI", "text"),
+        ("BASE_TOKEN_URI", "Token URI prefix (none to leave token URIs unchanged)", "optional-text"),
+        ("COLLECTION_URI", "Collection metadata URI (inline or paste a URI/data URI)", "text"),
         ("INTENDED_COMPONENTS_ADMIN", "Components administrator address", "address"),
         ("COMPONENTS_ADMIN_DELAY", "Components administrator transfer delay in seconds (positive uint48)", "delay"),
         ("COMPONENTS_PAUSER", "Components pauser address", "address"),
@@ -56,6 +56,8 @@ def fields(app):
 
 
 def check_value(value, kind, *, local_cam_uri=None):
+    if kind == "optional-text" and value == "":
+        return value
     if not isinstance(value, str) or not value or len(value.encode("utf-8")) > 4096:
         raise ValueError("Enter a nonempty value of at most 4096 UTF-8 bytes.")
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
@@ -161,15 +163,36 @@ def ask(label, kind, previous, *, secret, local_cam_uri=None):
         prompt = label
         if previous and not secret:
             prompt += f" [{previous}]"
+        elif kind == "optional-text":
+            prompt += " [none]"
         prompt += ": "
         value = getpass.getpass(prompt) if secret else input(prompt)
         value = value or previous
         if kind == "cam-hash" and value == "zero":
             value = "0x" + "00" * 32
+        if kind == "optional-text" and value == "none":
+            value = ""
         try:
             return check_value(value, kind, local_cam_uri=local_cam_uri)
         except ValueError as error:
             print(error, file=sys.stderr)
+
+
+def ask_collection_uri(label, token_name, previous):
+    collection_json = json.dumps({"name": token_name}, ensure_ascii=False)
+    print("Collection metadata describes the whole collection, not an individual token.")
+    print(f"Enter inline to embed this JSON without hosting: {collection_json}")
+    if not previous:
+        previous = "inline"
+    while True:
+        value = ask(label, "text", previous, secret=False)
+        if value != "inline":
+            return value
+        uri = "data:application/json," + quote(collection_json, safe="")
+        try:
+            return check_value(uri, "text")
+        except ValueError as error:
+            print(f"Cannot use inline collection metadata: {error}", file=sys.stderr)
 
 
 def write_private(path, content):
@@ -214,7 +237,13 @@ def setup(app, source_commit, output):
                 print("Deployment creates this directory to keep plans, transaction records and deployed contract addresses.")
                 print("Verification reads its artifact/deployment.json later. Keep it after deployment, including failures.")
                 print("Choose a new path such as /tmp/local-release; its parent must exist, but do not create the directory yourself.")
-            config["settings"][name] = ask(label, kind, config["settings"][name], secret=False, local_cam_uri=local_cam_uri)
+            previous = config["settings"][name]
+            if name == "BASE_TOKEN_URI":
+                print("With no prefix, each token can use a complete metadata URL or data URI. A shared prefix is prepended to each token URI.")
+            if name == "COLLECTION_URI":
+                config["settings"][name] = ask_collection_uri(label, config["settings"]["TOKEN_NAME"], previous)
+            else:
+                config["settings"][name] = ask(label, kind, previous, secret=False, local_cam_uri=local_cam_uri)
         validate(config, app, source_commit)
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
         for name, value in config["settings"].items():

@@ -87,7 +87,6 @@ abstract contract BikeNftReleaseVerifier {
         _requireText(artifact.camURI, "camURI");
         _requireText(artifact.tokenName, "tokenName");
         _requireText(artifact.tokenSymbol, "tokenSymbol");
-        _requireText(artifact.baseTokenURI, "baseTokenURI");
         _requireText(artifact.collectionURI, "collectionURI");
         if (artifact.componentsAdminDelay == 0) revert ZeroValue("componentsAdminDelay");
         if (artifact.managerAdminDelay == 0) revert ZeroValue("managerAdminDelay");

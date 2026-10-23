@@ -55,6 +55,21 @@ contract BikeNftReleaseVerifierTest is Test {
         ui = deployment.ui;
     }
 
+    function testVerifierAcceptsEmptyBaseAfterAuthorityHandoffs() public {
+        vm.prank(COMPONENTS_CONFIGURER);
+        components.setBaseURI("");
+        BikeNftReleaseVerifier.Artifact memory artifact = _artifact();
+        artifact.baseTokenURI = "";
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BikeNftReleaseVerifier.AddressMismatch.selector, "intendedCamRootOwner", ROOT_OWNER, deployer
+            )
+        );
+        verifier.verify(artifact, SOURCE_COMMIT);
+        _acceptHandoffs();
+        verifier.verify(artifact, SOURCE_COMMIT);
+    }
+
     function testVerifierAcceptsCompletedRelease() public {
         _acceptHandoffs();
         verifier.verify(_artifact(), SOURCE_COMMIT);

@@ -712,7 +712,7 @@ help:
 	  '      BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER  Intended owner address for the CAM host contract.' \
 	  '      BIKE_NFT_RELEASE_TOKEN_NAME              Collection name displayed to users.' \
 	  '      BIKE_NFT_RELEASE_TOKEN_SYMBOL            Short collection symbol.' \
-	  '      BIKE_NFT_RELEASE_BASE_TOKEN_URI          URI prefix for individual token metadata.' \
+	  '      BIKE_NFT_RELEASE_BASE_TOKEN_URI          URI prefix; set empty for complete per-token metadata URIs.' \
 	  '      BIKE_NFT_RELEASE_COLLECTION_URI          URI for collection metadata.' \
 	  '      BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN  Intended admin address for the component NFTs.' \
 	  '      BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY     Positive admin-transfer waiting period in seconds.' \
@@ -1739,7 +1739,7 @@ bike-nft/release/deploy:
 	  printf '%s\n' 'Set CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES only after reviewing every authority, delay, URI, chain, and registrar.' >&2; exit 2; \
 	fi; \
 	required=(BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID BIKE_NFT_RELEASE_CAM_URI BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER BIKE_NFT_RELEASE_TOKEN_NAME BIKE_NFT_RELEASE_TOKEN_SYMBOL BIKE_NFT_RELEASE_BASE_TOKEN_URI BIKE_NFT_RELEASE_COLLECTION_URI BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY BIKE_NFT_RELEASE_COMPONENTS_PAUSER BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY BIKE_NFT_RELEASE_MANAGER_PAUSER BIKE_NFT_RELEASE_MANAGER_CONFIGURER BIKE_NFT_RELEASE_REGISTRARS DEPLOYER_PRIVATE_KEY_FILE BIKE_NFT_RELEASE_OUTPUT_DIR); \
-	for name in "$${required[@]}"; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
+	for name in "$${required[@]}"; do if [[ ! -v $$name || ( "$$name" != BIKE_NFT_RELEASE_BASE_TOKEN_URI && -z "$${!name}" ) ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
 	chain_id="$$BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID"; \
 	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == 1337 || "$$chain_id" == 31337 ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; fi; \
 	$(call release_validate_cam_uri,BIKE_NFT,bike-nft); \

@@ -4,7 +4,7 @@ import test from "node:test"
 import { rehearsalApp, shellAssignments } from "./fixture.ts"
 
 test("fixture environment publication preserves literal values without shell execution", () => {
-  for (const value of ["space separated", "quote'and\\slash", "$(exit 42)", "`exit 42`", "line\nbreak"]) {
+  for (const value of ["", "space separated", "quote'and\\slash", "$(exit 42)", "`exit 42`", "line\nbreak"]) {
     const assignments = shellAssignments({ FIXTURE_VALUE: value })
     const actual = execFileSync("sh", ["-eu", "-c", assignments + 'printf %s "$FIXTURE_VALUE"'], { encoding: "utf8" })
     assert.equal(actual, value)

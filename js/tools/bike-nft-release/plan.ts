@@ -1,5 +1,5 @@
 import { assertReleaseCamURI, inspectReleaseCamBundle } from "../release-cam-bundle.ts"
-import { RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
+import { RELEASE_PLAN_SCHEMA, requiredAddresses, requiredBaseTokenURI, requiredDelay } from "./shared.ts"
 import type { ReleasePlan } from "./shared.ts"
 import { writeNewJson } from "../release-files.ts"
 import { requiredEnv } from "../input.ts"
@@ -21,7 +21,7 @@ async function main(): Promise<void> {
     intendedCamRootOwner: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER"), "intended CAM root owner"),
     tokenName: requiredSingleLineString(requiredEnv(env, "BIKE_NFT_RELEASE_TOKEN_NAME"), "tokenName"),
     tokenSymbol: requiredSingleLineString(requiredEnv(env, "BIKE_NFT_RELEASE_TOKEN_SYMBOL"), "tokenSymbol"),
-    baseTokenURI: requiredSingleLineString(requiredEnv(env, "BIKE_NFT_RELEASE_BASE_TOKEN_URI"), "baseTokenURI"),
+    baseTokenURI: requiredBaseTokenURI(env.BIKE_NFT_RELEASE_BASE_TOKEN_URI),
     collectionURI: requiredSingleLineString(requiredEnv(env, "BIKE_NFT_RELEASE_COLLECTION_URI"), "collectionURI"),
     intendedComponentsAdmin: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN"), "intended components admin"), componentsAdminDelay: requiredDelay(requiredEnv(env, "BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY"), "components admin delay"),
     componentsPauser: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_COMPONENTS_PAUSER"), "components pauser"), componentsConfigurer: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER"), "components configurer"),

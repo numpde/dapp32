@@ -238,7 +238,7 @@ contract DeployBikeNftRelease is Script {
         _requireText(plan.camURI, "camURI");
         _requireText(plan.tokenName, "tokenName");
         _requireText(plan.tokenSymbol, "tokenSymbol");
-        _requireText(plan.baseTokenURI, "baseTokenURI");
+        _requireSingleLine(plan.baseTokenURI, "baseTokenURI");
         _requireText(plan.collectionURI, "collectionURI");
         _requireAddress(plan.intendedCamRootOwner, "intendedCamRootOwner");
         _requireAddress(plan.intendedComponentsAdmin, "intendedComponentsAdmin");
@@ -273,8 +273,12 @@ contract DeployBikeNftRelease is Script {
     }
 
     function _requireText(string memory value, string memory field) private pure {
+        if (bytes(value).length == 0) revert EmptyValue(field);
+        _requireSingleLine(value, field);
+    }
+
+    function _requireSingleLine(string memory value, string memory field) private pure {
         bytes memory characters = bytes(value);
-        if (characters.length == 0) revert EmptyValue(field);
         for (uint256 i = 0; i < characters.length; i++) {
             if (characters[i] == 0x0a || characters[i] == 0x0d) revert LineBreakInValue(field);
         }

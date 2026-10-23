@@ -69,6 +69,37 @@ contract DeployBikeNftReleaseTest is Test {
         harness.validatePlan(plan, address(0x99));
     }
 
+    function testReleaseWithEmptyBasePreservesIndependentTokenMetadataAndOwnerGating() external {
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
+        plan.baseTokenURI = "";
+        harness.requireOperatorInputs(plan, _operatorInputs(plan));
+        harness.validatePlan(plan, address(harness));
+        DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(plan);
+        assertEq(deployment.components.baseURI(), "");
+        address owner = address(0xB001);
+        string memory httpsURI = "https://metadata.example.test/independent-component.json";
+        string memory inlineURI = 'data:application/json,{"name":"Independent component"}';
+        vm.startPrank(REGISTRAR_ONE);
+        (, uint256 first) = deployment.manager.registerComponent(owner, "FULL-HTTPS", httpsURI);
+        (, uint256 second) = deployment.manager.registerComponent(owner, "INLINE-JSON", inlineURI);
+        vm.stopPrank();
+        assertEq(deployment.components.tokenURI(first), httpsURI);
+        assertEq(deployment.components.tokenURI(second), inlineURI);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.Unauthorized.selector,
+                address(this),
+                keccak256(bytes("FULL-HTTPS")),
+                deployment.manager.CAP_UPDATE_METADATA()
+            )
+        );
+        deployment.manager.setComponentMetadata("FULL-HTTPS", inlineURI);
+        assertEq(deployment.components.tokenURI(first), httpsURI);
+        vm.prank(owner);
+        deployment.manager.setComponentMetadata("FULL-HTTPS", inlineURI);
+        assertEq(deployment.components.tokenURI(first), inlineURI);
+    }
+
     function testReleaseWiringDoesNotRegisterOrMintSeedComponents() external {
         vm.recordLogs();
         DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(harness.parsePlan(planJson));

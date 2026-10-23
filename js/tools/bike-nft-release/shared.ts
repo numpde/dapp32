@@ -92,6 +92,13 @@ export function requiredAddresses(value: unknown, label: string): readonly CamHo
   return addresses
 }
 
+export function requiredBaseTokenURI(value: unknown): string {
+  if (typeof value !== "string" || /[\r\n]/.test(value)) {
+    throw new Error("baseTokenURI must be a single-line string; use an empty string for independent token metadata URIs")
+  }
+  return value
+}
+
 export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
   const value = parseJsonRecord(bytes, "release plan")
   requireExactKeys(value, PLAN_KEYS, "Bike release plan")
@@ -140,7 +147,7 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
     camHash: requiredBytes32(value.camHash, "camHash"),
     intendedCamRootOwner: addressField(value, "intendedCamRootOwner"),
     tokenName: requiredSingleLineString(value.tokenName, "tokenName"), tokenSymbol: requiredSingleLineString(value.tokenSymbol, "tokenSymbol"),
-    baseTokenURI: requiredSingleLineString(value.baseTokenURI, "baseTokenURI"), collectionURI: requiredSingleLineString(value.collectionURI, "collectionURI"),
+    baseTokenURI: requiredBaseTokenURI(value.baseTokenURI), collectionURI: requiredSingleLineString(value.collectionURI, "collectionURI"),
     intendedComponentsAdmin: addressField(value, "intendedComponentsAdmin"), componentsAdminDelay: requiredDelay(value.componentsAdminDelay, "componentsAdminDelay"),
     componentsPauser: addressField(value, "componentsPauser"), componentsConfigurer: addressField(value, "componentsConfigurer"),
     intendedManagerAdmin: addressField(value, "intendedManagerAdmin"), managerAdminDelay: requiredDelay(value.managerAdminDelay, "managerAdminDelay"),
