@@ -55,6 +55,62 @@ function fixture(candidate?: TransactionReview, initialRaw?: boolean) {
 
 async function settle() { await new Promise<void>(resolve => setImmediate(resolve)) }
 
+test("approval key feedback precedes a slow decision and duplicate keys stay inert", async () => {
+  const f = fixture()
+  let finish: () => void = () => {}
+  const held = new Promise<void>(resolve => { finish = resolve })
+  f.owner.decide = async (token, decision) => { f.decisions.push([token, decision]); await held }
+  try {
+    f.terminal.poll()
+    await settle()
+    f.input.write("a")
+    await settle()
+    assert.match(f.printed(), /Approval key received for transaction 1/)
+    assert.doesNotMatch(f.printed(), /RPC accepted|confirmed|mined successfully/)
+    f.input.write("a")
+    await settle()
+    assert.deepEqual(f.decisions, [[challenge, "approve"]])
+    f.terminal.reportSubmission({ kind: "accepted", hash: digest })
+    assert.doesNotMatch(f.printed(), /RPC accepted/)
+    f.terminal.reportSubmission({ kind: "transmitting", hash })
+    assert.match(f.printed(), /approval recorded; preparing submission/)
+    f.terminal.reportSubmission({ kind: "accepted", hash })
+    assert.match(f.printed(), /RPC accepted\. Waiting for a mined receipt/)
+    f.terminal.reportSubmission({ kind: "uncertain", hash, reason: "private provider diagnostic" })
+    assert.match(f.printed(), /submission result unknown/)
+    assert.doesNotMatch(f.printed(), /private provider diagnostic|confirmed|successfully mined/)
+  } finally { finish(); await settle(); f.close() }
+})
+
+test("approval waits for feedback to flush while rejection takes effect immediately", async () => {
+  for (const [key, failure] of [["a", null], ["a", new Error("output failed")], ["r", null], ["r", new Error("output failed")]] as const) {
+    const f = fixture()
+    f.close()
+    const input = Object.assign(new PassThrough(), { isTTY: true, isRaw: false,
+      setRawMode(enabled: boolean) { this.isRaw = enabled; return this } })
+    const acknowledgments: ((error?: Error | null) => void)[] = []
+    const output = Object.assign(new Writable({ write(chunk, _encoding, done) {
+      if (/^(Approval|Rejection) key received/.test(chunk.toString())) acknowledgments.push(done)
+      else done()
+    } }), { isTTY: true })
+    const terminal = new ApprovalTerminal({ input, output, owner: f.owner, reviewForHash: () => review(),
+      referenceName: "reference", now: () => 1000, pageCharacters: 800 })
+    try {
+      terminal.start()
+      terminal.poll()
+      await settle()
+      input.write(key)
+      await settle()
+      assert.equal(acknowledgments.length, 1)
+      assert.deepEqual(f.decisions, key === "r" ? [[challenge, "reject"]] : [])
+      acknowledgments[0](failure)
+      await settle()
+      assert.equal(f.decisions.length, key === "r" || failure === null ? 1 : 0)
+      if (failure !== null) assert.deepEqual(f.closures, ["operator terminal output failed"])
+    } finally { terminal.stop(); input.destroy(); output.destroy() }
+  }
+})
+
 test("compact summary keeps human action, exact signed identity and fee ceiling visible without terminal controls", () => {
   const f = fixture(review({ step: { kind: "call", role: "camRoot", name: "bind\u001b[31m\u202e", signature: "bind(address,address,address,address)",
     args: [target, target, target, target], action: "Bind target", argumentLabels: ["First target", "Second target", "Third target", "Fourth target"] },
@@ -320,6 +376,9 @@ test("input arriving before the summary write finishes cannot authorize it", asy
     callbacks.shift()!() // transaction summary has reached the terminal
     await settle()
     input.write("a")
+    await settle()
+    assert.deepEqual(f.decisions, [])
+    callbacks.shift()!() // key acknowledgment has reached the terminal
     await settle()
     assert.deepEqual(f.decisions, [[challenge, "approve"]])
   } finally { terminal.stop(); input.destroy(); output.destroy() }

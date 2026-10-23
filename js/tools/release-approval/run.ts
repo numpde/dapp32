@@ -243,6 +243,7 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
   const audit = {
     append(event: Parameters<typeof durableAudit.append>[0]) {
       durableAudit.append(event)
+      terminal.reportSubmission(event)
       if (event.kind === "closed") { recordedClosure = true; fatalReason = event.reason }
     },
   }

@@ -275,7 +275,11 @@ release_approval_attachment_running() {
 
 release_approval_run() {
   local output="$1" gate_id forge_id started state attach_status=0 forge_status="" gate_status=""
+  export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never
   release_approval_output="$output"
+  # Both proxies cover the signing and artifact networks. Reserve them before
+  # transactions so local address-pool exhaustion cannot first appear afterward.
+  compose_release up --no-start --no-build --no-deps release-rpc-proxy release-artifact-rpc-proxy
   # The plan already ran to produce the reference. Never restart a completed
   # predecessor or an approval service that the operator has cancelled.
   compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-rpc-proxy

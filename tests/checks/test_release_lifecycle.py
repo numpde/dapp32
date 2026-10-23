@@ -698,6 +698,27 @@ compose_release_config() {
                         ["make", f"{app}/release/verify", f"CONFIG={env['CONFIG']}"],
                     ], commands)
 
+    def test_network_allocation_failure_prevents_approval_and_signer_start(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = self.environment(root, root)
+            script = f'source {shlex.quote(str(LAUNCHER))}\n' + r'''
+compose_release() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/events"
+  printf '%s %s\n' "${COMPOSE_PROGRESS-unset}" "${COMPOSE_ANSI-unset}" > "$CASE_ROOT/presentation"
+  if [[ " $* " == *" --no-start "* ]]; then return 23; fi
+  return 97
+}
+release_approval_run "$CASE_ROOT/output"
+'''
+            process = self.launch(script, env)
+            stdout, stderr = process.communicate(timeout=5)
+            self.assertEqual(23, process.returncode, stdout + stderr)
+            self.assertEqual([
+                "up --no-start --no-build --no-deps release-rpc-proxy release-artifact-rpc-proxy",
+            ], (root / "events").read_text().splitlines())
+            self.assertEqual("plain never\n", (root / "presentation").read_text())
+
     def test_startup_failure_retains_private_bounded_diagnostics_before_teardown(self) -> None:
         for case in ("exited", "incomplete", "large", "log-failure", "existing-file", "head-failure"):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory(

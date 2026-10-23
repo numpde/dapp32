@@ -1,7 +1,7 @@
 import type { Readable, Writable } from "node:stream"
 import type { Hex } from "viem"
 
-import type { ApprovalOwner } from "./owner.ts"
+import type { ApprovalOwner, AuditEvent } from "./owner.ts"
 import type { TransactionReview } from "./verifier.ts"
 
 type TtyInput = Readable & { isTTY?: boolean; isRaw?: boolean; setRawMode?: (enabled: boolean) => unknown }
@@ -82,7 +82,7 @@ export class ApprovalTerminal {
   private readonly options: ApprovalTerminalOptions
   private started = false
   private closed = false
-  private deciding = false
+  private deciding: { hash: Hex; transaction: number } | null = null
   private previousRaw = false
   private ready = false
   private sequence = ""
@@ -163,6 +163,18 @@ export class ApprovalTerminal {
     this.discardInput()
     this.displayed = { hash: pending.hash, challenge: pending.challenge, details, review, ceiling }
     this.writeSummary(pending, review, ceiling, details.length)
+  }
+
+  /** Display persisted submission facts for the current decision; RPC acceptance is not mining. */
+  reportSubmission(event: AuditEvent): void {
+    const decision = this.deciding
+    if (!this.started || this.closed || decision === null) return
+    if (event.kind !== "transmitting" && event.kind !== "accepted" && event.kind !== "uncertain") return
+    if (event.hash !== decision.hash) return
+    const transaction = `Transaction ${decision.transaction} (${event.hash})`
+    if (event.kind === "transmitting") this.write(`${transaction}: approval recorded; preparing submission...\n`)
+    else if (event.kind === "accepted") this.write(`${transaction}: RPC accepted. Waiting for a mined receipt...\n`)
+    else this.write(`${transaction}: submission result unknown. Deployment will stop; check transaction status before resubmitting.\n`)
   }
 
   private writeSummary(pending: Pending, review: TransactionReview, ceiling: bigint, detailLength: number): void {
@@ -251,14 +263,23 @@ export class ApprovalTerminal {
       return
     }
     if (key === "a" || key === "r") {
-      this.deciding = true
+      const transaction = displayed.review.stepIndex + 1
+      this.deciding = { hash: displayed.hash, transaction }
       this.ready = false
       this.displayed = null
       this.discardInput()
-      void this.options.owner.decide(displayed.challenge, key === "a" ? "approve" : "reject").then(
-        () => { this.discardInput(); this.deciding = false },
-        () => { this.discardInput(); this.deciding = false; this.write("Decision failed; check approval status before continuing.\n") },
-      )
+      const feedback = key === "a" ? `Approval key received for transaction ${transaction}. Recording decision...\n` :
+        `Rejection key received for transaction ${transaction}. Stopping deployment...\n`
+      const decide = () => {
+        if (!this.started || this.closed) return
+        void this.options.owner.decide(displayed.challenge, key === "a" ? "approve" : "reject").then(
+          () => { this.discardInput(); this.deciding = null },
+          () => { this.discardInput(); this.deciding = null; this.write("Decision failed; check approval status before continuing.\n") },
+        )
+      }
+      // Approval waits for visible acknowledgment; rejection must not wait for output.
+      if (key === "a") this.write(feedback, decide)
+      else { this.write(feedback); decide() }
       return
     }
     const count = Math.ceil(displayed.details.length / this.options.pageCharacters)
