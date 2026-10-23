@@ -225,19 +225,20 @@ def ask_output_directory(app, host_config_file, previous):
 def print_authority_help(app):
     print("Changing addresses after deployment:")
     print("EXPECTED_DEPLOYER_ADDRESS: the expected signer before deployment; afterward its history is fixed. This field grants no ongoing role by itself.")
-    print("INTENDED_CAM_ROOT_OWNER: CamRoot's current owner nominates the next owner, who must accept.")
+    print("INTENDED_CAM_ROOT_OWNER: CamRoot's current owner nominates the next owner; the nominee submits a separate acceptance transaction.")
     print("CAM ownership does not by itself grant roles on the other contracts.")
+    print("Deployment starts required ownership/admin handovers but does not finish them. A handover is skipped when the intended owner/admin is already the deployer.")
     if app == "bike-nft":
         print("Separate deployment and role-holding accounts are recommended; the deployer may keep roles you explicitly select.")
-        print("INTENDED_COMPONENTS_ADMIN / INTENDED_MANAGER_ADMIN: each contract's current default admin nominates its successor. The nominee accepts after that contract's current delay (initially COMPONENTS_ADMIN_DELAY / MANAGER_ADMIN_DELAY).")
+        print("INTENDED_COMPONENTS_ADMIN / INTENDED_MANAGER_ADMIN: each contract's current default admin nominates its successor. The nominee submits a separate acceptance transaction after that contract's delay, measured from nomination (initially COMPONENTS_ADMIN_DELAY / MANAGER_ADMIN_DELAY).")
         print("COMPONENTS_PAUSER / COMPONENTS_CONFIGURER: Components' current default admin adds or removes holders.")
         print("MANAGER_PAUSER / MANAGER_CONFIGURER / REGISTRARS: Manager's current default admin adds or removes holders.")
         print("Operational roles can have several holders. Adding one does not replace another: the admin removes old holders, or holders renounce their own roles. These changes have no admin-transfer wait.")
-        print("During ownership/admin transfers, the current holder retains that authority until the replacement accepts.")
+        print("The current holder (initially the deployer) retains that ownership/admin authority until the nominee accepts.")
     else:
         if app == "pay-to-play":
-            print("INTENDED_PAYMENT_ADMIN: PayToPlay's current owner nominates the next owner, who must accept.")
-        print("Ownership transfers have no admin-transfer wait. The current owner retains ownership until the replacement accepts.")
+            print("INTENDED_PAYMENT_ADMIN: PayToPlay's current owner nominates the next owner; the nominee submits a separate acceptance transaction.")
+        print("Ownership transfers have no waiting period. The current owner (initially the deployer) retains ownership until the nominee accepts.")
     print("Later changes need onchain transactions; editing the saved configuration does not change contracts.")
 
 

@@ -730,14 +730,14 @@ help:
 	  '      BIKE_NFT_RELEASE_MANAGER_CONFIGURER         Address allowed to set token contract/delegation limit.' \
 	  '      BIKE_NFT_RELEASE_REGISTRARS              Comma-separated unique nonzero registrar addresses.' \
 	  '      BIKE_NFT_RELEASE_OUTPUT_DIR              New absolute directory outside this repository.' \
-	  '    Copyable commands: each app README under dapps/, release section.' \
+	  '    Copyable commands: https://numpde.github.io/dapp32/deployment/.' \
 	  '    Separate lasting Bike NFT authorities from the funded deployer when useful; explicitly selecting the deployer is allowed.' \
 	  '    The output directory retains plans, broadcasts and deployment records, including partial failures.' \
-	  '    Requested new owners/admins must accept their transfers separately; Bike admin transfers have a wait.' \
-	  '    CAM host owners and Pay-to-Play admins call acceptOwnership() on their respective contracts.' \
-	  '    Each new Bike admin calls acceptDefaultAdminTransfer().' \
-	  '    Use the saved deployment addresses and acceptance instructions in the app release README.' \
-	  '    Deployment records pending transfers. Run release/verify after the intended owners accept them.' \
+	  '    Deployment nominates new owners/admins but does not accept their transfers; selecting the deployer skips that handover.' \
+	  '    Each nominated CAM owner or Pay-to-Play admin submits a separate acceptOwnership() transaction.' \
+	  '    Each nominated Bike admin submits acceptDefaultAdminTransfer() after the delay measured from nomination.' \
+	  '    The deployer retains that ownership/admin authority until acceptance. Keep the deployed addresses from the output directory.' \
+	  '    Run release/verify after all required acceptances. Instructions: https://numpde.github.io/dapp32/deployment/.' \
 	  '  make bike-nft/release/verify      Read the chain and compare it with the saved Bike NFT deployment.' \
 	  '    Select RPC as above; set BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE to the absolute deployment JSON path.' \
 	  '  make escrow/release/verify        Read the chain and compare it with the saved Escrow deployment.' \
@@ -1649,13 +1649,15 @@ printf 'Run the next commands from a checkout at saved source commit %s.\n' "$$s
 printf '%s\n' 'If the checkout has changed, rerun setup with a new CONFIG path.'; \
 printf '%s\n' 'Before deployment, review and admit the approval tool image, then set RELEASE_APPROVAL_IMAGE to its reviewed local sha256 image ID.'; \
 printf '  make %s/release/deploy CONFIG=%q RELEASE_APPROVAL_IMAGE="$$RELEASE_APPROVAL_IMAGE"\n' "$$app" "$$CONFIG"; \
+printf '%s\n' 'Deployment starts required handovers but does not finish them; selecting the deployer as owner/admin skips that handover.'; \
 if [[ "$$app" == bike-nft ]]; then \
-  printf '%s\n' 'After deployment, accept any pending CAM ownership and collection/manager admin transfers; admin transfers require their configured wait.'; \
+  printf '%s\n' 'After deployment, each nominated CAM owner must submit a separate ownership acceptance transaction; each nominated collection/manager admin must submit a separate admin acceptance transaction after the delay from nomination.'; \
 elif [[ "$$app" == pay-to-play ]]; then \
-  printf '%s\n' 'After deployment, the intended CAM owner and payment admin must accept any pending ownership transfers before verification.'; \
+  printf '%s\n' 'After deployment, each nominated CAM owner and payment admin must submit a separate ownership acceptance transaction.'; \
 else \
-  printf '%s\n' 'After deployment, the intended CAM owner must accept any pending ownership transfer before verification.'; \
+  printf '%s\n' 'After deployment, the nominated CAM owner must submit a separate ownership acceptance transaction.'; \
 fi; \
+printf '%s\n' 'The deployer retains that ownership/admin authority until acceptance. Then verify the completed release:'; \
 printf '  make %s/release/verify CONFIG=%q\n' "$$app" "$$CONFIG"
 endef
 
