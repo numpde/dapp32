@@ -999,7 +999,7 @@ escrow/release/check:
 release/approval/image/build:
 	@$(LANE_GUARD); \
 	source tools/release_approval_images.sh; \
-	source_commit="$${SOURCE_COMMIT-$$(git rev-parse HEAD)}"; \
+	if [[ "$${SOURCE_COMMIT+x}" == x ]]; then source_commit="$$SOURCE_COMMIT"; else source_commit="$$(git rev-parse HEAD)"; fi; \
 	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then printf '%s\n' 'SOURCE_COMMIT must be a full Git commit hash.' >&2; exit 2; fi; \
 	if [[ "$${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR+x}" == x ]]; then output_dir="$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"; else output_dir="$$(release_approval_default_output "$$source_commit")"; fi; \
 	old_images="$$(release_approval_installed_images)"; \
