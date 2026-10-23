@@ -1,6 +1,7 @@
 import {
   createWalletClient,
   custom,
+  isHex,
 } from "viem"
 import type { Address, Chain } from "viem"
 import {
@@ -199,7 +200,11 @@ export function createInjectedWalletClient(
         }
         // viem's null override delegates the chain check to this transport.
         // Bind the request too, so the wallet can reject a subsequent switch.
-        return provider.request({ ...request, params: [{ ...transaction, chainId }] })
+        const result = await provider.request({ ...request, params: [{ ...transaction, chainId }] })
+        if (typeof result !== "string" || result.length !== 66 || !isHex(result)) {
+          throw new Error("The wallet did not return a valid transaction hash.")
+        }
+        return result
       },
     }),
   })

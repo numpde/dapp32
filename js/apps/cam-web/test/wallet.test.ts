@@ -85,6 +85,21 @@ test("a forwarded request with a lost response stays uncertain and is not repeat
   assert.deepEqual(sends, ["eth_sendTransaction"])
 })
 
+test("unusable wallet results after forwarding stay uncertain rather than looking cancelled", async () => {
+  for (const result of [undefined, null, "0x1234", `0x${"a".repeat(63)}`, { hash: TRANSACTION_HASH }]) {
+    const sends: string[] = []
+    transactionProvider(async request => {
+      if (request.method === "eth_accounts") return [ACCOUNT]
+      if (request.method === "wallet_switchEthereumChain") return null
+      if (request.method === "eth_chainId") return "0x7ffffffe"
+      sends.push(request.method)
+      return result
+    })
+    await assert.rejects(submitDeposit(), SubmissionOutcomeUnknownError)
+    assert.deepEqual(sends, ["eth_sendTransaction"])
+  }
+})
+
 test("a wallet network change at the send boundary blocks forwarding", async () => {
   const methods: string[] = []
   transactionProvider(async request => {
