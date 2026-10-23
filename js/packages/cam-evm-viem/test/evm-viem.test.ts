@@ -32,10 +32,7 @@ import {
   BIKE_CAM_URI as camDocumentURI,
   BIKE_PROTOCOL_URI,
   BIKE_COMPONENTS_ADDRESS,
-  BIKE_COMPONENTS_ABI_URI,
-  BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_ADDRESS as managerAddress,
-  BIKE_MANAGER_CONTRACT,
   BIKE_MANAGER_NAMESPACE,
   BIKE_MARK_MISSING,
   BIKE_ROUTE_COMPONENT,
@@ -59,13 +56,11 @@ import {
 import {
   bikeCamJson as camJson,
   bikeProtocolBytes,
-  bikeComponentsAbiBytes,
-  bikeManagerAbiBytes as managerAbiBytes,
   bikeManagerAbi as managerAbiJson,
-  bikeUiAbiBytes as uiAbiBytes,
   bikeUiAbi as uiAbiJson,
 } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import {
+  bikeResourceBytes,
   createMockCamPublicClient,
   createMockResourceLoader,
   encodeJson,
@@ -282,18 +277,8 @@ test("rejects malformed atomic references before loading and bad digests before 
 
 test("resolveCamContracts resolves namespaced contracts through CamRoot", async () => {
   const cam = parseCam(camJson)
-  const publicClient = createPublicClient(publicClientFixtureOptions({
-    addresses: {
-      [BIKE_UI_CONTRACT]: uiAddress,
-      [BIKE_MANAGER_CONTRACT]: managerAddress,
-      BicycleComponents: BIKE_COMPONENTS_ADDRESS,
-    },
-  }))
-  const resources = createResourceLoader({
-    [uiAbiURI]: uiAbiBytes,
-    [managerAbiURI]: managerAbiBytes,
-    [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
-  })
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const resources = createResourceLoader(bikeResourceBytes({}))
 
   const contracts = await resolveCamContracts({
     publicClient,
@@ -314,19 +299,14 @@ test("resolveCamContracts rejects invalid bindings and ABI resource load failure
     () => resolveCamContracts({
       publicClient: createPublicClient(publicClientFixtureOptions({
         addresses: {
+          ...bikeContractAddresses,
           [BIKE_UI_CONTRACT]: "not-an-address" as Address,
-          [BIKE_MANAGER_CONTRACT]: managerAddress,
-          BicycleComponents: BIKE_COMPONENTS_ADDRESS,
         },
       })),
       host,
       camURI: camDocumentURI,
       cam: parseCam(camJson),
-      loadResource: createResourceLoader({
-        [uiAbiURI]: uiAbiBytes,
-        [managerAbiURI]: managerAbiBytes,
-        [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
-      }),
+      loadResource: createResourceLoader(bikeResourceBytes({})),
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_CONTRACT_INVALID",
   )
@@ -334,21 +314,13 @@ test("resolveCamContracts rejects invalid bindings and ABI resource load failure
   const oversizedAbiBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
   await assert.rejects(
     () => resolveCamContracts({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        addresses: {
-          [BIKE_UI_CONTRACT]: uiAddress,
-          [BIKE_MANAGER_CONTRACT]: managerAddress,
-          BicycleComponents: BIKE_COMPONENTS_ADDRESS,
-        },
-      })),
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
       host,
       camURI: camDocumentURI,
       cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, oversizedAbiBytes),
-      loadResource: createResourceLoader({
+      loadResource: createResourceLoader(bikeResourceBytes({
         [uiAbiURI]: oversizedAbiBytes,
-        [managerAbiURI]: managerAbiBytes,
-        [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
-      }),
+      })),
     }),
     (error) => error instanceof CamEvmError
       && error.code === "CAM_RESOURCE_LOAD_FAILED"
@@ -1446,21 +1418,13 @@ function assertUniqueAbiDeclarationLabels(): void {
 
 async function resolveContractsWithUiAbi(abiBytes: Uint8Array) {
   return resolveCamContracts({
-    publicClient: createPublicClient(publicClientFixtureOptions({
-      addresses: {
-        [BIKE_UI_CONTRACT]: uiAddress,
-        [BIKE_MANAGER_CONTRACT]: managerAddress,
-        BicycleComponents: BIKE_COMPONENTS_ADDRESS,
-      },
-    })),
+    publicClient: createPublicClient(publicClientFixtureOptions({})),
     host,
     camURI: camDocumentURI,
     cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, abiBytes),
-    loadResource: createResourceLoader({
+    loadResource: createResourceLoader(bikeResourceBytes({
       [uiAbiURI]: abiBytes,
-      [managerAbiURI]: managerAbiBytes,
-      [BIKE_COMPONENTS_ABI_URI]: bikeComponentsAbiBytes,
-    }),
+    })),
   })
 }
 
