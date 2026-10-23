@@ -43,6 +43,28 @@ def configuration(app):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_public_admin_delays_offer_three_days_without_overriding_a_custom_value(self):
+        expected = configuration("bike-nft")
+        expected["settings"]["COMPONENTS_ADMIN_DELAY"] = "259200"
+        expected["settings"]["MANAGER_ADMIN_DELAY"] = "7200"
+        entered = dict(expected["settings"])
+        entered["COMPONENTS_ADMIN_DELAY"] = ""
+        answers = iter(["public", *entered.values(), "save"])
+        prompts = []
+        def respond(prompt):
+            prompts.append(prompt)
+            return next(answers)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            transcript = io.StringIO()
+            with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
+                release_config.setup("bike-nft", COMMIT, root)
+            self.assertEqual(expected, json.loads((root / "release.json").read_text()))
+            delays = [prompt for prompt in prompts if "administrator transfer delay" in prompt]
+            self.assertEqual(2, len(delays))
+            self.assertTrue(all("[259200]" in prompt for prompt in delays))
+            self.assertIn("3 days", transcript.getvalue())
+
     def setUp(self):
         self.setup_environment = patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": "/tmp/fixture-release.json"})
         self.setup_environment.start()

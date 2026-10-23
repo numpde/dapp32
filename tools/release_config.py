@@ -316,6 +316,10 @@ def setup(app, source_commit, output):
                 config["settings"][name] = ask_output_directory(app, host_config_file, config["settings"][name])
                 continue
             previous = config["settings"][name]
+            if network == "public" and kind == "delay":
+                if not previous:
+                    previous = "259200"
+                print("Suggested admin-transfer delay: 3 days (259200 seconds). Press Enter to use the displayed value, or enter another positive number of seconds.")
             if name == "BASE_TOKEN_URI":
                 print("With no prefix, each token can use a complete metadata URL or data URI. A shared prefix is prepended to each token URI.")
             if name == "COLLECTION_URI":
