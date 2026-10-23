@@ -30,7 +30,6 @@ import {
   ensureConnectedWalletAccount,
   ensureInjectedWalletChain,
   initialWalletState,
-  walletChain,
   walletLabel,
 } from "./wallet.ts"
 import { createBrowserHistory } from "./browser-history.ts"
@@ -89,13 +88,13 @@ const RECEIPT_WAIT_TIMEOUT_MS = 20_000
 const RECEIPT_POLLING_INTERVAL_MS = 500
 const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
   ReturnType<typeof createInjectedWalletClient>,
-  Awaited<ReturnType<typeof walletChain>>
+  null
 > = {
   ensureAccount: ensureConnectedWalletAccount,
   simulate: simulateCamContractCall,
   ensureChain: ensureInjectedWalletChain,
   createWalletClient: createInjectedWalletClient,
-  chain: walletChain,
+  chain: () => null,
   send: async ({ walletClient, chain, call }) => await sendCamContractCall({ walletClient, chain, call }),
 }
 

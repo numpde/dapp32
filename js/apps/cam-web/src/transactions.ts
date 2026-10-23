@@ -42,8 +42,8 @@ export type PreparedCallSubmitterPorts<TWalletClient, TChain> = {
     readonly call: CamViewerPreparedContractCall
   }) => Promise<unknown>
   readonly ensureChain: (startup: StartupOptions) => Promise<void>
-  readonly createWalletClient: (address: Address) => TWalletClient
-  readonly chain: (startup: StartupOptions) => TChain | Promise<TChain>
+  readonly createWalletClient: (address: Address, startup: StartupOptions, shouldContinue: () => boolean) => TWalletClient
+  readonly chain: (startup: StartupOptions) => TChain
   readonly send: (args: {
     readonly walletClient: TWalletClient
     readonly chain: TChain
@@ -85,16 +85,14 @@ export async function submitPreparedContractCall<TWalletClient, TChain>({
   })
   if (!shouldContinue()) return undefined
 
-  const chain = await ports.chain(startup)
-  if (!shouldContinue()) return undefined
-
   await ports.ensureChain(startup)
   if (!shouldContinue()) return undefined
 
   await ports.ensureAccount(walletAddress)
   if (!shouldContinue()) return undefined
 
-  const walletClient = ports.createWalletClient(walletAddress)
+  const walletClient = ports.createWalletClient(walletAddress, startup, shouldContinue)
+  const chain = ports.chain(startup)
   try {
     return await ports.send({ walletClient, chain, call })
   } catch (cause) {

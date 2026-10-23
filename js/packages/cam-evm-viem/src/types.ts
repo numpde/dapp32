@@ -76,14 +76,14 @@ export type CamContractCall = {
   readonly value?: InertValue
 }
 
-export type CamWalletClient = {
+export type CamWalletClient<TChain extends Chain | null = Chain> = {
   readonly writeContract: (request: {
     readonly address: Address
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
     readonly value?: EvmTransactionValue
-    readonly chain: Chain
+    readonly chain: TChain
   }) => Promise<Hex>
 }
 
@@ -104,8 +104,9 @@ export type SimulateCamContractCallOptions = {
   readonly call: CamContractCall
 }
 
-export type SendCamContractCallOptions = {
-  readonly walletClient: CamWalletClient
-  readonly chain: Chain
+export type SendCamContractCallOptions<TChain extends Chain | null = Chain> = {
+  readonly walletClient: CamWalletClient<TChain>
+  /** With null, the supplied wallet client must enforce the target chain. */
+  readonly chain: TChain
   readonly call: CamContractCall
 }

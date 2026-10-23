@@ -1,4 +1,4 @@
-import type { Hex } from "viem"
+import type { Chain, Hex } from "viem"
 
 import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
 import {
@@ -24,11 +24,11 @@ export function validateCamContractCall(call: CamContractCall): void {
   writeRequest(call)
 }
 
-export async function sendCamContractCall({
+export async function sendCamContractCall<TChain extends Chain | null>({
   walletClient,
   chain,
   call,
-}: SendCamContractCallOptions): Promise<Hex> {
+}: SendCamContractCallOptions<TChain>): Promise<Hex> {
   const request = writeRequest(call)
 
   try {

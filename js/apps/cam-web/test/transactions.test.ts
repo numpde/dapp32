@@ -106,13 +106,12 @@ test("prepared call submission proves wallet revalidation after chain switching"
     "continue:1",
     "simulate",
     "continue:2",
-    "chain",
-    "continue:3",
     "ensureChain",
-    "continue:4",
+    "continue:3",
     "ensureAccount",
-    "continue:5",
+    "continue:4",
     "createWalletClient",
+    "chain",
     "send",
   ])
 })
@@ -178,7 +177,7 @@ test("prepared call submission aborts before signing when chain switching makes 
     shouldContinue() {
       continueCalls += 1
       events.push(`continue:${continueCalls.toString()}`)
-      return continueCalls < 4
+      return continueCalls < 3
     },
   })
 
@@ -188,10 +187,8 @@ test("prepared call submission aborts before signing when chain switching makes 
     "continue:1",
     "simulate",
     "continue:2",
-    "chain",
-    "continue:3",
     "ensureChain",
-    "continue:4",
+    "continue:3",
   ])
 })
 
@@ -208,7 +205,7 @@ test("prepared call submission aborts before sending when final account check ma
     shouldContinue() {
       continueCalls += 1
       events.push(`continue:${continueCalls.toString()}`)
-      return continueCalls < 5
+      return continueCalls < 4
     },
   })
 
@@ -218,25 +215,11 @@ test("prepared call submission aborts before sending when final account check ma
     "continue:1",
     "simulate",
     "continue:2",
-    "chain",
-    "continue:3",
     "ensureChain",
-    "continue:4",
+    "continue:3",
     "ensureAccount",
-    "continue:5",
+    "continue:4",
   ])
-})
-
-test("metadata loading cannot submit a review invalidated while it was loading", async () => {
-  const events: string[] = []
-  let current = true
-  const result = await submitPreparedContractCall({
-    ports: { ...recordingPorts(events), async chain() { current = false; return "chain" } },
-    publicClient: testPublicClient(), walletAddress, startup: testStartup(), call: testCall(),
-    shouldContinue: () => current,
-  })
-  assert.equal(result, undefined)
-  assert.deepEqual(events, ["ensureAccount", "simulate"])
 })
 
 test("a send failure reports possible submission and preserves the original cause", async () => {
@@ -378,7 +361,7 @@ function recordingPorts(events: string[]): TestPorts {
       events.push("createWalletClient")
       return "wallet-client"
     },
-    async chain() {
+    chain() {
       events.push("chain")
       return "chain"
     },

@@ -1,13 +1,126 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { sendCamContractCall } from "@cam/evm-viem"
+import { viewerErrorMessage } from "@cam/viewer"
+import { SubmissionOutcomeUnknownError, submitPreparedContractCall } from "../src/transactions.ts"
+import type { PreparedCallSimulationClient, PreparedCallSubmitterPorts } from "../src/transactions.ts"
 
-import { ensureConnectedWalletAccount, ensureInjectedWalletChain, subscribeInjectedWallet, walletChain } from "../src/wallet.ts"
+import { createInjectedWalletClient, ensureConnectedWalletAccount, ensureInjectedWalletChain, subscribeInjectedWallet, walletNetworkToAdd } from "../src/wallet.ts"
 
 const ACCOUNT = "0x0000000000000000000000000000000000000001"
 const OTHER_ACCOUNT = "0x0000000000000000000000000000000000000002"
 const CHAIN_OPTIONS = {
   chainId: "eip155:31337",
   rpcUrl: "http://127.0.0.1:8545",
+}
+
+const DEPOSIT_ABI = [{ type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] }] as const
+const TRANSACTION_HASH = `0x${"ab".repeat(32)}` as const
+
+test("an installed custom network sends without catalog metadata and carries its expected chain ID", async () => {
+  const sends: unknown[] = []
+  transactionProvider(async request => {
+    if (request.method === "eth_accounts") return [ACCOUNT]
+    if (request.method === "wallet_switchEthereumChain") return null
+    if (request.method === "eth_chainId") return "0x7ffffffe"
+    if (request.method === "eth_sendTransaction") { sends.push(request.params); return TRANSACTION_HASH }
+    throw new Error(`Unexpected request ${request.method}`)
+  })
+  assert.equal(await submitDeposit(), TRANSACTION_HASH)
+  assert.deepEqual(sends, [[{
+    from: ACCOUNT, to: OTHER_ACCOUNT, data: "0xd0e30db0", value: "0x3", chainId: "0x7ffffffe",
+  }]])
+})
+
+test("a final network mismatch remains proven not submitted through SDK and submission wrapping", async () => {
+  let chainReads = 0
+  const sends: string[] = []
+  transactionProvider(async request => {
+    if (request.method === "eth_accounts") return [ACCOUNT]
+    if (request.method === "wallet_switchEthereumChain") return null
+    if (request.method === "eth_chainId") return ++chainReads === 1 ? "0x7ffffffe" : "0x1"
+    sends.push(request.method)
+    return TRANSACTION_HASH
+  })
+  await assert.rejects(submitDeposit(), error => error instanceof Error
+    && !(error instanceof SubmissionOutcomeUnknownError) && /chain mismatch/i.test(viewerErrorMessage(error)))
+  assert.deepEqual(sends, [])
+})
+
+test("a forwarded request with a lost response stays uncertain and is not repeated", async () => {
+  const sends: string[] = []
+  transactionProvider(async request => {
+    if (request.method === "eth_accounts") return [ACCOUNT]
+    if (request.method === "wallet_switchEthereumChain") return null
+    if (request.method === "eth_chainId") return "0x7ffffffe"
+    sends.push(request.method)
+    throw Object.assign(new Error("response lost"), { code: -32603 })
+  })
+  await assert.rejects(submitDeposit(), SubmissionOutcomeUnknownError)
+  assert.deepEqual(sends, ["eth_sendTransaction"])
+})
+
+test("a wallet network change at the send boundary blocks forwarding", async () => {
+  const methods: string[] = []
+  transactionProvider(async request => {
+    methods.push(request.method)
+    return request.method === "eth_chainId" ? "0x1" : TRANSACTION_HASH
+  })
+  const wallet = createInjectedWalletClient(ACCOUNT, CHAIN_OPTIONS, () => true)
+  await assert.rejects(wallet.writeContract({ chain: null, address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, functionName: "deposit" }), /chain mismatch/i)
+  assert.deepEqual(methods, ["eth_chainId"])
+})
+
+test("a review invalidated during the final wallet network read is not forwarded", async () => {
+  const methods: string[] = []
+  let current = true
+  transactionProvider(async request => {
+    methods.push(request.method)
+    if (request.method === "eth_chainId") { current = false; return "0x7a69" }
+    return TRANSACTION_HASH
+  })
+  const wallet = createInjectedWalletClient(ACCOUNT, CHAIN_OPTIONS, () => current)
+  await assert.rejects(wallet.writeContract({ chain: null, address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, functionName: "deposit" }), /review.*changed/i)
+  assert.deepEqual(methods, ["eth_chainId"])
+})
+
+test("the wallet-namespace fallback preserves the expected chain ID", async () => {
+  const methods: string[] = []
+  let forwarded: unknown
+  transactionProvider(async request => {
+    methods.push(request.method)
+    if (request.method === "eth_chainId") return "0x7a69"
+    if (request.method === "eth_sendTransaction") throw Object.assign(new Error("Method unavailable"), { code: -32601 })
+    if (request.method === "wallet_sendTransaction") { forwarded = request.params; return TRANSACTION_HASH }
+    throw new Error(`Unexpected request ${request.method}`)
+  })
+  const wallet = createInjectedWalletClient(ACCOUNT, CHAIN_OPTIONS, () => true)
+  await wallet.writeContract({ chain: null, address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, functionName: "deposit" })
+  assert.deepEqual(methods, ["eth_chainId", "eth_sendTransaction", "eth_chainId", "wallet_sendTransaction"])
+  assert.deepEqual(forwarded, [{ from: ACCOUNT, to: OTHER_ACCOUNT, data: "0xd0e30db0", chainId: "0x7a69" }])
+})
+
+function transactionProvider(request: EthereumProvider["request"]): void {
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: { request } } })
+}
+
+async function submitDeposit() {
+  const ports: PreparedCallSubmitterPorts<ReturnType<typeof createInjectedWalletClient>, null> = {
+    ensureAccount: ensureConnectedWalletAccount,
+    simulate: async () => {},
+    ensureChain: ensureInjectedWalletChain,
+    createWalletClient: createInjectedWalletClient,
+    chain: () => null,
+    send: sendCamContractCall,
+  }
+  return submitPreparedContractCall({
+    ports, publicClient: {} as PreparedCallSimulationClient, walletAddress: ACCOUNT,
+    startup: { chainId: "eip155:2147483646", rpcUrl: "https://rpc.example.test", host: OTHER_ACCOUNT,
+      account: ACCOUNT, resourceOrigin: "https://cam.example.test", inputs: {} },
+    call: { route: "deposit", address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, function: "deposit", args: {}, value: "3",
+      then: { namespace: "routes", function: "done", args: {} } },
+    shouldContinue: () => true,
+  })
 }
 
 test("wallet events validate account and chain changes without requesting a wallet switch", () => {
@@ -83,13 +196,13 @@ test("wallet account check rejects stale connected account state", async () => {
 })
 
 test("wallet chain helper validates RPC URLs at the wallet boundary", async () => {
-  assert.deepEqual((await walletChain({
+  assert.deepEqual((await walletNetworkToAdd({
     chainId: "eip155:31337",
     rpcUrl: "http://127.0.0.1:8545/rpc",
   })).rpcUrls.default.http, ["http://127.0.0.1:8545/rpc"])
 
   await assert.rejects(
-    () => walletChain({
+    () => walletNetworkToAdd({
       chainId: "eip155:31337",
       rpcUrl: "javascript:alert(1)",
     }),
@@ -170,7 +283,7 @@ test("a network without known metadata can still use its existing wallet configu
   assert.deepEqual(requests, ["wallet_switchEthereumChain", "eth_chainId"])
 })
 
-test("missing network metadata explains the add and send limitations without inventing a currency", async () => {
+test("missing add-network metadata asks for manual setup without inventing a currency", async () => {
   const requests: string[] = []
   Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: {
     async request({ method }: { method: string }) {
@@ -178,7 +291,7 @@ test("missing network metadata explains the add and send limitations without inv
       throw Object.assign(new Error("not configured"), { code: 4902 })
     },
   } } })
-  await assert.rejects(ensureInjectedWalletChain({ chainId: "eip155:2147483646", rpcUrl: "https://rpc.example.test" }), /2147483646.*cannot add.*prepare transactions/)
+  await assert.rejects(ensureInjectedWalletChain({ chainId: "eip155:2147483646", rpcUrl: "https://rpc.example.test" }), /Cannot add network 2147483646.*manually.*connect again/)
   assert.deepEqual(requests, ["wallet_switchEthereumChain"])
 })
 

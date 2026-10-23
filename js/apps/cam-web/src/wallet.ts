@@ -9,6 +9,7 @@ import {
   requireEvmAddress,
 } from "@cam/evm-viem"
 import {
+  isRecordObject,
   requireHttpURL,
 } from "@cam/protocol"
 import {
@@ -79,11 +80,11 @@ export function subscribeInjectedWallet(
   }
 }
 
-export async function walletChain(options: WalletChainOptions): Promise<Chain> {
+export async function walletNetworkToAdd(options: WalletChainOptions): Promise<Chain> {
   const id = evmChainIdNumber(options.chainId)
   const rpcUrl = requireHttpURL(options.rpcUrl, "rpcUrl").href
-  // Network registration and viem transaction requests need chain metadata.
-  // Switching an installed network does not; load the definitions on demand.
+  // Only network registration needs this catalog; an installed custom network
+  // can be selected and used for transactions without a catalog entry.
   const chains = await import("viem/chains")
   // The repository's release rehearsal uses a separate Anvil chain ID.
   const knownChains = Object.values(chains)
@@ -91,7 +92,7 @@ export async function walletChain(options: WalletChainOptions): Promise<Chain> {
     ? { ...chains.foundry, id, name: "CAM release rehearsal" }
     : knownChains.find(chain => "id" in chain && chain.id === id)
   if (chain === undefined || !("id" in chain)) {
-    throw new Error(`Network ${id} is missing from this viewer's network definitions. The viewer cannot add it or prepare transactions for it.`)
+    throw new Error(`Cannot add network ${id}: this viewer has no definition for its name and native currency. Add the network in your wallet manually, then connect again.`)
   }
   return {
     id,
@@ -150,7 +151,7 @@ export async function ensureInjectedWalletChain(options: WalletChainOptions): Pr
       throw error
     }
 
-    const chain = await walletChain(options)
+    const chain = await walletNetworkToAdd(options)
     await provider.request({
       method: "wallet_addEthereumChain",
       params: [{
@@ -167,11 +168,51 @@ export async function ensureInjectedWalletChain(options: WalletChainOptions): Pr
   await assertInjectedWalletChain(provider, chainId)
 }
 
-export function createInjectedWalletClient(address: Address) {
+export function createInjectedWalletClient(
+  address: Address,
+  options: Pick<WalletChainOptions, "chainId">,
+  shouldContinue: () => boolean,
+) {
+  const provider = requireEthereum()
+  const chainId = evmChainIdHex(options.chainId)
   return createWalletClient({
     account: address,
-    transport: custom(requireEthereum()),
+    transport: custom({
+      async request(request: Parameters<EthereumProvider["request"]>[0]) {
+        if (request.method !== "eth_sendTransaction" && request.method !== "wallet_sendTransaction") {
+          return provider.request(request)
+        }
+        let transaction: Record<string, unknown>
+        try {
+          const params = request.params
+          if (!Array.isArray(params) || params.length !== 1 || !isRecordObject(params[0])) {
+            throw new Error("The wallet send request must contain one transaction.")
+          }
+          transaction = params[0]
+          if (transaction.chainId !== undefined && transaction.chainId !== chainId) {
+            throw new Error(`The wallet request targets a different network than ${options.chainId}.`)
+          }
+          await assertInjectedWalletChain(provider, chainId)
+          if (!shouldContinue()) throw new Error("The transaction review changed before the wallet request was submitted.")
+        } catch (cause) {
+          throw new WalletSubmissionBlockedError(cause)
+        }
+        // viem's null override delegates the chain check to this transport.
+        // Bind the request too, so the wallet can reject a subsequent switch.
+        return provider.request({ ...request, params: [{ ...transaction, chainId }] })
+      },
+    }),
   })
+}
+
+class WalletSubmissionBlockedError extends Error {
+  // Keep proven non-submission recognizable through viem's RPC wrappers.
+  readonly code = -32099
+  readonly data = { submission: "not-submitted" } as const
+
+  constructor(cause: unknown) {
+    super(`The wallet request was not submitted: ${cause instanceof Error ? cause.message : "the wallet network could not be checked"}`, { cause })
+  }
 }
 
 function requireEthereum(): EthereumProvider {
@@ -205,7 +246,7 @@ async function switchInjectedWalletChain(provider: EthereumProvider, chainId: `0
 async function assertInjectedWalletChain(provider: EthereumProvider, expectedChainId: `0x${string}`): Promise<void> {
   const actual = await provider.request({ method: "eth_chainId" })
   if (typeof actual !== "string" || actual.toLowerCase() !== expectedChainId.toLowerCase()) {
-    throw new Error(`Injected wallet chain mismatch after switching: expected ${expectedChainId}`)
+    throw new Error(`Injected wallet chain mismatch: expected ${expectedChainId}`)
   }
 }
 
