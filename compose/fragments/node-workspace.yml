@@ -18,6 +18,9 @@ services:
     mem_limit: 1g
     environment:
       HOME: /tmp/home
+      # Allow full dependency declaration checks within the 1 GiB container,
+      # leaving part of that budget for native allocations and staged sources.
+      NODE_OPTIONS: --max-old-space-size=768
       npm_config_cache: /tmp/npm-cache
       npm_config_audit: "false"
       npm_config_fund: "false"
