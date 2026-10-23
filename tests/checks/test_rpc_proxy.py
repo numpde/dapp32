@@ -366,10 +366,17 @@ class RpcProxyTest(unittest.TestCase):
         tls_failure = ssl.SSLCertVerificationError(1, "opaque transport message fixture-secret")
         tls_failure.verify_code = 10
         tls_failure.verify_message = "certificate has expired"
+        hostname_mismatch = ssl.SSLCertVerificationError(1, "opaque transport message fixture-secret")
+        hostname_mismatch.verify_code = 62
+        hostname_mismatch.verify_message = "Hostname mismatch, certificate is not valid for 'fixture-host-secret.example.com'."
+        tls_protocol_failure = ssl.SSLError(1, "opaque transport message fixture-secret")
+        tls_protocol_failure.reason = "WRONG_VERSION_NUMBER"
         failures = [
             (ConnectionRefusedError(errno.ECONNREFUSED, os.strerror(errno.ECONNREFUSED), "https://example.com/private?token=fixture-secret"), "ConnectionRefusedError", "Connection refused"),
             (TimeoutError("opaque transport message fixture-secret"), "TimeoutError", "timed out"),
-            (tls_failure, "SSLCertVerificationError", "certificate has expired"),
+            (tls_failure, "SSLCertVerificationError", "verify_code=10"),
+            (hostname_mismatch, "SSLCertVerificationError", "verify_code=62"),
+            (tls_protocol_failure, "SSLError", "WRONG_VERSION_NUMBER"),
         ]
         body = b'{"jsonrpc":"2.0","method":"eth_blockNumber","id":"fixture-body-secret"}'
         request = b"POST / HTTP/1.0\r\nContent-Length: " + str(len(body)).encode() + b"\r\nAuthorization: Bearer fixture-header-secret\r\n\r\n" + body
@@ -378,7 +385,7 @@ class RpcProxyTest(unittest.TestCase):
                 stderr = io.StringIO()
                 connection = mock.Mock()
                 connection.makefile.return_value = io.BytesIO(request)
-                with self.upstream_url("https://example.com/private?token=fixture-secret"), \
+                with self.upstream_url("https://fixture-host-secret.example.com/private?token=fixture-secret"), \
                         mock.patch.object(self.proxy, "resolve_global_ip", return_value="93.184.216.34"), \
                         mock.patch.object(self.proxy, "FixedIpHttpsConnection") as transport, \
                         mock.patch("sys.stderr", stderr):
@@ -393,7 +400,7 @@ class RpcProxyTest(unittest.TestCase):
                 self.assertIn(kind, diagnostic)
                 self.assertIn(reason, diagnostic)
                 self.assertEqual(len(diagnostic.splitlines()), 1)
-                for secret in ["fixture-secret", "fixture-body-secret", "fixture-header-secret", "/private", "token="]:
+                for secret in ["fixture-secret", "fixture-host-secret", "fixture-body-secret", "fixture-header-secret", "/private", "token="]:
                     self.assertNotIn(secret, response + diagnostic)
                 transport.return_value.close.assert_called_once()
 

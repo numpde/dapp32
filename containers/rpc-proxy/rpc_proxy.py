@@ -489,8 +489,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if isinstance(exc, ssl.SSLCertVerificationError):
                 if hasattr(exc, "verify_code"):
                     diagnostic += f" verify_code={exc.verify_code}"
-                if hasattr(exc, "verify_message") and isinstance(exc.verify_message, str):
-                    diagnostic += f" reason={ascii(exc.verify_message[:300])}"
             elif isinstance(exc, ssl.SSLError):
                 if hasattr(exc, "reason") and isinstance(exc.reason, str):
                     diagnostic += f" reason={ascii(exc.reason[:300])}"
