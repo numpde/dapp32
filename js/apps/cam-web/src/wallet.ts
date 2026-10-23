@@ -211,7 +211,7 @@ class WalletSubmissionBlockedError extends Error {
   readonly data = { submission: "not-submitted" } as const
 
   constructor(cause: unknown) {
-    super(`The wallet request was not submitted: ${cause instanceof Error ? cause.message : "the wallet network could not be checked"}`, { cause })
+    super("The wallet request was not submitted.", { cause })
   }
 }
 

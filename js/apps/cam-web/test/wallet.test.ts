@@ -4,6 +4,7 @@ import { sendCamContractCall } from "@cam/evm-viem"
 import { viewerErrorMessage } from "@cam/viewer"
 import { SubmissionOutcomeUnknownError, submitPreparedContractCall } from "../src/transactions.ts"
 import type { PreparedCallSimulationClient, PreparedCallSubmitterPorts } from "../src/transactions.ts"
+import { failureReport } from "../src/errors.ts"
 
 import { createInjectedWalletClient, ensureConnectedWalletAccount, ensureInjectedWalletChain, subscribeInjectedWallet, walletNetworkToAdd } from "../src/wallet.ts"
 
@@ -42,8 +43,32 @@ test("a final network mismatch remains proven not submitted through SDK and subm
     sends.push(request.method)
     return TRANSACTION_HASH
   })
+  await assert.rejects(submitDeposit(), error => {
+    assert(error instanceof Error)
+    assert(!(error instanceof SubmissionOutcomeUnknownError))
+    const report = failureReport(error, "Transaction not sent.")
+    assert.equal(report.diagnostic?.match(/chain mismatch/gi)?.length, 1)
+    return true
+  })
+  assert.deepEqual(sends, [])
+})
+
+test("an unreadable provider error before forwarding remains proven not submitted", async () => {
+  let chainReads = 0
+  const sends: string[] = []
+  const failure = Object.defineProperty(new Error(), "message", { get() { throw new Error("unreadable message") } })
+  transactionProvider(async request => {
+    if (request.method === "eth_accounts") return [ACCOUNT]
+    if (request.method === "wallet_switchEthereumChain") return null
+    if (request.method === "eth_chainId") {
+      if (++chainReads === 1) return "0x7ffffffe"
+      throw failure
+    }
+    sends.push(request.method)
+    return TRANSACTION_HASH
+  })
   await assert.rejects(submitDeposit(), error => error instanceof Error
-    && !(error instanceof SubmissionOutcomeUnknownError) && /chain mismatch/i.test(viewerErrorMessage(error)))
+    && !(error instanceof SubmissionOutcomeUnknownError) && /not submitted/i.test(viewerErrorMessage(error)))
   assert.deepEqual(sends, [])
 })
 
@@ -67,7 +92,7 @@ test("a wallet network change at the send boundary blocks forwarding", async () 
     return request.method === "eth_chainId" ? "0x1" : TRANSACTION_HASH
   })
   const wallet = createInjectedWalletClient(ACCOUNT, CHAIN_OPTIONS, () => true)
-  await assert.rejects(wallet.writeContract({ chain: null, address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, functionName: "deposit" }), /chain mismatch/i)
+  await assert.rejects(wallet.writeContract({ chain: null, address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, functionName: "deposit" }), error => /chain mismatch/i.test(viewerErrorMessage(error)))
   assert.deepEqual(methods, ["eth_chainId"])
 })
 
@@ -80,7 +105,7 @@ test("a review invalidated during the final wallet network read is not forwarded
     return TRANSACTION_HASH
   })
   const wallet = createInjectedWalletClient(ACCOUNT, CHAIN_OPTIONS, () => current)
-  await assert.rejects(wallet.writeContract({ chain: null, address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, functionName: "deposit" }), /review.*changed/i)
+  await assert.rejects(wallet.writeContract({ chain: null, address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, functionName: "deposit" }), error => /review.*changed/i.test(viewerErrorMessage(error)))
   assert.deepEqual(methods, ["eth_chainId"])
 })
 
