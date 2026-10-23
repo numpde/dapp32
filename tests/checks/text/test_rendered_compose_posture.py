@@ -866,9 +866,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_read_only_volumes(printer, "/deployment/deployment.json")
         web = config["services"]["cam-web"]
         self.assertEqual({"viewer_internal"}, set(web["networks"]))
+        self.assert_no_published_ports(web)
         self.assertEqual("https://raw.githubusercontent.com", web["environment"]["VITE_CAM_WEB_RESOURCE_ORIGIN"])
         gateway = config["services"]["browser-gateway"]
-        self.assertEqual({"release_local", "viewer_internal"}, set(gateway["networks"]))
+        self.assertEqual({"release_local", "viewer_internal", "browser_ingress"}, set(gateway["networks"]))
+        ingress = config["networks"]["browser_ingress"]
+        if "internal" in ingress:
+            self.assertFalse(ingress["internal"])
         self.assertEqual("127.0.0.1", gateway["ports"][0]["host_ip"])
         self.assertEqual("5174", gateway["ports"][0]["published"])
         self.assertIn("release-anvil:8545", gateway["command"][-1])

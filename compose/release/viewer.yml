@@ -61,7 +61,9 @@ services:
     mem_limit: 128m
     cpus: 1
     tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m"]
-    networks: [viewer_internal, release_local]
+    # Docker needs a non-internal bridge to activate the loopback published
+    # port. Only this gateway gains that network's ordinary egress authority.
+    networks: [viewer_internal, release_local, browser_ingress]
     ports:
       - "127.0.0.1:${RELEASE_VIEWER_PORT:?missing_RELEASE_VIEWER_PORT}:8080"
     command:
@@ -77,6 +79,9 @@ services:
           access_log /dev/stdout;
           error_log /dev/stderr info;
           client_body_temp_path /tmp/client_body;
+          fastcgi_temp_path /tmp/fastcgi;
+          scgi_temp_path /tmp/scgi;
+          uwsgi_temp_path /tmp/uwsgi;
           proxy_temp_path /tmp/proxy;
           server {
             listen 8080;
@@ -97,6 +102,8 @@ services:
 networks:
   viewer_internal:
     internal: true
+  browser_ingress:
+    internal: false
   release_local:
     external: true
     name: "${RELEASE_LOCAL_NETWORK:?missing_RELEASE_LOCAL_NETWORK}"
