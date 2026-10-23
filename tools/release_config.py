@@ -15,7 +15,7 @@ COMMON_FIELDS = (
     ("EXPECTED_CHAIN_ID", "Target chain ID", "chain"),
     ("EXPECTED_DEPLOYER_ADDRESS", "Expected funded deployer address (enter independently of the signing key)", "address"),
     ("CAM_URI", "Published CAM manifest URI (HTTPS or IPFS)", "uri"),
-    ("CAM_HASH", "CAM hash (auto uses manifest SHA-256; 0x followed by 64 zeros leaves it unverified in the viewer)", "cam-hash"),
+    ("CAM_HASH", "CAM hash (auto uses manifest SHA-256; zero leaves it unverified; or enter 0x followed by 64 SHA-256 hexadecimal digits)", "cam-hash"),
     ("INTENDED_CAM_ROOT_OWNER", "CAM owner address (can change the manifest and bindings)", "address"),
 )
 APP_FIELDS = {
@@ -164,6 +164,8 @@ def ask(label, kind, previous, *, secret, local_cam_uri=None):
         prompt += ": "
         value = getpass.getpass(prompt) if secret else input(prompt)
         value = value or previous
+        if kind == "cam-hash" and value == "zero":
+            value = "0x" + "00" * 32
         try:
             return check_value(value, kind, local_cam_uri=local_cam_uri)
         except ValueError as error:

@@ -55,19 +55,29 @@ class ReleaseConfigTest(unittest.TestCase):
 
     def test_zero_cam_hash_survives_setup_and_deployment_unpack_for_every_app(self):
         for app in release_config.APP_FIELDS:
-            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                expected = configuration(app)
-                expected["settings"]["CAM_HASH"] = "0x" + "00" * 32
-                answers = ["public", *[expected["settings"][name] for name, _, _ in release_config.fields(app)], "save"]
-                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
-                    release_config.setup(app, COMMIT, root)
-                saved = root / "release.json"
-                self.assertEqual(expected, json.loads(saved.read_text()))
-                output = root / "out"
-                output.mkdir()
-                release_config.unpack(app, COMMIT, "deploy", saved, output)
-                self.assertIn(f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH={expected['settings']['CAM_HASH']}\0", (output / "inputs").read_text())
+            for selection in ("zero", "0x" + "00" * 32):
+                with self.subTest(app=app, selection=selection), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    expected = configuration(app)
+                    expected["settings"]["CAM_HASH"] = "0x" + "00" * 32
+                    answers = ["public", *[expected["settings"][name] for name, _, _ in release_config.fields(app)], "save"]
+                    answers[1 + list(expected["settings"]).index("CAM_HASH")] = selection
+                    with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
+                        release_config.setup(app, COMMIT, root)
+                    saved = root / "release.json"
+                    self.assertEqual(expected, json.loads(saved.read_text()))
+                    output = root / "out"
+                    output.mkdir()
+                    release_config.unpack(app, COMMIT, "deploy", saved, output)
+                    self.assertIn(f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH={expected['settings']['CAM_HASH']}\0", (output / "inputs").read_text())
+
+    def test_saved_configuration_does_not_accept_interactive_zero_shorthand(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app):
+                config = configuration(app)
+                config["settings"]["CAM_HASH"] = "zero"
+                with self.assertRaisesRegex(ValueError, "Invalid CAM_HASH"):
+                    release_config.validate(config, app, COMMIT)
 
     def test_walkthrough_produces_complete_ready_to_deploy_file_for_every_app(self):
         for app in release_config.APP_FIELDS:
