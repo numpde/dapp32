@@ -20,7 +20,7 @@ release_config_teardown() {
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
-    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" "$release_config_dir/approval-records" "$release_config_dir"/approval-image-[0-9]*.json || return "$?"
+    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
   fi
@@ -78,63 +78,38 @@ require_release_local_network() {
 }
 
 release_config_prepare_approval_images() {
-  local app="$1" source_commit="$2" location record count=0 image_id tool_source extra observed_source
-  local -a records
-  printf 'Approval-image record file or records folder [%s]: ' "$(dirname -- "$CONFIG")"
-  IFS= read -r location
-  if [[ -z "$location" ]]; then location="$(dirname -- "$CONFIG")"; fi
-  if [[ "$location" != /* || $(realpath -m -- "$location") != "$location" ]]; then
-    printf '%s\n' 'Approval-image location must be a normalized absolute path.' >&2
+  local image_list image_id observations observed_id tool_source entrypoint
+  local -a image_ids=()
+  if ! image_list="$(docker image ls --all --filter label=org.opencontainers.image.revision --no-trunc --quiet)"; then
+    printf '%s\n' 'Cannot discover installed approval-tool images: Docker image listing failed.' >&2
     return 2
   fi
-  if ! (reject_release_path_symlinks "$location" 'Approval-image location'); then return 2; fi
-  if [[ -f "$location" ]]; then
-    records=("$location")
-  elif [[ -d "$location" ]]; then
-    records=("$location/approval-image.json" "$location"/*/approval-image.json)
-  else
-    printf '%s\n' 'Approval-image location must be an existing record file or folder.' >&2
-    return 2
-  fi
-  for record in "${records[@]}"; do
-    if [[ ! -e "$record" && ! -L "$record" ]]; then continue; fi
-    printf 'Approval record %s: %q\n' "$count" "$record" >&2
-    if ! (require_release_file "$record" 'Approval-image record'); then continue; fi
-    if [[ $(stat -c %s -- "$record") -gt 4096 ]]; then
-      printf '%s\n' 'Skipping approval-image record larger than 4096 bytes.' >&2
-      continue
-    fi
-    if [[ "$count" -ge 64 ]]; then
-      printf '%s\n' 'More than 64 approval-image records found; select a narrower folder or one record file.' >&2
-      return 2
-    fi
-    head -c 4097 -- "$record" > "$release_config_dir/approval-image-$count.json"
-    count=$((count + 1))
-  done
-  compose_release_config run --rm --no-deps -T release-setup approval-records "$app" "$source_commit" > "$release_config_dir/approval-records"
-  source tools/release_approval_preflight.sh
   : > "$release_config_dir/approval-images"
-  while IFS=$'\t' read -r image_id tool_source extra; do
-    if [[ -n "$extra" || ! "$tool_source" =~ ^[0-9a-f]{40}$ ]]; then
-      printf '%s\n' 'Approval record parser returned malformed provenance.' >&2
+  while IFS= read -r image_id; do
+    if [[ -z "$image_id" ]]; then continue; fi
+    if [[ ! "$image_id" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+      printf '%s\n' 'Docker image listing returned an invalid image ID.' >&2
       return 2
     fi
-    if ! (RELEASE_APPROVAL_IMAGE="$image_id"; release_approval_require_image); then
-      printf 'Skipping unavailable approval image %s.\n' "$image_id" >&2
-      continue
+    image_ids+=("$image_id")
+  done < <(printf '%s\n' "$image_list" | sort -u)
+  if [[ "${#image_ids[@]}" -gt 0 ]]; then
+    if ! observations="$(docker image inspect --format '{{.Id}}{{printf "\t"}}{{index .Config.Labels "org.opencontainers.image.revision"}}{{printf "\t"}}{{json (index .Config "Entrypoint")}}' "${image_ids[@]}")"; then
+      printf '%s\n' 'Cannot inspect the local image inventory; Docker batch inspection failed.' >&2
+      return 2
     fi
-    if ! observed_source="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image_id")"; then
-      printf 'Cannot inspect approval image tool source: %s\n' "$image_id" >&2
-      continue
-    fi
-    if [[ "$observed_source" != "$tool_source" ]]; then
-      printf 'Skipping approval image %s: local tool source does not match its record.\n' "$image_id" >&2
-      continue
-    fi
-    printf '%s\t%s\n' "$image_id" "$tool_source" >> "$release_config_dir/approval-images"
-  done < "$release_config_dir/approval-records"
+    while IFS=$'\t' read -r observed_id tool_source entrypoint; do
+      if [[ ! "$observed_id" =~ ^sha256:[0-9a-f]{64}$ || " ${image_ids[*]} " != *" $observed_id "* ]]; then
+        printf '%s\n' 'Docker inspection returned an image ID outside the requested inventory.' >&2
+        return 2
+      fi
+      if [[ ! "$tool_source" =~ ^[0-9a-f]{40}$ ]]; then continue; fi
+      if [[ "$entrypoint" != '["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]' ]]; then continue; fi
+      printf '%s\t%s\n' "$observed_id" "$tool_source" >> "$release_config_dir/approval-images"
+    done <<< "$observations"
+  fi
   if [[ ! -s "$release_config_dir/approval-images" ]]; then
-    printf '%s\n' 'No usable local approval images were found. Provide a record whose exact image is installed; setup does not build or substitute images. Build records are created by make release/approval/image/build.' >&2
+    printf '%s\n' 'No installed approval-tool builds were found. Build one with make release/approval/image/build; setup does not build, pull or substitute images.' >&2
     return 2
   fi
 }

@@ -183,44 +183,22 @@ def ask(label, kind, previous, *, secret, local_cam_uri=None):
             print(error, file=sys.stderr)
 
 
-def approval_records(output):
-    expected = {"imageId", "approvalToolSourceCommit", "packageLockSha256", "dockerfileSha256"}
-    for path in sorted(output.glob("approval-image-*.json")):
-        try:
-            if path.is_symlink():
-                raise ValueError("record must be a regular file")
-            with path.open("rb") as source:
-                raw = source.read(4097)
-            if len(raw) > 4096:
-                raise ValueError("record exceeds 4096 bytes")
-            record = json.loads(raw, object_pairs_hook=unique_fields)
-            if not isinstance(record, dict) or record.keys() != expected:
-                raise ValueError("record must contain imageId, approvalToolSourceCommit, packageLockSha256 and dockerfileSha256")
-            check_value(record["imageId"], "approval-image")
-            for name, length in (("approvalToolSourceCommit", 40), ("packageLockSha256", 64), ("dockerfileSha256", 64)):
-                if not isinstance(record[name], str) or not re.fullmatch(f"[0-9a-f]{{{length}}}", record[name]):
-                    raise ValueError(f"{name} must contain {length} lowercase hexadecimal digits")
-            print(f"{record['imageId']}\t{record['approvalToolSourceCommit']}")
-        except (OSError, ValueError, RecursionError):
-            print(f"Skipping {path.name}: malformed or unreadable approval-image record.", file=sys.stderr)
-
-
 def ask_approval_image(output):
     with (output / "approval-images").open("rb") as source:
         raw = source.read(MAX_CONFIG_BYTES + 1)
     if len(raw) > MAX_CONFIG_BYTES:
         raise ValueError("Checked approval-image choices exceed 65536 bytes.")
     choices = {}
-    print("Select a saved approval-tool build:")
+    print("Select an installed approval-tool build:")
     for index, line in enumerate(raw.decode("ascii").splitlines(), 1):
         parts = line.split("\t")
         if len(parts) != 2 or not re.fullmatch(r"[0-9a-f]{40}", parts[1]):
             raise ValueError("Checked approval-image choices must contain an image ID and tool source commit.")
         image = check_value(parts[0], "approval-image")
         choices[str(index)] = image
-        print(f"{index}: {image}  tool source: {parts[1]}")
+        print(f"{index}: {image}  tool source commit: {parts[1]}")
     if not choices:
-        raise ValueError("No checked local approval images are available; provide an existing reviewed approval-image record.")
+        raise ValueError("No checked local approval images are available; build an approval-tool image before setup.")
     while True:
         selected = input("Approval image number: ").strip()
         if selected in choices:
@@ -393,16 +371,14 @@ def unpack(app, source_commit, mode, source, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("setup", "deploy", "verify", "approval-records"))
+    parser.add_argument("mode", choices=("setup", "deploy", "verify"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
     try:
         if not re.fullmatch(r"[0-9a-f]{40}", args.source_commit):
             raise ValueError("Release setup requires one exact 40-character source commit.")
-        if args.mode == "approval-records":
-            approval_records(Path("/out"))
-        elif args.mode == "setup":
+        if args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))
         else:
             unpack(args.app, args.source_commit, args.mode, Path("/run/release.json"), Path("/out"))

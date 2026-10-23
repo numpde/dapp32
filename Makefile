@@ -679,8 +679,8 @@ help:
 	  '    Keep that directory: verification reads its artifact/deployment.json. Do not create it beforehand.' \
 	  '    CONFIG must be new, outside the checkout, with an existing parent and no symlink path components.' \
 	  '    Saves the concrete RPC URL, deployer key, source commit, app settings and deployment confirmation; mode 0600.' \
-	  '    Select an approval-image build record during setup; its exact installed image ID is saved in CONFIG.' \
-	  '    Discovery checks the selected folder and immediate build subfolders only; it does not scan your home or build images.' \
+	  '    Setup lists installed approval-tool images with their source commits; select one by number.' \
+	  '    The selected exact image ID is saved in CONFIG. Setup does not build, pull, relabel or substitute approval images.' \
 	  '    Deploy from a terminal with CONFIG. A missing saved approval image stops deployment; no image is substituted.' \
 	  '  make release/approval/image/build SOURCE_COMMIT=<reviewed tool commit> RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<new directory>' \
 	  '    Build the approval tool image from that committed source and fresh locked dependencies.' \
@@ -1635,7 +1635,8 @@ validate_new_release_output "$${CONFIG:?Set CONFIG to a new absolute off-repo fi
 source_commit="$$(git rev-parse HEAD)"; \
 release_config_stage "$$(dirname -- "$$CONFIG")"; \
 $(release_config_compose); \
-release_config_prepare_approval_images "$$app" "$$source_commit"; \
+source tools/release_approval_preflight.sh; \
+release_config_prepare_approval_images; \
 compose_release_config run --rm --no-deps release-setup setup "$$app" "$$source_commit"; \
 release_config_input="$$release_config_dir/release.json"; \
 require_release_config "$$release_config_input"; \

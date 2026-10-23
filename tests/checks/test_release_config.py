@@ -74,17 +74,6 @@ class ReleaseConfigTest(unittest.TestCase):
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual(APPROVAL_IMAGE, inputs["RELEASE_APPROVAL_IMAGE"])
 
-    def test_approval_record_parser_reports_invalid_record_and_keeps_valid_provenance(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            (root / "approval-image-0.json").write_text(json.dumps({"imageId": APPROVAL_IMAGE, "approvalToolSourceCommit": APPROVAL_SOURCE, "packageLockSha256": "c" * 64, "dockerfileSha256": "d" * 64}))
-            (root / "approval-image-1.json").write_text('{"imageId":"private-fixture-record-content"}')
-            output, errors = io.StringIO(), io.StringIO()
-            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-                release_config.approval_records(root)
-            self.assertEqual(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n", output.getvalue())
-            self.assertIn("approval-image-1.json", errors.getvalue())
-            self.assertNotIn("private-fixture-record-content", errors.getvalue())
 
     def test_authority_help_at_address_choices_and_review_preserves_each_apps_settings(self):
         heading = "Changing addresses after deployment:"

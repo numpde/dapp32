@@ -506,7 +506,7 @@ release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_
 '''
                     composition = '''
 release_config_prepare_approval_images() { :; }
-release_approval_require_image() { [[ "$RELEASE_APPROVAL_IMAGE" == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" ]]; }
+docker() { [[ "$1 $2 $3" == 'image inspect --format' && "$4" == '{{.Id}}' ]]; printf '%s\n' "$5"; }
 compose_release_config() {
   if [[ " $* " == *" release-setup "* ]]; then
     printf '{}' > "$release_config_dir/release.json"
