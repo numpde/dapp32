@@ -3,12 +3,18 @@
 
 unset release_config_dir release_config_input
 release_config_started=0
+release_setup_rpc_started=0
 
 release_config_teardown() {
   local previous_grace="$release_command_grace" failed=0
-  if [[ "$release_config_started" != 1 ]]; then return 0; fi
   release_command_grace=60
-  if ! compose_release_config down --timeout 10 --volumes --remove-orphans >/dev/null; then
+  if [[ "$release_setup_rpc_started" == 1 ]]; then
+    if ! compose_release_setup_rpc down --timeout 10 --volumes --remove-orphans >/dev/null; then
+      printf '%s\n' 'RPC discovery teardown failed; retaining mounted inputs.' >&2
+      failed=1
+    else release_setup_rpc_started=0; fi
+  fi
+  if [[ "$release_config_started" == 1 ]] && ! compose_release_config down --timeout 10 --volumes --remove-orphans >/dev/null; then
     printf '%s\n' 'Release configuration teardown failed; retaining mounted inputs.' >&2
     failed=1
   else
@@ -20,9 +26,36 @@ release_config_teardown() {
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
-    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" || return "$?"
+    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" \
+      "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
+  fi
+}
+
+release_config_probe_chain() {
+  local repository="$1" source_commit="$2" rpc_log
+  release_run_owned "$release_command_grace" bash "$repository/tools/release_tool_images.sh" network "$repository" "$source_commit" "$release_config_dir"
+  rpc_log=$(mktemp -- "$CONFIG.setup-rpc-XXXXXXXX")
+  printf '%s\n' 'Checking the RPC chain ID before requesting the signing key.'
+  release_setup_rpc_started=1
+  if compose_release_setup_rpc up -d --no-build --wait --wait-timeout 30 rpc-proxy > "$rpc_log" 2>&1 &&
+      (umask 077; compose_release_setup_rpc run --rm --no-deps -T rpc-chain-read > "$release_config_dir/chain-id" 2>> "$rpc_log"); then
+    if ! compose_release_setup_rpc down --timeout 10 --volumes --remove-orphans >> "$rpc_log" 2>&1; then
+      printf 'RPC discovery teardown failed. Diagnostics: %s\n' "$rpc_log" >&2
+      return 1
+    fi
+    release_setup_rpc_started=0
+    rm -- "$rpc_log"
+  else
+    if ! compose_release_setup_rpc logs --no-color --no-log-prefix rpc-proxy >> "$rpc_log" 2>&1; then
+      printf '%s\n' 'Could not collect complete RPC proxy diagnostics.' >> "$rpc_log"
+    fi
+    if ! sed -n '/^RPC eth_chainId /p' "$rpc_log" >&2; then
+      printf '%s\n' 'Could not display the chain reader diagnostic.' >&2
+    fi
+    printf 'Cannot read eth_chainId from the selected RPC. No signing key was requested. Diagnostics: %s\n' "$rpc_log" >&2
+    return 1
   fi
 }
 

@@ -49,7 +49,7 @@ docker() {
     key="${!#}"
     cat "$CASE_ROOT/cache/$key"
     if [[ "$TOOL_RETAG" == 1 ]]; then
-      for tag in "$CASE_ROOT/cache/"dapp32-release-*; do
+      for tag in "$CASE_ROOT/cache/"cam-release-tool-*; do
         if [[ "$(cut -d ' ' -f1 "$tag")" == "$key" ]]; then printf 'sha256:%064d %040d\n' 999 999 > "$tag"; fi
       done
     fi
@@ -97,6 +97,24 @@ release_tool_images_prepare /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$
 ''')
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(5, builds)
+
+    def test_network_setup_reuses_only_the_proxy_tool_and_preserves_the_fixed_reader(self):
+        result, builds, overlays = self.run_case(r'''
+release_tool_images_prepare_network /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"
+release_tool_images_prepare_network /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
+''')
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(1, builds)
+        self.assertEqual({"images-setup-rpc.yml"}, overlays.keys())
+        with tempfile.TemporaryDirectory() as temporary:
+            overlay = Path(temporary) / "images-setup-rpc.yml"
+            overlay.write_text(overlays[overlay.name])
+            before = rendered_compose_config("compose/release/setup-rpc.yml")["services"]
+            after = rendered_compose_config(("compose/release/setup-rpc.yml", str(overlay)))["services"]
+            self.assertEqual(before.keys(), after.keys())
+            self.assertEqual(before["rpc-chain-read"], after["rpc-chain-read"])
+            self.assertNotIn("build", after["rpc-proxy"])
+            self.assertRegex(after["rpc-proxy"]["image"], r"^sha256:[0-9a-f]{64}$")
 
     def test_engine_or_build_failure_publishes_no_runtime_overrides(self):
         for failure in ("inventory", "build", "inspect"):

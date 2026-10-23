@@ -132,9 +132,53 @@ release_approval_restore_terminal() {
   fi
 }
 
+# Export backstop for configured literal credentials, not a filter for original
+# Docker logs or every possible encoding of a credential.
+release_approval_redact_log() (
+  set +x
+  local LC_ALL=C
+  local rpc_url signing_key hex_key path query item name value line secret marker
+  rpc_url=$(head -c 4097 -- "$RPC_URL_FILE") || return
+  signing_key=$(head -c 68 -- "$DEPLOYER_PRIVATE_KEY_FILE") || return
+  if [[ -z "$rpc_url" || ${#rpc_url} -gt 4096 || "$rpc_url" == *$'\001'* || ! "$signing_key" =~ ^(0x)?[0-9a-fA-F]{64}$ ]]; then
+    printf '%s\n' 'Cannot redact deployment diagnostics: the configured credential files are malformed.' >&2
+    return 2
+  fi
+  hex_key="${signing_key#0x}"
+  local -a secrets=("$rpc_url" "$signing_key" "$hex_key" "${hex_key,,}" "${hex_key^^}")
+  path="${rpc_url#*://}"
+  if [[ "$path" == */* ]]; then
+    path="${path#*/}"; path="${path%%\?*}"
+    local -a segments
+    IFS='/' read -r -a segments <<< "$path"
+    # Long opaque path components can be provider credentials; short routing names are not copied as secrets.
+    for value in "${segments[@]}"; do if [[ ${#value} -ge 16 ]]; then secrets+=("$value"); fi; done
+  fi
+  if [[ "$rpc_url" == *\?* ]]; then
+    query="${rpc_url#*\?}"
+    local -a parameters
+    IFS='&' read -r -a parameters <<< "$query"
+    for item in "${parameters[@]}"; do
+      name="${item%%=*}"; value="${item#*=}"
+      case "${name,,}" in key|api_key|api-key|apikey|token|access_token|secret|authorization)
+        if [[ "$item" == *=* && -n "$value" ]]; then secrets+=("$value"); fi ;;
+      esac
+    done
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    # This byte is excluded from configured secrets. Choose a sequence absent
+    # from the original line, then restore visible markers after every match.
+    marker=$'\001'
+    while [[ "$line" == *"$marker"* ]]; do marker="$marker$marker"; done
+    for secret in "${secrets[@]}"; do line="${line//"$secret"/"$marker"}"; done
+    line="${line//"$marker"/[redacted]}"
+    printf '%s\n' "$line" || return
+  done
+)
+
 release_approval_retain_signer_log() {
   local output="$1"
-  if ! (umask 077; compose_release logs --no-color --no-log-prefix deploy-release > "$output/deploy.log" 2>&1); then
+  if ! (umask 077; set -o pipefail; compose_release logs --no-color --no-log-prefix deploy-release 2>&1 | release_approval_redact_log > "$output/deploy.log"); then
     printf 'Could not retain complete signer diagnostics at %s/deploy.log.\n' "$output" >&2
     return 1
   fi

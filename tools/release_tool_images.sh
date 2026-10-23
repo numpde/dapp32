@@ -6,7 +6,7 @@ release_tool_image() {
   case "$tool" in checks|foundry|node-deps|rpc-proxy) ;; *) printf 'Unknown release tool: %s\n' "$tool" >&2; return 2 ;; esac
   tree=$(GIT_NO_REPLACE_OBJECTS=1 git -C "$repository" rev-parse "$commit:containers/$tool") || return
   if [[ ! "$tree" =~ ^[0-9a-f]{40}$ ]]; then printf 'Invalid Git context identity for %s.\n' "$tool" >&2; return 2; fi
-  tag="dapp32-release-$tool:$tree"
+  tag="cam-release-tool-$tool:$tree"
   image=$(docker image ls --filter "reference=$tag" --quiet --no-trunc) || return
   if [[ -z "$image" ]]; then
     printf 'Building release tool %s for changed or missing context %s.\n' "$tool" "$tree" >&2
@@ -55,8 +55,18 @@ release_tool_images_prepare() {
     "verify-input $node" "verify-rpc-proxy $rpc" "verify-provenance $node" "verify-release $foundry"
 }
 
+release_tool_images_prepare_network() {
+  local repository="$1" commit="$2" output="$3" rpc
+  rpc=$(release_tool_image "$repository" "$commit" rpc-proxy) || return
+  release_tool_image_overlay "$output/images-setup-rpc.yml" "rpc-proxy $rpc"
+}
+
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
-  if [[ "$#" != 3 ]]; then printf '%s\n' 'Usage: release_tool_images.sh REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
-  release_tool_images_prepare "$1" "$2" "$3"
+  if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh release|network REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
+  case "$1" in
+    release) release_tool_images_prepare "$2" "$3" "$4" ;;
+    network) release_tool_images_prepare_network "$2" "$3" "$4" ;;
+    *) printf '%s\n' 'Choose release or network tool images.' >&2; exit 2 ;;
+  esac
 fi

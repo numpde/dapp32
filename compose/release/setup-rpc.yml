@@ -1,0 +1,55 @@
+# Only network identity is read; signing inputs are collected after teardown.
+services:
+  rpc-chain-read:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    pull_policy: never
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1
+    pids_limit: 32
+    mem_limit: 64m
+    memswap_limit: 64m
+    logging: {driver: none}
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=8m
+    networks: [rpc_internal]
+    volumes:
+      - type: bind
+        source: ../../tools/release_chain_id.py
+        target: /tool/release_chain_id.py
+        read_only: true
+        bind: {create_host_path: false}
+    entrypoint: [timeout, -s, TERM, -k, 2s, 25s, python3, -I, -B, /tool/release_chain_id.py]
+  rpc-proxy:
+    extends:
+      file: ../cast.yml
+      service: rpc-proxy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    cpus: 1
+    memswap_limit: 128m
+    # Proxy logs contain locally selected transport categories, never provider response bodies.
+    logging:
+      driver: local
+      options: {max-size: 64k, max-file: "1", compress: "false"}
+    environment:
+      RPC_ALLOWED_METHODS: eth_chainId
+      RPC_PROXY_MAX_REQUEST_BYTES: "4096"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "4096"
+      RPC_PROXY_MAX_CONCURRENT_REQUESTS: "1"
+      RPC_PROXY_MAX_BATCH_ITEMS: "1"
+      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "10"
+      RPC_PROXY_UPSTREAM_TIMEOUT_SECONDS: "10"
+      RPC_PROXY_REQUEST_TIMEOUT_SECONDS: "15"
+
+secrets:
+  rpc_url:
+    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+networks:
+  rpc_internal:
+    internal: true
+  rpc_egress: {}

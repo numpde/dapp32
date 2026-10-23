@@ -274,6 +274,15 @@ compose_release_config() { \
 }
 endef
 
+define release_setup_rpc_compose
+compose_release_setup_rpc() { \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$release_config_project-rpc" \
+  RPC_URL_FILE="$$release_config_dir/setup-rpc-url" \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
+    -f $(COMPOSE_DIR)/release/setup-rpc.yml -f "$$release_config_dir/images-setup-rpc.yml" "$$@"; \
+}
+endef
+
 define release_snapshot_allocate
 ceremony_root="$$(mktemp -d "/tmp/cam-release-$${LOCAL_UID:?missing_LOCAL_UID}-XXXXXXXX")"; \
 chmod 0700 "$$ceremony_root"; \
@@ -381,7 +390,7 @@ cleanup() { $(release_snapshot_cleanup); }; \
 trap cleanup EXIT; \
 $(release_snapshot_allocate); \
 $(release_snapshot_populate); \
-release_run_owned "$$release_command_grace" bash "$$ceremony_source/tools/release_tool_images.sh" "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
+release_run_owned "$$release_command_grace" bash "$$ceremony_source/tools/release_tool_images.sh" release "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
 release_image_args=(-f "$$ceremony_root/images-$$release_phase.yml"); \
 release_transport_args=(); \
 if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == 1 ]]; then \
@@ -390,7 +399,7 @@ if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == 1 ]]; then \
 fi; \
 $(release_resolve_rpc); \
 release_dependencies_started=1; \
-compose_release_dependencies run --no-build --rm soldeer-verify
+compose_release_dependencies run --rm soldeer-verify
 endef
 
 define release_deploy_execution
@@ -398,7 +407,7 @@ release_phase=deploy; \
 release_rpc_expected_chain="$$chain_id"; \
 $(release_prepare_snapshot); \
 release_check_started=1; \
-compose_release_check run --no-build --rm release-check; \
+compose_release_check run --rm release-check; \
 source "$$ceremony_source/tools/release_approval_deploy.sh"; \
 release_approval_require_terminal; \
 release_approval_require_image; \
@@ -1646,8 +1655,12 @@ validate_new_release_output "$${CONFIG:?Set CONFIG to a new absolute off-repo fi
 source_commit="$$(git rev-parse HEAD)"; \
 release_config_stage "$$(dirname -- "$$CONFIG")"; \
 $(release_config_compose); \
+$(release_setup_rpc_compose); \
 source tools/release_approval_preflight.sh; \
 release_config_prepare_approval_images; \
+compose_release_config run --rm --no-deps release-setup network "$$app" "$$source_commit"; \
+read -r setup_network < "$$release_config_dir/setup-network"; \
+if [[ "$$setup_network" == public ]]; then release_config_probe_chain "$(CURDIR)" "$$source_commit"; fi; \
 compose_release_config run --rm --no-deps release-setup setup "$$app" "$$source_commit"; \
 release_config_input="$$release_config_dir/release.json"; \
 require_release_config "$$release_config_input"; \

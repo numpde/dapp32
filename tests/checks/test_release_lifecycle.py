@@ -122,6 +122,9 @@ ceremony_source="$ceremony_root/source"
 mkdir -p "$ceremony_source" "$CASE_ROOT/config"
 release_config_dir="$CASE_ROOT/config"
 printf 'fixture input\n' > "$release_config_dir/rpc-url"
+printf '0x%s\n' "$(printf '11%.0s' {1..32})" > "$release_config_dir/deployer-key"
+RPC_URL_FILE="$release_config_dir/rpc-url"
+DEPLOYER_PRIVATE_KEY_FILE="$release_config_dir/deployer-key"
 release_rpc_started=1
 release_dependencies_started=1
 release_check_started=1
@@ -155,6 +158,95 @@ release_config_teardown() { fake_down config; }
 
 
 class ReleaseLifecycleTest(unittest.TestCase):
+    def test_retained_signer_log_redacts_configured_credentials_and_keeps_public_facts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "output").mkdir()
+            (root / "source").mkdir()
+            key = "0x" + "ab" * 32
+            token = "opaque-[credential]+token"
+            query = "query-credential-key"
+            endpoint = f"https://rpc.example.test/{token}/ext/bc/C/rpc?api_key={query}"
+            (root / "rpc-url").write_text(endpoint + "\n")
+            (root / "key").write_text(key + "\n")
+            env = self.environment(root, root)
+            env.update(RPC_URL_FILE=str(root / "rpc-url"), DEPLOYER_PRIVATE_KEY_FILE=str(root / "key"))
+            script = r'''
+source "$LAUNCHER"
+compose_release() {
+  printf 'HTTP 503; chain 43113; owner 0x1234; endpoint %s; path %s; query %s; key %s; uppercase %s\n' \
+    "$(cat "$RPC_URL_FILE")" 'opaque-[credential]+token' 'query-credential-key' "$(cat "$DEPLOYER_PRIVATE_KEY_FILE")" "$(tr 'a-f' 'A-F' < "$DEPLOYER_PRIVATE_KEY_FILE" | cut -c3-)"
+}
+release_approval_retain_signer_log "$CASE_ROOT/output"
+'''
+            process = self.launch(script, env)
+            stdout, stderr = process.communicate(timeout=10)
+            self.assertEqual(0, process.returncode, stdout + stderr)
+            text = (root / "output/deploy.log").read_text()
+            for secret in (endpoint, token, query, key, key[2:].upper()):
+                self.assertNotIn(secret, text)
+            for public in ("HTTP 503", "chain 43113", "owner 0x1234"):
+                self.assertIn(public, text)
+
+    def test_setup_probe_finishes_teardown_before_key_entry_and_aborts_on_failure(self):
+        for fault in ("", "up", "read", "down"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                env = self.environment(root, root)
+                env.update(CONFIG=str(root / "release.json"), PROBE_FAULT=fault)
+                script = SHELL_SETUP + r'''
+source "$CONFIG_SOURCE"
+release_config_dir="$CASE_ROOT/config"
+release_run_owned() { printf 'tools\n' >> "$CASE_ROOT/events"; }
+compose_release_setup_rpc() {
+  case "$1" in
+    up) printf 'up\n' >> "$CASE_ROOT/events"; [[ "$PROBE_FAULT" != up ]] ;;
+    run) printf 'read\n' >> "$CASE_ROOT/events"; if [[ "$PROBE_FAULT" == read ]]; then printf 'RPC eth_chainId failed: HTTP 503.\n' >&2; return 1; fi; printf '43113\n' ;;
+    down) printf 'down\n' >> "$CASE_ROOT/events"; [[ "$PROBE_FAULT" != down ]] ;;
+    logs) printf 'rpc-proxy: safe failure category\n' ;;
+    *) return 91 ;;
+  esac
+}
+trap 'release_config_teardown' EXIT
+release_config_probe_chain "$CASE_ROOT" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+printf 'key\n' >> "$CASE_ROOT/events"
+'''
+                process = self.launch(script, env)
+                stdout, stderr = process.communicate(timeout=10)
+                events = (root / "events").read_text().splitlines()
+                if fault:
+                    self.assertNotEqual(0, process.returncode, stdout + stderr)
+                    self.assertNotIn("key", events)
+                    logs = list(root.glob("release.json.setup-rpc-*"))
+                    self.assertEqual(1, len(logs))
+                    self.assertEqual(0o600, logs[0].stat().st_mode & 0o777)
+                    if fault == "read":
+                        self.assertIn("RPC eth_chainId failed: HTTP 503", stderr)
+                else:
+                    self.assertEqual(0, process.returncode, stdout + stderr)
+                    self.assertEqual(["tools", "up", "read", "down", "key"], events)
+                    self.assertEqual("43113\n", (root / "config/chain-id").read_text())
+
+    def test_repeated_short_credentials_do_not_recursively_expand_log_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            endpoint = "https://rpc.example.test/path?" + "&".join(["key=e"] * 12)
+            (root / "rpc-url").write_text(endpoint + "\n")
+            (root / "key").write_text("0x" + "ab" * 32 + "\n")
+            env = self.environment(root, root)
+            env.update(RPC_URL_FILE=str(root / "rpc-url"), DEPLOYER_PRIVATE_KEY_FILE=str(root / "key"))
+            script = r'''
+source "$LAUNCHER"
+printf 'HTTP 503; chain 43113; owner 0xdead; eeeeeeeeeeeeeeeeeeee\n' | release_approval_redact_log
+'''
+            process = self.launch(script, env)
+            stdout, stderr = process.communicate(timeout=5)
+            self.assertEqual(0, process.returncode, stderr)
+            self.assertLess(len(stdout), 400)
+            self.assertIn("HTTP 503; chain 43113", stdout)
+            self.assertIn("0xd[redacted]ad", stdout)
+            self.assertNotIn("0xdad", stdout)
+
     @classmethod
     def setUpClass(cls) -> None:
         # Bash is a pinned checks-image dependency. Never silently skip this
@@ -512,7 +604,9 @@ release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_
 release_config_prepare_approval_images() { :; }
 docker() { [[ "$1 $2 $3" == 'image inspect --format' && "$4" == '{{.Id}}' ]]; printf '%s\n' "$5"; }
 compose_release_config() {
-  if [[ " $* " == *" release-setup "* ]]; then
+  if [[ " $* " == *" release-setup network "* ]]; then
+    printf 'public\n' > "$release_config_dir/setup-network"
+  elif [[ " $* " == *" release-setup "* ]]; then
     printf '{}' > "$release_config_dir/release.json"
   else
     printf 'RELEASE_REHEARSAL=0\\0RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\0%s_RELEASE_OUTPUT_DIR=%s/deployment\\0' "$PREFIX" "$CASE_ROOT" > "$release_config_dir/inputs"
@@ -523,6 +617,7 @@ compose_release_config() {
                     for old, new in {
                         "$(LANE_GUARD)": ":", "$(patsubst %/release/setup,%,$@)": app,
                         "$(release_host_guard_functions)": guards.strip(), "$(release_config_compose)": composition.strip(),
+                        "$(release_setup_rpc_compose)": "release_config_probe_chain() { :; }", "$(CURDIR)": str(ROOT),
                     }.items():
                         script = script.replace(old, new)
                     if fail_link:

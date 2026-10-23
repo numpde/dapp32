@@ -42,7 +42,48 @@ def configuration(app):
     }
 
 
+def complete_setup(app, source_commit, output):
+    """Run both offline phases with the fixed RPC reply supplied by this fixture."""
+    release_config.prepare_network(app, source_commit, output)
+    if (output / "setup-network").read_text().strip() == "public":
+        release_config.write_private(output / "chain-id", b"84532\n")
+    release_config.setup(app, source_commit, output)
+
+
 class ReleaseConfigTest(unittest.TestCase):
+    def test_endpoint_selection_collects_no_signing_key_and_detected_chain_is_confirmed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(release_config, "input", return_value="public", create=True), patch.object(release_config.getpass, "getpass", return_value=FIXTURE_RPC) as hidden, contextlib.redirect_stdout(io.StringIO()):
+                release_config.prepare_network("escrow", COMMIT, root)
+            self.assertEqual(1, hidden.call_count)
+            self.assertFalse((root / "release.json").exists())
+            release_config.write_private(root / "chain-id", b"43113\n")
+            expected = configuration("escrow")
+            expected["settings"]["EXPECTED_CHAIN_ID"] = "43113"
+            answers = iter(["", *[value for name, value in expected["settings"].items() if name != "EXPECTED_CHAIN_ID"], "save"])
+            prompts = []
+            def respond(prompt):
+                prompts.append(prompt)
+                return next(answers)
+            with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", return_value=FIXTURE_KEY) as key_input, contextlib.redirect_stdout(io.StringIO()):
+                release_config.setup("escrow", COMMIT, root)
+            self.assertEqual(expected, json.loads((root / "release.json").read_text()))
+            self.assertIn("43113", prompts[0])
+            self.assertEqual(1, key_input.call_count)
+
+    def test_a_different_chain_cannot_replace_the_detected_chain_or_request_a_key(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(release_config, "input", return_value="public", create=True), patch.object(release_config.getpass, "getpass", return_value=FIXTURE_RPC), contextlib.redirect_stdout(io.StringIO()):
+                release_config.prepare_network("escrow", COMMIT, root)
+            release_config.write_private(root / "chain-id", b"43113\n")
+            with patch.object(release_config, "input", return_value="1", create=True), patch.object(release_config.getpass, "getpass") as key_input, contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaisesRegex(ValueError, "RPC"):
+                    release_config.setup("escrow", COMMIT, root)
+            key_input.assert_not_called()
+            self.assertFalse((root / "release.json").exists())
+
     def test_public_admin_delays_offer_three_days_without_overriding_a_custom_value(self):
         expected = configuration("bike-nft")
         expected["settings"]["COMPONENTS_ADMIN_DELAY"] = "259200"
@@ -58,7 +99,7 @@ class ReleaseConfigTest(unittest.TestCase):
             root = Path(temporary)
             transcript = io.StringIO()
             with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
-                release_config.setup("bike-nft", COMMIT, root)
+                complete_setup("bike-nft", COMMIT, root)
             self.assertEqual(expected, json.loads((root / "release.json").read_text()))
             delays = [prompt for prompt in prompts if "administrator transfer delay" in prompt]
             self.assertEqual(2, len(delays))
@@ -84,7 +125,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 answers = ["2", "public", *expected["settings"].values(), "save"]
                 transcript = io.StringIO()
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
-                    release_config.setup(app, COMMIT, root)
+                    complete_setup(app, COMMIT, root)
                 saved = root / "release.json"
                 self.assertEqual(expected, json.loads(saved.read_text()))
                 self.assertIn(APPROVAL_IMAGE, transcript.getvalue())
@@ -114,7 +155,7 @@ class ReleaseConfigTest(unittest.TestCase):
                     return next(answers)
                 root = Path(temporary)
                 with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
-                    release_config.setup(app, COMMIT, root)
+                    complete_setup(app, COMMIT, root)
                 self.assertEqual(expected, json.loads((root / "release.json").read_text()))
                 self.assertEqual(1, surfaces["choice"].count(heading))
                 self.assertEqual(2, surfaces["review"].count(heading))
@@ -137,7 +178,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 answers = ["public", *expected["settings"].values(), "save"]
                 root = Path(temporary)
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    release_config.setup("bike-nft", COMMIT, root)
+                    complete_setup("bike-nft", COMMIT, root)
                 saved = root / "release.json"
                 self.assertEqual(expected, json.loads(saved.read_text()))
                 output = root / "out"
@@ -157,7 +198,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 answers = ["public", *expected["settings"].values(), "save"]
                 root = Path(temporary)
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
-                    release_config.setup(app, COMMIT, root)
+                    complete_setup(app, COMMIT, root)
                 self.assertEqual(expected, json.loads((root / "release.json").read_text()))
 
     def test_output_directory_choices_use_the_host_config_path_without_creating_directories(self):
@@ -178,7 +219,7 @@ class ReleaseConfigTest(unittest.TestCase):
                     elif choice == "custom":
                         answers.insert(index + 1, str(root / "custom-deployment"))
                     with patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": str(host_config)}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                        release_config.setup(app, COMMIT, stage)
+                        complete_setup(app, COMMIT, stage)
                     config = json.loads((stage / "release.json").read_text())
                     selected = Path(config["settings"]["OUTPUT_DIR"])
                     if choice == "temp":
@@ -206,15 +247,15 @@ class ReleaseConfigTest(unittest.TestCase):
                 expected = configuration(app)
                 initial = ["public", *expected["settings"].values(), "change"]
                 initial[1 + list(expected["settings"]).index("OUTPUT_DIR")] = "temp"
-                revised = list(expected["settings"].values())
-                revised[list(expected["settings"]).index("OUTPUT_DIR")] = ""
+                revised_settings = dict(expected["settings"], OUTPUT_DIR="")
+                revised = [value for name, value in revised_settings.items() if name != "EXPECTED_CHAIN_ID"]
                 prompts = []
                 answers = iter([*initial, *revised, "save"])
                 def respond(prompt):
                     prompts.append(prompt)
                     return next(answers)
-                with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY, FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    release_config.setup(app, COMMIT, root)
+                with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    complete_setup(app, COMMIT, root)
                 selected = json.loads((root / "release.json").read_text())["settings"]["OUTPUT_DIR"]
                 self.assertTrue(selected.startswith(f"/tmp/{app}-release-"))
                 self.assertTrue(any(f"[{selected}]" in prompt for prompt in prompts))
@@ -224,7 +265,7 @@ class ReleaseConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(release_config.os.environ):
             del release_config.os.environ["RELEASE_CONFIG_FILE"]
             with patch.object(release_config, "input", side_effect=AssertionError("Missing host path must fail before asking questions"), create=True), self.assertRaisesRegex(ValueError, "RELEASE_CONFIG_FILE"):
-                release_config.setup("pay-to-play", COMMIT, Path(temporary))
+                complete_setup("pay-to-play", COMMIT, Path(temporary))
             self.assertFalse((Path(temporary) / "release.json").exists())
 
     def test_bike_metadata_choices_save_canonical_values_and_unpack_empty_prefix(self):
@@ -239,7 +280,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 answers[1 + list(expected["settings"]).index("COLLECTION_URI")] = collection_answer
                 transcript = io.StringIO()
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
-                    release_config.setup("bike-nft", COMMIT, root)
+                    complete_setup("bike-nft", COMMIT, root)
                 saved = root / "release.json"
                 config = json.loads(saved.read_text())
                 self.assertEqual(expected["settings"]["TOKEN_SYMBOL"], config["settings"]["TOKEN_SYMBOL"])
@@ -266,12 +307,12 @@ class ReleaseConfigTest(unittest.TestCase):
     def test_bike_token_prefix_can_be_cleared_when_reviewing_settings(self):
         expected = configuration("bike-nft")
         initial = ["public", *expected["settings"].values(), "change"]
-        revised = list(expected["settings"].values())
-        revised[list(expected["settings"]).index("BASE_TOKEN_URI")] = "none"
+        revised_settings = dict(expected["settings"], BASE_TOKEN_URI="none")
+        revised = [value for name, value in revised_settings.items() if name != "EXPECTED_CHAIN_ID"]
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            with patch.object(release_config, "input", side_effect=[*initial, *revised, "save"], create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY, FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
-                release_config.setup("bike-nft", COMMIT, root)
+            with patch.object(release_config, "input", side_effect=[*initial, *revised, "save"], create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
+                complete_setup("bike-nft", COMMIT, root)
             self.assertEqual("", json.loads((root / "release.json").read_text())["settings"]["BASE_TOKEN_URI"])
 
     def test_bike_inline_metadata_overflow_reprompts_collection_without_losing_settings(self):
@@ -285,7 +326,7 @@ class ReleaseConfigTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
-                release_config.setup("bike-nft", COMMIT, root)
+                complete_setup("bike-nft", COMMIT, root)
             self.assertEqual(expected, json.loads((root / "release.json").read_text()))
         self.assertIn("inline collection metadata", errors.getvalue())
         self.assertIn("4096", errors.getvalue())
@@ -318,7 +359,7 @@ class ReleaseConfigTest(unittest.TestCase):
                     answers = ["public", *[expected["settings"][name] for name, _, _ in release_config.fields(app)], "save"]
                     answers[1 + list(expected["settings"]).index("CAM_HASH")] = selection
                     with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
-                        release_config.setup(app, COMMIT, root)
+                        complete_setup(app, COMMIT, root)
                     saved = root / "release.json"
                     self.assertEqual(expected, json.loads(saved.read_text()))
                     output = root / "out"
@@ -343,7 +384,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 answers[1 + list(expected["settings"]).index("CAM_HASH")] = ""
                 transcript = io.StringIO()
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
-                    release_config.setup(app, COMMIT, directory)
+                    complete_setup(app, COMMIT, directory)
                 saved = directory / "release.json"
                 self.assertEqual(expected, json.loads(saved.read_text()))
                 self.assertEqual(0o600, stat.S_IMODE(saved.stat().st_mode))
@@ -396,17 +437,20 @@ class ReleaseConfigTest(unittest.TestCase):
                 answers = ["public", *first["settings"].values(), decision]
                 secrets = [FIXTURE_RPC, FIXTURE_KEY]
                 if decision == "change":
-                    changed = dict(first["settings"], EXPECTED_CHAIN_ID="11155111")
-                    answers.extend([*changed.values(), "save"])
-                    secrets.extend(["", ""])
+                    changed = dict(first["settings"], NULL_CLAIM_PERIOD="7200")
+                    answers.extend([*[value for name, value in changed.items() if name != "EXPECTED_CHAIN_ID"], "save"])
+                    secrets.append("")
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=secrets), contextlib.redirect_stdout(io.StringIO()):
                     if decision == "cancel":
                         with self.assertRaisesRegex(ValueError, "cancelled"):
-                            release_config.setup(app, COMMIT, root)
-                        self.assertEqual([], list(root.iterdir()))
+                            complete_setup(app, COMMIT, root)
+                        self.assertFalse((root / "release.json").exists())
+                        self.assertFalse((root / "deployer-key").exists())
                     else:
-                        release_config.setup(app, COMMIT, root)
-                        self.assertEqual("11155111", json.loads((root / "release.json").read_text())["settings"]["EXPECTED_CHAIN_ID"])
+                        complete_setup(app, COMMIT, root)
+                        saved = json.loads((root / "release.json").read_text())["settings"]
+                        self.assertEqual("84532", saved["EXPECTED_CHAIN_ID"])
+                        self.assertEqual("7200", saved["NULL_CLAIM_PERIOD"])
 
     def test_unknown_duplicate_malformed_unconfirmed_and_wrong_revision_files_fail_before_writes(self):
         valid = configuration("pay-to-play")
@@ -503,7 +547,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 expected["settings"]["CAM_URI"] = ""
                 answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS")], "save"]
                 with patch.dict(release_config.os.environ, {"RELEASE_LOCAL_NETWORK": "local-release-test"}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=AssertionError("Local setup must not request operator credentials")), contextlib.redirect_stdout(io.StringIO()):
-                    release_config.setup(app, COMMIT, root)
+                    complete_setup(app, COMMIT, root)
                 config = json.loads((root / "release.json").read_text())
                 self.assertEqual("local-release-test", config["localNetwork"])
                 self.assertEqual("31338", config["settings"]["EXPECTED_CHAIN_ID"])
@@ -527,7 +571,7 @@ class ReleaseConfigTest(unittest.TestCase):
                     expected["settings"].update(CAM_URI=uri, CAM_HASH="0x" + "00" * 32)
                     answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS")], "save"]
                     with patch.dict(release_config.os.environ, {"RELEASE_LOCAL_NETWORK": "local-release-test"}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=AssertionError("Local setup must not request operator credentials")), contextlib.redirect_stdout(io.StringIO()):
-                        release_config.setup(app, COMMIT, Path(temporary))
+                        complete_setup(app, COMMIT, Path(temporary))
                     config = json.loads((Path(temporary) / "release.json").read_text())
                     self.assertEqual(uri, config["settings"]["CAM_URI"])
                     self.assertEqual(expected["settings"]["CAM_HASH"], config["settings"]["CAM_HASH"])

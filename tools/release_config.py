@@ -275,18 +275,53 @@ def write_private(path, content):
         output.write(content)
 
 
-def setup(app, source_commit, output):
+def setup_config_path():
     if "RELEASE_CONFIG_FILE" not in os.environ:
         raise ValueError("Release setup requires the original host configuration path in RELEASE_CONFIG_FILE; run it through make <app>/release/setup.")
-    host_config_file = check_value(os.environ["RELEASE_CONFIG_FILE"], "path")
+    return check_value(os.environ["RELEASE_CONFIG_FILE"], "path")
+
+
+def prepare_network(app, source_commit, output):
+    setup_config_path()
     print(f"Release setup: {app}, source {source_commit}")
     approval_image = ask_approval_image(output)
     network = ask("Target network [public/local]", "network", "", secret=False)
+    write_private(output / "setup-approval-image", (approval_image + "\n").encode())
+    write_private(output / "setup-network", (network + "\n").encode())
+    if network == "public":
+        rpc_url = ask("Complete RPC URL (including any API key)", "rpc", "", secret=True)
+        write_private(output / "setup-rpc-url", (rpc_url + "\n").encode())
+
+
+def read_setup_value(output, name, kind):
+    with (output / name).open("rb") as source:
+        raw = source.read(MAX_CONFIG_BYTES + 1)
+    if len(raw) > MAX_CONFIG_BYTES:
+        raise ValueError(f"Setup input {name} exceeds 65536 bytes.")
+    try:
+        value = raw.decode("utf-8").strip()
+    except UnicodeError:
+        raise ValueError(f"Setup input {name} is not UTF-8 text.") from None
+    return check_value(value, kind)
+
+
+def setup(app, source_commit, output):
+    host_config_file = setup_config_path()
+    approval_image = read_setup_value(output, "setup-approval-image", "approval-image")
+    network = read_setup_value(output, "setup-network", "network")
     print("Enter the actual deployment values. RPC URL and signing key are stored in the protected configuration.")
     print("Saving records approval to deploy these settings later. Setup itself sends no transactions.")
     config = {"schemaVersion": CONFIG_VERSION, "app": app, "sourceCommit": source_commit, "approvalImageId": approval_image, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in fields(app)}, "confirmDeploy": True}
     config["settings"]["CAM_HASH"] = "auto"
     local_cam_uri = None
+    if network == "public":
+        config["rpcUrl"] = read_setup_value(output, "setup-rpc-url", "rpc")
+        chain = read_setup_value(output, "chain-id", "chain")
+        confirmed = ask(f"RPC reports chain ID {chain}. Confirm target chain ID (Enter to accept)", "chain", chain, secret=False)
+        if confirmed != chain:
+            raise ValueError("The target chain differs from the RPC. Cancel and restart setup with the intended RPC endpoint.")
+        config["settings"]["EXPECTED_CHAIN_ID"] = chain
+        print("To choose a different RPC endpoint, cancel and restart setup. Change revisits the signing key and contract settings.")
     if network == "local":
         local_cam_uri = f"http://release-cam:8080/{app}/main.json"
         if "RELEASE_LOCAL_NETWORK" not in os.environ:
@@ -305,11 +340,10 @@ def setup(app, source_commit, output):
         print("CAM may use a published HTTPS/IPFS URI or the default private HTTP fixture URI.")
     while True:
         if network == "public":
-            config["rpcUrl"] = ask("Complete RPC URL (including any API key)", "rpc", config["rpcUrl"], secret=True)
             config["deployerPrivateKey"] = ask("Funded deployer private key", "key", config["deployerPrivateKey"], secret=True)
         print_authority_help(app)
         for name, label, kind in fields(app):
-            if network == "local" and name in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"):
+            if name == "EXPECTED_CHAIN_ID" or (network == "local" and name == "EXPECTED_DEPLOYER_ADDRESS"):
                 print(f"{name}: {config['settings'][name]}")
                 continue
             if name == "OUTPUT_DIR":
@@ -375,14 +409,16 @@ def unpack(app, source_commit, mode, source, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("setup", "deploy", "verify"))
+    parser.add_argument("mode", choices=("network", "setup", "deploy", "verify"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
     try:
         if not re.fullmatch(r"[0-9a-f]{40}", args.source_commit):
             raise ValueError("Release setup requires one exact 40-character source commit.")
-        if args.mode == "setup":
+        if args.mode == "network":
+            prepare_network(args.app, args.source_commit, Path("/out"))
+        elif args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))
         else:
             unpack(args.app, args.source_commit, args.mode, Path("/run/release.json"), Path("/out"))
