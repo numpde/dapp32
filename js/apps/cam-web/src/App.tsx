@@ -1,11 +1,12 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
 } from "react"
 import type { ReactElement } from "react"
 import { defaultIpfsGateway, publicIpfsGateways } from "../../../tools/ipfs-gateways.ts"
-import { IpfsGatewayContext } from "./ipfs-gateway.ts"
+import { IpfsGatewayContext, IpfsResourceContext } from "./ipfs-gateway.ts"
 
 import {
   sendCamContractCall,
@@ -103,6 +104,12 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 export function App(): ReactElement {
   const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
   const gatewayRef = useRef(defaultIpfsGateway.template)
+  const [bundleUsesIpfs, setBundleUsesIpfs] = useState(false)
+  const [ipfsResourceCount, setIpfsResourceCount] = useState(0)
+  const registerIpfsResource = useCallback(() => {
+    setIpfsResourceCount(count => count + 1)
+    return () => setIpfsResourceCount(count => count - 1)
+  }, [])
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
@@ -175,7 +182,10 @@ export function App(): ReactElement {
           },
           inputs: startup.inputs,
           ...(startup.route === undefined ? {} : { route: startup.route }),
-          loadResource: uri => createPinnedOriginResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri),
+          loadResource: uri => {
+            if (!cancelled && !controller.signal.aborted && uri.startsWith("ipfs://")) setBundleUsesIpfs(true)
+            return createPinnedOriginResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri)
+          },
         })
         const snapshot = await session.load()
         loadedSession = session
@@ -680,12 +690,13 @@ export function App(): ReactElement {
 
   return (
     <IpfsGatewayContext value={gatewayRef.current}>
+    <IpfsResourceContext value={registerIpfsResource}>
     <main className="app-shell">
       <header className="topbar">
         <div>
           <h1>{headerTitle(loadState)}</h1>
         </div>
-        <div className="ipfs-gateway">
+        {bundleUsesIpfs || ipfsResourceCount > 0 ? <div className="ipfs-gateway">
           <label htmlFor="ipfs-gateway-choice">IPFS gateway</label>
           <select id="ipfs-gateway-choice" value={gatewayId} aria-describedby="ipfs-gateway-help" onChange={event => {
             const selected = publicIpfsGateways.find(gateway => gateway.id === event.currentTarget.value)!
@@ -700,7 +711,7 @@ export function App(): ReactElement {
             {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
           </select>
           <small id="ipfs-gateway-help">Used for new IPFS downloads.</small>
-        </div>
+        </div> : null}
       </header>
       {loadState.status !== "ready" ? null : (
         <ConnectionSummary
@@ -773,6 +784,7 @@ export function App(): ReactElement {
         />
       ) : null}
     </main>
+    </IpfsResourceContext>
     </IpfsGatewayContext>
   )
 }

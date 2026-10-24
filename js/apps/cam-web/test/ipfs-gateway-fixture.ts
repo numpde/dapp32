@@ -5,18 +5,22 @@ import { App } from "../src/App.tsx"
 import "../src/styles.css"
 
 const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
-const logicalRoot = `ipfs://${cid}/bundle/main.json`
+const mode = new URL(location.href).searchParams.get("scenario") ?? "fail"
+const logicalRoot = mode === "https" ? "https://raw.githubusercontent.com/bundle/main.json" : `ipfs://${cid}/bundle/main.json`
 const host = "0x0000000000000000000000000000000000000001"
 const address = "0x0000000000000000000000000000000000000002"
 const account = "0x0000000000000000000000000000000000000003"
-const mode = new URL(location.href).searchParams.get("scenario") ?? "fail"
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 const abi = parseAbi(["function read() view returns (uint256)"])
 const rootAbi = parseAbi(["function camManifest() view returns ((string uri, bytes32 sha256Digest))"])
 const screen = (title: string) => ({ element: "Screen", requires: [], props: { title }, children: [
   { element: "TextField", props: { label: "Draft" }, state: { key: "draft", defaultValue: "" } },
   { element: "Button", props: { label: "Next view" }, call: { namespace: "routes", function: "detail", args: {} } },
-  { element: "Nft", props: { contractAddress: address, tokenId: "1", metadataURI: `ipfs://${cid}/metadata/nft.json` } },
+  ...(mode === "https" ? [
+    { element: "NftMetadataField", props: { label: "NFT metadata" }, state: { key: "metadataURI", defaultValue: "" } },
+    { element: "TextField", props: { label: "Document URI" }, state: { key: "documentURI", defaultValue: "" } },
+    { element: "DocumentHashField", props: { label: "Document hash", algorithm: "sha256", sourceURI: "$state.documentURI" }, state: { key: "digest", defaultValue: "" } },
+  ] : [{ element: "Nft", props: { contractAddress: address, tokenId: "1", metadataURI: `ipfs://${cid}/metadata/nft.json` } }]),
 ] })
 const uiBytes = encode({ ui: "1.0.0", nodes: { home: screen("Gateway home"), detail: screen("Gateway detail") } })
 const abiBytes = encode(abi)
