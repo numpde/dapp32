@@ -10,7 +10,7 @@ stage-js-workspace /input/js /work/js
 cd /work/js
 npm_graph=/tmp/js-graph-check.json
 npm_graph_stderr=/tmp/js-graph-check.stderr
-if ! npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >"$npm_graph" 2>"$npm_graph_stderr"; then
+if ! npm ls --all --workspaces --include-workspace-root --ignore-scripts --offline --omit=optional --json >"$npm_graph" 2>"$npm_graph_stderr"; then
   # npm reports an overridden exact transitive dependency as invalid even when
   # the lock resolves the reviewed security replacement. Keep the exception
   # narrow so one temporary vulnerability pin does not mask graph drift.
