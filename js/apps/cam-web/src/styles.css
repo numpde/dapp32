@@ -149,8 +149,16 @@ dd,
 .nft-preview p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .nft-preview-summary > .nft-attributes { margin: 0; }
 .nft-preview .nft-attributes > div { border-top: 1px solid var(--line); }
-.nft-image { display: grid; align-content: start; gap: 8px; min-width: 0; }
+.nft-image { display: grid; align-content: start; gap: 8px; min-width: 0; min-block-size: 40px; position: relative; }
 .nft-image .nft-actions { margin: 0; }
+.resource-cancel[aria-hidden="true"] { visibility: hidden; }
+.image-cancel-overlay { position: absolute; inset-block-start: 0; inset-inline-end: 0; background: var(--panel); }
+.image-loading { position: absolute; inset-block-start: 0; inset-inline-start: 0; padding: 8px; background: var(--panel); font-size: 0.82rem; }
+button.resource-load[aria-busy="true"] { color: var(--accent); background: linear-gradient(110deg, var(--panel) 25%, var(--line) 40%, var(--panel) 55%); background-size: 250% 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  .resource-load[aria-busy="true"] { animation: resource-loading 1.6s linear infinite; }
+}
+@keyframes resource-loading { to { background-position: -100% 0; } }
 .nft-image img { display: block; max-inline-size: 100%; max-block-size: 360px; object-fit: contain; }
 .nft-row .nft-preview:has(> .nft-image) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 20px; }
 .nft-row .nft-attributes > div { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
@@ -256,6 +264,9 @@ textarea:disabled {
 .amount-field, .duration-field { min-width: 0; margin: 0; padding: 0; border: 0; }
 .document-hash-field { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
 .document-hash-field button { margin: 8px 8px 0 0; }
+.resource-status { display: grid; }
+.resource-status > span { grid-area: 1 / 1; }
+.status-placeholder { visibility: hidden; }
 .duration-parts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .amount-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .amount-field legend, .duration-field legend { padding: 0; margin-bottom: 8px; }

@@ -21,6 +21,7 @@ let prepared = false
 let busy = false
 let sending = false
 let draft = "unchanged"
+let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 const events = { navigate: 0, contractCall: 0, unsupported: 0, send: 0, wallet: 0, calculate: 0, cancel: 0, back: 0, refresh: 0 }
 function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCall" | "unsupported" {
   const declared = actions.find(item => item.route === action.call.function)
@@ -28,7 +29,7 @@ function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCa
   return declared.kind
 }
 function render(): void {
-  const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "" }, values: [], uiURI: "fixture", documentHashes: { document: { status: "pending", source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "" }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Status", props: { label: "Before actions", value: "Before" }, children: [] },
     { element: "Screen", props: { title: "Fixture actions" }, children: [
       { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },
@@ -54,5 +55,5 @@ function render(): void {
     prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy && !sending, sending, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
   ))
 }
-Object.assign(window, { actionFixture: { events, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
+Object.assign(window, { actionFixture: { events, hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
 render()

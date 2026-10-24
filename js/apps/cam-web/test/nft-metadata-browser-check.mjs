@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+import { assertStableLayout } from './layout-stability.mjs'
 
 export async function checkNftMetadata({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/nft-metadata-fixture.html', viewerURL)
@@ -15,7 +16,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     assert.fail(`NFT fixture did not reach: ${expression}`)
   }
   async function click(selector, text) {
-    assert(await evaluate(`(() => { const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(node => node.textContent === ${JSON.stringify(text)}); if (!button) return false; button.click(); return true })()`), `control exists: ${text}`)
+    assert(await evaluate(`(() => { const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(node => (node.getAttribute('aria-label')??node.textContent) === ${JSON.stringify(text)}); if (!button) return false; button.click(); return true })()`), `control exists: ${text}`)
   }
   async function edit(selector, value) {
     await evaluate(`(() => { const node=document.querySelector(${JSON.stringify(selector)}); const prototype=node instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(prototype,'value').set.call(node,${JSON.stringify(value)}); node.dispatchEvent(new Event('input',{bubbles:true})) })()`)
@@ -41,18 +42,29 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     assert(await evaluate(`!!document.querySelector('section.nft-row[aria-label="NFT"] .nft-preview')&&!document.querySelector('.nft-row .nft-placeholder')`), 'loaded content replaces the placeholder within the same NFT area')
     await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
     assert(await evaluate(`(() => { const preview=document.querySelector('.nft-row .nft-preview');const details=document.querySelector('.nft-row .nft-details');return !!details&&preview.getBoundingClientRect().bottom<=details.getBoundingClientRect().top+1 })()`), 'loaded content leads the preview, followed by its details')
-    assert(await evaluate(`[...document.querySelectorAll('.nft-row button')].some(button=>button.textContent==='Reload preview')&&!document.querySelector('.nft-row .nft-image button')`), 'success offers reload without a redundant image-loading action')
+    assert(await evaluate(`[...document.querySelectorAll('.nft-row button')].some(button=>button.textContent==='Reload preview')&&![...document.querySelectorAll('.nft-row .nft-image button')].some(button=>button.getClientRects().length&&getComputedStyle(button).visibility!=='hidden')`), 'success offers reload without a redundant image-loading action')
     assert(await evaluate(`window.nftFixture.requests.length===1&&window.nftFixture.requests[0]===window.nftFixture.metadata.image`), 'loading an NFT fetches and decodes its image without a second action')
 
     await click(`${editor} summary`, 'Prepare JSON for hosting')
     await click(`${editor} button`, 'Load selected metadata')
     await wait(`document.querySelector(${JSON.stringify(json)}).value.includes('retained')`)
+    const importAnchors = { name: 'input[name="tokenURI.metadata.name"]', json, following: '.nft-editor[disabled]' }
+    try {
+      await assert.rejects(assertStableLayout(evaluate, importAnchors, () => evaluate(`(() => {
+        const row=document.createElement('p');row.id='injected-loading-row';row.textContent='Loading…';
+        const field=document.querySelector('input[name="tokenURI.metadata.name"]').closest('label');field.before(row)
+      })()`), 'injected loading row'), /name moved or resized/)
+    } finally { await evaluate(`document.getElementById('injected-loading-row')?.remove()`) }
     await evaluate(`window.nftFixture.holdMetadata()`)
-    await click(`${editor} button`, 'Load selected metadata')
-    await wait(`[...document.querySelectorAll('.nft-editor button')].find(e=>e.textContent==='Load selected metadata').disabled`)
+    await assertStableLayout(evaluate, importAnchors, async () => {
+      await click(`${editor} button`, 'Load selected metadata')
+      await wait(`[...document.querySelectorAll('.nft-editor button')].find(e=>e.getAttribute('aria-label')==='Load selected metadata'||e.textContent==='Load selected metadata').disabled`)
+    }, 'metadata import pending')
+    await evaluate(`document.querySelector('input[name="tokenURI.metadata.name"]').focus()`)
     await edit('input[name="tokenURI.metadata.name"]', 'Edited during import')
     await evaluate(`window.nftFixture.releaseMetadata()`)
     assert.equal(await evaluate(`JSON.parse(document.querySelector(${JSON.stringify(json)}).value).name`), 'Edited during import', 'a late import cannot replace newer edits')
+    assert.equal(await evaluate('document.activeElement.name'), 'tokenURI.metadata.name', 'cancelling an import by editing keeps focus in the edited field')
     await evaluate(`window.nftFixture.response(JSON.stringify({...window.nftFixture.metadata,image:'./image.png'}))`)
     await click(`${editor} button`, 'Load selected metadata')
     await wait(`document.querySelector('input[name="tokenURI.metadata.image"]').value==='./image.png'`)
@@ -189,15 +201,40 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     assert(await evaluate(`![...document.querySelectorAll('.nft-editor [role="alert"]')].some(e=>e.textContent.includes('Cannot copy'))`), 'later success replaces the previous clipboard failure')
     await evaluate(`window.nftFixture.source(window.nftFixture.publishedURI);window.nftFixture.holdMetadata()`)
     await click('.nft-row button', 'Load preview')
-    await wait(`[...document.querySelectorAll('.nft-row button')].some(button=>button.textContent==='Loading preview…'&&button.disabled)`)
+    await wait(`!!document.querySelector('.nft-row button[aria-busy="true"]:disabled')`)
     await click('.nft-row button', 'Cancel loading')
     await evaluate(`window.nftFixture.releaseMetadata();window.nftFixture.response('{broken')`)
     await click('.nft-row button', 'Load preview')
     await wait(`[...document.querySelectorAll('.nft-row button')].some(button=>button.textContent==='Retry loading')`)
-    await evaluate(`window.nftFixture.response(undefined)`)
-    await click('.nft-row button', 'Retry loading')
+    await evaluate(`window.nftFixture.response(undefined);window.nftFixture.holdMetadata()`)
+    await assertStableLayout(evaluate, { error: '.nft-row [role="alert"]', details: '.nft-row .nft-details', following: '.nft-editor:not([disabled])' }, async () => {
+      await click('.nft-row button', 'Retry loading')
+      await wait(`!!document.querySelector('.nft-row button[aria-busy="true"]')`)
+    }, 'failed preview retry pending')
+    await evaluate(`window.nftFixture.releaseMetadata()`)
     await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
     assert(await evaluate(`!document.querySelector('.nft-row [role="alert"]')&&[...document.querySelectorAll('.nft-row button')].some(button=>button.textContent==='Reload preview')`), 'retry recovers the preview and clears the failed state')
+    for (const width of [1280, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 320 })
+      const anchors = { image: '.nft-row img', details: '.nft-row .nft-details', following: '.nft-editor:not([disabled])' }
+      const displayedImage = await evaluate(`document.querySelector('.nft-row img').src`)
+      await evaluate(`window.nftFixture.holdMetadata()`)
+      await assertStableLayout(evaluate, anchors, async () => {
+        await click('.nft-row button', 'Reload preview')
+        await wait(`!!document.querySelector('.nft-row button[aria-busy="true"]')`)
+      }, `${width}px metadata reload pending`)
+      await evaluate(`document.querySelector('.nft-row .nft-details .resource-cancel').focus()`)
+      await assertStableLayout(evaluate, anchors, () => click('.nft-row .nft-details button', 'Cancel loading'), `${width}px metadata reload cancelled`)
+      await wait(`document.activeElement===document.querySelector('.nft-row .nft-details .resource-load')`)
+      await evaluate(`window.nftFixture.releaseMetadata();window.nftFixture.holdImage()`)
+      await assertStableLayout(evaluate, anchors, async () => {
+        await click('.nft-row button', 'Reload preview')
+        await wait(`!!document.querySelector('.nft-row .nft-image button[aria-hidden="false"]:not(:disabled)')`)
+      }, `${width}px image reload pending`)
+      await assertStableLayout(evaluate, anchors, () => click('.nft-row .nft-image button', 'Cancel loading'), `${width}px image reload cancelled`)
+      await evaluate(`window.nftFixture.releaseImage()`)
+      assert.equal(await evaluate(`document.querySelector('.nft-row img').src`), displayedImage, 'pending reloads and cancellation retain the usable image URL')
+    }
     await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: true })
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), 'metadata JSON and long URIs fit a 320px viewport')
     return { explicitResourceLoading: true, metadataRoundTrip: true, publicationURIHonest: true, scopeCleanup: true, disabledControls: true, width: 320 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { assertStableLayout } from './layout-stability.mjs'
 import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
 
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
@@ -112,6 +113,15 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     }
     for (const width of [1280, 320]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 320 })
+      await evaluate(`window.actionFixture.hashPhase('idle')`)
+      await wait(`!document.querySelector('.document-hash-field button[aria-busy="true"]')`)
+      const anchors = { digest: 'input[name="document"]', field: '.document-hash-field', following: '.elements>.key-value:last-child' }
+      for (const phase of ['pending', 'succeeded', 'idle']) {
+        await assertStableLayout(evaluate, anchors, async () => {
+          await evaluate(`window.actionFixture.hashPhase('${phase}')`)
+          await wait(`document.querySelector('.document-hash-field button[aria-busy="true"]')!==null === ${phase === 'pending'}`)
+        }, `${width}px document hash ${phase}`)
+      }
       const layout = await evaluate(`(() => {
         const rows = [...document.querySelectorAll('.elements>.key-value')]
         const values = rows.map(row => row.lastElementChild.getBoundingClientRect())

@@ -316,8 +316,15 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
   const hintId = useId()
   const issueId = useId()
   const fileInput = useRef<HTMLInputElement>(null)
+  const fileAction = useRef<HTMLButtonElement>(null)
+  const urlAction = useRef<HTMLButtonElement>(null)
   const pending = status?.status === "pending"
   const invalid = value !== "" && !isDocumentHashDigest(value)
+  const statusMessages = [
+    { kind: "pending", visible: pending, text: "Calculating SHA-256… Your current digest is kept until calculation succeeds." },
+    { kind: "file", visible: status?.status === "succeeded" && status.source === "file", text: "SHA-256 calculated from local file bytes. The URI has not been checked." },
+    { kind: "url", visible: status?.status === "succeeded" && status.source === "url", text: "SHA-256 calculated from the bytes returned by this URL after HTTP decoding." },
+  ]
   return <fieldset className="document-hash-field" disabled={node.disabled === true}>
     <legend>{displayText(node.props.label)}</legend>
     <label className="field">
@@ -327,19 +334,23 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
     </label>
     <p id={hintId} className="field-hint">Enter 0x followed by 64 hexadecimal characters, or calculate from exact document bytes. Files stay on this device; selecting one does not upload it or check the URI. Limit: 8 MiB and 15 seconds.</p>
     {invalid ? <p id={issueId} className="field-hint" role="status">The digest must be 0x followed by exactly 64 hexadecimal characters. Your entry is kept unchanged.</p> : null}
-    <button type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>
+    <button ref={fileAction} className="resource-load" aria-busy={pending && status.source === "file"} type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>
     <input ref={fileInput} type="file" aria-label={`Choose file for ${displayText(node.props.label)}`} hidden onChange={event => {
       const file = event.currentTarget.files?.[0]
       event.currentTarget.value = ""
       if (file !== undefined) void onCalculate(node.state.key, "file", file)
     }} />
-    {node.props.sourceURI === undefined ? null : <button type="button" disabled={node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
-    {pending ? <button className="button-quiet" type="button" onClick={() => onCancel(node.state.key)}>Cancel calculation</button> : null}
-    {status === undefined ? null : status.status === "failed" ? <Feedback report={status} kind="error" /> : <p className="field-hint" role="status">
-      {pending ? "Calculating SHA-256… Your current digest is kept until calculation succeeds."
-        : status.source === "file" ? "SHA-256 calculated from local file bytes. The URI has not been checked."
-        : "SHA-256 calculated from the bytes returned by this URL after HTTP decoding."}
-    </p>}
+    {node.props.sourceURI === undefined ? null : <button ref={urlAction} className="resource-load" aria-busy={pending && status.source === "url"} type="button" disabled={node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
+    <button className="button-quiet resource-cancel" type="button" aria-hidden={!pending} disabled={!pending} onClick={event => {
+      const restoreFocus = document.activeElement === event.currentTarget
+      const action = status?.source === "file" ? fileAction.current : urlAction.current
+      onCancel(node.state.key)
+      if (restoreFocus) requestAnimationFrame(() => action?.focus())
+    }}>Cancel calculation</button>
+    <p className="field-hint resource-status" role="status">
+      {statusMessages.map(message => <span key={message.kind} className={message.visible ? undefined : "status-placeholder"} aria-hidden={!message.visible}>{message.text}</span>)}
+    </p>
+    {status?.status === "failed" ? <Feedback report={status} kind="error" /> : null}
   </fieldset>
 }
 
