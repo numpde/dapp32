@@ -57,7 +57,7 @@ services:
         done
         printf '}\n' >> "$${accounts}"
 
-        forge script --offline pay-to-play/script/DeployPayToPlayLocal.s.sol \
+        forge script --slow --offline pay-to-play/script/DeployPayToPlayLocal.s.sol \
           --rpc-url http://pay-to-play-anvil:8545 \
           --broadcast \
           -vvv
