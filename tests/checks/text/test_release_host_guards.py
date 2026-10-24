@@ -10,18 +10,14 @@ class ReleaseHostGuardTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.source = read_text(repo_path("Makefile"))
-        starts = {
-            name: cls.source.index(f"{name}:")
-            for name in (
-                "escrow/release/deploy",
-                "escrow/release/verify",
-                "bike-nft/release/deploy",
-                "bike-nft/release/verify",
-                "pay-to-play/release/deploy",
-                "pay-to-play/release/verify",
-            )
-        }
-        cls.targets = {name: cls.source[start:].split("\n\n", 1)[0] for name, start in starts.items()}
+        cls.targets = (
+            "escrow/release/deploy",
+            "escrow/release/verify",
+            "bike-nft/release/deploy",
+            "bike-nft/release/verify",
+            "pay-to-play/release/deploy",
+            "pay-to-play/release/verify",
+        )
 
     def test_common_release_guards_have_one_implementation(self) -> None:
         self.assertEqual(1, self.source.count("define release_require_clean_source"))
@@ -47,27 +43,14 @@ class ReleaseHostGuardTest(unittest.TestCase):
             "pay-to-play/release/deploy": "Pay-to-Play release deployment",
             "pay-to-play/release/verify": "Pay-to-Play release verification",
         }
-        executions = {
-            "deploy": "$(call release_deploy_execution,",
-            "verify": "$(release_verify_execution)",
-        }
-        for name, target in self.targets.items():
-            if name.endswith("/verify"):
-                expanded = expanded_release_target(name)
-                execute = "compose_release up --no-build --abort-on-container-exit"
-                self.assertIn(labels[name], expanded)
-                self.assertIn("requires a clean Git working tree.", expanded)
-                self.assertLess(expanded.index("git status --porcelain"), expanded.index(execute))
-                self.assertLess(expanded.rindex("require_release_rpc_input;"), expanded.index(execute))
-                self.assertLess(expanded.index("source tools/release_process.sh"), expanded.index(execute))
-                continue
-            execution = executions[name.rsplit("/", 1)[1]]
-            source_guard = f"$(call release_require_clean_source,{labels[name]})"
-            self.assertIn(source_guard, target)
-            self.assertIn("$(release_host_guard_functions)", target)
-            self.assertLess(target.index(source_guard), target.index(execution))
-            self.assertLess(target.index("$(release_host_guard_functions)"), target.index(execution))
-            self.assertLess(target.index("require_release_rpc_input"), target.index(execution))
+        for name in self.targets:
+            expanded = expanded_release_target(name)
+            execute = "compose_release up --no-build --abort-on-container-exit" if name.endswith("/verify") else "release_approval_prepare"
+            self.assertIn(labels[name], expanded)
+            self.assertIn("requires a clean Git working tree.", expanded)
+            self.assertLess(expanded.index("git status --porcelain"), expanded.index(execute))
+            self.assertLess(expanded.rindex("require_release_rpc_input;"), expanded.index(execute))
+            self.assertLess(expanded.index("source tools/release_process.sh"), expanded.index(execute))
         prepare = self.source.split("define release_prepare_snapshot\n", 1)[1].split("endef", 1)[0]
         self.assertIn("$(release_snapshot_populate)", prepare)
         for definition in ("release_deploy_execution", "release_verify_execution"):
@@ -84,9 +67,9 @@ class ReleaseHostGuardTest(unittest.TestCase):
             ("bike-nft/release/deploy", "BIKE_NFT_RELEASE_OUTPUT_DIR"),
             ("pay-to-play/release/deploy", "PAY_TO_PLAY_RELEASE_OUTPUT_DIR"),
         ):
-            target = self.targets[name]
-            initial = f'validate_new_release_output "$$output_dir" "{label}"'
-            self.assertLess(target.index(initial), target.index(f"$(call release_deploy_execution,{label})"))
+            target = expanded_release_target(name)
+            initial = f'validate_new_release_output "$output_dir" "{label}"'
+            self.assertLess(target.index(initial), target.index("release_phase=deploy;"))
         execution = self.source.split("define release_deploy_execution\n", 1)[1].split("endef", 1)[0]
         recheck = 'recheck_new_release_output "$$output_dir" "$(1)"'
         mkdir = 'mkdir --mode=0700 -- "$$output_dir"'

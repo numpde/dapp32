@@ -215,7 +215,24 @@ replaced by a test that fixture-owned values override hostile ambient values.
 All 22 rendered-posture cases passed across the full run and focused reruns
 of its two remaining grant checks; missing-variable rejection stays covered.
 
-C deployment and final committed-source qualification remain. Host workflow
+C deployment: shared admission, protected file/output admission and Compose
+invocation now have common Make owners. Chain/CAM URI admission also has one
+implementation. The three app recipes retain confirmation text, required app
+fields and explicit app environment assignments in their original order;
+Bike still permits an empty base token URI. Check wrappers remain explicit
+selectors of app-specific overlays; their runtime authority already shares
+compose/release/check.yml. No prefix-wide environment export was introduced.
+The executed three-app wrapper case proves sampled role/payment settings,
+empty URI preservation, explicit file grants, frozen Compose paths and inline
+secret scrubbing. The 13 app posture and 4 host-order tests also passed.
+
+Retained-source recovery exposed a separate compatibility defect: copying the
+current node_modules into an older source does not supply that source's locked
+toolchain after a dependency upgrade. Recovery needs an explicitly prepared
+matching dependency tree, using the existing installation workflow; it must
+not silently install packages or weaken the existing graph gate. This repair,
+the shared post-send recovery diagnostic and committed-source qualification
+remain. Host workflow
 changes must preserve the existing entrypoint/environment contracts when
 consuming an older archived release source; they cannot assume a newly added
 helper exists in that older archive.

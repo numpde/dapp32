@@ -8,9 +8,7 @@ from .common import (
     compose_mapping,
     compose_service,
     compose_volume,
-    read_text,
     rendered_compose_config,
-    repo_path,
 )
 from .release_posture import (
     expanded_release_target,
@@ -103,8 +101,7 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         self.assertNotIn("DEPLOYMENT_ARGUMENTS", rendered)
 
     def test_make_entrypoints_require_clean_snapshotted_source_and_protected_files(self) -> None:
-        source = read_text(repo_path("Makefile"))
-        deploy = source[source.index("bike-nft/release/deploy:"):source.index("bike-nft/release/verify:")]
+        deploy = expanded_release_target("bike-nft/release/deploy")
         verify = expanded_release_target("bike-nft/release/verify")
         self.assertIn("CONFIRM_BIKE_NFT_RELEASE_DEPLOY", deploy)
         self.assertIn(
@@ -112,18 +109,19 @@ class BikeNftReleasePostureTest(unittest.TestCase):
             deploy,
         )
         self.assertIn(
-            'require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"',
+            'require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$DEPLOYER_PRIVATE_KEY_FILE"',
             deploy,
         )
-        self.assertIn('validate_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"', deploy)
+        self.assertIn('validate_new_release_output "$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"', deploy)
         self.assertIn(
             'require_release_rpc_input',
             verify,
         )
         self.assertRegex(verify, r'require_release_file "\$\{?BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE\}?" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"')
-        self.assertIn("$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)", deploy)
+        self.assertIn("release_phase=deploy;", deploy)
         self.assertIn("compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release", verify)
-        self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}"', deploy)
+        self.assertIn('-f "$ceremony_source/compose/bike-nft/release/deploy.yml"', deploy)
+        self.assertIn('"${release_phase_overlays[@]}" "${release_transport_args[@]}"', deploy)
         self.assertIn('-f "$ceremony_source/compose/bike-nft/release/verify.yml" "${release_transport_args[@]}"', verify)
 
 

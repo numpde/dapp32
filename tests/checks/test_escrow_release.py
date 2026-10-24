@@ -68,10 +68,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIn("/*.test.ts", compose_command_text(service))
 
     def test_release_make_targets_fail_closed(self) -> None:
-        source = read_text(repo_path("Makefile"))
-        deploy_start = source.index("escrow/release/deploy:")
-        verify_start = source.index("escrow/release/verify:")
-        deploy = source[deploy_start:verify_start]
+        deploy = expanded_release_target("escrow/release/deploy")
         verify = expanded_release_target("escrow/release/verify")
 
         self.assertIn("CONFIRM_ESCROW_RELEASE_DEPLOY", deploy)
@@ -82,12 +79,12 @@ class EscrowReleasePostureTest(unittest.TestCase):
             deploy,
         )
         self.assertIn(
-            'require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"',
+            'require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$DEPLOYER_PRIVATE_KEY_FILE"',
             deploy,
         )
-        self.assertIn('validate_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"', deploy)
+        self.assertIn('validate_new_release_output "$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"', deploy)
         self.assertIn("env -u PRIVATE_KEY -u RPC_URL", deploy)
-        self.assertNotIn('rm -rf "$$output_dir"', deploy)
+        self.assertNotIn('rm -rf "$output_dir"', deploy)
 
         self.assertIn("ESCROW_DEPLOYMENT_ARTIFACT_FILE", verify)
         self.assertIn(
@@ -99,9 +96,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
     def test_release_make_targets_run_from_disposable_commit_snapshots(self) -> None:
         source = read_text(repo_path("Makefile"))
-        deploy_start = source.index("escrow/release/deploy:")
-        verify_start = source.index("escrow/release/verify:")
-        deploy = source[deploy_start:verify_start]
+        deploy = expanded_release_target("escrow/release/deploy")
         verify = expanded_release_target("escrow/release/verify")
         cleanup = source[source.index("define release_snapshot_cleanup"):source.index("endef", source.index("define release_snapshot_cleanup"))]
 
@@ -121,9 +116,10 @@ class EscrowReleasePostureTest(unittest.TestCase):
         for phase in ("run", "check", "deps"):
             self.assertIn(f'COMPOSE_PROJECT_NAME="$$ceremony_project-{phase}"', source)
 
-        self.assertIn("$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)", deploy)
+        self.assertIn("release_phase=deploy;", deploy)
         self.assertIn("compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release", verify)
-        self.assertIn('$(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}"', deploy)
+        self.assertIn('-f "$ceremony_source/compose/escrow/release/deploy.yml"', deploy)
+        self.assertIn('"${release_phase_overlays[@]}" "${release_transport_args[@]}"', deploy)
         self.assertIn('-f "$ceremony_source/compose/escrow/release/verify.yml" "${release_transport_args[@]}"', verify)
         prepare = source.split("define release_prepare_snapshot\n", 1)[1].split("\nendef", 1)[0]
         execute = source.split("define release_deploy_execution\n", 1)[1].split("\nendef", 1)[0]

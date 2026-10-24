@@ -167,7 +167,11 @@ if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then \
 fi
 endef
 
-define release_validate_cam_uri
+define release_validate_chain_and_cam_uri
+chain_id="$${$(1)_RELEASE_EXPECTED_CHAIN_ID}"; \
+if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == "1337" || "$$chain_id" == "31337" ]]; then \
+  printf '%s\n' '$(1)_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; \
+fi; \
 cam_uri="$${$(1)_RELEASE_CAM_URI}"; \
 if [[ ! "$$cam_uri" =~ ^(https|ipfs):// ]]; then \
   if [[ ! -v RELEASE_REHEARSAL || "$$RELEASE_REHEARSAL" != "1" || "$$cam_uri" != "http://release-cam:8080/$(2)/main.json" ]]; then \
@@ -443,6 +447,31 @@ release_rpc_expected_chain=""; \
 $(release_prepare_snapshot); \
 release_run_started=1; \
 compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release
+endef
+
+define release_deploy_admission
+$(LANE_GUARD); \
+$(SOLDEER_DEPS_GUARD); \
+$(PACKAGE_DEPS_GUARD); \
+$(call release_require_clean_source,$(2) release deployment); \
+$(release_host_guard_functions); \
+$(release_config_compose); \
+load_release_config $(1) deploy
+endef
+
+define release_deploy_files
+require_release_rpc_input; \
+require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
+output_dir="$${$(1)_RELEASE_OUTPUT_DIR}"; \
+validate_new_release_output "$$output_dir" "$(1)_RELEASE_OUTPUT_DIR"
+endef
+
+# App environment assignments remain explicit at the caller.
+define release_deploy_compose
+LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+  RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" \
+  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
+  release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(1)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"
 endef
 
 # Prefix, app, frozen Compose files and operator-facing name are app-owned.
@@ -1839,13 +1868,7 @@ pay-to-play/release/setup:
 	@$(release_setup)
 
 escrow/release/deploy:
-	@$(LANE_GUARD); \
-	$(SOLDEER_DEPS_GUARD); \
-	$(PACKAGE_DEPS_GUARD); \
-	$(call release_require_clean_source,Escrow release deployment); \
-	$(release_host_guard_functions); \
-	$(release_config_compose); \
-	load_release_config escrow deploy; \
+	@$(call release_deploy_admission,escrow,Escrow); \
 	if [[ ! -v CONFIRM_ESCROW_RELEASE_DEPLOY || "$$CONFIRM_ESCROW_RELEASE_DEPLOY" != "YES" ]]; then \
 	  printf '%s\n' 'Set CONFIRM_ESCROW_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, final owner, and funded deployer.' >&2; \
 	  exit 2; \
@@ -1856,32 +1879,20 @@ escrow/release/deploy:
 	    exit 2; \
 	  fi; \
 	done; \
-	chain_id="$$ESCROW_RELEASE_EXPECTED_CHAIN_ID"; \
-	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == "1337" || "$$chain_id" == "31337" ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; \
-	  exit 2; \
-	fi; \
-	$(call release_validate_cam_uri,ESCROW,escrow); \
+	$(call release_validate_chain_and_cam_uri,ESCROW,escrow); \
 	owner="$$ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
 	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
 	  printf '%s\n' 'ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
 	  exit 2; \
 	fi; \
-	require_release_rpc_input; \
-	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
-	output_dir="$$ESCROW_RELEASE_OUTPUT_DIR"; \
-	validate_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"; \
+	$(call release_deploy_files,ESCROW); \
 	compose_release() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-	    RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" \
 	    ESCROW_RELEASE_CAM_URI="$$cam_uri" \
 	    ESCROW_RELEASE_CAM_HASH="$${ESCROW_RELEASE_CAM_HASH-auto}" \
 	    ESCROW_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
 	    ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
 	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
-	    RPC_URL_FILE="$$RPC_URL_FILE" \
-	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; \
+	    $(call release_deploy_compose,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)); \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
@@ -1893,34 +1904,23 @@ escrow/release/verify:
 	@$(call release_verify,ESCROW,escrow,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES),Escrow)
 
 bike-nft/release/deploy:
-	@$(LANE_GUARD); \
-	$(SOLDEER_DEPS_GUARD); \
-	$(PACKAGE_DEPS_GUARD); \
-	$(call release_require_clean_source,Bike NFT release deployment); \
-	$(release_host_guard_functions); \
-	$(release_config_compose); \
-	load_release_config bike-nft deploy; \
+	@$(call release_deploy_admission,bike-nft,Bike NFT); \
 	if [[ ! -v CONFIRM_BIKE_NFT_RELEASE_DEPLOY || "$$CONFIRM_BIKE_NFT_RELEASE_DEPLOY" != "YES" ]]; then \
 	  printf '%s\n' 'Set CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES only after reviewing every authority, delay, URI, chain, and registrar.' >&2; exit 2; \
 	fi; \
 	required=(BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID BIKE_NFT_RELEASE_CAM_URI BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER BIKE_NFT_RELEASE_TOKEN_NAME BIKE_NFT_RELEASE_TOKEN_SYMBOL BIKE_NFT_RELEASE_BASE_TOKEN_URI BIKE_NFT_RELEASE_COLLECTION_URI BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY BIKE_NFT_RELEASE_COMPONENTS_PAUSER BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY BIKE_NFT_RELEASE_MANAGER_PAUSER BIKE_NFT_RELEASE_MANAGER_CONFIGURER BIKE_NFT_RELEASE_REGISTRARS DEPLOYER_PRIVATE_KEY_FILE BIKE_NFT_RELEASE_OUTPUT_DIR); \
 	for name in "$${required[@]}"; do if [[ ! -v $$name || ( "$$name" != BIKE_NFT_RELEASE_BASE_TOKEN_URI && -z "$${!name}" ) ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
-	chain_id="$$BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID"; \
-	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == 1337 || "$$chain_id" == 31337 ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; fi; \
-	$(call release_validate_cam_uri,BIKE_NFT,bike-nft); \
-	require_release_rpc_input; \
-	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
-	output_dir="$$BIKE_NFT_RELEASE_OUTPUT_DIR"; \
-	validate_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"; \
+	$(call release_validate_chain_and_cam_uri,BIKE_NFT,bike-nft); \
+	$(call release_deploy_files,BIKE_NFT); \
 	compose_release() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
+	  BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	  BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" BIKE_NFT_RELEASE_CAM_URI="$$cam_uri" \
 	  BIKE_NFT_RELEASE_CAM_HASH="$${BIKE_NFT_RELEASE_CAM_HASH-auto}" \
 	  BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER="$$BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER" BIKE_NFT_RELEASE_TOKEN_NAME="$$BIKE_NFT_RELEASE_TOKEN_NAME" BIKE_NFT_RELEASE_TOKEN_SYMBOL="$$BIKE_NFT_RELEASE_TOKEN_SYMBOL" \
 	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
 	  BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
 	  BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN" BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY="$$BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY" BIKE_NFT_RELEASE_MANAGER_PAUSER="$$BIKE_NFT_RELEASE_MANAGER_PAUSER" BIKE_NFT_RELEASE_MANAGER_CONFIGURER="$$BIKE_NFT_RELEASE_MANAGER_CONFIGURER" BIKE_NFT_RELEASE_REGISTRARS="$$BIKE_NFT_RELEASE_REGISTRARS" \
-	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; \
+	  $(call release_deploy_compose,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)); \
 	}; \
 	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; }; \
 	$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)
@@ -1930,13 +1930,7 @@ bike-nft/release/verify:
 
 .PHONY: pay-to-play/release/check pay-to-play/release/deploy pay-to-play/release/verify
 pay-to-play/release/deploy:
-	@$(LANE_GUARD); \
-	$(SOLDEER_DEPS_GUARD); \
-	$(PACKAGE_DEPS_GUARD); \
-	$(call release_require_clean_source,Pay-to-Play release deployment); \
-	$(release_host_guard_functions); \
-	$(release_config_compose); \
-	load_release_config pay-to-play deploy; \
+	@$(call release_deploy_admission,pay-to-play,Pay-to-Play); \
 	if [[ ! -v CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY || "$$CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY" != "YES" ]]; then \
 	  printf '%s\n' 'Set CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, both authorities, withdrawal wait, and funded deployer.' >&2; \
 	  exit 2; \
@@ -1947,24 +1941,14 @@ pay-to-play/release/deploy:
 	    exit 2; \
 	  fi; \
 	done; \
-	chain_id="$$PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID"; \
-	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == "1337" || "$$chain_id" == "31337" ]]; then \
-	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; \
-	  exit 2; \
-	fi; \
-	$(call release_validate_cam_uri,PAY_TO_PLAY,pay-to-play); \
+	$(call release_validate_chain_and_cam_uri,PAY_TO_PLAY,pay-to-play); \
 	owner="$$PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
 	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
 	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
 	  exit 2; \
 	fi; \
-	require_release_rpc_input; \
-	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
-	output_dir="$$PAY_TO_PLAY_RELEASE_OUTPUT_DIR"; \
-	validate_new_release_output "$$output_dir" "PAY_TO_PLAY_RELEASE_OUTPUT_DIR"; \
+	$(call release_deploy_files,PAY_TO_PLAY); \
 	compose_release() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-	    RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" \
 	    PAY_TO_PLAY_RELEASE_CAM_URI="$$cam_uri" \
 	    PAY_TO_PLAY_RELEASE_CAM_HASH="$${PAY_TO_PLAY_RELEASE_CAM_HASH-auto}" \
 	    PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
@@ -1972,9 +1956,7 @@ pay-to-play/release/deploy:
 	    PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN="$$PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN" \
 	    PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD="$$PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD" \
 	    PAY_TO_PLAY_RELEASE_SOURCE_COMMIT="$$source_commit" \
-	    RPC_URL_FILE="$$RPC_URL_FILE" \
-	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; \
+	    $(call release_deploy_compose,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)); \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \

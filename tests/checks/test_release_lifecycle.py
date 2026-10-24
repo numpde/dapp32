@@ -15,7 +15,7 @@ import termios
 import time
 import unittest
 
-from .common import ROOT
+from .common import ROOT, RENDERED_COMPOSE_FIXTURE_ENV
 from .release_posture import expanded_release_target
 
 
@@ -160,6 +160,70 @@ release_config_teardown() { fake_down config; }
 
 
 class ReleaseLifecycleTest(unittest.TestCase):
+    def test_deployment_preserves_app_settings_and_explicit_file_grants(self):
+        samples = {
+            "bike-nft": ("BASE_TOKEN_URI", "COMPONENTS_PAUSER", "INTENDED_MANAGER_ADMIN"),
+            "escrow": ("INTENDED_CAM_ROOT_OWNER",),
+            "pay-to-play": ("INTENDED_PAYMENT_ADMIN", "NULL_CLAIM_PERIOD"),
+        }
+        for app, settings in samples.items():
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                prefix = app.upper().replace("-", "_")
+                env = self.environment(root, root)
+                env.update(RENDERED_COMPOSE_FIXTURE_ENV)
+                env.update({
+                    "APP_PREFIX": prefix, "CASE_ROOT": str(root), "RELEASE_REHEARSAL": "0",
+                    f"CONFIRM_{prefix}_RELEASE_DEPLOY": "YES",
+                    f"{prefix}_RELEASE_OUTPUT_DIR": str(root / "new-output"),
+                    "BIKE_NFT_RELEASE_BASE_TOKEN_URI": "",
+                    "RPC_URL_FILE": str(root / "rpc-url"), "DEPLOYER_PRIVATE_KEY_FILE": str(root / "key"),
+                    "PRIVATE_KEY": "must-not-reach-compose", "RPC_URL": "must-not-reach-compose",
+                    "SAMPLE_NAMES": " ".join(f"{prefix}_RELEASE_{name}" for name in settings),
+                })
+                stub = root / "compose.sh"
+                stub.write_text(r'''
+printf '%s\n' "$@" > "$CASE_ROOT/arguments"
+printf '%s\n' "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$DEPLOYER_PRIVATE_KEY_FILE" "$RELEASE_OUTPUT_DIR" "$RELEASE_SOURCE_DIR" > "$CASE_ROOT/grants"
+for name in $SAMPLE_NAMES; do printf '%s\0' "${!name}"; done > "$CASE_ROOT/settings"
+''', encoding="utf-8")
+                generated = expanded_release_target(f"{app}/release/deploy", (
+                    "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
+                    "release_require_clean_source=source_commit=" + "ab" * 20,
+                    "release_host_guard_functions=:", "release_config_compose=:",
+                    "release_deploy_execution=compose_release run --rm --no-deps release-plan",
+                    f"DOCKER_COMPOSE=bash {stub}",
+                ))
+                script = r'''
+ceremony_project=fixture
+ceremony_source="$CASE_ROOT/archived-source"
+release_command_grace=15
+release_phase_overlays=(-f "$ceremony_source/compose/release/reference.yml")
+release_transport_args=()
+release_image_args=(-f "$CASE_ROOT/images-deploy.yml")
+while IFS= read -r name; do export -n "$name"; done < <(compgen -v "${APP_PREFIX}_RELEASE_")
+export -n RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE
+load_release_config() { printf '%s\n' "$*" > "$CASE_ROOT/config-mode"; }
+require_release_rpc_input() { [[ -n "$RPC_URL_FILE" ]]; }
+require_protected_release_file() { [[ "$1" == "$DEPLOYER_PRIVATE_KEY_FILE" ]]; }
+validate_new_release_output() { [[ ! -e "$1" ]]; }
+release_run_owned() { shift; "$@"; }
+''' + generated
+                process = self.launch(script, env)
+                stdout, stderr = process.communicate(timeout=5)
+                self.assertEqual(0, process.returncode, stdout + stderr)
+                self.assertEqual(f"{app} deploy\n", (root / "config-mode").read_text())
+                self.assertEqual(["unset", "unset", str(root / "rpc-url"), str(root / "key"), str(root / "new-output"), str(root / "archived-source")], (root / "grants").read_text().splitlines())
+                self.assertEqual([env[f"{prefix}_RELEASE_{name}"] for name in settings], (root / "settings").read_bytes().decode().split("\0")[:-1])
+                self.assertEqual([
+                    "-f", str(root / "archived-source/compose/release/deploy.yml"),
+                    "-f", str(root / f"archived-source/compose/{app}/release/deploy.yml"),
+                    "-f", str(root / "archived-source/compose/release/artifact.yml"),
+                    "-f", str(root / f"archived-source/compose/{app}/release/artifact.yml"),
+                    "-f", str(root / "archived-source/compose/release/reference.yml"),
+                    "-f", str(root / "images-deploy.yml"), "run", "--rm", "--no-deps", "release-plan",
+                ], (root / "arguments").read_text().splitlines())
+
     def test_verification_uses_each_apps_frozen_source_and_read_only_inputs(self):
         for app in ("bike-nft", "escrow", "pay-to-play"):
             with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
