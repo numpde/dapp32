@@ -75,8 +75,9 @@ SECRET_PATTERNS = [
     re.compile(r"ghp_[A-Za-z0-9_]{20,}"),
     re.compile(r"BEGIN [A-Z ]*PRIVATE KEY"),
 ]
-MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_/-]+)\s*:(?![=])")
-MAKE_TARGET_WITH_PREREQS_RE = re.compile(r"^(?P<name>[A-Za-z0-9_/-]+)\s*:(?![=])\s*(?P<prereqs>.*)$")
+MAKE_TARGET_RE = re.compile(
+    r"^(?P<names>[A-Za-z0-9_/-]+(?:[ \t]+[A-Za-z0-9_/-]+)*)[ \t]*:(?![=])[ \t]*(?P<prereqs>.*)$"
+)
 MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_/-]+)\b")
 MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$", re.MULTILINE)
 MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_/-]+)\s*$", re.MULTILINE)
@@ -308,6 +309,20 @@ class RepositoryHygieneTest(unittest.TestCase):
         # `make help` is the operator's map of supported entrypoints. If it
         # advertises a stale target, the safest path becomes guesswork.
         self.assertEqual(targets, advertised)
+
+    def test_make_target_inspection_handles_shared_recipes(self) -> None:
+        makefile = (
+            "SETTING := ignored\n"
+            "first/run second/run: setup/run\n"
+            "\tshared recipe\n"
+            "next/run:\n"
+            "\tnext recipe\n"
+        )
+        self.assertEqual(self.make_target_list(makefile), ["first/run", "second/run", "next/run"])
+        for target in ("first/run", "second/run"):
+            with self.subTest(target=target):
+                self.assertEqual(self.make_target_recipe(makefile, target), "\tshared recipe")
+                self.assertEqual(self.make_target_prereqs(makefile, target), ("setup/run",))
 
     def test_make_scoped_targets_are_hierarchical(self) -> None:
         targets = self.make_targets(read_text(repo_path("Makefile")))
@@ -621,7 +636,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         lines = makefile.splitlines()
         for index, line in enumerate(lines):
             match = MAKE_TARGET_RE.match(line)
-            if match is not None and match.group("name") == target:
+            if match is not None and target in match.group("names").split():
                 recipe: list[str] = []
                 for recipe_line in lines[index + 1:]:
                     if MAKE_TARGET_RE.match(recipe_line):
@@ -635,9 +650,10 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def make_target_list(self, makefile: str) -> list[str]:
         return [
-            match.group("name")
+            name
             for line in makefile.splitlines()
             if (match := MAKE_TARGET_RE.match(line)) is not None
+            for name in match.group("names").split()
         ]
 
     def solidity_constructor_body(self, source: str, contract_name: str) -> str:
@@ -663,7 +679,7 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def make_target_prereqs(self, makefile: str, target: str) -> tuple[str, ...]:
         for line in makefile.splitlines():
-            match = MAKE_TARGET_WITH_PREREQS_RE.match(line)
-            if match is not None and match.group("name") == target:
+            match = MAKE_TARGET_RE.match(line)
+            if match is not None and target in match.group("names").split():
                 return tuple(match.group("prereqs").split())
         self.fail(f"missing Make target: {target}")
