@@ -208,6 +208,19 @@ verify_handoffs() {
 rehearse_success() {
   release_run_owned 330 timeout --foreground --kill-after=330s 900 \
     python3 tools/release_approval_pty_check.py "$app" success
+  # Recover from the same retained plan/broadcast without a signing input.
+  mv -- "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment.json" \
+    "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment-before-recovery.json"
+  python3 -I -B -c '
+import json, os, pathlib, sys
+root = pathlib.Path(os.environ["RELEASE_REHEARSAL_DIR"])
+config = {"schemaVersion": 3, "app": sys.argv[1], "sourceCommit": sys.argv[2],
+          "rpcUrl": "http://release-anvil:8545", "localNetwork": os.environ["RELEASE_REHEARSAL_NETWORK"],
+          "settings": {"OUTPUT_DIR": str(root / "deployment")}}
+(root / "artifact-recovery.json").write_text(json.dumps(config) + "\n")
+' "$app" "$(git rev-parse HEAD)"
+  run_logged artifact-completion.log make "$app/release/artifact" \
+    "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json" DEPLOYER_PRIVATE_KEY_FILE= PRIVATE_KEY=
   verify_handoffs
 }
 
@@ -238,6 +251,7 @@ if [[ "$action" == approval-success ]]; then
 fi
 
 # Exercise the maintained planner service without starting its networked dependants.
+export RELEASE_SOURCE_DIR="$RELEASE_REHEARSAL_DIR/source"
 export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/planner-check"
 mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact"
 planner_started=1
@@ -289,7 +303,7 @@ for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release relea
 done
 release_run_owned 15 "${planner_compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
 planner_started=0
-unset RELEASE_OUTPUT_DIR
+unset RELEASE_OUTPUT_DIR RELEASE_SOURCE_DIR
 
 release_process_report 'Building the fixture approval image from the private candidate commit'
 run_logged approval-image-build.log bash -c \

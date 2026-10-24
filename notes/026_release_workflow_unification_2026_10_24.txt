@@ -289,3 +289,19 @@ runtime. The log is /tmp/cam-artifact-history-F33jiCuv/historical-collector-chec
 Together with separate current-admission wrong/right-tree proofs, this covers
 old app execution and dependency authority; it does not claim the current
 artifact target reconstructed a complete old deployment on a live chain.
+
+The next committed-source rehearsal exposed a missing planner source-directory
+input before signing. The planner now explicitly exports its private snapshot
+path alongside its output directory and clears both after that phase. The
+producer test executes the real source assignment as well as the Make arguments,
+so a generic rendered-fixture default cannot mask this omission again.
+
+The existing success rehearsal now preserves its first artifact, constructs a
+minimal read-only fixture CONFIG, and invokes the supported release/artifact
+target on the same chain before handoffs and final verification. Signing inputs
+are empty for that command. This qualifies actual recovery without introducing
+a second fixture framework. Execution results remain pending.
+
+An additional existing builder-cancellation check exceeded its ten-second
+test wait; this has not been diagnosed or claimed passing. Its failure is
+separate from the planner-render and ordinary lifecycle checks, which pass.
