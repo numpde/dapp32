@@ -61,8 +61,12 @@ bundles need no HTTP origin pin. To deploy a general-purpose viewer, set
 Set `RESOURCE_ORIGIN=none` to disable HTTP(S) CAM downloads, or supply the
 artifact's HTTP(S) origin to keep downloads pinned. The default remains the
 artifact-derived origin, with HTTP(S) disabled for IPFS bundles.
-The browser shows this policy under **CAM resources**, including during loading
-or failure. It is operator configuration, never a viewer URL parameter.
+These launch settings choose the initial **CAM resources** selection. On the
+page you can allow any HTTP(S) origin, pin to the manifest's HTTP(S) origin, or
+disable HTTP(S). The choice remains available if loading fails; changing it
+retries an unfinished load. An open app keeps its view and drafts: the new
+selection applies to subsequent CAM downloads, leaving loaded content and
+already-started requests intact. Viewer URL parameters cannot set this choice.
 For other browser deployments the equivalent build setting is
 `VITE_CAM_WEB_RESOURCE_ORIGIN` (`*`, `none`, or a literal origin); an unset or
 empty setting disables HTTP(S). Browser CORS and mixed-content restrictions

@@ -102,6 +102,20 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 }
 
 export function App(): ReactElement {
+  const [initialResourceOrigin] = useState(() => {
+    const configured = import.meta.env.VITE_CAM_WEB_RESOURCE_ORIGIN
+    if (configured === undefined || configured === "") return "none"
+    try {
+      const origin = readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: configured }).resourceOrigin
+      if (origin === undefined) return "none"
+      return origin
+    }
+    // Preserve invalid input for startup diagnostics and explicit correction.
+    catch { return configured }
+  })
+  const [resourceOrigin, setResourceOrigin] = useState(initialResourceOrigin)
+  const resourceOriginRef = useRef(initialResourceOrigin)
+  const [manifestOrigin, setManifestOrigin] = useState<string | undefined>(undefined)
   const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
   const gatewayRef = useRef(defaultIpfsGateway.template)
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
@@ -156,10 +170,11 @@ export function App(): ReactElement {
     const controller = new AbortController()
     resourceLoadAbortRef.current = controller
     let loadedSession: CamViewerSession | undefined
+    let firstResource = true
 
     async function load(): Promise<void> {
       try {
-        const startup = parseStartupOptions(new URL(window.location.href), readStartupPolicy(import.meta.env))
+        const startup = parseStartupOptions(new URL(window.location.href), readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current }))
         const publicClient = createPublicClient({
           transport: http(startup.rpcUrl),
         })
@@ -176,7 +191,14 @@ export function App(): ReactElement {
           },
           inputs: startup.inputs,
           ...(startup.route === undefined ? {} : { route: startup.route }),
-          loadResource: uri => createViewerResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri),
+          loadResource: uri => {
+            if (firstResource && !controller.signal.aborted) {
+              firstResource = false
+              const root = new URL(uri)
+              setManifestOrigin(root.protocol === "https:" || root.protocol === "http:" ? root.origin : undefined)
+            }
+            return createViewerResourceLoader(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current }).resourceOrigin, gatewayRef.current, controller.signal)(uri)
+          },
         })
         const snapshot = await session.load()
         loadedSession = session
@@ -679,7 +701,27 @@ export function App(): ReactElement {
     return sendRevision.current === revision
   }
 
-  const resourcePolicy = <div><dt>CAM resources</dt><dd>{resourcePolicyLabel(import.meta.env)}</dd></div>
+  function retryUnfinishedLoad(): void {
+    if (loadState.status === "ready") return
+    resourceLoadAbortRef.current?.abort()
+    setLoadState({ status: "loading" })
+    setLoadAttempt(attempt => attempt + 1)
+  }
+
+  const pinnedOrigins = [...new Set([initialResourceOrigin, resourceOrigin, manifestOrigin]
+    .filter((origin): origin is string => origin !== undefined && origin !== "*" && origin !== "none"))]
+  const resourcePolicy = <div className="resource-policy">
+    <dt><label htmlFor="resource-origin-choice">CAM resources</label></dt>
+    <dd><select id="resource-origin-choice" value={resourceOrigin} aria-describedby="resource-origin-help" onChange={event => {
+      resourceOriginRef.current = event.currentTarget.value
+      setResourceOrigin(event.currentTarget.value)
+      retryUnfinishedLoad()
+    }}>
+      <option value="*">Any HTTP(S) origin</option>
+      {pinnedOrigins.map(origin => <option key={origin} value={origin}>{resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: origin })}</option>)}
+      <option value="none">HTTP(S) disabled; IPFS only</option>
+    </select><span id="resource-origin-help" className="visually-hidden">Applies to new CAM downloads. Loaded content is kept.</span></dd>
+  </div>
 
   const gatewayControl = <div className="ipfs-gateway">
         <dt><label htmlFor="ipfs-gateway-choice">IPFS gateway</label></dt>
@@ -688,11 +730,7 @@ export function App(): ReactElement {
             const selected = publicIpfsGateways.find(gateway => gateway.id === event.currentTarget.value)!
             gatewayRef.current = selected.template
             setGatewayId(selected.id)
-            if (loadState.status !== "ready") {
-              resourceLoadAbortRef.current?.abort()
-              setLoadState({ status: "loading" })
-              setLoadAttempt(attempt => attempt + 1)
-            }
+            retryUnfinishedLoad()
           }}>
             {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
           </select>
@@ -749,7 +787,7 @@ export function App(): ReactElement {
         <section className="panel error">
           <h2>Cannot load app</h2>
           <Feedback report={loadState.failure} kind="error" />
-          <button type="button" onClick={() => { resourceLoadAbortRef.current?.abort(); setLoadState({ status: "loading" }); setLoadAttempt(attempt => attempt + 1) }}>Retry loading</button>
+          <button type="button" onClick={retryUnfinishedLoad}>Retry loading</button>
         </section>
       ) : null}
 

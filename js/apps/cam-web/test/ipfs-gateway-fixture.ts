@@ -7,7 +7,7 @@ import "../src/styles.css"
 const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
 const mode = new URL(location.href).searchParams.get("scenario") ?? "fail"
 const logicalRoot = mode === "https-cross-origin" ? "https://other.fixture.test/bundle/main.json"
-  : mode === "https" ? "https://raw.githubusercontent.com/bundle/main.json" : `ipfs://${cid}/bundle/main.json`
+  : mode === "https" || mode === "https-hold" ? "https://raw.githubusercontent.com/bundle/main.json" : `ipfs://${cid}/bundle/main.json`
 const host = "0x0000000000000000000000000000000000000001"
 const address = "0x0000000000000000000000000000000000000002"
 const account = "0x0000000000000000000000000000000000000003"
@@ -58,7 +58,7 @@ window.fetch = async (input, init) => {
   requests.push(href)
   if (href.endsWith("/bundle/main.json")) {
     rootAttempts++
-    if (rootAttempts === 1 && mode === "hold") return new Promise((_resolve, reject) => {
+    if (rootAttempts === 1 && (mode === "hold" || mode === "https-hold")) return new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => { aborted++; reject(init.signal!.reason) }, { once: true })
     })
     if (rootAttempts === 1 && mode === "fail") return new Response("Fixture gateway unavailable", { status: 503 })

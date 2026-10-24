@@ -781,8 +781,9 @@ help:
 	  '    Interactive: select deployment.json, then choose its chain public RPC or enter another public URL.' \
 	  '    App and HTTPS resource origin come from that artifact; IPFS needs no HTTP origin pin.' \
 	  '    Scripts: set DEPLOYMENT_ARTIFACT_FILE and PUBLIC_RPC_URL. Optional APP must agree.' \
-	  '    RESOURCE_ORIGIN defaults to the artifact origin; set a matching origin to pin, * for any HTTP(S), or none to deny HTTP(S).' \
-	  '    Quote RESOURCE_ORIGIN="*" in your shell. Browser CORS and mixed-content restrictions still apply.' \
+	  '    RESOURCE_ORIGIN sets the initial page choice: artifact origin by default, * for any HTTP(S), or none to deny HTTP(S).' \
+	  '    Change CAM resources on the page; URL parameters cannot set it. Quote RESOURCE_ORIGIN="*" in your shell.' \
+	  '    Browser CORS and mixed-content restrictions still apply.' \
 	  '    PUBLIC_RPC_URL is visible in the browser link: use a public endpoint without credentials.' \
 	  '    No signing configuration or private key is read. RPC connectivity is checked when the browser loads.' \
 	  '    Defaults to http://127.0.0.1:5174. Connect your own wallet for transactions.' \
