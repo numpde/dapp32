@@ -39,9 +39,11 @@ test("startup parser rejects unknown deep-link parameters", () => {
   )
 })
 
-test("startup policy requires a pinned resource origin", () => {
+test("startup policy permits IPFS-only loading without inventing an HTTP resource origin", () => {
   assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test" }), POLICY)
-  assert.throws(() => readStartupPolicy({}), /missing environment setting/)
+  assert.deepEqual(readStartupPolicy({}), {})
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "" }), {})
+  assert.throws(() => readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test/path" }), /origin/)
 })
 
 function validStartupUrl(): URL {

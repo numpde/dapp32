@@ -775,8 +775,11 @@ help:
 	  '    The fixture RPC endpoint permits local test transactions. No signing key is mounted.' \
 	  '  make network/local/viewer/down   Stop only that viewer; leave the chain running.' \
 	  '  make viewer/release/up           Open an existing public-chain release; deploys nothing.' \
-	  '    Set APP, DEPLOYMENT_ARTIFACT_FILE, RESOURCE_ORIGIN and PUBLIC_RPC_URL.' \
+	  '    Interactive: select deployment.json, then choose its chain public RPC or enter another public URL.' \
+	  '    App and HTTPS resource origin come from that artifact; IPFS needs no HTTP origin pin.' \
+	  '    Scripts: set DEPLOYMENT_ARTIFACT_FILE and PUBLIC_RPC_URL. Optional APP/RESOURCE_ORIGIN must agree.' \
 	  '    PUBLIC_RPC_URL is visible in the browser link: use a public endpoint without credentials.' \
+	  '    No signing configuration or private key is read. RPC connectivity is checked when the browser loads.' \
 	  '    Defaults to http://127.0.0.1:5174. Connect your own wallet for transactions.' \
 	  '    Use RELEASE_VIEWER_COMPOSE_PROJECT_NAME and RELEASE_VIEWER_PORT for another viewer instance.' \
 	  '  make viewer/release/down         Stop only the public-release viewer.' \
@@ -1502,21 +1505,41 @@ LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(RELEAS
 RELEASE_VIEWER_ORIGIN="http://127.0.0.1:$$RELEASE_VIEWER_PORT" \
 RELEASE_VIEWER_APP="$$viewer_app" RELEASE_VIEWER_ARTIFACT="$$viewer_artifact" \
 RELEASE_VIEWER_RPC_URL="$$viewer_rpc" RELEASE_VIEWER_RESOURCE_ORIGIN="$$viewer_resource_origin" \
+RELEASE_VIEWER_INTERACTIVE="$${viewer_interactive-0}" \
 $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/viewer.yml $(1)
+endef
+
+define release_viewer_artifact
+viewer_artifact="$${DEPLOYMENT_ARTIFACT_FILE-}"; \
+if [[ -z "$$viewer_artifact" ]]; then \
+  if [[ ! -t 0 ]]; then printf '%s\n' 'Set DEPLOYMENT_ARTIFACT_FILE to deployment.json, or run this command in an interactive terminal.' >&2; exit 2; fi; \
+  while true; do \
+    if ! read -r -e -p 'Deployment artifact (absolute path to deployment.json): ' viewer_artifact; then printf '%s\n' 'Viewer setup ended before an artifact was selected.' >&2; exit 2; fi; \
+    if ( require_release_file "$$viewer_artifact" DEPLOYMENT_ARTIFACT_FILE ); then break; fi; \
+  done; \
+else require_release_file "$$viewer_artifact" DEPLOYMENT_ARTIFACT_FILE; fi
+endef
+
+define release_viewer_settings
+viewer_interactive=0; if [[ -t 0 ]]; then viewer_interactive=1; fi; \
+export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never; \
+printf '%s\n' 'Reading the deployment artifact and preparing viewer options...' >&2; \
+viewer_settings="$$( $(1) )"; \
+mapfile -t viewer_inputs <<< "$$viewer_settings"; \
+if [[ "$${#viewer_inputs[@]}" != 4 ]]; then printf '%s\n' 'Viewer setup did not return its four connection fields.' >&2; exit 2; fi; \
+viewer_app="$${viewer_inputs[0]}"; viewer_resource_origin="$${viewer_inputs[1]}"; viewer_rpc="$${viewer_inputs[2]}"; viewer_url="$${viewer_inputs[3]}"; \
+viewer_interactive=0
 endef
 
 .PHONY: viewer/release/up viewer/release/down
 viewer/release/up:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); $(release_host_guard_functions); \
-	viewer_app="$${APP:?Set APP to bike-nft, escrow or pay-to-play}"; \
-	viewer_artifact="$${DEPLOYMENT_ARTIFACT_FILE:?Set DEPLOYMENT_ARTIFACT_FILE}"; \
-	require_release_file "$$viewer_artifact" DEPLOYMENT_ARTIFACT_FILE; \
-	viewer_resource_origin="$${RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN to the published HTTPS CAM origin}"; \
-	viewer_rpc="$${PUBLIC_RPC_URL:?Set PUBLIC_RPC_URL to a public browser-accessible RPC endpoint}"; \
+	viewer_app="$${APP-}"; $(release_viewer_artifact); \
+	viewer_resource_origin="$${RESOURCE_ORIGIN-}"; viewer_rpc="$${PUBLIC_RPC_URL-}"; \
 	if [[ ! "$$RELEASE_VIEWER_PORT" =~ ^[1-9][0-9]{0,4}$$ || "$$RELEASE_VIEWER_PORT" -gt 65535 ]]; then printf '%s\n' 'RELEASE_VIEWER_PORT must be a TCP port in 1..65535.' >&2; exit 2; fi; \
 	viewer_containers="$$( $(call public_release_viewer_compose,ps --all --quiet) )"; \
 	if [[ -n "$$viewer_containers" ]]; then printf '%s\n' 'This viewer project already has containers; stop it with viewer/release/down or select another RELEASE_VIEWER_COMPOSE_PROJECT_NAME.' >&2; exit 2; fi; \
-	viewer_url="$$( $(call public_release_viewer_compose,run --build --quiet-build --rm --no-deps -T viewer-url) )"; \
+	$(call release_viewer_settings,$(call public_release_viewer_compose,run --build --quiet-build --rm --no-deps -T viewer-url)); \
 	printf 'Open this URL in your browser:\n%s\nNo wallet is attached. Connect your wallet to send transactions.\n' "$$viewer_url"; \
 	cleanup() { $(call public_release_viewer_compose,down --timeout 10); }; \
 	trap cleanup EXIT; \
@@ -1542,7 +1565,7 @@ network/local/viewer/up:
 	RELEASE_REHEARSAL_NETWORK="$(LOCAL_RELEASE_NETWORK)"; require_release_local_network; \
 	running="$$( $(call local_release_compose,ps --quiet --status running release-anvil) )"; \
 	if [[ -z "$$running" ]]; then printf '%s\n' 'Local release chain is not running; run make network/local/up.' >&2; exit 2; fi; \
-	viewer_url="$$( $(call local_release_viewer_compose,run --build --quiet-build --rm --no-deps -T viewer-url) )"; \
+	$(call release_viewer_settings,$(call local_release_viewer_compose,run --build --quiet-build --rm --no-deps -T viewer-url)); \
 	printf 'Open this URL in your browser:\n%s\nFixture RPC permits local test transactions; no wallet is attached.\n' "$$viewer_url"; \
 	cleanup() { $(call local_release_viewer_compose,down --timeout 10); }; \
 	trap cleanup EXIT; \

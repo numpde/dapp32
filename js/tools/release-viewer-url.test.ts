@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { releaseViewerURL } from "./release-viewer-url.ts"
+import { prepareReleaseViewer, releaseViewerURL } from "./release-viewer-url.ts"
 
 const address = (n: number) => `0x${n.toString(16).padStart(40, "0")}`
 const hash = (n: number) => `0x${n.toString(16).padStart(64, "0")}`
@@ -28,6 +28,50 @@ const artifacts = {
     managerCodeHash: hash(5), uiCodeHash: hash(6), componentsCreationTransaction: hash(7),
     managerCreationTransaction: hash(8), uiCreationTransaction: hash(9) },
 }
+
+test("viewer setup derives app and HTTPS origin from the artifact and offers only its chain's public RPC", async () => {
+  const questions: string[] = []
+  const settings = await prepareReleaseViewer({
+    bytes: bytes({ ...artifacts["bike-nft"], chainId: 43113 }), viewerOrigin: "http://127.0.0.1:5174",
+    catalog: { fuji: { name: "Fuji", chainId: 43113, services: { public: "https://public.example.test", alchemy: "https://secret.example.test/{API_KEY}" } } },
+    ask: async (prompt: string) => { questions.push(prompt); return "" },
+  })
+  assert.equal(settings.app, "bike-nft")
+  assert.equal(settings.resourceOrigin, "https://raw.githubusercontent.com")
+  assert.equal(settings.rpcUrl, "https://public.example.test/")
+  assert.equal(new URL(settings.url).searchParams.get("chainId"), "eip155:43113")
+  assert.match(questions.join("\n"), /Fuji|43113/)
+  assert.doesNotMatch(questions.join("\n"), /API_KEY|secret\.example/)
+})
+
+test("fully specified viewer setup is noninteractive and rejects contradictory artifact facts", async () => {
+  const input = { bytes: bytes(artifacts.escrow), viewerOrigin: "http://127.0.0.1:5174", rpcUrl: "https://public.example.test", ask: async () => { throw new Error("must not prompt") } }
+  assert.equal((await prepareReleaseViewer(input)).app, "escrow")
+  await assert.rejects(() => prepareReleaseViewer({ ...input, app: "bike-nft" }), /APP|artifact/)
+  await assert.rejects(() => prepareReleaseViewer({ ...input, resourceOrigin: "https://other.example.test" }), /origin/)
+  await assert.rejects(() => prepareReleaseViewer({ bytes: input.bytes, viewerOrigin: input.viewerOrigin }), /PUBLIC_RPC_URL|interactive/)
+})
+
+test("a chain without a catalog public endpoint still names the required chain in its custom prompt", async () => {
+  const prompts: string[] = []
+  const settings = await prepareReleaseViewer({ bytes: bytes(artifacts.escrow), viewerOrigin: "http://127.0.0.1:5174", catalog: {},
+    ask: async prompt => { prompts.push(prompt); return "https://public.example.test" },
+  })
+  assert.match(prompts[0], /31338/)
+  assert.equal(new URL(settings.url).searchParams.get("chainId"), "eip155:31338")
+})
+
+test("IPFS viewer setup does not invent an HTTP pin and custom RPC mistakes can be corrected without restarting", async () => {
+  const answers = ["9", "2", "not a URL", "https://public.example.test/path"]
+  const settings = await prepareReleaseViewer({
+    bytes: bytes({ ...artifacts["pay-to-play"], camURI: "ipfs://bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva/main.json" }),
+    viewerOrigin: "http://127.0.0.1:5174", catalog: { fixture: { chainId: 31338, services: { public: "https://default.example.test" } } },
+    ask: async () => answers.shift()!,
+  })
+  assert.equal(settings.resourceOrigin, undefined)
+  assert.equal(settings.rpcUrl, "https://public.example.test/path")
+  assert.deepEqual(answers, [])
+})
 
 for (const [app, artifact] of Object.entries(artifacts)) {
   test(`${app} IPFS releases use ordinary viewer connection coordinates`, () => {

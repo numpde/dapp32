@@ -26,13 +26,13 @@ export type StartupOptions = {
   readonly host: CamHost["address"]
   readonly account: CamHost["address"]
   readonly rpcUrl: string
-  readonly resourceOrigin: string
+  readonly resourceOrigin?: string
   readonly route?: string
   readonly inputs: InertRecord
 }
 
 export type StartupPolicy = {
-  readonly resourceOrigin: string
+  readonly resourceOrigin?: string
 }
 
 export type StartupEnv = {
@@ -57,23 +57,24 @@ export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOpt
     host: requireEvmAddress(requiredParam(params, "host"), "host"),
     account: requireEvmAddress(requiredParam(params, "account"), "account"),
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
-    resourceOrigin: policy.resourceOrigin,
+    ...(policy.resourceOrigin === undefined ? {} : { resourceOrigin: policy.resourceOrigin }),
     ...parseViewFragment(url.hash),
   }
 }
 
 export function readStartupPolicy(env: StartupEnv): StartupPolicy {
+  if (env.VITE_CAM_WEB_RESOURCE_ORIGIN === undefined || env.VITE_CAM_WEB_RESOURCE_ORIGIN === "") return {}
   return {
     resourceOrigin: requireHttpOrigin(
-      requiredEnv(env.VITE_CAM_WEB_RESOURCE_ORIGIN, "VITE_CAM_WEB_RESOURCE_ORIGIN"),
+      env.VITE_CAM_WEB_RESOURCE_ORIGIN,
       "VITE_CAM_WEB_RESOURCE_ORIGIN",
     ),
   }
 }
 
-export function createPinnedOriginResourceLoader(resourceOrigin: string, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
+export function createPinnedOriginResourceLoader(resourceOrigin: string | undefined, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
   return createCamResourceLoader({
-    originInput: resourceOrigin,
+    ...(resourceOrigin === undefined ? {} : { originInput: resourceOrigin }),
     originLabel: "resourceOrigin",
     fetchResource: (uri, init) => fetch(uri, signal === undefined ? init : { ...init, signal }),
     ...(ipfsGatewayTemplate === undefined ? {} : { ipfsGatewayTemplate }),
@@ -125,14 +126,6 @@ function requiredParam(params: URLSearchParams, name: string): string {
   }
 
   return values[0]
-}
-
-function requiredEnv(value: string | undefined, name: string): string {
-  if (value === undefined || value.length === 0) {
-    throw new Error(`missing environment setting: ${name}`)
-  }
-
-  return value
 }
 
 // These web-link bounds limit untrusted URL work before the protocol's recursive

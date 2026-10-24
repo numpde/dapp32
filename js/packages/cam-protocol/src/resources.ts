@@ -114,14 +114,14 @@ export function requireSameHttpOrigin(uri: string, origin: string, label: string
 }
 
 export function createCamResourceLoader(options: {
-  readonly originInput: string
+  readonly originInput?: string
   readonly originLabel: string
   readonly loadFailurePrefix: string
   readonly fetchResource: HttpResourceFetcher
   readonly cache?: HttpResourceCacheMode
   readonly ipfsGatewayTemplate?: string
 }): (uri: string) => Promise<Uint8Array> {
-  const origin = requireHttpOrigin(options.originInput, options.originLabel)
+  const origin = options.originInput === undefined ? undefined : requireHttpOrigin(options.originInput, options.originLabel)
   const fetchResource = options.fetchResource
   const gateway = options.ipfsGatewayTemplate
 
@@ -131,6 +131,7 @@ export function createCamResourceLoader(options: {
       if (gateway === undefined) throw new Error("Choose an IPFS gateway to download this CAM resource")
       resourceURL = requireHttpURL(resolveIpfsGatewayURL(uri, gateway), "IPFS gateway resource")
     } else {
+      if (origin === undefined) throw new Error("HTTP CAM downloads require a pinned resource origin")
       resourceURL = requireSameHttpOrigin(uri, origin, "CAM resource URI")
     }
     // Redirects can cross authorities after the origin check. Keep redirect

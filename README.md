@@ -46,6 +46,14 @@ gateway credentials and CAR-only services are not options in the dropdown.
 Gateway transport preserves the logical `ipfs://` resource names and the
 existing CAM hash checks; it does not add IPFS block verification.
 
+To attach the viewer to a public-chain deployment, run `make viewer/release/up`.
+It asks for `deployment.json`, derives the app and HTTPS resource origin, and
+offers the artifact chain's public RPC from the catalog or a custom URL. IPFS
+bundles need no HTTP origin pin; unpinned HTTP CAM downloads are denied.
+The RPC URL is visible in the browser link, so use a browser-public endpoint.
+This command does not read a signing configuration or private key. For scripts,
+supply `DEPLOYMENT_ARTIFACT_FILE` and `PUBLIC_RPC_URL` directly; no prompts appear.
+
 Docker with Compose and Make are the supported development entrypoints. Run
 `make help` for available lanes. Before building, testing, or running a local
 demo, materialize the locked dependencies:

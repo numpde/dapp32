@@ -77,6 +77,18 @@ import {
   verifySha256ResourceIntegrity,
 } from "../src/index.ts"
 
+test("an unconfigured HTTP pin permits selected IPFS transport but denies every HTTP resource before fetch", async () => {
+  const requests: string[] = []
+  const load = createCamResourceLoader({
+    originLabel: "resource origin", ipfsGatewayTemplate: "https://gateway.test/ipfs/{CID}/{PATH}",
+    loadFailurePrefix: "load failed", async fetchResource(href) { requests.push(href); return new Response("bytes") },
+  })
+  await assert.rejects(() => load("https://gateway.test/main.json"), /origin|pin/i)
+  assert.deepEqual(requests, [])
+  await load("ipfs://bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva/main.json")
+  assert.equal(requests.length, 1)
+})
+
 test("gateway URI conversion preserves CID identity, encoded filenames and transport authority", () => {
   const v0 = "QmNLei78zWmzUdbeRB3CiUfAizWUrbeeZh5K1rhAQKCh51"
   const v1 = "bafybeiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

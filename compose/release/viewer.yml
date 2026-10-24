@@ -6,16 +6,22 @@ services:
       service: offline-node-workspace
     working_dir: /work/js
     environment:
-      RELEASE_VIEWER_APP: "${RELEASE_VIEWER_APP:?Select APP}"
+      RELEASE_VIEWER_APP: "${RELEASE_VIEWER_APP-}"
       RELEASE_VIEWER_ORIGIN: "${RELEASE_VIEWER_ORIGIN:?missing_RELEASE_VIEWER_ORIGIN}"
-      RELEASE_VIEWER_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN}"
-      RELEASE_VIEWER_RPC_URL: "${RELEASE_VIEWER_RPC_URL:?Set PUBLIC_RPC_URL}"
+      RELEASE_VIEWER_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN-}"
+      RELEASE_VIEWER_RPC_URL: "${RELEASE_VIEWER_RPC_URL-}"
+      RELEASE_VIEWER_INTERACTIVE: "${RELEASE_VIEWER_INTERACTIVE-0}"
     volumes:
       - ../../js:/input/js:ro
       - ../../js/node_modules:/work/js/node_modules:ro
       - type: bind
         source: "${RELEASE_VIEWER_ARTIFACT:?Set DEPLOYMENT_ARTIFACT_FILE}"
         target: /deployment/deployment.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../../tools/rpc-catalog.json
+        target: /catalog/rpc-catalog.json
         read_only: true
         bind: {create_host_path: false}
     command:
@@ -25,7 +31,7 @@ services:
       - -c
       - |
         npm run build:packages >/dev/null
-        ./node_modules/.bin/tsc -p tools/pay-to-play-release/tsconfig.json
+        ./node_modules/.bin/tsc -p tools/pay-to-play-release/tsconfig.json >&2
         exec node --experimental-strip-types tools/release-viewer-url.ts
 
   cam-web:
@@ -33,7 +39,7 @@ services:
       file: ../fragments/browser-viewer.yml
       service: cam-web
     environment:
-      VITE_CAM_WEB_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN}"
+      VITE_CAM_WEB_RESOURCE_ORIGIN: "${RELEASE_VIEWER_RESOURCE_ORIGIN-}"
       CAM_WEB_DEV_ORIGIN: "${RELEASE_VIEWER_ORIGIN:?missing_RELEASE_VIEWER_ORIGIN}"
     networks: [viewer_internal]
 

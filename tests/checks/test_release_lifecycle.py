@@ -424,7 +424,7 @@ release_run_owned() { shift; "$@"; }
                 ], (root / "arguments").read_text().splitlines())
 
     def test_public_viewer_inspection_failure_never_starts_or_cleans_a_project(self):
-        for inspection in ("failed", "occupied", "empty"):
+        for inspection in ("failed", "occupied", "setup-failed", "empty"):
             with self.subTest(inspection=inspection), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 artifact = root / "deployment.json"
@@ -444,7 +444,10 @@ docker() {
   if [[ " $* " == *" ps --all --quiet "* ]]; then
     if [[ "$INSPECTION" == failed ]]; then printf 'inspection unavailable\n' >&2; return 37; fi
     if [[ "$INSPECTION" == occupied ]]; then printf 'existing-container\n'; fi
-  elif [[ " $* " == *" viewer-url "* ]]; then printf 'http://127.0.0.1:5174/\n'; fi
+  elif [[ " $* " == *" viewer-url "* ]]; then
+    if [[ "$INSPECTION" == setup-failed ]]; then printf 'Viewer setup input ended.\n' >&2; return 38; fi
+    printf 'bike-nft\nhttps://raw.githubusercontent.com\nhttps://rpc.example.test/\nhttp://127.0.0.1:5174/\n'
+  fi
 }
 ''' + generated.stdout
                 process = self.launch(script, env)
@@ -455,8 +458,41 @@ docker() {
                     self.assertTrue(any(" up --build " in f" {event} " for event in events))
                     self.assertTrue(any(" down --timeout " in f" {event} " for event in events))
                 else:
-                    self.assertEqual(37 if inspection == "failed" else 2, process.returncode, stdout + stderr)
-                    self.assertEqual(1, len(events), events)
+                    self.assertEqual({"failed": 37, "occupied": 2, "setup-failed": 38}[inspection], process.returncode, stdout + stderr)
+                    self.assertEqual(2 if inspection == "setup-failed" else 1, len(events), events)
+                    self.assertFalse(any(" up --build " in f" {event} " or " down --timeout " in f" {event} " for event in events))
+
+    def test_local_viewer_uses_shared_capture_without_accepting_a_public_rpc_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / "deployment.json"
+            artifact.write_text("{}")
+            env = self.environment(root, root)
+            env.update(APP="bike-nft", DEPLOYMENT_ARTIFACT_FILE=str(artifact),
+                       RESOURCE_ORIGIN="https://raw.githubusercontent.com", PUBLIC_RPC_URL="https://wrong-chain.example.test",
+                       RELEASE_VIEWER_PORT="5174")
+            generated = expanded_release_target("network/local/viewer/up", ("LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:"))
+            script = r'''
+docker() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/events"
+  if [[ "$1 $2" == 'network inspect' ]]; then printf 'true\n'
+  elif [[ " $* " == *" ps --quiet --status running "* ]]; then printf 'fixture-chain\n'
+  elif [[ " $* " == *" viewer-url "* ]]; then
+    printf 'rpc:%s\ncapture:%s:%s\n' "$RELEASE_VIEWER_RPC_URL" "$COMPOSE_PROGRESS" "$COMPOSE_ANSI" >> "$CASE_ROOT/events"
+    printf 'bike-nft\nhttps://raw.githubusercontent.com\nhttp://127.0.0.1:5174/rpc\nhttp://127.0.0.1:5174/?chainId=eip155%%3A31338\n'
+  fi
+}
+''' + generated
+            process = self.launch(script, env)
+            stdout, stderr = process.communicate(timeout=10)
+            self.assertEqual(0, process.returncode, stdout + stderr)
+            events = (root / "events").read_text().splitlines()
+            self.assertIn("rpc:http://127.0.0.1:5174/rpc", events)
+            self.assertIn("capture:plain:never", events)
+            self.assertIn("chainId=eip155%3A31338", stdout)
+            self.assertNotIn("wrong-chain.example.test", stdout + stderr + "\n".join(events))
+            self.assertTrue(any(" up --build " in f" {event} " for event in events))
+            self.assertTrue(any(" down --timeout " in f" {event} " for event in events))
 
     def test_retained_signer_log_redacts_configured_credentials_and_keeps_public_facts(self):
         with tempfile.TemporaryDirectory() as directory:
