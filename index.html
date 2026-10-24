@@ -178,11 +178,16 @@
       <div>
         <h2>Local demo</h2>
         <p>
-          The current path is Docker-backed through the Makefile. Dependency
-          installation is explicit and may take time. Choose Bike NFT below or follow the <a href="escrow/">escrow guide</a> or <a href="pay-to-play/#local">Pay-to-Play guide</a>. Each GUI target starts a
-          local Anvil chain, deploys its app fixture, serves CAM resources,
-          and launches the React viewer through a local gateway. The target
-          prints the URL to open in your browser.
+          Use a demo to explore an app’s workflow or manually test changes to
+          its contracts, CAM bundle and viewer together. Each launcher starts
+          its own disposable blockchain and fresh app contracts, serves the
+          CAM resources, and prints a local viewer URL. See
+          <a href="examples/#local-demos">what the demo launchers do</a>, or follow
+          the <a href="bike-nft/#try">Bike NFT</a>,
+          <a href="escrow/#try">Escrow</a> or
+          <a href="pay-to-play/#local">Pay-to-Play</a> instructions.
+          Docker, Compose and Make are required; install the locked
+          dependencies before launching a demo.
         </p>
         <p>
           Each demo attempts cleanup when its foreground command exits. Closing
