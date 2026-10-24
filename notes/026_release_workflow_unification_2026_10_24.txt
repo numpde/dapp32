@@ -272,3 +272,20 @@ and green afterward, covering each failed phase with/without CONFIG. They run
 the launcher with only external peers replaced, prove one signer invocation,
 collector short-circuit on proxy failure and retained evidence. This is not a
 live-provider or successful on-chain deployment proof.
+
+The committed-source Bike rehearsal stopped before signing: its planner copied
+an obsolete deployment composition that omitted artifact layers. All three
+actual Make-to-script planner compositions now have one owner: each app passes
+its existing DEPLOY_COMPOSE_FILES as internal script arguments; the script adds
+only its fixture transport overlay. A rendered behavioral regression failed
+for all three apps before the fix and passed afterward. The existing rehearsal
+lifecycle check also passed after updating its image-builder stub to preserve
+the current positional arguments. The failed rehearsal cleaned its isolated
+services and retained /tmp/cam-release-rehearsal-1000-xkvezyhO records.
+
+Historical execution qualification: the actual 5cd938b Bike collector/provenance
+suite passed all 36 tests with its locked TypeScript 6.0.3 tree and historical
+runtime. The log is /tmp/cam-artifact-history-F33jiCuv/historical-collector-check.log.
+Together with separate current-admission wrong/right-tree proofs, this covers
+old app execution and dependency authority; it does not claim the current
+artifact target reconstructed a complete old deployment on a live chain.

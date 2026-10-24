@@ -1406,15 +1406,15 @@ dapps/release/rehearsal/check:
 
 define release_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" release
+	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" release $(1)
 endef
 
 .PHONY: dapps/release/rehearsal/check bike-nft/release/rehearsal/run escrow/release/rehearsal/run pay-to-play/release/rehearsal/run
 bike-nft/release/rehearsal/run:
-	$(release_rehearsal)
+	$(call release_rehearsal,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES))
 
 escrow/release/rehearsal/run:
-	$(release_rehearsal)
+	$(call release_rehearsal,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES))
 
 .PHONY: escrow/release/approval-wait/check
 escrow/release/approval-wait/check:
@@ -1452,7 +1452,7 @@ pay-to-play/release/approval/success/check:
 	$(call release_approval_rehearsal,approval-success)
 
 pay-to-play/release/rehearsal/run:
-	$(release_rehearsal)
+	$(call release_rehearsal,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES))
 
 define local_release_compose
 LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(LOCAL_RELEASE_PROJECT)" \

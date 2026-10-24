@@ -7,6 +7,9 @@ action="${3:?Pass release, waits, ipc-waits, approval-pty, or approval-success}"
 if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits && "$action" != approval-pty && "$action" != approval-success ]]; then
   printf '%s\n' 'Release rehearsal action must be release, waits, ipc-waits, approval-pty, or approval-success.' >&2; exit 2
 fi
+if [[ "$action" == release && "$#" -lt 5 ]]; then
+  printf '%s\n' 'Release rehearsal requires the deployment Compose arguments supplied by Make.' >&2; exit 2
+fi
 if [[ ( "$action" == waits || "$action" == ipc-waits ) && "$app" != escrow ]]; then
   printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
 fi
@@ -134,7 +137,7 @@ digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
 project="cam-rehearsal-${digest:0:24}"
 export RELEASE_REHEARSAL_NETWORK="$project-rehearsal"
 compose=(docker compose --project-name "$project" -f compose/release/rehearsal.yml)
-planner_compose=(docker compose --project-name "$project-planner" -f compose/release/deploy.yml -f "compose/$app/release/deploy.yml" -f compose/release/rehearsal-deploy.yml)
+planner_compose=(docker compose --project-name "$project-planner" "${@:4}" -f compose/release/rehearsal-deploy.yml)
 unset PRIVATE_KEY RPC_URL RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 git_environment="$(git rev-parse --local-env-vars)"
 while IFS= read -r name; do unset "$name"; done <<<"$git_environment"

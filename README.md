@@ -81,7 +81,8 @@ artifact completion accepts a read-only configuration containing `schemaVersion:
 Local fixture records also require their `localNetwork`. No signing key is needed.
 Protect the file because the RPC URL may contain credentials.
 
-These are the explicit networked dependency steps. To check the installed
+`dapps/deps/install` and `js/deps/install` are the explicit networked dependency
+steps. To check the installed
 workspace and checked-in CAM bundles offline, run:
 
 ```bash

@@ -155,7 +155,7 @@ timeout() {
   done
   shift
   if [[ "$TEST_KIND" == rehearsal-full && "$1 $2" == 'bash tools/release_approval_image_build.sh' ]]; then
-    fixture_image_build
+    fixture_image_build "$@"
     return
   fi
   "$@"
@@ -303,6 +303,7 @@ python3() {
             argv = [bash, str(self.repo / "tools/release_rehearsal.sh"), "escrow", "docker compose", "approval-pty"]
             if kind == "rehearsal-full":
                 argv[-1] = "release"
+                argv.extend(["-f", "compose/release/deploy.yml"])
                 env["RELEASE_APPROVAL_IMAGE"] = "sha256:" + "f" * 64
             digest = hashlib.sha256(str(self.work).encode()).hexdigest()[:24]
             self.project = "cam-rehearsal-" + digest

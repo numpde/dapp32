@@ -1,18 +1,40 @@
 from __future__ import annotations
 
 import os
+import re
+import shlex
 from pathlib import Path
 import signal
 import stat
+import subprocess
 import tempfile
 import unittest
 
-from .common import compose_mapping, compose_sequence_or_empty, compose_service, rendered_compose_config
+from .common import ROOT, compose_mapping, compose_sequence_or_empty, compose_service, rendered_compose_config
 from .test_release_approval_image import _ReleaseCommandHarness
+from .release_posture import expanded_release_target
 from .text.test_rendered_compose_posture import makefile_compose_units, release_rehearsal_units
 
 
 class ReleaseRehearsalTest(unittest.TestCase):
+    def test_executed_planner_composition_is_complete_for_each_app(self):
+        source = (ROOT / "tools/release_rehearsal.sh").read_text()
+        declaration = re.search(r"(?m)^planner_compose=\(.*\)$", source).group()
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            with self.subTest(app=app):
+                recipe = shlex.split(expanded_release_target(app + "/release/rehearsal/run"))
+                invocation = recipe[recipe.index("tools/release_rehearsal.sh") + 1:]
+                arguments = subprocess.check_output(
+                    ["bash", "-c", declaration + '; printf "%s\\0" "${planner_compose[@]}"', "rehearsal", *invocation],
+                    env={**os.environ, "project": "fixture", "app": app}, text=True,
+                ).split("\0")[:-1]
+                files = tuple(arguments[index + 1] for index, value in enumerate(arguments) if value == "-f")
+                owner = app.upper().replace("-", "_") + "_RELEASE_DEPLOY_COMPOSE_FILES"
+                self.assertEqual(makefile_compose_units()[owner], files[:-1])
+                services = rendered_compose_config(files)["services"]
+                for name in ("release-plan", "release-rpc-proxy", "release-artifact-rpc-proxy", "release-artifact"):
+                    self.assertTrue(services[name].get("image") or services[name].get("build"), name)
+
     def test_rehearsal_preserves_release_commands_and_rpc_method_gates(self) -> None:
         for files in release_rehearsal_units():
             with self.subTest(files=files):
@@ -76,7 +98,7 @@ class ReleaseRehearsalCancellationTest(unittest.TestCase):
         ) as run:
             lines = run.wait_for("child-ready ")
             build = next(line for line in lines if line.startswith("fixture-image-build "))
-            self.assertIn("SOURCE_COMMIT=" + "a" * 40, build)
+            self.assertIn(" " + "a" * 40 + " ", build)
             self.assertIn(str(run.work / "approval-image"), build)
             command = next(line for line in lines if line.startswith("pty "))
             self.assertIn("escrow success", command)
