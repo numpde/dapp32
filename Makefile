@@ -567,6 +567,9 @@ help:
 	  '' \
 	  'Compile or update repository files:' \
 	  '  make js/build/check             Compile JS workspace packages/apps; keep outputs inside the container.' \
+	  '  make js/compiler/qualify        Build packages and fully typecheck the web app/tests in a fresh workspace.' \
+	  '    Reports compiler version, workload time, outcome and whole-container cgroup v2 peak memory.' \
+	  '    Peak includes setup and tmpfs. Compare the same target in baseline/candidate checkouts.' \
 	  '  make dapps/build                Compile Solidity contracts; keep outputs inside the container.' \
 	  '  make dapps/scripts/build        Compile deployment scripts without deploying contracts.' \
 	  '  make dapps/format/check          Check Solidity formatting without changing files.' \
@@ -1005,6 +1008,10 @@ js/deps/graph/check:
 
 js/build/check:
 	$(call compose_run_with_package_deps,packages.yml,package-build-check)
+
+.PHONY: js/compiler/qualify
+js/compiler/qualify:
+	$(call compose_run_with_package_deps,packages.yml,package-test run-js-workspace node tools/compiler-qualification.mjs)
 
 js/tests:
 	$(call compose_run_with_package_deps,packages.yml,package-test)

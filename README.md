@@ -83,6 +83,19 @@ Checks against an operator-supplied RPC, browser CDP endpoint, or release
 deployment remain separate commands with explicit inputs. `make tests` does not
 select those external systems or perform a release deployment.
 
+For a compiler upgrade, run `make js/compiler/qualify` in each checkout with
+its corresponding locked dependencies installed. This uses the normal offline
+JS lane: it prints the actual compiler version, builds packages, and fully
+typechecks the web app and its tests. Each command has a 120-second deadline;
+a failed step stops the workload and returns a failure status.
+
+The reported time covers that workload. The cgroup v2 peak covers the whole
+fresh container, including dependency verification, source staging and tmpfs;
+it is not compiler-process RSS. Missing or invalid memory metrics fail
+qualification. A fresh workspace has no compiler cache; OS page caches are
+not cleared. Compare matching workloads and container limits. This command
+does not replace `make js/ci` and sets no CI performance threshold.
+
 Conformance checks find publication defects in supplied bundles; they do not
 prove live contract state, wallet authority, or that a transaction will succeed.
 
