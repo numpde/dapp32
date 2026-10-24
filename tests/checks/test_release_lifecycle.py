@@ -16,6 +16,7 @@ import time
 import unittest
 
 from .common import ROOT
+from .release_posture import expanded_release_target
 
 
 PROCESS = ROOT / "tools/release_process.sh"
@@ -159,6 +160,59 @@ release_config_teardown() { fake_down config; }
 
 
 class ReleaseLifecycleTest(unittest.TestCase):
+    def test_verification_uses_each_apps_frozen_source_and_read_only_inputs(self):
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                artifact = root / "deployment.json"
+                artifact.write_text("{}", encoding="utf-8")
+                prefix = app.upper().replace("-", "_")
+                source_commit = "ab" * 20
+                env = self.environment(root, root)
+                env.update({
+                    f"{prefix}_DEPLOYMENT_ARTIFACT_FILE": str(artifact),
+                    "APP_PREFIX": prefix, "RPC_URL_FILE": str(root / "rpc-url"),
+                    "PRIVATE_KEY": "must-not-reach-compose", "RPC_URL": "must-not-reach-compose",
+                })
+                stub = root / "compose.sh"
+                stub.write_text(r'''
+printf '%s\n' "$@" > "$CASE_ROOT/arguments"
+source_name="${APP_PREFIX}_RELEASE_EXPECTED_SOURCE_COMMIT"
+printf '%s\n' "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEASE_DEPLOYMENT_ARTIFACT_FILE" "${!source_name}" > "$CASE_ROOT/grants"
+''', encoding="utf-8")
+                generated = expanded_release_target(f"{app}/release/verify", (
+                    "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
+                    f"release_require_clean_source=source_commit={source_commit}",
+                    "release_host_guard_functions=:", "release_config_compose=:",
+                    "release_verify_execution=compose_release run --rm --no-deps -T verify-release",
+                    f"DOCKER_COMPOSE=bash {stub}",
+                ))
+                script = r'''
+ceremony_project=fixture
+ceremony_source="$CASE_ROOT/archived-source"
+release_command_grace=15
+release_transport_args=(-f "$ceremony_source/compose/release/rehearsal-verify.yml")
+release_image_args=(-f "$CASE_ROOT/images-verify.yml")
+load_release_config() { printf '%s\n' "$*" > "$CASE_ROOT/config-mode"; }
+require_release_rpc_input() { [[ -n "$RPC_URL_FILE" ]]; }
+require_release_file() { [[ -f "$1" ]]; }
+release_run_owned() { shift; "$@"; }
+''' + generated
+                process = self.launch(script, env)
+                stdout, stderr = process.communicate(timeout=5)
+                self.assertEqual(0, process.returncode, stdout + stderr)
+                self.assertEqual(f"{app} verify\n", (root / "config-mode").read_text())
+                self.assertEqual([
+                    "unset", "unset", str(root / "rpc-url"), str(artifact), source_commit,
+                ], (root / "grants").read_text().splitlines())
+                self.assertEqual([
+                    "-f", str(root / "archived-source/compose/release/verify.yml"),
+                    "-f", str(root / f"archived-source/compose/{app}/release/verify.yml"),
+                    "-f", str(root / "archived-source/compose/release/rehearsal-verify.yml"),
+                    "-f", str(root / "images-verify.yml"),
+                    "run", "--rm", "--no-deps", "-T", "verify-release",
+                ], (root / "arguments").read_text().splitlines())
+
     def test_public_viewer_inspection_failure_never_starts_or_cleans_a_project(self):
         for inspection in ("failed", "occupied", "empty"):
             with self.subTest(inspection=inspection), tempfile.TemporaryDirectory() as directory:

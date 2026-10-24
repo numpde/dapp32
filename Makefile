@@ -445,6 +445,30 @@ release_run_started=1; \
 compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release
 endef
 
+# Prefix, app, frozen Compose files and operator-facing name are app-owned.
+define release_verify
+$(LANE_GUARD); \
+$(SOLDEER_DEPS_GUARD); \
+$(PACKAGE_DEPS_GUARD); \
+$(call release_require_clean_source,$(4) release verification); \
+$(release_host_guard_functions); \
+$(release_config_compose); \
+load_release_config $(2) verify; \
+if [[ ! -v $(1)_DEPLOYMENT_ARTIFACT_FILE || -z "$${$(1)_DEPLOYMENT_ARTIFACT_FILE}" ]]; then \
+  printf 'Missing required verification input: %s\n' '$(1)_DEPLOYMENT_ARTIFACT_FILE' >&2; exit 2; \
+fi; \
+require_release_rpc_input; \
+require_release_file "$${$(1)_DEPLOYMENT_ARTIFACT_FILE}" "$(1)_DEPLOYMENT_ARTIFACT_FILE"; \
+compose_release() { \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+    RPC_URL_FILE="$$RPC_URL_FILE" \
+    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$${$(1)_DEPLOYMENT_ARTIFACT_FILE}" \
+    $(1)_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(3)) "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; \
+}; \
+$(release_verify_execution)
+endef
+
 # Complete deployment records from retained evidence, without starting a signer.
 define release_artifact_execution
 $(LANE_GUARD); \
@@ -1866,29 +1890,7 @@ escrow/release/deploy:
 	$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)
 
 escrow/release/verify:
-	@$(LANE_GUARD); \
-	$(SOLDEER_DEPS_GUARD); \
-	$(PACKAGE_DEPS_GUARD); \
-	$(call release_require_clean_source,Escrow release verification); \
-	$(release_host_guard_functions); \
-	$(release_config_compose); \
-	load_release_config escrow verify; \
-	for name in ESCROW_DEPLOYMENT_ARTIFACT_FILE; do \
-	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
-	    printf 'Missing required verification input: %s\n' "$$name" >&2; \
-	    exit 2; \
-	  fi; \
-	done; \
-	require_release_rpc_input; \
-	require_release_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"; \
-	compose_release() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-	    RPC_URL_FILE="$$RPC_URL_FILE" \
-	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" \
-	    ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; \
-	}; \
-	$(release_verify_execution)
+	@$(call release_verify,ESCROW,escrow,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES),Escrow)
 
 bike-nft/release/deploy:
 	@$(LANE_GUARD); \
@@ -1924,18 +1926,7 @@ bike-nft/release/deploy:
 	$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)
 
 bike-nft/release/verify:
-	@$(LANE_GUARD); \
-	$(SOLDEER_DEPS_GUARD); \
-	$(PACKAGE_DEPS_GUARD); \
-	$(call release_require_clean_source,Bike NFT release verification); \
-	$(release_host_guard_functions); \
-	$(release_config_compose); \
-	load_release_config bike-nft verify; \
-	for name in BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required verification input: %s\n' "$$name" >&2; exit 2; fi; done; \
-	require_release_rpc_input; \
-	require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"; \
-	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; }; \
-	$(release_verify_execution)
+	@$(call release_verify,BIKE_NFT,bike-nft,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES),Bike NFT)
 
 .PHONY: pay-to-play/release/check pay-to-play/release/deploy pay-to-play/release/verify
 pay-to-play/release/deploy:
@@ -1992,29 +1983,7 @@ pay-to-play/release/deploy:
 	$(call release_deploy_execution,PAY_TO_PLAY_RELEASE_OUTPUT_DIR)
 
 pay-to-play/release/verify:
-	@$(LANE_GUARD); \
-	$(SOLDEER_DEPS_GUARD); \
-	$(PACKAGE_DEPS_GUARD); \
-	$(call release_require_clean_source,Pay-to-Play release verification); \
-	$(release_host_guard_functions); \
-	$(release_config_compose); \
-	load_release_config pay-to-play verify; \
-	for name in PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE; do \
-	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
-	    printf 'Missing required verification input: %s\n' "$$name" >&2; \
-	    exit 2; \
-	  fi; \
-	done; \
-	require_release_rpc_input; \
-	require_release_file "$$PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE" "PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE"; \
-	compose_release() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-	    RPC_URL_FILE="$$RPC_URL_FILE" \
-	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE" \
-	    PAY_TO_PLAY_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; \
-	}; \
-	$(release_verify_execution)
+	@$(call release_verify,PAY_TO_PLAY,pay-to-play,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES),Pay-to-Play)
 
 # Disposable payment-channel fixture. Its scenario and browser projects are isolated.
 PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-pay-to-play-local-scenario

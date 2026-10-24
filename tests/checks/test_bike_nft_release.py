@@ -13,6 +13,7 @@ from .common import (
     repo_path,
 )
 from .release_posture import (
+    expanded_release_target,
     assert_deployment_authority_split,
     assert_offline_read_only_release_check,
     assert_receipt_gated_verification,
@@ -104,7 +105,7 @@ class BikeNftReleasePostureTest(unittest.TestCase):
     def test_make_entrypoints_require_clean_snapshotted_source_and_protected_files(self) -> None:
         source = read_text(repo_path("Makefile"))
         deploy = source[source.index("bike-nft/release/deploy:"):source.index("bike-nft/release/verify:")]
-        verify = source[source.index("bike-nft/release/verify:"):]
+        verify = expanded_release_target("bike-nft/release/verify")
         self.assertIn("CONFIRM_BIKE_NFT_RELEASE_DEPLOY", deploy)
         self.assertIn(
             'require_release_rpc_input',
@@ -119,14 +120,11 @@ class BikeNftReleasePostureTest(unittest.TestCase):
             'require_release_rpc_input',
             verify,
         )
-        self.assertIn(
-            'require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"',
-            verify,
-        )
+        self.assertRegex(verify, r'require_release_file "\$\{?BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE\}?" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"')
         self.assertIn("$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)", deploy)
-        self.assertIn("$(release_verify_execution)", verify)
+        self.assertIn("compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release", verify)
         self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}"', deploy)
-        self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}"', verify)
+        self.assertIn('-f "$ceremony_source/compose/bike-nft/release/verify.yml" "${release_transport_args[@]}"', verify)
 
 
 

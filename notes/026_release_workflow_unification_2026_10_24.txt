@@ -178,7 +178,19 @@ The focused checks passed: Bike 39, Escrow 37, Pay-to-Play 27. The additional
 behavioral case proves a wrong chain prevents receipt reads and mixed receipt
 senders cannot produce a successful proof.
 
-C and D remain to be implemented and qualified. In particular, host workflow
+C verification: all three app targets now call one Make recipe, with explicit
+app prefix, frozen Compose paths and diagnostic name. Their app environment,
+artifact/RPC inputs and configuration/source admission are unchanged. An
+executed wrapper test proves per-app arguments, source-pin propagation and
+inline-secret scrubbing against a stub; it does not execute archived app code.
+The app posture checks passed (13 tests), as did host-order checks (4 tests).
+
+Verification still requires the checkout matching the saved source pin. The
+cross-checkout retained-source operation is artifact completion: current host
+orchestration selects the saved source and runs that source's artifact tools.
+Do not confuse the wrapper test with proof of this recovery path.
+
+C deployment and D remain to be implemented and qualified. Host workflow
 changes must preserve the existing entrypoint/environment contracts when
 consuming an older archived release source; they cannot assume a newly added
 helper exists in that older archive.

@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+import os
+import subprocess
 import unittest
 from typing import Any
 
 from .common import (
+    ROOT,
     compose_mapping,
     compose_sequence_or_empty,
     compose_volume,
 )
+
+
+def expanded_release_target(target: str, overrides: tuple[str, ...] = ()) -> str:
+    """Inspect the supported release recipe after Make expands its shared owners."""
+    env = {key: value for key, value in os.environ.items() if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS")}
+    return subprocess.run(
+        ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), target, *overrides],
+        cwd=ROOT, env=env, capture_output=True, text=True, check=True, timeout=10,
+    ).stdout
 
 
 def _environment(service: dict[str, Any]) -> dict[str, Any]:

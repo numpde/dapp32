@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from ..common import read_text, repo_path
+from ..release_posture import expanded_release_target
 
 
 class ReleaseHostGuardTest(unittest.TestCase):
@@ -51,6 +52,15 @@ class ReleaseHostGuardTest(unittest.TestCase):
             "verify": "$(release_verify_execution)",
         }
         for name, target in self.targets.items():
+            if name.endswith("/verify"):
+                expanded = expanded_release_target(name)
+                execute = "compose_release up --no-build --abort-on-container-exit"
+                self.assertIn(labels[name], expanded)
+                self.assertIn("requires a clean Git working tree.", expanded)
+                self.assertLess(expanded.index("git status --porcelain"), expanded.index(execute))
+                self.assertLess(expanded.rindex("require_release_rpc_input;"), expanded.index(execute))
+                self.assertLess(expanded.index("source tools/release_process.sh"), expanded.index(execute))
+                continue
             execution = executions[name.rsplit("/", 1)[1]]
             source_guard = f"$(call release_require_clean_source,{labels[name]})"
             self.assertIn(source_guard, target)
@@ -64,7 +74,7 @@ class ReleaseHostGuardTest(unittest.TestCase):
             execution = self.source.split(f"define {definition}\n", 1)[1].split("endef", 1)[0]
             operation = {
                 "release_deploy_execution": "release_approval_prepare",
-                "release_verify_execution": "up --build --abort",
+                "release_verify_execution": "up --no-build --abort",
             }[definition]
             self.assertLess(execution.index("$(release_prepare_snapshot)"), execution.index(operation))
 

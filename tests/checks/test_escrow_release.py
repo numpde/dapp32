@@ -15,6 +15,7 @@ from .common import (
     repo_path,
 )
 from .release_posture import (
+    expanded_release_target,
     assert_deployment_authority_split,
     assert_offline_read_only_release_check,
     assert_receipt_gated_verification,
@@ -70,9 +71,8 @@ class EscrowReleasePostureTest(unittest.TestCase):
         source = read_text(repo_path("Makefile"))
         deploy_start = source.index("escrow/release/deploy:")
         verify_start = source.index("escrow/release/verify:")
-        bike_start = source.index("bike-nft/release/deploy:")
         deploy = source[deploy_start:verify_start]
-        verify = source[verify_start:bike_start]
+        verify = expanded_release_target("escrow/release/verify")
 
         self.assertIn("CONFIRM_ESCROW_RELEASE_DEPLOY", deploy)
         self.assertIn("DEPLOYER_PRIVATE_KEY_FILE", deploy)
@@ -94,19 +94,15 @@ class EscrowReleasePostureTest(unittest.TestCase):
             'require_release_rpc_input',
             verify,
         )
-        self.assertIn(
-            'require_release_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"',
-            verify,
-        )
+        self.assertRegex(verify, r'require_release_file "\$\{?ESCROW_DEPLOYMENT_ARTIFACT_FILE\}?" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"')
         self.assertIn("env -u PRIVATE_KEY -u RPC_URL", verify)
 
     def test_release_make_targets_run_from_disposable_commit_snapshots(self) -> None:
         source = read_text(repo_path("Makefile"))
         deploy_start = source.index("escrow/release/deploy:")
         verify_start = source.index("escrow/release/verify:")
-        bike_start = source.index("bike-nft/release/deploy:")
         deploy = source[deploy_start:verify_start]
-        verify = source[verify_start:bike_start]
+        verify = expanded_release_target("escrow/release/verify")
         cleanup = source[source.index("define release_snapshot_cleanup"):source.index("endef", source.index("define release_snapshot_cleanup"))]
 
         self.assertIn('GIT_NO_REPLACE_OBJECTS=1 git archive', source)
@@ -126,9 +122,9 @@ class EscrowReleasePostureTest(unittest.TestCase):
             self.assertIn(f'COMPOSE_PROJECT_NAME="$$ceremony_project-{phase}"', source)
 
         self.assertIn("$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)", deploy)
-        self.assertIn("$(release_verify_execution)", verify)
+        self.assertIn("compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release", verify)
         self.assertIn('$(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}"', deploy)
-        self.assertIn('$(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}"', verify)
+        self.assertIn('-f "$ceremony_source/compose/escrow/release/verify.yml" "${release_transport_args[@]}"', verify)
         prepare = source.split("define release_prepare_snapshot\n", 1)[1].split("\nendef", 1)[0]
         execute = source.split("define release_deploy_execution\n", 1)[1].split("\nendef", 1)[0]
         self.assertLess(prepare.index("trap cleanup EXIT"), prepare.index("$(release_snapshot_allocate)"))
