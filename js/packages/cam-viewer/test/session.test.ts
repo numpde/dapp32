@@ -5,6 +5,7 @@ import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, InertValueError, toInertValue, UI_VERSION, type InertRecord, type InertValue } from "@cam/protocol"
 import { CamEvmError } from "@cam/evm-viem"
+import { parseCam } from "@cam/core"
 import { forEachResolvedUiNode, resolvedUiButtons, UiError, type ResolvedAmountFieldNode, type ResolvedNonNegativeIntegerFieldNode, type ResolvedUiNode } from "@cam/screen"
 
 import {
@@ -49,7 +50,7 @@ import {
   bikeRegisterRouteResult,
   bikeRouteResults,
 } from "../../../../tests/fixtures/cam/bike.mts"
-import { bikeManagerAbi, bikeUiAbi } from "../../../../tests/fixtures/cam/bike-resources.mts"
+import { bikeCamJson, bikeManagerAbi, bikeUiAbi } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import {
   bikeResourceBytes,
   createMockCamPublicClient,
@@ -516,14 +517,19 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
       componentsAddress: BIKE_ZERO_ADDRESS,
     },
   ]))
+  const contractNames = Object.entries(parseCam(bikeCamJson).namespaces)
+    .filter(([, namespace]) => namespace.type === "contract")
+    .map(([name]) => name.slice("contracts.".length))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     "supportsInterface",
     "camManifest",
-    "contractAddress",
-    "contractAddress",
-    "contractAddress",
+    ...contractNames.map(() => "contractAddress"),
     BIKE_VIEW_ENTRY,
   ])
+  assert.deepEqual(
+    publicClient.calls.filter((call) => call.functionName === "contractAddress").map((call) => call.args),
+    contractNames.map((name) => [name]),
+  )
 })
 
 test("Back restores edited inputs across visits while refreshing read results; new navigation starts fresh", async () => {

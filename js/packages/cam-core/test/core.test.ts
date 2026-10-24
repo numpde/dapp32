@@ -19,7 +19,6 @@ import {
 import type { CamDocument } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS,
-  BIKE_COMPONENTS_NAMESPACE,
   BIKE_HOST_ADDRESS,
   BIKE_HOST_CHAIN_ID,
   BIKE_MANAGER_NAMESPACE,
@@ -604,22 +603,6 @@ test("parseCam and protocol facts share root namespace resource declaration mean
 
   const resourceResult = collectCamResourceDeclarationFacts(namespaceResult.namespaces)
   assert.deepEqual(resourceResult.diagnostics, [])
-  const managerNamespace = cam.namespaces[BIKE_MANAGER_NAMESPACE]
-  const uiContractNamespace = cam.namespaces[BIKE_UI_NAMESPACE]
-  const uiNamespace = cam.namespaces.ui
-  const componentsNamespace = cam.namespaces[BIKE_COMPONENTS_NAMESPACE]
-  if (managerNamespace.type !== "contract") throw new Error("bike manager namespace must be a contract")
-  if (uiContractNamespace.type !== "contract") throw new Error("bike UI contract namespace must be a contract")
-  if (uiNamespace.type !== "ui") throw new Error("bike UI namespace must be ui")
-  if (componentsNamespace.type !== "contract") throw new Error("bike components namespace must be a contract")
-  const managerFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_MANAGER_NAMESPACE)
-  const uiContractFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_UI_NAMESPACE)
-  const uiFact = namespaceResult.namespaces.find((namespace) => namespace.name === "ui")
-  const componentsFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_COMPONENTS_NAMESPACE)
-  if (managerFact === undefined) throw new Error("bike manager namespace fact must exist")
-  if (uiContractFact === undefined) throw new Error("bike UI contract namespace fact must exist")
-  if (uiFact === undefined) throw new Error("bike UI namespace fact must exist")
-  if (componentsFact === undefined) throw new Error("bike components namespace fact must exist")
   assert.deepEqual(
     resourceResult.declarations.map((declaration) => ({
       namespace: declaration.namespace,
@@ -629,39 +612,13 @@ test("parseCam and protocol facts share root namespace resource declaration mean
       uriPath: declaration.uriPath,
       integrityPath: declaration.integrityPath,
     })),
-    [
-      {
-        namespace: BIKE_UI_NAMESPACE,
-        namespaceType: "contract",
-        uri: uiContractNamespace.abiURI,
-        integrity: uiContractNamespace.integrity,
-        uriPath: `${uiContractFact.path}.abiURI`,
-        integrityPath: `${uiContractFact.path}.integrity`,
-      },
-      {
-        namespace: BIKE_MANAGER_NAMESPACE,
-        namespaceType: "contract",
-        uri: managerNamespace.abiURI,
-        integrity: managerNamespace.integrity,
-        uriPath: `${managerFact.path}.abiURI`,
-        integrityPath: `${managerFact.path}.integrity`,
-      },
-      {
-        namespace: "ui",
-        namespaceType: "ui",
-        uri: uiNamespace.uri,
-        integrity: uiNamespace.integrity,
-        uriPath: `${uiFact.path}.uri`,
-        integrityPath: `${uiFact.path}.integrity`,
-      },
-      {
-        namespace: BIKE_COMPONENTS_NAMESPACE,
-        namespaceType: "contract",
-        uri: componentsNamespace.abiURI,
-        integrity: componentsNamespace.integrity,
-        uriPath: `${componentsFact.path}.abiURI`,
-        integrityPath: `${componentsFact.path}.integrity`,
-      },
-    ],
+    Object.entries(cam.namespaces).flatMap(([name, namespace]) => namespace.type === "routes" ? [] : [{
+      namespace: name,
+      namespaceType: namespace.type,
+      uri: namespace.type === "contract" ? namespace.abiURI : namespace.uri,
+      integrity: namespace.integrity,
+      uriPath: `namespaces.${name}.${namespace.type === "contract" ? "abiURI" : "uri"}`,
+      integrityPath: `namespaces.${name}.integrity`,
+    }]),
   )
 })
