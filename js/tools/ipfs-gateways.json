@@ -9,6 +9,7 @@
     "CLIENT_ID": "thirdweb project's client ID, intended for frontend use with domain restrictions; not its secret key."
   },
   "notes": [
+    "IPFS.io and dweb.link are no longer ordinary HTTP retrieval options: their sponsored public gateways retired on September 21, 2026. See https://gatewaychanges.ipfs.io/ and https://blog.ipfs.tech/2026-08-beyond-sponsored-gateways/.",
     "These are retrieval services, not publishing or pinning services. Content still needs an available provider or pin.",
     "No authentication requirement does not mean unlimited or free hosting: storage and egress billing depend on the content provider and service plan.",
     "Gateway authentication restricts that endpoint. It does not make publicly available IPFS content confidential or prevent retrieval through another provider.",
@@ -18,30 +19,6 @@
     "No live availability, CORS, performance, billing or service-level guarantee is asserted by this catalog. Consult the provider's current account settings and terms."
   ],
   "gateways": {
-    "ipfs-io": {
-      "responseFormat": "file",
-      "name": "IPFS.io",
-      "urlTemplate": "https://ipfs.io/ipfs/{CID}/{PATH}",
-      "authentication": "None.",
-      "contentScope": "Public IPFS content available from the network; decoded files and verifiable response formats.",
-      "notes": "Best-effort shared infrastructure. Shares backend capacity and rate limits with dweb.link and trustless-gateway.link; these are not independent failover services. Browser navigation can redirect to inbrowser.link.",
-      "references": [
-        "https://docs.ipfs.tech/concepts/public-utilities/",
-        "https://blog.ipfs.tech/2026-08-beyond-sponsored-gateways/"
-      ]
-    },
-    "dweb-link": {
-      "responseFormat": "file",
-      "name": "Dweb.link",
-      "urlTemplate": "https://{CID}.ipfs.dweb.link/{PATH}",
-      "authentication": "None.",
-      "contentScope": "Public IPFS content; each CID has its own browser origin. Subdomain CIDs must be CIDv1 in base32.",
-      "notes": "Same shared backend and limits as ipfs.io. Browser navigation can redirect to inbrowser.link. Origin isolation does not verify response bytes.",
-      "references": [
-        "https://docs.ipfs.tech/concepts/public-utilities/",
-        "https://blog.ipfs.tech/2026-08-beyond-sponsored-gateways/"
-      ]
-    },
     "trustless-gateway-link": {
       "responseFormat": "car",
       "name": "IPFS Foundation verifiable-response gateway",
