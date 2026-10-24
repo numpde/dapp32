@@ -56,16 +56,10 @@ button:not(.timestamp-options):not(:disabled):active {
 }
 
 .topbar {
-  margin-bottom: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
+  margin-bottom: 16px;
 }
 
-.ipfs-gateway { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; font-size: 0.85rem; color: var(--muted); }
-.ipfs-gateway select { max-width: 100%; padding: 6px 10px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
+.ipfs-gateway select { max-width: 100%; padding: 4px 8px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); color: inherit; font: inherit; }
 
 h1,
 h2,
@@ -82,9 +76,6 @@ h1 {
 }
 
 .connection {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   margin-bottom: 16px;
   padding-block: 4px 16px;
   border-bottom: 1px solid var(--line);
@@ -96,17 +87,10 @@ h1 {
   align-items: baseline;
 }
 
-.connection-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; }
-.connection-identities { display: flex; flex-wrap: wrap; gap: 8px 24px; min-width: 0; }
-.connection-identities > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 100%; }
-.connection-identities dt { flex: none; }
-.connection-identities code { font-size: inherit; }
-.connection-details { min-width: 0; font-size: 0.82rem; }
-.connection-details > summary { width: fit-content; color: var(--muted); cursor: pointer; }
-.connection-details .field-hint { font-size: inherit; }
-.connection-facts { display: grid; gap: 8px; padding-top: 12px; }
-.connection-facts > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 6px; }
-.connection-facts dd { color: var(--muted); }
+.connection-facts { display: grid; gap: 8px; }
+.connection-facts > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.connection-facts code { font-size: inherit; }
+.connection-facts .wallet-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 
 dt {
   color: var(--muted);

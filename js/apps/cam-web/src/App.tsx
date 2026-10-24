@@ -694,16 +694,9 @@ export function App(): ReactElement {
     return sendRevision.current === revision
   }
 
-  return (
-    <IpfsGatewayContext value={gatewayRef.current}>
-    <IpfsResourceContext value={registerIpfsResource}>
-    <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <h1>{headerTitle(loadState)}</h1>
-        </div>
-        {bundleUsesIpfs || ipfsResourceCount > 0 ? <div className="ipfs-gateway">
-          <label htmlFor="ipfs-gateway-choice">IPFS gateway</label>
+  const gatewayControl = bundleUsesIpfs || ipfsResourceCount > 0 ? <div className="ipfs-gateway">
+        <dt><label htmlFor="ipfs-gateway-choice">IPFS gateway</label></dt>
+        <dd>
           <select id="ipfs-gateway-choice" value={gatewayId} aria-describedby="ipfs-gateway-help" onChange={event => {
             const selected = publicIpfsGateways.find(gateway => gateway.id === event.currentTarget.value)!
             gatewayRef.current = selected.template
@@ -717,26 +710,29 @@ export function App(): ReactElement {
             {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
           </select>
           <span id="ipfs-gateway-help" className="visually-hidden">Used for new IPFS downloads.</span>
-        </div> : null}
+        </dd>
+      </div> : null
+
+  return (
+    <IpfsGatewayContext value={gatewayRef.current}>
+    <IpfsResourceContext value={registerIpfsResource}>
+    <main className="app-shell">
+      <header className="topbar">
+        <h1>{headerTitle(loadState)}</h1>
       </header>
-      {loadState.status !== "ready" ? null : (
+      {loadState.status === "ready" ? (
         <ConnectionSummary
           chainId={loadState.runtime.startup.chainId}
           host={loadState.runtime.startup.host}
           account={currentViewerAccount(loadState)}
           wallet={walletRefreshing ? "Updating account…" : walletLabel(wallet)}
-          walletHint={wallet.status === "unavailable"
-            ? "No wallet detected. You can still view the app."
-            : wallet.status === "connected"
-              ? "Switching wallet accounts updates Viewing as and clears the transaction review."
-              : "Connecting changes Viewing as to your wallet’s active account. You’ll need to review any transaction again."}
           walletAction={wallet.status === "unavailable" ? null : (
             <button className="wallet-button" type="button" disabled={changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
               {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
             </button>
           )}
-        />
-      )}
+        >{gatewayControl}</ConnectionSummary>
+      ) : gatewayControl && <dl className="connection connection-facts">{gatewayControl}</dl>}
 
       {loadState.status === "ready" ? <IntegrityWarnings warnings={loadState.snapshot.integrityWarnings} /> : null}
       {notice === undefined ? null : (

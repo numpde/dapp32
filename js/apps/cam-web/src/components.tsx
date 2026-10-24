@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
-import type { ReactElement, Ref } from "react"
+import type { ReactElement, ReactNode, Ref } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import { isDocumentHashDigest } from "@cam/protocol"
@@ -22,9 +22,6 @@ import type {
 } from "@cam/viewer"
 
 import {
-  shortenAddress,
-} from "./evm.ts"
-import {
   displayText,
   formatInertValue,
 } from "./display.ts"
@@ -41,33 +38,24 @@ export function ConnectionSummary({
   account,
   wallet,
   walletAction,
-  walletHint,
+  children,
 }: {
   readonly chainId: string
   readonly host: string
   readonly account: string
   readonly wallet: string
   readonly walletAction: ReactElement | null
-  readonly walletHint: string
+  readonly children?: ReactNode
 }): ReactElement {
   return (
     <section className="connection" aria-label="Account and wallet">
-      <div className="connection-summary">
-        <dl className="connection-identities">
-          <div><dt>Viewing as</dt><dd><code title={account}>{shortenAddress(account)}</code></dd></div>
-          <div><dt>Signing wallet</dt><dd role="status">{wallet}</dd></div>
-        </dl>
-        {walletAction}
-      </div>
-      <details className="connection-details">
-        <summary>Connection details · {chainId}</summary>
-        <p className="field-hint">Viewing as shows the actions available to that address.</p>
-        <p className="field-hint">{walletHint}</p>
-        <dl className="connection-facts">
-          <div><dt>Viewing address</dt><dd><code>{account}</code></dd></div>
-          <div><dt>CAM contract</dt><dd><code>{host}</code></dd></div>
-        </dl>
-      </details>
+      <dl className="connection-facts">
+        <div><dt>Viewing as</dt><dd><code>{account}</code></dd></div>
+        <div><dt>Signing wallet</dt><dd className="wallet-value"><span role="status">{wallet}</span>{walletAction}</dd></div>
+        <div><dt>Chain</dt><dd>{chainId}</dd></div>
+        <div><dt>CAM contract</dt><dd><code>{host}</code></dd></div>
+        {children}
+      </dl>
     </section>
   )
 }

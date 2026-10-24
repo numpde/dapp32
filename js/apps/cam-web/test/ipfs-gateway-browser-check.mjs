@@ -59,6 +59,7 @@ try {
   assert(!options.some(id => /dedicated|thirdweb|trustless/.test(id)), 'unconfigured credentials and CAR responses are not offered as file gateways')
   await select('pinata-public')
   await wait('!!document.querySelector("input[name=draft]")')
+  assert(await evaluate('!!document.querySelector(".connection .ipfs-gateway")&&!document.querySelector(".connection details")'), 'the gateway shares the always-visible connection facts')
   assert(await evaluate('document.querySelector(".ui-meta").textContent.includes("ipfs://")'), 'UI identity retains its logical IPFS URI')
   await evaluate(`(() => {const input=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Keep this draft');input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.ipfs-gateway select').focus()})()`)
   const before = await evaluate('({href:location.href,requests:gatewayFixture.requests.length,account:document.querySelector(".connection").textContent})')

@@ -119,7 +119,7 @@ export function initialWalletState(): WalletState {
 export function walletLabel(wallet: WalletState): string {
   switch (wallet.status) {
     case "unavailable":
-      return "Unavailable"
+      return "Not detected"
     case "disconnected":
       return "Not connected"
     case "connected":

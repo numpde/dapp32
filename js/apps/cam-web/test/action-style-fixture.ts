@@ -48,7 +48,6 @@ function render(): void {
       chainId: "eip155:31337", host: "0x3333333333333333333333333333333333333333",
       account: "0x1111111111111111111111111111111111111111",
       wallet: "0x2222222222222222222222222222222222222222",
-      walletHint: "Switching wallet accounts updates Viewing as and clears the transaction review.",
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
     createElement(UiView, props),
