@@ -5,7 +5,7 @@ import type { InertRecord } from "@cam/protocol"
 import { parseUi, resolveInitialUiNode, resolveUiNode, resolvedUiButtons, forEachResolvedUiNode } from "../src/index.ts"
 import type { ResolvedUiNode, UiRuntimeContext } from "../src/index.ts"
 import { bikeUiBytes } from "../../../../tests/fixtures/cam/bike-resources.mts"
-import { BIKE_ACCOUNT_ADDRESS, BIKE_COMPONENTS_ADDRESS, BIKE_SERIAL_NUMBER, BIKE_TOKEN_ID, bikeHost } from "../../../../tests/fixtures/cam/bike.mts"
+import { BIKE_ACCOUNT_ADDRESS, BIKE_COMPONENTS_ADDRESS, BIKE_SERIAL_NUMBER, BIKE_TOKEN_ID, bikeHost, bikeEntryRouteResult, bikeComponentRouteResult, bikeRegisterRouteResult } from "../../../../tests/fixtures/cam/bike.mts"
 import { BUYER, WORKSHOP, OTHER_WORKSHOP, PREVIEW_EXPIRY, ownerComponentView, workshopView } from "../../../../tests/fixtures/cam/bike-owner-workflows.mts"
 
 const context: UiRuntimeContext = { host: bikeHost, account: { address: BIKE_ACCOUNT_ADDRESS }, inputs: {}, outputs: [], state: {} }
@@ -17,6 +17,28 @@ function args(view: Record<string, unknown>): InertRecord {
   return { view: toInertValue(normalized) }
 }
 const render = (view: Record<string, unknown>) => resolveInitialUiNode(ui(), "app", args(view), context)
+
+test("every Bike task exposes the same input-independent app destinations", () => {
+  const authority = { target: BIKE_COMPONENTS_ADDRESS, current: BIKE_ACCOUNT_ADDRESS, pending: BUYER, readyAt: "0", status: "Pending" }
+  const screens = [
+    render(bikeEntryRouteResult(BIKE_ACCOUNT_ADDRESS)),
+    ...["", "UNKNOWN", BIKE_SERIAL_NUMBER].map(serial => render(bikeComponentRouteResult(serial, BIKE_ACCOUNT_ADDRESS, "active"))),
+    ...["", "UNKNOWN", BIKE_SERIAL_NUMBER].map(serial => render(bikeRegisterRouteResult(serial, BIKE_ACCOUNT_ADDRESS))),
+    render(workshopView()),
+    resolveInitialUiNode(ui(), "deploymentHandovers", args({ cam: authority, components: authority, manager: authority, actions: [] }), context),
+  ]
+  for (const screen of screens) {
+    const groups: ResolvedUiNode[] = []
+    forEachResolvedUiNode(screen.resolvedUi, node => { if (node.element === "Screen" && node.props.title === "App navigation") groups.push(node) })
+    assert.equal(groups.length, 1, "each task has one navigation group")
+    assert.deepEqual(resolvedUiButtons(groups[0]!).map(button => ({ label: button.props.label, route: button.call.function, args: { ...button.call.args }, enabled: button.disabled !== true })), [
+      { label: "Find a component", route: "entry", args: {}, enabled: true },
+      { label: "Register a component", route: "register", args: { serialNumber: "" }, enabled: true },
+      { label: "Deployment handovers", route: "deploymentHandovers", args: {}, enabled: true },
+    ])
+  }
+  assert.deepEqual(button(render(workshopView()).resolvedUi, "component").call.args, toInertValue({ serialNumber: BIKE_SERIAL_NUMBER }), "returning to the loaded component remains contextual")
+})
 
 function button(node: ResolvedUiNode, route: string) {
   const found = resolvedUiButtons(node).find(candidate => candidate.call.function === route)
