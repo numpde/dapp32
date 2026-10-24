@@ -6,7 +6,8 @@ import "../src/styles.css"
 
 const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
 const mode = new URL(location.href).searchParams.get("scenario") ?? "fail"
-const logicalRoot = mode === "https" ? "https://raw.githubusercontent.com/bundle/main.json" : `ipfs://${cid}/bundle/main.json`
+const httpsRoot = "https://raw.githubusercontent.com/bundle/main.json"
+const logicalRoot = mode === "https" ? httpsRoot : `ipfs://${cid}/bundle/main.json`
 const host = "0x0000000000000000000000000000000000000001"
 const address = "0x0000000000000000000000000000000000000002"
 const account = "0x0000000000000000000000000000000000000003"
@@ -16,7 +17,7 @@ const rootAbi = parseAbi(["function camManifest() view returns ((string uri, byt
 const screen = (title: string) => ({ element: "Screen", requires: [], props: { title }, children: [
   { element: "TextField", props: { label: "Draft" }, state: { key: "draft", defaultValue: "" } },
   { element: "Button", props: { label: "Next view" }, call: { namespace: "routes", function: "detail", args: {} } },
-  ...(mode === "https" ? [
+  ...(mode === "https" || mode === "recover" ? [
     { element: "NftMetadataField", props: { label: "NFT metadata" }, state: { key: "metadataURI", defaultValue: "" } },
     { element: "TextField", props: { label: "Document URI" }, state: { key: "documentURI", defaultValue: "" } },
     { element: "DocumentHashField", props: { label: "Document hash", algorithm: "sha256", sourceURI: "$state.documentURI" }, state: { key: "digest", defaultValue: "" } },
@@ -42,12 +43,12 @@ window.fetch = async (input, init) => {
   if (new URL(href).origin === "https://rpc.fixture.test") {
     const rpc = JSON.parse(String(init?.body)) as { method: string; id: number; params: [{ data?: string }] }
     let result: string
-    if (rpc.method === "eth_chainId") result = "0x7a69"
+    if (rpc.method === "eth_chainId") result = mode === "retry-chain" && rootAttempts > 0 ? "0x1" : "0x7a69"
     else if (rpc.method === "eth_getCode") result = "0x6000"
     else if (rpc.method === "eth_call") {
       const selector = rpc.params[0].data?.slice(0, 10)
       if (selector === toFunctionSelector("supportsInterface(bytes4)")) result = encodeAbiParameters([{ type: "bool" }], [true])
-      else if (selector === toFunctionSelector("camManifest()")) result = encodeFunctionResult({ abi: rootAbi, functionName: "camManifest", result: { uri: logicalRoot, sha256Digest: sha256(camBytes) } })
+      else if (selector === toFunctionSelector("camManifest()")) result = encodeFunctionResult({ abi: rootAbi, functionName: "camManifest", result: { uri: mode === "recover" && rootAttempts > 0 ? httpsRoot : logicalRoot, sha256Digest: sha256(camBytes) } })
       else if (selector === toFunctionSelector("contractAddress(string)")) result = encodeAbiParameters([{ type: "address" }], [address])
       else if (selector === toFunctionSelector("read()")) result = encodeAbiParameters([{ type: "uint256" }], [7n])
       else throw new Error(`Unexpected fixture contract selector: ${selector}`)
@@ -60,7 +61,7 @@ window.fetch = async (input, init) => {
     if (rootAttempts === 1 && mode === "hold") return new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => { aborted++; reject(init.signal!.reason) }, { once: true })
     })
-    if (rootAttempts === 1 && mode === "fail") return new Response("Fixture gateway unavailable", { status: 503 })
+    if (rootAttempts === 1 && ["fail", "recover", "retry-chain"].includes(mode)) return new Response("Fixture gateway unavailable", { status: 503 })
     return new Response(mode === "corrupt" ? new Uint8Array([...camBytes, 32]) : camBytes)
   }
   if (href.endsWith("/bundle/protocol.html")) return new Response(protocolBytes)

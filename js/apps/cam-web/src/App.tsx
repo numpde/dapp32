@@ -159,6 +159,7 @@ export function App(): ReactElement {
 
   useEffect(() => {
     let cancelled = false
+    let attemptUsesIpfs: boolean | undefined
     const controller = new AbortController()
     resourceLoadAbortRef.current = controller
     let loadedSession: CamViewerSession | undefined
@@ -183,7 +184,10 @@ export function App(): ReactElement {
           inputs: startup.inputs,
           ...(startup.route === undefined ? {} : { route: startup.route }),
           loadResource: uri => {
-            if (!cancelled && !controller.signal.aborted && uri.startsWith("ipfs://")) setBundleUsesIpfs(true)
+            if (!cancelled && !controller.signal.aborted) {
+              attemptUsesIpfs = attemptUsesIpfs === true || uri.startsWith("ipfs://")
+              if (attemptUsesIpfs) setBundleUsesIpfs(true)
+            }
             return createPinnedOriginResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri)
           },
         })
@@ -191,6 +195,7 @@ export function App(): ReactElement {
         loadedSession = session
 
         if (!cancelled && !controller.signal.aborted) {
+          if (attemptUsesIpfs !== undefined) setBundleUsesIpfs(attemptUsesIpfs)
           const ready = {
             status: "ready" as const,
             runtime: {
@@ -204,6 +209,7 @@ export function App(): ReactElement {
         }
       } catch (error) {
         if (!cancelled && !controller.signal.aborted) {
+          if (attemptUsesIpfs !== undefined) setBundleUsesIpfs(attemptUsesIpfs)
           setLoadState({
             status: "failed",
             failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
