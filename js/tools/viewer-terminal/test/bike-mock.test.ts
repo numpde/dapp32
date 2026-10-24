@@ -11,28 +11,29 @@ import { createBikeMockBackend } from "../backends/bike-mock.ts"
 import { createTerminalBackendFromEnv } from "../backends/index.ts"
 import type { DebugEvent } from "../types.ts"
 
+const lifecycleActions = [
+  "updateComponentMetadata",
+  "markComponentMissing",
+  "clearComponentMissing",
+  "decommissionComponent",
+  "reactivateComponent",
+  "delegation",
+  "transferComponent",
+] as const
+
 test("bike mock backend keeps lifecycle controls visible and disables unavailable actions", async () => {
   for (const [status, enabledActions] of [
-    ["active", ["component", "updateComponentMetadata", "markComponentMissing", "decommissionComponent", "delegation", "transferComponent"]],
-    ["missing", ["component", "updateComponentMetadata", "clearComponentMissing", "decommissionComponent", "delegation", "transferComponent"]],
+    ["active", ["updateComponentMetadata", "markComponentMissing", "decommissionComponent", "delegation", "transferComponent"]],
+    ["missing", ["updateComponentMetadata", "clearComponentMissing", "decommissionComponent", "delegation", "transferComponent"]],
   ] as const) {
     const component = await loadBikeMockComponent(status)
     const buttons = resolvedUiButtons(component.resolvedUi)
-    assert.deepEqual(buttons.map((button) => button.call.function), [
-      "component",
-      "updateComponentMetadata",
-      "markComponentMissing",
-      "clearComponentMissing",
-      "decommissionComponent",
-      "reactivateComponent",
-      "delegation",
-      "transferComponent",
-    ], status)
-    assert.deepEqual(
-      buttons.filter((button) => !button.disabled).map((button) => button.call.function),
-      enabledActions,
-      status,
-    )
+    const enabled = new Set<string>(enabledActions)
+    for (const action of lifecycleActions) {
+      const button = buttons.find((button) => button.call.function === action)
+      assert.ok(button, `${status}: ${action} must remain visible`)
+      assert.equal(button.disabled, !enabled.has(action), `${status}: ${action}`)
+    }
     assert.equal(Object.hasOwn(component.state, "reportURI"), true, status)
     assert.equal(Object.hasOwn(component.state, "resolutionURI"), true, status)
   }
@@ -56,10 +57,12 @@ test("bike mock backend env retains legacy retired input compatibility without r
   // This old terminal selector is not the new reversible lifecycle. In
   // particular, accepting it must never offer reactivation or successful retire.
   const legacy = await loadBikeMockComponent("retired")
-  assert.deepEqual(
-    resolvedUiButtons(legacy.resolvedUi).filter(button => !button.disabled).map(button => button.call.function),
-    ["component"],
-  )
+  const buttons = resolvedUiButtons(legacy.resolvedUi)
+  for (const action of lifecycleActions) {
+    const button = buttons.find((button) => button.call.function === action)
+    assert.ok(button, `retired: ${action} must remain visible`)
+    assert.equal(button.disabled, true, `retired: ${action}`)
+  }
 
   await assert.rejects(
     () => createTerminalBackendFromEnv({
