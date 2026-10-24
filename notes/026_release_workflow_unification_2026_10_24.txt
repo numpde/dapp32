@@ -81,7 +81,7 @@ repeat Anvil build/image confinement, command and health policy, also repeated
 in compose/anvil.yml. Their Foundry deploy services repeat a second common
 confinement/cache/tmpfs shape. A shared Foundry fragment can own these shapes;
 networks, ports, source mounts, accounts and scripts remain explicit consumers.
-Preserve the generic chain's existing health timing as an explicit override.
+Preserve generic Anvil's health timing; fixture timing remains an explicit override.
 This is a separate runtime-posture slice, not a reason to parameterize seeding.
 
 Application differences to preserve
@@ -190,7 +190,22 @@ cross-checkout retained-source operation is artifact completion: current host
 orchestration selects the saved source and runs that source's artifact tools.
 Do not confuse the wrapper test with proof of this recovery path.
 
-C deployment and D remain to be implemented and qualified. Host workflow
+D: compose/fragments/foundry.yml now owns Anvil and local-deployer posture;
+all three local deploy stacks and generic Anvil consume it. Five rendered
+configuration comparisons preserved all service/network/volume behavior. The
+three app documents and release-network document matched exactly. Manual
+Anvil differed only by removal of the obsolete x-anvil-base metadata anchor.
+All 13 focused Compose tests and the manual-network boundary test passed.
+No chain or app service was started or restarted for this extraction.
+
+The broader rendered-Compose suite exposed existing test drift: it renders the
+rehearsal-artifact overlay without its base/app files, and separately mirrors
+an outdated fixture-environment dictionary. These are not configuration changes
+caused by D. Its failed log is retained at
+/tmp/cam-release-unification-rendered-20261024.log. Correct the relevant
+artifact render inventory before final whole-workflow qualification.
+
+C deployment and final committed-source qualification remain. Host workflow
 changes must preserve the existing entrypoint/environment contracts when
 consuming an older archived release source; they cannot assume a newly added
 helper exists in that older archive.

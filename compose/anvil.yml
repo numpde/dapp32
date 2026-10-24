@@ -13,50 +13,14 @@
 #
 # Keep external RPC access separate in compose/cast.yml behind rpc-proxy. Do
 # not weaken that proxy for local networks.
-x-anvil-base: &anvil_base
-  # Anvil uses the shared Foundry image defined in
-  # containers/foundry/Dockerfile. Runtime confinement lives here.
-  build:
-    context: ../containers/foundry
-    dockerfile: Dockerfile
-  working_dir: /work
-  init: true
-  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-  read_only: true
-  security_opt:
-    - no-new-privileges:true
-  cap_drop:
-    - ALL
-  pids_limit: 256
-  mem_limit: 1g
-  environment:
-    HOME: /tmp/home
-  tmpfs:
-    - /tmp:rw,nosuid,nodev,noexec,size=256m
-  command:
-    - "anvil"
-    - "--host"
-    - "0.0.0.0"
-    - "--port"
-    - "8545"
-  healthcheck:
-    test:
-      - "CMD"
-      - "cast"
-      - "block-number"
-      - "--rpc-url"
-      - "http://127.0.0.1:8545"
-    interval: 5s
-    timeout: 3s
-    retries: 12
-    start_period: 2s
-
 services:
   # Docker-only local chain for future container-to-container integration work.
   # No host process can reach this RPC unless another container on this Compose
   # network exposes it.
   anvil-internal:
-    <<: *anvil_base
+    extends:
+      file: fragments/foundry.yml
+      service: anvil
     profiles:
       - internal
     networks:
@@ -69,7 +33,9 @@ services:
   # publish host ports from internal-only networks. That intentionally allows
   # container egress; keep this service free of repo mounts and secrets.
   anvil-host:
-    <<: *anvil_base
+    extends:
+      file: fragments/foundry.yml
+      service: anvil
     profiles:
       - host
     networks:
