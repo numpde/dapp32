@@ -1,0 +1,29 @@
+# Portable runtime: copy this file with a prebuilt image; no checkout is mounted.
+services:
+  viewer:
+    image: ${VIEWER_IMAGE:?Set_VIEWER_IMAGE_to_a_prebuilt_viewer_image}
+    pull_policy: never
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1
+    mem_limit: 128m
+    pids_limit: 64
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m"]
+    ports: ["127.0.0.1:${VIEWER_PORT:?Set_VIEWER_PORT_to_an_unprivileged_host_port}:8080"]
+    networks: [viewer]
+    restart: unless-stopped
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/healthz]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 2s
+
+networks:
+  viewer: {}

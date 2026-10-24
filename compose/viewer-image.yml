@@ -1,0 +1,40 @@
+# Compile the checkout offline; only the project-owned output volume is writable.
+services:
+  viewer-build:
+    image: dapp32-viewer-builder:local
+    extends:
+      file: fragments/node-workspace.yml
+      service: offline-node-workspace
+    build:
+      context: ../containers/node-deps
+      network: none
+    working_dir: /work/js
+    environment:
+      VITE_CAM_WEB_RESOURCE_ORIGIN: "*"
+    volumes:
+      - type: bind
+        source: ../js
+        target: /input/js
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../js/node_modules
+        target: /work/js/node_modules
+        read_only: true
+        bind: {create_host_path: false}
+      - type: volume
+        source: output
+        target: /out
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:packages
+        npm run build -w cam-web
+        mkdir /out/site
+        cp -R apps/cam-web/dist/. /out/site/
+
+volumes:
+  output: {}

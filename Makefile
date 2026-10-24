@@ -20,6 +20,10 @@ DEPENDENCY_METADATA_FILES := $(DAPPS_DIR)/soldeer.lock $(DAPPS_DIR)/remappings.t
 PACKAGE_MANIFEST_FILE := $(JS_DIR)/package.json
 PACKAGE_NODE_MODULES_DIR := $(JS_DIR)/node_modules
 PACKAGE_LOCK_FILE := $(JS_DIR)/package-lock.json
+VIEWER_IMAGE ?= dapp32-viewer:local
+VIEWER_PORT ?= 8080
+VIEWER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-viewer
+export VIEWER_IMAGE VIEWER_PORT VIEWER_COMPOSE_PROJECT_NAME
 RELEASE_ARTIFACT_NODE_MODULES_DIR ?= $(CURDIR)/js/node_modules
 export RELEASE_ARTIFACT_NODE_MODULES_DIR
 ACTUAL_UID := $(shell id -u)
@@ -136,6 +140,7 @@ LOCAL_RELEASE_NETWORK := $(LOCAL_RELEASE_PROJECT)_anvil_internal
 RELEASE_VIEWER_PORT ?= 5174
 RELEASE_VIEWER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-release-viewer
 COMPOSE_PROJECT_NAME_VARS += RELEASE_VIEWER_COMPOSE_PROJECT_NAME
+COMPOSE_PROJECT_NAME_VARS += VIEWER_COMPOSE_PROJECT_NAME
 export RELEASE_VIEWER_COMPOSE_PROJECT_NAME
 export RELEASE_VIEWER_PORT
 ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/browser-check.yml
@@ -753,6 +758,16 @@ help:
 	  '    and REFUND_STATE_DIR: an existing directory outside the repo, owned by you, with mode 0700.' \
 	  '    Keep that directory for safe retries. Configuration examples: js/tools/pay-to-play-refunds/README.md.' \
 	  '' \
+	  'Run the static viewer from this host checkout (no release or publishing):' \
+	  '  make viewer/image/build         Build dapp32-viewer:local offline from the current checkout.' \
+	  '    Requires installed locked dependencies (make js/deps/install) and locally available pinned base images.' \
+	  '  make viewer/up                  Start the built image at http://127.0.0.1:8080; no build or pull.' \
+	  '  make viewer/status              Show this viewer container and its health.' \
+	  '  make viewer/down                Stop this viewer; does not touch chains or development viewers.' \
+	  '    VIEWER_IMAGE selects the local image; VIEWER_PORT selects a host port from 1024 to 65535.' \
+	  '    Select the same Docker context for build and start. Rootless resource limits need cgroup v2/systemd delegation.' \
+	  '    Forward an existing HTTPS proxy to this loopback port. The browser needs a chain/host/account/RPC link.' \
+	  '' \
 	  'Prepare CAM publication (validate local files; no upload or contract deployment):' \
 	  '  make bike-nft/cam/publication/preflight CAM_URI=URI      Print CAM_HASH for the local Bike NFT bundle.' \
 	  '  make escrow/cam/publication/preflight CAM_URI=URI        Print CAM_HASH for the local Escrow bundle.' \
@@ -1303,6 +1318,25 @@ cam/abi/export: dapps/deps/verify
 	$(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi-plan; \
 	$(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
+
+.PHONY: viewer/image/build viewer/up viewer/down viewer/status
+viewer/image/build:
+	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); bash tools/viewer_image_build.sh "$$VIEWER_IMAGE"
+
+define production_viewer_compose
+@$(LANE_GUARD); \
+if [[ ! "$$VIEWER_PORT" =~ ^[1-9][0-9]{3,4}$$ || "$$VIEWER_PORT" -lt 1024 || "$$VIEWER_PORT" -gt 65535 ]]; then printf '%s\n' 'VIEWER_PORT must be an integer from 1024 to 65535.' >&2; exit 2; fi; \
+$(DOCKER_COMPOSE) --env-file /dev/null -p "$$VIEWER_COMPOSE_PROJECT_NAME" -f $(COMPOSE_DIR)/viewer.yml $(1)
+endef
+
+viewer/up:
+	$(call production_viewer_compose,up -d --no-build --pull never --wait --wait-timeout 30)
+
+viewer/down:
+	$(call production_viewer_compose,down --timeout 10)
+
+viewer/status:
+	$(call production_viewer_compose,ps)
 
 cam/integrity/refresh:
 	@$(LANE_GUARD); \

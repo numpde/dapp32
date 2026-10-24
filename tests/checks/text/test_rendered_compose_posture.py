@@ -243,6 +243,39 @@ def compose_config_process(
 
 
 class RenderedComposePostureTest(unittest.TestCase):
+    def test_production_viewer_serves_only_a_prebuilt_image_without_source_mounts(self) -> None:
+        config = rendered_compose_config("compose/viewer.yml", env={
+            "VIEWER_IMAGE": "sha256:" + "a" * 64,
+            "VIEWER_PORT": "8080",
+        })
+        self.assertEqual({"viewer"}, set(config["services"]))
+        viewer = config["services"]["viewer"]
+        self.assertNotIn("build", viewer)
+        self.assertNotIn("volumes", viewer)
+        self.assertNotIn("environment", viewer)
+        self.assertEqual("never", viewer["pull_policy"])
+        self.assertNotIn(viewer["user"].split(":")[0], ("0", "root"))
+        self.assertTrue(viewer["read_only"])
+        self.assertEqual(["ALL"], viewer["cap_drop"])
+        self.assertIn("no-new-privileges:true", viewer["security_opt"])
+        self.assertEqual(8080, viewer["ports"][0]["target"])
+        self.assertEqual("127.0.0.1", viewer["ports"][0]["host_ip"])
+        self.assertTrue(viewer["networks"])
+
+    def test_production_viewer_build_has_offline_inputs_and_an_engine_owned_output(self) -> None:
+        config = rendered_compose_config("compose/viewer-image.yml")
+        builder = config["services"]["viewer-build"]
+        self.assertEqual("none", builder["network_mode"])
+        self.assertEqual("none", builder["build"]["network"])
+        self.assertNotIn(builder["user"].split(":")[0], ("0", "root"))
+        self.assertTrue(builder["read_only"])
+        inputs = {mount["target"]: mount for mount in builder["volumes"]}
+        self.assertEqual({"/input/js", "/work/js/node_modules", "/out"}, set(inputs))
+        for target in ("/input/js", "/work/js/node_modules"):
+            self.assertTrue(inputs[target]["read_only"])
+            self.assertIsNot(inputs[target]["bind"].get("create_host_path"), True)
+        self.assertEqual("volume", inputs["/out"]["type"])
+
     def test_cam_refresh_guards_the_canonical_source_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         first_party_roots = re.search(r"^FIRST_PARTY_ROOTS := (.+)$", makefile, re.MULTILINE)

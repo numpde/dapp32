@@ -76,6 +76,33 @@ The RPC URL is visible in the browser link, so use a browser-public endpoint.
 This command does not read a signing configuration or private key. For scripts,
 supply `DEPLOYMENT_ARTIFACT_FILE` and `PUBLIC_RPC_URL` directly; no prompts appear.
 
+For a static viewer on a host with this checkout, run:
+
+```sh
+make viewer/image/build
+make viewer/up
+make viewer/status
+```
+
+The build uses the current checkout and already installed locked dependencies,
+offline. Install those separately with `make js/deps/install`. The build also
+requires the digest-pinned Node and Nginx base images to be available locally;
+it reports a missing prerequisite rather than pulling it. Nothing is published.
+The local `dapp32-viewer:local` image contains compiled files and Nginx, with no
+runtime Node process, source mounts or signing configuration. Rebuild explicitly
+after changing the source; starting the viewer does not rebuild or pull images.
+
+The server listens at `http://127.0.0.1:8080`. Put an existing HTTPS proxy in
+front of it; use `VIEWER_PORT` to choose another unprivileged host port.
+Open a viewer link with `chainId`, `host`, `account` and a browser-accessible
+`rpcUrl`; the bare page does not select an example app or chain for you.
+`make viewer/down` stops only this viewer project. Use the same Docker context
+for build and start; select your rootless context first for rootless operation.
+Images belong to the selected Docker engine. Rootless Docker can run this
+non-root container on port 8080; enforcing its resource limits requires cgroup
+v2 and systemd delegation. The server serves files only: browser RPC and CAM
+requests still depend on the destination servers' CORS support.
+
 Docker with Compose and Make are the supported development entrypoints. Run
 `make help` for available lanes. Before building, testing, or running a local
 demo, materialize the locked dependencies:
