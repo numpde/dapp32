@@ -96,6 +96,11 @@ qualification. A fresh workspace has no compiler cache; OS page caches are
 not cleared. Compare matching workloads and container limits. This command
 does not replace `make js/ci` and sets no CI performance threshold.
 
+The workspace pins native TypeScript 7.0.2. The shared compiler configuration
+and the web app's standalone configuration use one checker to reduce duplicated
+type-checking work within the existing 1 GiB containers. Full dependency
+declaration checks remain enabled.
+
 Conformance checks find publication defects in supplied bundles; they do not
 prove live contract state, wallet authority, or that a transaction will succeed.
 

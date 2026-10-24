@@ -18,8 +18,8 @@ services:
     mem_limit: 1g
     environment:
       HOME: /tmp/home
-      # Allow full dependency declaration checks within the 1 GiB container,
-      # leaving part of that budget for native allocations and staged sources.
+      # Bound Node-based build/test tools. The native TypeScript compiler
+      # is limited by the container's memory budget rather than this heap cap.
       NODE_OPTIONS: --max-old-space-size=768
       npm_config_cache: /tmp/npm-cache
       npm_config_audit: "false"
