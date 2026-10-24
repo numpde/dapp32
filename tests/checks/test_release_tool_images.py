@@ -119,8 +119,8 @@ release_tool_images_prepare_network /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 
     def test_artifact_completion_has_only_read_only_rpc_and_artifact_authority(self):
         result, builds, overlays = self.run_case(r'''
-release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"
-release_tool_images_prepare_artifact /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
+release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"
+release_tool_images_prepare_artifact /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
 ''')
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(2, builds)
@@ -131,8 +131,14 @@ release_tool_images_prepare_artifact /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
             for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
                 files = makefile_compose_unit(f"{app}_RELEASE_ARTIFACT_COMPOSE_FILES")
                 config = rendered_compose_config((*files, str(overlay)), env={"RELEASE_SOURCE_DIR": "/tmp/original-source"})
-                self.assertEqual({"release-artifact", "release-artifact-rpc-proxy"}, config["services"].keys())
+                self.assertEqual({"release-artifact-dependencies", "release-artifact", "release-artifact-rpc-proxy"}, config["services"].keys())
                 self.assertNotIn("secrets", config)
+                admission = config["services"]["release-artifact-dependencies"]
+                self.assertEqual("none", admission["network_mode"])
+                self.assertNotIn("depends_on", admission)
+                self.assertEqual({"/input/js", "/work/js/node_modules"}, {mount["target"] for mount in admission["volumes"]})
+                self.assertTrue(all(mount["read_only"] for mount in admission["volumes"]))
+                self.assertEqual("run-js-workspace", admission["command"][0])
                 proxy = config["services"]["release-artifact-rpc-proxy"]
                 methods = set(proxy["environment"]["RPC_ALLOWED_METHODS"].split())
                 self.assertNotIn("eth_sendRawTransaction", methods)
@@ -146,6 +152,28 @@ release_tool_images_prepare_artifact /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
                 for service in config["services"].values():
                     self.assertNotIn("build", service)
                     self.assertEqual("never", service["pull_policy"])
+
+    def test_recovery_keeps_historical_app_runtime_and_current_admission_and_transport(self):
+        result, _, overlays = self.run_case(r'''
+release_tool_image() {
+  case "$2:$3" in
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:node-deps) printf 'sha256:%064d\n' 1 ;;
+    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:node-deps) printf 'sha256:%064d\n' 2 ;;
+    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:rpc-proxy) printf 'sha256:%064d\n' 3 ;;
+    *) return 88 ;;
+  esac
+}
+release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
+''')
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        with tempfile.TemporaryDirectory() as directory:
+            overlay = Path(directory) / "images-artifact.yml"
+            overlay.write_text(overlays[overlay.name])
+            files = makefile_compose_unit("ESCROW_RELEASE_ARTIFACT_COMPOSE_FILES")
+            services = rendered_compose_config((*files, str(overlay)))["services"]
+            self.assertEqual("sha256:" + "1".zfill(64), services["release-artifact"]["image"])
+            self.assertEqual("sha256:" + "2".zfill(64), services["release-artifact-dependencies"]["image"])
+            self.assertEqual("sha256:" + "3".zfill(64), services["release-artifact-rpc-proxy"]["image"])
 
     def test_engine_or_build_failure_publishes_no_runtime_overrides(self):
         for failure in ("inventory", "build", "inspect"):

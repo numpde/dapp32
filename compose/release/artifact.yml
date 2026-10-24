@@ -22,8 +22,30 @@ x-rpc-url-bind: &rpc_url_bind
   target: /run/inputs/rpc_url
   read_only: true
   bind: {create_host_path: false}
+x-source-js: &source_js
+  type: bind
+  source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js"
+  target: /input/js
+  read_only: true
+  bind: {create_host_path: false}
+x-source-node-modules: &source_node_modules
+  type: bind
+  source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules"
+  target: /work/js/node_modules
+  read_only: true
+  bind: {create_host_path: false}
 
 services:
+  release-artifact-dependencies:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work/js
+    volumes:
+      - *source_js
+      - *source_node_modules
+    command: [run-js-workspace, printf, "%s\n", "Saved-source JavaScript dependency graph admitted."]
+
   release-artifact-rpc-proxy:
     extends:
       file: ../fragments/release-rpc-proxy.yml
@@ -50,16 +72,8 @@ services:
       release-artifact-rpc-proxy:
         condition: service_healthy
     volumes:
-      - type: bind
-        source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js"
-        target: /input/js
-        read_only: true
-        bind: {create_host_path: false}
-      - type: bind
-        source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules"
-        target: /work/js/node_modules
-        read_only: true
-        bind: {create_host_path: false}
+      - *source_js
+      - *source_node_modules
       - *plan_read
       - *broadcast_read
       - *artifact_write

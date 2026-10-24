@@ -236,3 +236,39 @@ remain. Host workflow
 changes must preserve the existing entrypoint/environment contracts when
 consuming an older archived release source; they cannot assume a newly added
 helper exists in that older archive.
+
+Recovery implementation: RELEASE_ARTIFACT_NODE_MODULES_DIR selects an already
+prepared tree (default: current js/node_modules). Host admission rejects missing
+paths and symlinked ancestors before configuration or snapshot allocation;
+internal npm links are preserved by the actual copy. Recovery no longer requires
+the current checkout's dependency directory when a prepared tree is selected.
+Current immutable tooling admits the full graph offline before any RPC service;
+the saved app's Node image then executes its collector. The current proxy owns
+transport policy. App source and tool source are explicit separate image inputs.
+
+The graph gate previously ran npm ls with --workspaces only, which omitted root
+toolchain dependencies: an old TypeScript-6 manifest with an installed 7 tree
+passed. --include-workspace-root rejects that combination. The new behavioral
+regression was red against the old gate and green against the corrected gate.
+An isolated checkout at 5cd938b received its actual locked TypeScript 6.0.3 tree
+through the existing dependency installation lane. Current admission rejects
+the wrong 7 tree and accepts the prepared 6 tree. This proves dependency identity;
+it is not yet proof of successful retained-record artifact reconstruction.
+
+Focused recovery tests pass: eight image-selection/confinement cases and one
+four-case host-copy test, including a selected path containing spaces, absent
+current dependencies, preserved internal links, missing paths and symlinked
+ancestors. The test uses local stdlib adapters for GNU realpath/mktemp features
+absent from the Alpine checks image; the filesystem guards and copying are real.
+
+Post-send reporting: the shared approval launcher now handles both artifact
+proxy startup and collector failure after successful signer/approval completion.
+It preserves the underlying diagnostic, retained records and nonzero result,
+and explicitly says not to repeat deployment. With CONFIG it prints a safely
+shell-quoted read-only completion command. Direct-environment releases receive
+the already-supported minimal read-only configuration shape, without asking
+for a signing key. Four focused behavioral cases were red before the patch
+and green afterward, covering each failed phase with/without CONFIG. They run
+the launcher with only external peers replaced, prove one signer invocation,
+collector short-circuit on proxy failure and retained evidence. This is not a
+live-provider or successful on-chain deployment proof.

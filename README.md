@@ -59,6 +59,28 @@ the same app and release workflow. `dapps/release/rehearsal/check` runs the
 rehearsals for all release-capable apps. Target names provide the operator
 interface; app targets share recipes and tooling internally.
 
+If sending completed but artifact collection failed, keep the deployment records
+and run the app's `release/artifact` target with the saved `CONFIG`. It reads the
+chain without a signer; do not repeat `release/deploy` to recover the artifact.
+Artifact completion uses the saved app source. Its JavaScript dependencies must
+match that source too. If they differ from the current checkout, prepare a
+checkout at the saved commit and run `make js/deps/install` there, then use:
+
+```bash
+make bike-nft/release/artifact CONFIG=/absolute/path/to/config.json \
+  RELEASE_ARTIFACT_NODE_MODULES_DIR=/absolute/path/to/saved-checkout/js/node_modules
+```
+
+The same option applies to Escrow and Pay-to-Play. Recovery checks the selected
+dependency graph offline before starting its read-only RPC proxy. It does not
+install dependencies automatically.
+
+For deployments started with environment inputs rather than a saved configuration,
+artifact completion accepts a read-only configuration containing `schemaVersion: 3`,
+`app`, the original `sourceCommit`, `rpcUrl`, and `settings: {"OUTPUT_DIR": "..."}`.
+Local fixture records also require their `localNetwork`. No signing key is needed.
+Protect the file because the RPC URL may contain credentials.
+
 These are the explicit networked dependency steps. To check the installed
 workspace and checked-in CAM bundles offline, run:
 

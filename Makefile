@@ -16,6 +16,8 @@ DEPENDENCY_METADATA_FILES := $(DAPPS_DIR)/soldeer.lock $(DAPPS_DIR)/remappings.t
 PACKAGE_MANIFEST_FILE := $(JS_DIR)/package.json
 PACKAGE_NODE_MODULES_DIR := $(JS_DIR)/node_modules
 PACKAGE_LOCK_FILE := $(JS_DIR)/package-lock.json
+RELEASE_ARTIFACT_NODE_MODULES_DIR ?= $(CURDIR)/js/node_modules
+export RELEASE_ARTIFACT_NODE_MODULES_DIR
 ACTUAL_UID := $(shell id -u)
 LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
@@ -501,12 +503,19 @@ endef
 # Complete deployment records from retained evidence, without starting a signer.
 define release_artifact_execution
 $(LANE_GUARD); \
-$(PACKAGE_DEPS_GUARD); \
 $(release_host_guard_functions); \
+artifact_node_modules="$$RELEASE_ARTIFACT_NODE_MODULES_DIR"; \
+if [[ "$$artifact_node_modules" != /* || "$$(realpath -ms -- "$$artifact_node_modules")" != "$$artifact_node_modules" ]]; then \
+  printf '%s\n' 'RELEASE_ARTIFACT_NODE_MODULES_DIR must be a normalized absolute directory path.' >&2; exit 2; \
+fi; \
+reject_release_path_symlinks "$$artifact_node_modules" RELEASE_ARTIFACT_NODE_MODULES_DIR; \
+if [[ ! -d "$$artifact_node_modules" || ! -r "$$artifact_node_modules" ]]; then \
+  printf '%s\n' 'RELEASE_ARTIFACT_NODE_MODULES_DIR must be a readable prepared node_modules directory.' >&2; exit 2; \
+fi; \
 app="$(patsubst %/release/artifact,%,$@)"; \
-source_commit="$$(git rev-parse HEAD)"; \
+tool_source_commit="$$(git rev-parse HEAD)"; source_commit="$$tool_source_commit"; \
 $(release_config_compose); \
-if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Artifact completion requires the original CONFIG.' >&2; exit 2; fi; \
+if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Artifact completion requires CONFIG identifying the saved app, source commit, RPC and deployment output directory.' >&2; exit 2; fi; \
 load_release_config "$$app" artifact; \
 prefix="$${app^^}"; prefix="$${prefix//-/_}"; \
 source_name="$${prefix}_RELEASE_SOURCE_COMMIT"; output_name="$${prefix}_RELEASE_OUTPUT_DIR"; \
@@ -524,8 +533,9 @@ ceremony_root=""; release_rpc_started=0; release_dependencies_started=0; release
 cleanup() { $(release_snapshot_cleanup); }; trap cleanup EXIT; \
 $(release_snapshot_allocate); \
 $(release_snapshot_archive); \
-cp -a -- "$(PACKAGE_NODE_MODULES_DIR)" "$$ceremony_source/$(PACKAGE_NODE_MODULES_DIR)"; \
-release_run_owned 15 bash tools/release_tool_images.sh artifact "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
+printf 'Artifact JavaScript dependencies: %s (must match saved source %s).\n' "$$artifact_node_modules" "$$source_commit"; \
+cp -a -- "$$artifact_node_modules" "$$ceremony_source/js/node_modules"; \
+release_run_owned 15 bash tools/release_tool_images.sh artifact "$(CURDIR)" "$$source_commit" "$$tool_source_commit" "$$ceremony_root"; \
 artifact_transport_args=(); \
 if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then \
   require_release_local_network; artifact_transport_args=(-f "$(COMPOSE_DIR)/release/rehearsal-artifact.yml"); \
@@ -539,9 +549,10 @@ compose_release() { \
 }; \
 export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never; \
 completion_log="$$(mktemp "$$output_dir/artifact-completion-XXXXXXXX.log")"; \
-printf 'Completing artifact from source %s. Log: %s\n' "$$source_commit" "$$completion_log"; \
+printf 'Completing artifact from app source %s with recovery tooling %s. Log: %s\n' "$$source_commit" "$$tool_source_commit" "$$completion_log"; \
 release_run_started=1; \
-if ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy > "$$completion_log" 2>&1 || \
+if ! compose_release run --rm --no-deps -T release-artifact-dependencies > "$$completion_log" 2>&1 || \
+   ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy >> "$$completion_log" 2>&1 || \
    ! compose_release run --rm --no-deps -T release-artifact >> "$$completion_log" 2>&1; then \
   printf 'Artifact completion failed. No transactions were submitted. Diagnostics: %s\n' "$$completion_log" >&2; exit 1; \
 fi; \
@@ -813,6 +824,9 @@ help:
 	  '  make escrow/release/artifact CONFIG=/absolute/private/release.json' \
 	  '  make pay-to-play/release/artifact CONFIG=/absolute/private/release.json' \
 	  '    Complete missing deployment records from saved broadcasts and read-only RPC; sends no transactions.' \
+	  '    Uses current js/node_modules by default; its installed dependencies must match the saved source commit.' \
+	  '    For older records, run make js/deps/install in a separate checkout at that commit, then set' \
+	  '    RELEASE_ARTIFACT_NODE_MODULES_DIR=/absolute/matching-checkout/js/node_modules on the artifact command.' \
 	  '    Walk through every input and save one ready-to-deploy configuration for bike-nft, escrow or pay-to-play.' \
 	  '    Choose public for an HTTPS RPC, or local for the running network/local/up infrastructure.' \
 	  '    Local setup saves its Docker network, exact RPC/CAM URLs and a funded public test key.' \

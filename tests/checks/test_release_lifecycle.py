@@ -160,6 +160,152 @@ release_config_teardown() { fake_down config; }
 
 
 class ReleaseLifecycleTest(unittest.TestCase):
+    def test_post_send_artifact_failures_preserve_evidence_and_offer_read_only_recovery(self):
+        for failure in ("proxy", "collector"):
+            for configured in (False, True):
+                with self.subTest(failure=failure, configured=configured), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / "socket").mkdir()
+                    (root / "socket/rpc.sock").touch()
+                    (root / "output").mkdir()
+                    evidence = root / "output/retained-plan"
+                    evidence.write_text("retained evidence")
+                    env = self.environment(root, root / "ceremony")
+                    env.update(ARTIFACT_FAILURE=failure, CONFIG=str(root / "operator's config.json") if configured else "")
+                    script = SHELL_SETUP + r'''
+source "$LAUNCHER"
+approval_app=bike-nft
+RELEASE_APPROVAL_SOCKET_DIR="$CASE_ROOT/socket"
+stty() { :; }
+release_approval_show_startup() { :; }
+release_approval_service_id() { printf '%s\n' "$1"; }
+# The fixture has no network or Docker daemon. Only those external peers are replaced.
+docker() {
+  if [[ "$1" == attach ]]; then
+    while [[ ! -f "$CASE_ROOT/stopped" ]]; do sleep 0.01; done
+  elif [[ "$2" == --format ]]; then
+    case "$3" in
+      '{{.State.Health.Status}}') printf 'healthy\n' ;;
+      '{{.State.Status}} {{.State.ExitCode}}') printf 'exited 0\n' ;;
+      '{{.State.ExitCode}}') printf '0\n' ;;
+      *) return 91 ;;
+    esac
+  else return 92; fi
+}
+compose_release() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/events"
+  if [[ "$1" == stop ]]; then touch "$CASE_ROOT/stopped"; fi
+  if [[ "$1 $2" == 'up -d' && "${@: -1}" == release-artifact-rpc-proxy && "$ARTIFACT_FAILURE" == proxy ]]; then
+    printf 'fixture proxy failure\n' >&2; return 7
+  fi
+  if [[ "$1" == run && "${@: -1}" == release-artifact ]]; then
+    printf 'fixture collector failure\n' >&2; return 8
+  fi
+}
+# A Unix socket marks approval readiness; no traffic passes through it.
+"$PYTHON" -c 'import os,socket; from pathlib import Path; p=Path(os.environ["CASE_ROOT"])/"socket/rpc.sock"; p.unlink(); s=socket.socket(socket.AF_UNIX); s.bind(str(p))'
+release_approval_run "$CASE_ROOT/output"
+'''
+                    process = self.launch(script, env)
+                    stdout, stderr = process.communicate(timeout=10)
+                    self.assertNotEqual(0, process.returncode, stdout + stderr)
+                    self.assertIn("Signer and approval completed", stderr)
+                    self.assertIn("Do not repeat deployment", stderr)
+                    self.assertIn("fixture " + failure + " failure", stderr)
+                    self.assertEqual("retained evidence", evidence.read_text())
+                    events = (root / "events").read_text().splitlines()
+                    self.assertEqual(1, sum(event.startswith("up ") and event.endswith(" deploy-release") for event in events))
+                    self.assertEqual(0 if failure == "proxy" else 1, sum(event.endswith(" release-artifact") for event in events))
+                    if configured:
+                        command = next(line.strip() for line in stderr.splitlines() if line.strip().startswith("make "))
+                        self.assertEqual(["make", "bike-nft/release/artifact", "CONFIG=" + env["CONFIG"]], shlex.split(command))
+                    else:
+                        self.assertIn("read-only CONFIG", stderr)
+                        self.assertIn("sourceCommit", stderr)
+                        self.assertNotIn("CONFIG=", stderr)
+
+    def test_artifact_completion_copies_prepared_dependencies_and_rejects_unsafe_paths_first(self):
+        for case in ("default", "prepared", "missing", "symlink"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                current = root / "js/node_modules"
+                prepared = root / "prepared tree/node_modules"
+                selected = current if case == "default" else prepared
+                selected.mkdir(parents=True)
+                (selected / "identity").write_text(case)
+                (selected / "typescript/bin").mkdir(parents=True)
+                (selected / "typescript/bin/tsc").write_text("fixture tool")
+                (selected / ".bin").mkdir()
+                (selected / ".bin/tsc").symlink_to("../typescript/bin/tsc")
+                original = (selected / "identity").read_bytes()
+                supplied = selected
+                if case == "missing":
+                    supplied = root / "missing/node_modules"
+                elif case == "symlink":
+                    (root / "alias").symlink_to(prepared.parent, target_is_directory=True)
+                    supplied = root / "alias/node_modules"
+                records = root / "records"
+                for child in ("plan", "broadcast", "artifact"):
+                    (records / child).mkdir(parents=True, exist_ok=True)
+                (records / "plan/release-plan.json").write_text("{}")
+                env = self.environment(root, root)
+                env.update(CONFIG=str(root / "config.json"))
+                (root / "config.json").write_text("{}")
+                prelude = root / "prelude.sh"
+                prelude.write_text(make_definition("release_host_guard_functions") + r'''
+# Alpine checks lack GNU realpath -m and mktemp's suffix template support.
+realpath() { "$PYTHON" -c 'import os,sys; print(os.path.abspath(sys.argv[-1]))' "$@"; }
+mktemp() { "$PYTHON" -c 'import os,sys,tempfile; fd,path=tempfile.mkstemp(dir=os.path.dirname(sys.argv[1])); os.close(fd); print(path)' "$1"; }
+git() { printf '%040d\n' 2; }
+load_release_config() {
+  printf 'config\n' >> "$CASE_ROOT/events"
+  ESCROW_RELEASE_SOURCE_COMMIT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  ESCROW_RELEASE_OUTPUT_DIR="$CASE_ROOT/records"
+  RPC_URL_FILE="$CASE_ROOT/rpc-url"
+  RELEASE_REHEARSAL=0
+}
+compose_release_config() { printf 'plan\n' >> "$CASE_ROOT/events"; }
+release_run_owned() {
+  shift
+  if [[ "$1 $2" == 'bash tools/release_tool_images.sh' ]]; then
+    printf 'images:%s:%s\n' "$5" "$6" >> "$CASE_ROOT/events"
+  else "$@"; fi
+}
+''')
+                compose = root / "compose.sh"
+                compose.write_text('printf "%s\\n" "$*" >> "$CASE_ROOT/events"\n')
+                arguments = [
+                    "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "escrow/release/artifact",
+                    f"CURDIR={root}", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=exit 97",
+                    f"release_host_guard_functions=source {prelude}", "release_config_compose=:",
+                    'release_snapshot_allocate=ceremony_root="$$CASE_ROOT/ceremony"; ceremony_source="$$ceremony_root/source"; ceremony_project=fixture; mkdir -p "$$ceremony_source/js"; printf "allocate\\n" >> "$$CASE_ROOT/events"',
+                    "release_snapshot_archive=:", "release_snapshot_cleanup=:",
+                    f"DOCKER_COMPOSE=bash {compose}",
+                ]
+                if case != "default":
+                    arguments.append(f"RELEASE_ARTIFACT_NODE_MODULES_DIR={supplied}")
+                result = subprocess.run(arguments, cwd=ROOT, env=env, capture_output=True, text=True, timeout=10)
+                if case in ("missing", "symlink"):
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertIn("RELEASE_ARTIFACT_NODE_MODULES_DIR", result.stderr)
+                    if case == "symlink":
+                        self.assertIn("must not pass through a symlink", result.stderr)
+                    self.assertFalse((root / "events").exists(), result.stdout + result.stderr)
+                    self.assertFalse((root / "ceremony").exists())
+                    continue
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                copied = root / "ceremony/source/js/node_modules"
+                self.assertEqual(original, (copied / "identity").read_bytes())
+                self.assertEqual(original, (selected / "identity").read_bytes())
+                self.assertEqual("../typescript/bin/tsc", os.readlink(copied / ".bin/tsc"))
+                events = (root / "events").read_text().splitlines()
+                self.assertIn("images:" + "a" * 40 + ":" + "2".zfill(40), events)
+                commands = [event for event in events if " -f " in " " + event]
+                self.assertIn("release-artifact-dependencies", commands[0])
+                self.assertIn("release-artifact-rpc-proxy", commands[1])
+                if case == "prepared":
+                    self.assertFalse(current.exists())
+
     def test_deployment_preserves_app_settings_and_explicit_file_grants(self):
         samples = {
             "bike-nft": ("BASE_TOKEN_URI", "COMPONENTS_PAUSER", "INTENDED_MANAGER_ADMIN"),

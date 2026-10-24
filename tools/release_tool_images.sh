@@ -50,7 +50,8 @@ release_tool_images_prepare() {
   release_tool_image_overlay "$output/images-check.yml" "release-check $node"
   release_tool_image_overlay "$output/images-deploy.yml" \
     "release-plan $node" "release-reference-export $foundry" "release-reference-prepare $node" \
-    "release-rpc-proxy $rpc" "deploy-release $foundry" "release-artifact-rpc-proxy $rpc" "release-artifact $node"
+    "release-rpc-proxy $rpc" "deploy-release $foundry" "release-artifact-dependencies $node" \
+    "release-artifact-rpc-proxy $rpc" "release-artifact $node"
   release_tool_image_overlay "$output/images-verify.yml" \
     "verify-input $node" "verify-rpc-proxy $rpc" "verify-provenance $node" "verify-release $foundry"
 }
@@ -62,19 +63,25 @@ release_tool_images_prepare_network() {
 }
 
 release_tool_images_prepare_artifact() {
-  local repository="$1" commit="$2" output="$3" node rpc
-  node=$(release_tool_image "$repository" "$commit" node-deps) || return
-  rpc=$(release_tool_image "$repository" "$commit" rpc-proxy) || return
-  release_tool_image_overlay "$output/images-artifact.yml" "release-artifact-rpc-proxy $rpc" "release-artifact $node"
+  local repository="$1" app_commit="$2" tool_commit="$3" output="$4" node admission rpc
+  node=$(release_tool_image "$repository" "$app_commit" node-deps) || return
+  admission=$(release_tool_image "$repository" "$tool_commit" node-deps) || return
+  rpc=$(release_tool_image "$repository" "$tool_commit" rpc-proxy) || return
+  release_tool_image_overlay "$output/images-artifact.yml" \
+    "release-artifact-dependencies $admission" "release-artifact-rpc-proxy $rpc" "release-artifact $node"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
-  if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh release|network|artifact REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
+  if [[ "${1-}" == artifact ]]; then
+    if [[ "$#" != 5 ]]; then printf '%s\n' 'Usage: release_tool_images.sh artifact REPOSITORY APP_SOURCE_COMMIT TOOL_SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
+    release_tool_images_prepare_artifact "$2" "$3" "$4" "$5"
+    exit
+  fi
+  if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh release|network REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
   case "$1" in
     release) release_tool_images_prepare "$2" "$3" "$4" ;;
     network) release_tool_images_prepare_network "$2" "$3" "$4" ;;
-    artifact) release_tool_images_prepare_artifact "$2" "$3" "$4" ;;
     *) printf '%s\n' 'Choose release, network or artifact tool images.' >&2; exit 2 ;;
   esac
 fi

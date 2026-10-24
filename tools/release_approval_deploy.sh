@@ -359,6 +359,15 @@ release_approval_run() {
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2
     return 1
   fi
-  compose_release up -d --no-build --no-deps --wait release-artifact-rpc-proxy
-  compose_release run --rm --no-deps -T release-artifact
+  if ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy ||
+     ! compose_release run --rm --no-deps -T release-artifact; then
+    printf '%s\n' 'Signer and approval completed, but artifact collection failed. Do not repeat deployment.' >&2
+    printf 'Retained deployment records: %s\n' "$output" >&2
+    if [[ -n "${CONFIG-}" ]]; then
+      printf 'Complete the artifact without a signer:\n  make %q CONFIG=%q\n' "$approval_app/release/artifact" "$CONFIG" >&2
+    else
+      printf '%s\n' 'Use a read-only CONFIG with schemaVersion 3, app, sourceCommit, rpcUrl and settings.OUTPUT_DIR matching these retained records, then run the app release/artifact target. Local records also need localNetwork.' >&2
+    fi
+    return 1
+  fi
 }
