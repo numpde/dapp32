@@ -16,6 +16,7 @@ import {
   resolveIpfsGatewayURL,
   expressionReferenceSyntaxError,
   CamResourceIntegrityError,
+  CAM_RESOURCE_MAX_BYTES,
   CAM_MANIFEST_TOP_LEVEL_KEYS,
   CAM_NAMESPACE_TYPES,
   CAM_NAMESPACE_RESOURCE_URI_KEYS,
@@ -83,10 +84,30 @@ test("an unconfigured HTTP pin permits selected IPFS transport but denies every 
     originLabel: "resource origin", ipfsGatewayTemplate: "https://gateway.test/ipfs/{CID}/{PATH}",
     loadFailurePrefix: "load failed", async fetchResource(href) { requests.push(href); return new Response("bytes") },
   })
-  await assert.rejects(() => load("https://gateway.test/main.json"), /origin|pin/i)
+  await assert.rejects(() => load("https://gateway.test/main.json"), /disabled.*resource policy/i)
   assert.deepEqual(requests, [])
   await load("ipfs://bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva/main.json")
   assert.equal(requests.length, 1)
+})
+
+test("an explicit wildcard permits validated HTTP(S) resources while retaining download bounds", async () => {
+  const requests: string[] = []
+  const load = createCamResourceLoader({
+    originInput: "*", originLabel: "resource origin", loadFailurePrefix: "load failed",
+    async fetchResource(href, init) {
+      assert.equal(init.redirect, "error")
+      requests.push(href)
+      return new Response(href.endsWith("large") ? new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1) : "bytes")
+    },
+  })
+  await load("https://first.example.test/main.json")
+  await load("http://second.example.test/ui.json")
+  assert.equal(requests.length, 2)
+  for (const uri of ["file:///main.json", "https://user:secret@example.test/main.json", "https://example.test/\\unsafe", "https://example.test/\nunsafe"]) {
+    await assert.rejects(() => load(uri))
+  }
+  assert.equal(requests.length, 2, "invalid URLs must fail before fetch")
+  await assert.rejects(() => load("https://first.example.test/large"), /too large/)
 })
 
 test("gateway URI conversion preserves CID identity, encoded filenames and transport authority", () => {

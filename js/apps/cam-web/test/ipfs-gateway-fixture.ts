@@ -6,7 +6,8 @@ import "../src/styles.css"
 
 const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
 const mode = new URL(location.href).searchParams.get("scenario") ?? "fail"
-const logicalRoot = mode === "https" ? "https://raw.githubusercontent.com/bundle/main.json" : `ipfs://${cid}/bundle/main.json`
+const logicalRoot = mode === "https-cross-origin" ? "https://other.fixture.test/bundle/main.json"
+  : mode === "https" ? "https://raw.githubusercontent.com/bundle/main.json" : `ipfs://${cid}/bundle/main.json`
 const host = "0x0000000000000000000000000000000000000001"
 const address = "0x0000000000000000000000000000000000000002"
 const account = "0x0000000000000000000000000000000000000003"

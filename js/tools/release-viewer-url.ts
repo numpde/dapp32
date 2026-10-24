@@ -27,6 +27,8 @@ function readDeployment(bytes: Uint8Array, app?: string) {
 
 function resourceOrigin(camURI: string, supplied?: string): string | undefined {
   assertPublishedCamRootURI(camURI, "deployment CAM URI")
+  if (supplied === "*") return "*"
+  if (supplied === "none") return undefined
   const explicit = supplied === undefined ? undefined : requireHttpOrigin(supplied, "release viewer resource origin")
   if (camURI.startsWith("ipfs://")) return explicit
   const origin = requireHttpURL(camURI, "deployment CAM URI").origin

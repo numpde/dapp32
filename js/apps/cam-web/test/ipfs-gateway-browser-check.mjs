@@ -46,7 +46,7 @@ async function open(scenario) {
   await wait('!!window.gatewayFixture')
 }
 try {
-  target = (await commands.call('Target.createTarget', { url: 'about:blank', newWindow: false })).targetId
+  target = (await commands.call('Target.createTarget', { url: 'about:blank', newWindow: false, background: true })).targetId
   session = (await commands.call('Target.attachToTarget', { targetId: target, flatten: true })).sessionId
   await call('Page.enable', {})
   await call('Runtime.enable', {})
@@ -54,6 +54,9 @@ try {
   await call('Page.navigate', { url: new URL('/', viewer).href })
   await wait('!!document.querySelector(".error")')
   assert(await evaluate('!!document.querySelector(".ipfs-gateway select")'), 'the gateway remains visible when connection settings are missing')
+  const policyExpression = `[...document.querySelectorAll('.connection-facts dt')].find(term=>term.textContent==='CAM resources')?.nextElementSibling.textContent`
+  const policy = await evaluate(policyExpression)
+  assert(policy === 'Any HTTP(S) origin' || policy.startsWith('Pinned to '), 'the HTTP resource policy is visible even when startup fails')
   await open('fail')
   await wait('!!document.querySelector(".error")')
   const options = await evaluate('[...document.querySelector(".ipfs-gateway select").options].map(o=>o.value)')
@@ -62,6 +65,7 @@ try {
   assert(!options.some(id => /dedicated|thirdweb|trustless/.test(id)), 'unconfigured credentials and CAR responses are not offered as file gateways')
   await select('pinata-public')
   await wait('!!document.querySelector("input[name=draft]")')
+  assert.equal(await evaluate(policyExpression), policy, 'the same operator policy remains visible in the ready app')
   assert(await evaluate('!!document.querySelector(".connection .ipfs-gateway")&&!document.querySelector(".connection details")'), 'the gateway shares the always-visible connection facts')
   assert(await evaluate('document.querySelector(".ui-meta").textContent.includes("ipfs://")'), 'UI identity retains its logical IPFS URI')
   await evaluate(`(() => {const input=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Keep this draft');input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.ipfs-gateway select').focus()})()`)
@@ -85,8 +89,10 @@ try {
   for (const width of [1280, 320]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
     assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `selector and NFT reflow at ${width}px`)
-    const screenshot = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
-    if (process.env.PROOF_DIR) await writeFile(join(process.env.PROOF_DIR, `ipfs-gateway-${width}.png`), Buffer.from(screenshot.data, 'base64'))
+    if (process.env.PROOF_DIR) {
+      const screenshot = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+      await writeFile(join(process.env.PROOF_DIR, `ipfs-gateway-${width}.png`), Buffer.from(screenshot.data, 'base64'))
+    }
   }
   await call('Emulation.clearDeviceMetricsOverride', {})
   await open('fail')
@@ -115,7 +121,18 @@ try {
   await edit('input[name=documentURI]', 'ipfs://QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o')
   await edit('input[name=documentURI]', '')
   assert.equal(await evaluate('document.querySelector(".ipfs-gateway select")?.value'), 'pinata-public', 'clearing resource fields leaves the gateway visible and preserves its choice')
-  console.log(JSON.stringify({ ipfsGateway: true, rootAndRelativeResources: true, retryAndCancellation: true, readyDraftPreserved: true, nftRelativeImage: true, narrowWidth: 320 }))
+  await open('https-cross-origin')
+  if (policy === 'Any HTTP(S) origin') {
+    await wait('!!document.querySelector("input[name=draft]")')
+    assert(await evaluate(`gatewayFixture.requests.includes('https://other.fixture.test/bundle/abi.json')&&gatewayFixture.requests.includes('https://other.fixture.test/bundle/ui.json')`), 'an unrestricted viewer also loads a bundle and its relative resources from a second HTTP origin')
+  } else {
+    await wait('!!document.querySelector(".error")')
+    const refused = await evaluate(`({error:document.querySelector('.error').textContent,requests:gatewayFixture.requests})`)
+    assert.match(refused.error, /outside allowed origin/, 'the failure names the pinned-origin restriction')
+    assert(!refused.requests.some(uri=>uri.startsWith('https://other.fixture.test/')), `out-of-origin resources were fetched: ${JSON.stringify(refused.requests)}`)
+  }
+  assert.equal(await evaluate(policyExpression), policy, 'resource success or refusal does not hide the operator policy')
+  console.log(JSON.stringify({ ipfsGateway: true, rootAndRelativeResources: true, retryAndCancellation: true, readyDraftPreserved: true, nftRelativeImage: true, narrowWidth: 320, resourcePolicy: policy }))
 } catch (error) {
   failures.push(error)
 } finally {

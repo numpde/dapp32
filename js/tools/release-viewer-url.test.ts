@@ -104,3 +104,15 @@ for (const [app, artifact] of Object.entries(artifacts)) {
 test("attachment rejects unknown apps before interpreting an artifact", () => {
   assert.throws(() => releaseViewerURL("other", bytes({}), "http://127.0.0.1:5174", "https://raw.githubusercontent.com", "http://127.0.0.1:5174/rpc"), /bike-nft, escrow or pay-to-play/)
 })
+
+
+test("release operator may allow any HTTP origin or disable HTTP without adding policy to the link", async () => {
+  for (const [resourceOrigin, expected] of [["*", "*"], ["none", undefined]] as const) {
+    const settings = await prepareReleaseViewer({
+      bytes: bytes(artifacts.escrow), viewerOrigin: "http://127.0.0.1:5174",
+      rpcUrl: "https://public.example.test", resourceOrigin,
+    })
+    assert.equal(settings.resourceOrigin, expected)
+    assert.deepEqual([...new URL(settings.url).searchParams.keys()], ["chainId", "host", "account", "rpcUrl"])
+  }
+})

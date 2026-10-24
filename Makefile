@@ -780,7 +780,9 @@ help:
 	  '  make viewer/release/up           Open an existing public-chain release; deploys nothing.' \
 	  '    Interactive: select deployment.json, then choose its chain public RPC or enter another public URL.' \
 	  '    App and HTTPS resource origin come from that artifact; IPFS needs no HTTP origin pin.' \
-	  '    Scripts: set DEPLOYMENT_ARTIFACT_FILE and PUBLIC_RPC_URL. Optional APP/RESOURCE_ORIGIN must agree.' \
+	  '    Scripts: set DEPLOYMENT_ARTIFACT_FILE and PUBLIC_RPC_URL. Optional APP must agree.' \
+	  '    RESOURCE_ORIGIN defaults to the artifact origin; set a matching origin to pin, * for any HTTP(S), or none to deny HTTP(S).' \
+	  '    Quote RESOURCE_ORIGIN="*" in your shell. Browser CORS and mixed-content restrictions still apply.' \
 	  '    PUBLIC_RPC_URL is visible in the browser link: use a public endpoint without credentials.' \
 	  '    No signing configuration or private key is read. RPC connectivity is checked when the browser loads.' \
 	  '    Defaults to http://127.0.0.1:5174. Connect your own wallet for transactions.' \

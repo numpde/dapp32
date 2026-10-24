@@ -796,6 +796,15 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertNotIn("VIEWER_RPC_LOCATION", gateway.get("environment", {}))
         self.assertNotIn("release-anvil", gateway["command"][-1])
 
+    def test_release_viewer_passes_operator_resource_policy_without_a_proxy(self) -> None:
+        for policy in ("*", "none", "https://resources.example.test"):
+            with self.subTest(policy=policy):
+                config = rendered_compose_config("compose/release/viewer.yml", env={"RELEASE_VIEWER_RESOURCE_ORIGIN": policy})
+                self.assertEqual(policy, config["services"]["viewer-url"]["environment"]["RELEASE_VIEWER_RESOURCE_ORIGIN"])
+                self.assertEqual(policy, config["services"]["cam-web"]["environment"]["VITE_CAM_WEB_RESOURCE_ORIGIN"])
+                self.assertEqual({"viewer-url", "cam-web", "browser-gateway"}, set(config["services"]))
+                self.assertNotIn("location /cam", config["services"]["browser-gateway"]["command"][-1])
+
     def test_browser_viewer_runtime_preserves_each_lanes_routes_and_networks(self) -> None:
         cases = [
             (makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"), "bike-nft-browser-gateway", "bike_nft_local", "bike_nft_browser", "bike-nft", "BIKE_NFT_GUI_ORIGIN"),

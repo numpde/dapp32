@@ -56,7 +56,18 @@ existing CAM hash checks; it does not add IPFS block verification.
 To attach the viewer to a public-chain deployment, run `make viewer/release/up`.
 It asks for `deployment.json`, derives the app and HTTPS resource origin, and
 offers the artifact chain's public RPC from the catalog or a custom URL. IPFS
-bundles need no HTTP origin pin; unpinned HTTP CAM downloads are denied.
+bundles need no HTTP origin pin. To deploy a general-purpose viewer, set
+`RESOURCE_ORIGIN='*'` to permit any validated HTTP(S) CAM resource origin.
+Set `RESOURCE_ORIGIN=none` to disable HTTP(S) CAM downloads, or supply the
+artifact's HTTP(S) origin to keep downloads pinned. The default remains the
+artifact-derived origin, with HTTP(S) disabled for IPFS bundles.
+The browser shows this policy under **CAM resources**, including during loading
+or failure. It is operator configuration, never a viewer URL parameter.
+For other browser deployments the equivalent build setting is
+`VITE_CAM_WEB_RESOURCE_ORIGIN` (`*`, `none`, or a literal origin); an unset or
+empty setting disables HTTP(S). Browser CORS and mixed-content restrictions
+still apply. Resource URL validation, redirect refusal, byte limits, cancellation
+and integrity checks remain in effect; this policy adds no backend proxy.
 The RPC URL is visible in the browser link, so use a browser-public endpoint.
 This command does not read a signing configuration or private key. For scripts,
 supply `DEPLOYMENT_ARTIFACT_FILE` and `PUBLIC_RPC_URL` directly; no prompts appear.

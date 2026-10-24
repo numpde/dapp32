@@ -63,7 +63,8 @@ export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOpt
 }
 
 export function readStartupPolicy(env: StartupEnv): StartupPolicy {
-  if (env.VITE_CAM_WEB_RESOURCE_ORIGIN === undefined || env.VITE_CAM_WEB_RESOURCE_ORIGIN === "") return {}
+  if (env.VITE_CAM_WEB_RESOURCE_ORIGIN === undefined || env.VITE_CAM_WEB_RESOURCE_ORIGIN === "" || env.VITE_CAM_WEB_RESOURCE_ORIGIN === "none") return {}
+  if (env.VITE_CAM_WEB_RESOURCE_ORIGIN === "*") return { resourceOrigin: "*" }
   return {
     resourceOrigin: requireHttpOrigin(
       env.VITE_CAM_WEB_RESOURCE_ORIGIN,
@@ -72,7 +73,17 @@ export function readStartupPolicy(env: StartupEnv): StartupPolicy {
   }
 }
 
-export function createPinnedOriginResourceLoader(resourceOrigin: string | undefined, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
+export function resourcePolicyLabel(env: StartupEnv): string {
+  try {
+    const { resourceOrigin } = readStartupPolicy(env)
+    if (resourceOrigin === undefined) return "HTTP(S) disabled; IPFS only"
+    return resourceOrigin === "*" ? "Any HTTP(S) origin" : `Pinned to ${resourceOrigin}`
+  } catch {
+    return "Invalid operator configuration"
+  }
+}
+
+export function createViewerResourceLoader(resourceOrigin: string | undefined, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
   return createCamResourceLoader({
     ...(resourceOrigin === undefined ? {} : { originInput: resourceOrigin }),
     originLabel: "resourceOrigin",

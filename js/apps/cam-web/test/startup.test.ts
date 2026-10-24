@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { displayRpcEndpoint, parseStartupOptions, parseViewFragment, readStartupPolicy, urlForView } from "../src/startup.ts"
+import { displayRpcEndpoint, parseStartupOptions, parseViewFragment, readStartupPolicy, resourcePolicyLabel, urlForView } from "../src/startup.ts"
 
 const POLICY = {
   resourceOrigin: "https://resources.example.test",
@@ -44,6 +44,18 @@ test("startup policy permits IPFS-only loading without inventing an HTTP resourc
   assert.deepEqual(readStartupPolicy({}), {})
   assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "" }), {})
   assert.throws(() => readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test/path" }), /origin/)
+})
+
+test("operator resource policy supports any HTTP origin and explicit HTTP denial without URL overrides", () => {
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" }), { resourceOrigin: "*" })
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "none" }), {})
+  const url = validStartupUrl()
+  assert.equal(parseStartupOptions(url, readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" })).resourceOrigin, "*")
+  for (const name of ["resourceOrigin", "resourcePolicy"]) {
+    const altered = new URL(url)
+    altered.searchParams.set(name, "*")
+    assert.throws(() => parseStartupOptions(altered, POLICY), /unknown URL parameter/)
+  }
 })
 
 function validStartupUrl(): URL {
@@ -205,4 +217,14 @@ test("link bounds admit exact-limit text and count containers only outside JSON 
   assert.deepEqual(parseStartupOptions(next, POLICY).inputs, exact)
   const punctuation = { text: '["\\\\"]'.repeat(80) }
   assert.deepEqual(parseStartupOptions(urlForView(current, { route: "item", inputs: punctuation }), POLICY).inputs, punctuation)
+})
+
+
+test("connection policy labels describe the configured authority before a CAM is loaded", () => {
+  assert.equal(resourcePolicyLabel({}), "HTTP(S) disabled; IPFS only")
+  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "none" }), "HTTP(S) disabled; IPFS only")
+  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" }), "Any HTTP(S) origin")
+  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://example.test:443/" }), "Pinned to https://example.test")
+  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "typo" }), "Invalid operator configuration")
+  assert.throws(() => readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "typo" }), /expected absolute URL/)
 })

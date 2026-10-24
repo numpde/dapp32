@@ -46,8 +46,9 @@ import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./d
 import {
   assertHostHasCode,
   assertRpcChain,
-  createPinnedOriginResourceLoader,
+  createViewerResourceLoader,
   displayRpcEndpoint,
+  resourcePolicyLabel,
   parseStartupOptions,
   parseViewFragment,
   urlForView,
@@ -175,7 +176,7 @@ export function App(): ReactElement {
           },
           inputs: startup.inputs,
           ...(startup.route === undefined ? {} : { route: startup.route }),
-          loadResource: uri => createPinnedOriginResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri),
+          loadResource: uri => createViewerResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri),
         })
         const snapshot = await session.load()
         loadedSession = session
@@ -678,6 +679,8 @@ export function App(): ReactElement {
     return sendRevision.current === revision
   }
 
+  const resourcePolicy = <div><dt>CAM resources</dt><dd>{resourcePolicyLabel(import.meta.env)}</dd></div>
+
   const gatewayControl = <div className="ipfs-gateway">
         <dt><label htmlFor="ipfs-gateway-choice">IPFS gateway</label></dt>
         <dd>
@@ -714,8 +717,8 @@ export function App(): ReactElement {
               {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
             </button>
           )}
-        >{gatewayControl}</ConnectionSummary>
-      ) : <dl className="connection connection-facts">{gatewayControl}</dl>}
+        >{resourcePolicy}{gatewayControl}</ConnectionSummary>
+      ) : <dl className="connection connection-facts">{resourcePolicy}{gatewayControl}</dl>}
 
       {loadState.status === "ready" ? <IntegrityWarnings warnings={loadState.snapshot.integrityWarnings} /> : null}
       {notice === undefined ? null : (
