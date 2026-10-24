@@ -331,7 +331,7 @@ test("ownership classification distinguishes pending and accepted handoff", () =
     intendedOwner: OWNER,
     owner: DEPLOYER,
     pendingOwner: ZERO,
-  }), /unexpected CamRoot ownership state/)
+  }), /unexpected CamRoot handoff state/)
 })
 
 function deploymentArtifact(): DeploymentArtifact {

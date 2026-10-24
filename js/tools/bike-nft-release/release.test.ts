@@ -8,7 +8,8 @@ import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
-import { deploymentArtifact, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
+import { deploymentArtifact, deploymentContractsFromBroadcast } from "./artifact-model.ts"
+import { ownershipState } from "../release-ownership.ts"
 import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseReleasePlan, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
 import { creationReceiptDeployer } from "../release-provenance.ts"
@@ -267,11 +268,16 @@ test("broadcast and receipts bind four exact creations", () => {
 })
 
 test("handoff accepts only intended pending or completed state", () => {
-  assert.doesNotThrow(() => requireHandoff("root", DEPLOYER, OWNER, DEPLOYER, OWNER))
-  assert.doesNotThrow(() => requireHandoff("root", DEPLOYER, OWNER, OWNER, address("0")))
-  assert.doesNotThrow(() => requireHandoff("root", DEPLOYER, DEPLOYER, DEPLOYER, address("0")))
-  assert.throws(() => requireHandoff("root", DEPLOYER, DEPLOYER, DEPLOYER, DEPLOYER), /unexpected root handoff/)
-  assert.throws(() => requireHandoff("root", DEPLOYER, OWNER, DEPLOYER, address("0")), /unexpected root handoff/)
+  for (const [intendedOwner, owner, pendingOwner] of [
+    [OWNER, DEPLOYER, OWNER],
+    [OWNER, OWNER, address("0")],
+    [DEPLOYER, DEPLOYER, address("0")],
+  ] as const) {
+    assert.doesNotThrow(() => ownershipState({ label: "root", deployer: DEPLOYER, intendedOwner, owner, pendingOwner }))
+  }
+  for (const [intendedOwner, pendingOwner] of [[DEPLOYER, DEPLOYER], [OWNER, address("0")]] as const) {
+    assert.throws(() => ownershipState({ label: "root", deployer: DEPLOYER, intendedOwner, owner: DEPLOYER, pendingOwner }), /unexpected root handoff/)
+  }
 })
 
 function common() { return { sourceCommit: SOURCE, expectedChainId: 11155111, camURI: "https://example.test/bike/v1/main.json", intendedCamRootOwner: OWNER, tokenName: "Bicycle Components", tokenSymbol: "BIKE", baseTokenURI: "https://example.test/bike/tokens/", collectionURI: "https://example.test/bike/collection.json", intendedComponentsAdmin: COMPONENTS_ADMIN, componentsAdminDelay: 86400, componentsPauser: address("5"), componentsConfigurer: address("6"), intendedManagerAdmin: MANAGER_ADMIN, managerAdminDelay: 86400, managerPauser: address("7"), managerConfigurer: address("8"), registrars: [address("9")] } as const }

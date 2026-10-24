@@ -42,6 +42,6 @@ export function ownershipState({
   }
 
   throw new Error(
-    `unexpected ${label} ownership state: deployer=${deployer} intended=${intendedOwner} owner=${owner} pending=${pendingOwner}`,
+    `unexpected ${label} handoff state: deployer=${deployer} intended=${intendedOwner} owner=${owner} pending=${pendingOwner}`,
   )
 }

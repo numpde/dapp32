@@ -9,9 +9,9 @@ import { assertAddress, assertEqual, parseJsonRecord, runReleaseTool } from "../
 import {
   deploymentArtifact,
   deploymentContractsFromBroadcast,
-  requireHandoff,
 } from "./artifact-model.ts"
 import type { DeploymentContracts } from "./artifact-model.ts"
+import { ownershipState } from "../release-ownership.ts"
 import {
   creationReceiptDeployer,
   sharedCreationReceiptDeployer,
@@ -354,13 +354,13 @@ function verifyRoot(
   assertAddress(root.managerBinding, contracts.manager.address, "manager binding")
   assertAddress(root.uiBinding, contracts.ui.address, "UI binding")
   assertAddress(root.componentsBinding, contracts.components.address, "components binding")
-  requireHandoff(
-    "CamRoot ownership",
+  ownershipState({
+    label: "CamRoot ownership",
     deployer,
-    plan.intendedCamRootOwner,
-    getAddress(root.owner),
-    getAddress(root.pendingOwner),
-  )
+    intendedOwner: plan.intendedCamRootOwner,
+    owner: getAddress(root.owner),
+    pendingOwner: getAddress(root.pendingOwner),
+  })
 }
 
 function verifyAdministrations(
@@ -371,20 +371,20 @@ function verifyAdministrations(
     readonly manager: AdministrationObservation
   },
 ): void {
-  requireHandoff(
-    "components admin",
+  ownershipState({
+    label: "components admin",
     deployer,
-    plan.intendedComponentsAdmin,
-    getAddress(administrations.components.admin),
-    getAddress(administrations.components.pendingAdmin),
-  )
-  requireHandoff(
-    "manager admin",
+    intendedOwner: plan.intendedComponentsAdmin,
+    owner: getAddress(administrations.components.admin),
+    pendingOwner: getAddress(administrations.components.pendingAdmin),
+  })
+  ownershipState({
+    label: "manager admin",
     deployer,
-    plan.intendedManagerAdmin,
-    getAddress(administrations.manager.admin),
-    getAddress(administrations.manager.pendingAdmin),
-  )
+    intendedOwner: plan.intendedManagerAdmin,
+    owner: getAddress(administrations.manager.admin),
+    pendingOwner: getAddress(administrations.manager.pendingAdmin),
+  })
   assertEqual(
     String(administrations.components.delay),
     String(plan.componentsAdminDelay),

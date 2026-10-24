@@ -1,0 +1,174 @@
+Release workflow unification
+2026-10-24 — design and implementation record
+
+Scope
+
+Bike NFT, Escrow and Pay-to-Play have supported release workflows. dapps/cam
+supplies their shared discovery contracts; it is not a fourth application.
+The Deposit gateway is an unfinished prototype without a release/CAM workflow
+and stays outside this work. The historical poc branch is not a source to port.
+
+The objective is one implementation of each shared deployment rule, while
+keeping constructor arguments, roles, contract topology and application-state
+checks explicit. It does not mean giving every application the same contracts,
+artifact fields or transaction sequence.
+
+Current ownership, from configuration to use
+
+1. Configuration: tools/release_config.py owns the saved configuration format,
+   shared prompts and app-specific input fields. tools/release-config.sh owns
+   protected-file admission, temporary inputs and configuration lifecycle.
+   Make also supports direct environment inputs, so its admission guards cannot
+   simply disappear on the assumption that configuration was always validated.
+2. Plan: each js/tools/<app>-release/plan.ts constructs its typed plan.
+   release-values.ts, release-files.ts and release-cam-bundle.ts already own
+   scalar/file admission and inspection of the pinned source CAM resources.
+3. Approval and sending: Make's release snapshot/execution helpers,
+   tools/release_approval_deploy.sh and js/tools/release-approval implement the
+   shared ceremony. App reference.ts and Solidity Deploy*Release scripts own
+   the actual deployment transactions and intended authority changes.
+4. Artifact: compose/release/artifact.yml is the common read-only RPC and
+   exclusive-publication boundary. Each app constructs its existing artifact
+   from retained plan, broadcast, receipts, runtime code and live state.
+   release-provenance.ts already validates CREATE receipts and input hashes.
+5. Verification: compose/release/verify.yml owns offline input staging,
+   read-only RPC provenance checks and the app's Solidity verifier. Shared
+   release-verification-input.ts checks source/CAM agreement before staging.
+6. Recovery: the shared <app>/release/artifact target reconstructs a missing
+   artifact from retained records with no signer. A failed ceremony may have
+   sent transactions; recovery must never silently start deployment again.
+7. Viewer: release-viewer-url.ts parses the app artifact and constructs browser
+   coordinates; compose/release/viewer*.yml supplies the shared viewer boundary.
+   Local rehearsal uses the release workflow, not the demo deployment scripts.
+
+compose/release already owns common phase isolation. App Compose overlays
+declare specific settings, entrypoints and mounts. Those explicit authority
+grants are not a reason to introduce another service framework.
+
+Local deployment and application workflows
+
+Each compose/<app>/local/deploy.yml starts its own private Anvil and runs the
+app's Deploy*Local.s.sol. These are disposable seeded fixtures, not release
+artifacts: Bike registers example components; Escrow and Pay-to-Play fund
+different public role accounts. App inputs, fixture scripts, funded roles,
+broadcast volumes and private networks must remain separate.
+
+- Bike's local/deploy and local/demo/{terminal,gui} targets compose its deploy
+  fixture with HTTP and viewer overlays. Its local/integration/fuzz targets
+  use tools/cam-integration-fuzz and the app's integration overlay.
+- Escrow's local/scenario/run adds tools/escrow-local-scenario. Its terminal
+  and GUI demos use the same deploy fixture; local/browser checks attach
+  explicit browser tooling to the existing viewer.
+- Pay-to-Play's local/scenario/run and local/recovery/run add payment and
+  refund scenarios. local/fixture/{up,info,down} publishes verified coordinates
+  for other test runners. Its GUI demo supplies app-owned wallet accounts and
+  transaction permissions. It has no corresponding terminal demo target.
+- All GUI demos already inherit browser/runtime posture from
+  compose/fragments/browser-viewer.yml and the shared fixture-wallet tool.
+  Scenario Node tools inherit fragments/node-workspace.yml. HTTP roots and
+  signing allowlists stay app-owned, rather than becoming broad shared mounts.
+- network/local/{up,info,status,down} manages the manually controlled release
+  rehearsal network in compose/release/local-network.yml, chain 31338. It is
+  independent of the demo chains. Release commands attach without resetting
+  it; release viewer commands expose only explicitly selected coordinates.
+- <app>/release/rehearsal/run and approval/start/check or approval/success/check
+  already share tools/release_rehearsal.sh and compose/release/rehearsal*.yml.
+  They exercise the release ceremony against isolated fixture infrastructure.
+  They must not become aliases for Deploy*Local or demo seeding scripts.
+
+There is concrete remaining posture duplication: the three local/deploy files
+repeat Anvil build/image confinement, command and health policy, also repeated
+in compose/anvil.yml. Their Foundry deploy services repeat a second common
+confinement/cache/tmpfs shape. A shared Foundry fragment can own these shapes;
+networks, ports, source mounts, accounts and scripts remain explicit consumers.
+Preserve the generic chain's existing health timing as an explicit override.
+This is a separate runtime-posture slice, not a reason to parameterize seeding.
+
+Application differences to preserve
+
+- Bike creates CamRoot, BicycleComponents, BicycleComponentManager and its UI
+  projection. Ownable CAM transfer and delayed default-admin handovers differ
+  operationally. Registrar/pauser/configurer assignments and metadata settings
+  are app rules. Releases must not register demo components. ICamRootOwnership
+  is a namespace alias to CamRoot, not an additional contract creation.
+- Escrow creates CamRoot, CamEscrow and CamEscrowUI. Its only nominated release
+  authority is the CAM owner; agreement roles are established during app use.
+- Pay-to-Play creates CamRoot and PayToPlay, with separate CAM/payment owners
+  and an initial null-channel claim period. Provenance also verifies the exact
+  PayToPlay creation transaction input hash; receipt verification alone cannot
+  replace this constructor-byte evidence.
+- Saved configuration v3 and the existing app-specific plan/artifact schemas
+  remain unchanged. Frozen-source verification and old deployment records must
+  continue through their existing parsers and supported targets.
+
+End-state invariants
+
+- Source selection, protected inputs, operator approval, waiting, exclusive
+  output creation, teardown and read-only completion have shared owners.
+- A successful creation proof means the selected chain returned successful
+  CREATE receipts for the expected addresses/hashes and recorded deployer.
+  All applications use the same receipt rule. Extra app evidence remains extra.
+- The accepted/pending/rejected authority-handover rule has one owner. Bike's
+  delayed-admin schedule checks remain Bike-specific; sharing the identity
+  transition does not turn Ownable and delayed administration into one protocol.
+- App-scoped Make targets, configuration keys, JSON fields, diagnostic events
+  and explicit phase grants remain compatible. Refactoring cannot broaden RPC
+  methods or give verification/artifact completion a signing key.
+- Ordinary app changes update the app's declared deployment expectations, not
+  another parallel list in generic orchestration. Contract creation inventory
+  cannot be inferred from CAM namespace count.
+
+Bounded implementation slices
+
+A. Remove Bike's duplicate handoff-state predicate in favor of the existing
+   release-ownership.ts rule. Cover retained ownership, pending transfer,
+   accepted transfer and contradictory nominations through existing app tests.
+B. Put shared chain/creation-receipt/deployer verification in the existing
+   release-provenance.ts owner. Migrate all three provenance CLIs and any
+   identical artifact proof. Keep app contract inventories and PayToPlay's
+   transaction-input proof explicit. Test the real receipt/chain failure laws.
+C. Consolidate identical Make verification orchestration for all three apps,
+   following the existing shared artifact-target pattern. Then consolidate
+   deployment orchestration only where app input admission and Compose grants
+   remain explicit. Use existing launcher/lifecycle tests to prove emitted
+   commands, source selection, secret separation and failure behavior.
+D. Share the repeated local Anvil/Foundry posture across the three fixture
+   deploy stacks and generic Anvil owner. Preserve each rendered service's
+   authority, networking, health timing, mounts, command and seeded roles.
+   Validate through existing rendered-Compose and local fixture checks;
+   do not start, stop or reseed the user's running demo/release networks.
+
+Do not replace the existing phase engine, invent a plugin registry, flatten
+typed artifacts into generic bags, or move business rules into a generic
+deployment descriptor. A shared helper is justified by an actual repeated rule,
+not a common-looking loop.
+
+Proof and completion
+
+Use existing Docker-backed app release/check targets for typed parsers, mock-RPC
+artifact/provenance execution and shared release tests. Use focused repository
+lifecycle/rendered-Compose checks for host commands and phase authority. Add a
+red behavioral case for a discovered defect; use retained behavioral laws and
+equivalence proof for a refactor. Do not add snapshots of
+implementation text as a second owner of that implementation.
+
+Each slice must remove its displaced owner and migrate all affected consumers.
+Recheck the whole inventory before declaring the unification complete. No live
+deployment, transaction submission, browser restart or operator secret read is
+part of this work. Record actual validation and remaining work below as slices
+land; the inventory alone is not implementation completion.
+
+Implementation record
+
+A: Bike now uses release-ownership.ts directly for its CAM owner and both
+default-admin holder transitions. The duplicate predicate was deleted. Delay
+and scheduling checks stay in Bike; artifact schemas and event names did not
+change. Existing tests cover the same five accepted/rejected identity states.
+All three offline release/check targets passed before and after the change:
+Bike 39 tests, Escrow 36, Pay-to-Play 27. The shared diagnostic now calls this a
+handoff, which applies to both owner and administrator holders.
+
+B, C and D remain to be implemented and qualified. In particular, host workflow
+changes must preserve the existing entrypoint/environment contracts when
+consuming an older archived release source; they cannot assume a newly added
+helper exists in that older archive.
