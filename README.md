@@ -15,6 +15,13 @@ Current software supports CAM 1.3.0 with UI 1.0.0: [protocol reference](https://
 
 ## Start here
 
+To explore an app or manually test its contracts, CAM bundle and viewer together,
+use its `local/demo/gui/up` target. Each launcher starts a disposable local chain,
+deploys fresh app contracts, serves CAM resources and prints the viewer URL.
+Keep the command running while using the demo; exiting attempts cleanup of its
+temporary state. See [local demo launchers](https://numpde.github.io/dapp32/examples/#local-demos)
+for the three commands, wallet requirements and how they differ from release deployment.
+
 - [Pay-to-Play](dapps/pay-to-play/README.md): deposit native coins, register a
   permanent voucher key, and authorize cumulative payments. Explains delayed
   withdrawals, full refunds, channel retirement, service integration and the local demo.
