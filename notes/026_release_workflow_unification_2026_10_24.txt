@@ -327,3 +327,25 @@ durable artifact cmp check to the root runner while Bash was still consuming
 that file, causing a trailing parse error. Both complete script versions pass
 bash -n; this run is phase evidence, not a successful process-exit qualification.
 The same single representative run must finish without editing its runner.
+
+Final qualification passed with exit 0 in 239 seconds. Candidate 326df29 and
+private snapshot 9e15b76 had identical source tree
+788c7fa3441e931e7df80542429348a22969a9b6. Records are retained at
+/tmp/cam-release-rehearsal-1000-l6peJ3Ud; the complete operator log is
+/tmp/cam-release-unification-bike-final4-20261024.log. The run proved planner
+admission/rejection, all 22 approved fixture transactions, artifact publication,
+the actual supported read-only recovery command with graph admission before
+RPC, byte-identical recovered output, pending-handoff rejection, delayed
+acceptance/CAM discovery, final BikeNftReleaseVerified true and owned cleanup.
+No source files changed while that runner was executing.
+
+Independent final review found no further actionable issue. Scope qualification
+is layered: three-app offline collector/wrapper/posture checks; historical
+5cd938b collector execution with prepared TypeScript 6; current graph admission
+rejecting mismatched/accepting matching declared dependencies; and one complete
+current Bike release/recovery fixture. The graph check establishes declared
+dependency consistency, including root toolchain versions. It is not per-file
+dependency-byte attestation; the installation lane owns lockfile tarball integrity.
+This does not claim public-provider deployment, a live historical on-chain
+reconstruction, or fresh full end-to-end runs of Escrow and Pay-to-Play. Existing
+operator deployments and viewer services were not restarted or modified.
