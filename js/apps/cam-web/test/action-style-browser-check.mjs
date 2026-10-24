@@ -137,7 +137,19 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       assert.equal(layout.draft, 'unchanged')
       assert.equal(layout.sends, 0)
     }
-    return { widths: [1280, 320], actionKindsDistinct: true, supportingQuiet: true, sendFilled: true, disabledAndBusyPreserved: true, nativeKeyboardUnverified: true }
+    const transactionHash = `0x${'ab'.repeat(32)}`
+    await evaluate(`window.actionFixture.transaction('eip155:43113',${JSON.stringify(transactionHash)})`)
+    await wait(`!!document.querySelector('.transaction-feedback a')`)
+    assert(await evaluate(`(() => {const link=document.querySelector('.transaction-feedback a');return link.href===${JSON.stringify(`https://testnet.snowtrace.io/tx/${transactionHash}`)}&&link.textContent===${JSON.stringify(transactionHash)}&&link.target==='_blank'&&link.rel.includes('noopener')&&document.querySelector('.transaction-feedback').textContent.includes('Receipt wait timed out.')})()`), 'uncertain confirmation retains its cause and links the exact submitted hash on its own chain, independently of the viewer chain')
+    await evaluate(`window.actionFixture.transaction('eip155:1',${JSON.stringify(`0x${'cd'.repeat(32)}`)})`)
+    await wait(`document.querySelector('.transaction-feedback a')?.href===${JSON.stringify(`https://etherscan.io/tx/0x${'cd'.repeat(32)}`)}`)
+    assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), 'linked hashes fit the narrow viewport')
+    await evaluate(`window.actionFixture.transaction('eip155:2147483646',${JSON.stringify(transactionHash)})`)
+    await wait(`!document.querySelector('.transaction-feedback a')&&document.querySelector('.transaction-feedback code')?.textContent===${JSON.stringify(transactionHash)}`)
+    await evaluate(`window.actionFixture.transaction('eip155:43113',undefined)`)
+    await wait(`!document.querySelector('.transaction-feedback a, .transaction-feedback .feedback-message code')`)
+    assert(await evaluate(`window.actionFixture.events.send===0&&document.querySelector('.transaction-feedback').textContent.includes('Check the transaction before sending another.')`), 'explorer presentation neither submits a transaction nor invents a hash when none was returned')
+    return { widths: [1280, 320], actionKindsDistinct: true, supportingQuiet: true, sendFilled: true, disabledAndBusyPreserved: true, transactionExplorer: true, nativeKeyboardUnverified: true }
   } catch (error) {
     failures.push(error)
   } finally {

@@ -139,6 +139,7 @@ dd,
 .error-feedback[data-kind="error"] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--panel)); }
 .error-feedback > .feedback-message { margin: 0; color: var(--ink); font-weight: 600; }
 .feedback-diagnostic { display: block; margin-block-start: 8px; color: var(--muted); font-size: 0.875em; white-space: pre-wrap; overflow-wrap: anywhere; }
+.transaction-feedback a { color: var(--accent); }
 .nft-identity, .nft-attributes { margin-block: 8px; }
 .nft-identity > div, .nft-attributes > div { display: grid; gap: 12px; padding-block: 6px; }
 .nft-identity dt, .nft-attributes dt { color: var(--muted); }

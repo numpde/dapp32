@@ -10,6 +10,7 @@ import type {
 
 import {
   submitPreparedContractCall,
+  transactionExplorer,
 } from "../src/transactions.ts"
 import type {
   PreparedCallSimulationClient,
@@ -21,6 +22,15 @@ import type {
 
 const walletAddress = "0x0000000000000000000000000000000000000001" as Address
 const txHash = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const
+
+test("known transaction explorers use the submitted chain and preserve the exact hash", async () => {
+  assert.deepEqual(await transactionExplorer({ chainId: "eip155:43113", hash: txHash }), {
+    name: "SnowTrace", url: `https://testnet.snowtrace.io/tx/${txHash}`,
+  })
+  assert.equal((await transactionExplorer({ chainId: "eip155:4337", hash: txHash }))?.url, `https://subnets.avax.network/beam/tx/${txHash}`, "explorer base paths are preserved")
+  assert.equal(await transactionExplorer({ chainId: "eip155:31337", hash: txHash }), undefined)
+  assert.equal(await transactionExplorer({ chainId: "eip155:2147483646", hash: txHash }), undefined)
+})
 const call: CamViewerPreparedContractCall = {
   route: "fund",
   address: "0x0000000000000000000000000000000000000002",

@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client"
 import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
+import { TransactionFeedback } from "../src/feedback.tsx"
+import type { SubmittedTransactionReference } from "../src/transactions.ts"
 import "../src/styles.css"
 
 const element = document.getElementById("root")
@@ -22,6 +24,7 @@ let busy = false
 let sending = false
 let draft = "unchanged"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
+let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
 const events = { navigate: 0, contractCall: 0, unsupported: 0, send: 0, wallet: 0, calculate: 0, cancel: 0, back: 0, refresh: 0 }
 function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCall" | "unsupported" {
   const declared = actions.find(item => item.route === action.call.function)
@@ -53,7 +56,13 @@ function render(): void {
     }),
     createElement(UiView, props),
     prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy && !sending, sending, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
+    transactionReport === undefined ? null : createElement("section", { className: "transaction-feedback" }, createElement(TransactionFeedback, {
+      report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },
+      kind: "error", transaction: transactionReport.transaction,
+    })),
   ))
 }
-Object.assign(window, { actionFixture: { events, hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
+Object.assign(window, { actionFixture: { events,
+  transaction(chainId: string, hash: `0x${string}` | undefined) { transactionReport = { transaction: hash === undefined ? undefined : { chainId, hash } }; render() },
+  hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
 render()

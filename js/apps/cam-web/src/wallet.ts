@@ -7,6 +7,7 @@ import type { Address, Chain } from "viem"
 import {
   evmChainIdHex,
   evmChainIdNumber,
+  evmChainMetadata,
   requireEvmAddress,
 } from "@cam/evm-viem"
 import {
@@ -84,20 +85,12 @@ export function subscribeInjectedWallet(
 export async function walletNetworkToAdd(options: WalletChainOptions): Promise<Chain> {
   const id = evmChainIdNumber(options.chainId)
   const rpcUrl = requireHttpURL(options.rpcUrl, "rpcUrl").href
-  // Only network registration needs this catalog; an installed custom network
-  // can be selected and used for transactions without a catalog entry.
-  // Keep rich chain-client types out of metadata lookup inference.
-  const chains: Readonly<
-    Record<keyof typeof import("viem/chains"), Pick<Chain, "id" | "name" | "nativeCurrency">>
-  > = await import("viem/chains")
   // The repository's release rehearsal uses a separate Anvil chain ID.
-  const knownChains = Object.values(chains)
-  const chain = id === 31338
-    ? { ...chains.foundry, id, name: "CAM release rehearsal" }
-    : knownChains.find(chain => "id" in chain && chain.id === id)
-  if (chain === undefined || !("id" in chain)) {
+  const known = await evmChainMetadata(id === 31338 ? "eip155:31337" : options.chainId)
+  if (known === undefined) {
     throw new Error(`Cannot add network ${id}: this viewer has no definition for its name and native currency. Add the network in your wallet manually, then connect again.`)
   }
+  const chain = id === 31338 ? { ...known, id, name: "CAM release rehearsal" } : known
   return {
     id,
     name: chain.name,

@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem"
+import type { Address, Chain, Hex } from "viem"
 import { isAddress } from "viem"
 
 import { CamEvmError } from "./errors.ts"
@@ -33,6 +33,13 @@ export function evmChainIdHex(chainId: string): Hex {
 
 export function evmChainIdNumber(chainId: string): number {
   return Number(chainIdDecimal(chainId))
+}
+
+export async function evmChainMetadata(chainId: string): Promise<Pick<Chain, "id" | "name" | "nativeCurrency" | "blockExplorers"> | undefined> {
+  const id = evmChainIdNumber(chainId)
+  // Rich chain-client types make catalog-wide inference unnecessarily costly.
+  const chains: Readonly<Record<keyof typeof import("viem/chains"), Pick<Chain, "id" | "name" | "nativeCurrency" | "blockExplorers">>> = await import("viem/chains")
+  return Object.values(chains).find(chain => chain.id === id)
 }
 
 function chainIdDecimal(value: string): string {

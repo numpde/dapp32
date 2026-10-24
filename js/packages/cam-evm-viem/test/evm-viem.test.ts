@@ -17,6 +17,7 @@ import {
   createHttpCamPublicClient,
   evmChainIdHex,
   evmChainIdNumber,
+  evmChainMetadata,
   loadCamFromHost,
   requireEvmAddress,
   requireEvmChainId,
@@ -25,6 +26,7 @@ import {
   simulateCamContractCall,
   validateCamContractCall,
 } from "../src/index.ts"
+
 import { ICAM_APP_INTERFACE_ID } from "../src/abi.ts"
 import type { CamHost, CamSimulationClient, CamWalletClient } from "../src/index.ts"
 import {
@@ -87,6 +89,13 @@ const testChain: Chain = {
   },
 }
 
+test("known chain metadata is selected by chain ID and leaves unknown chains unresolved", async () => {
+  const fuji = await evmChainMetadata("eip155:43113")
+  assert.equal(fuji?.id, 43113)
+  assert.equal(fuji?.blockExplorers?.default.url, "https://testnet.snowtrace.io")
+  assert.equal((await evmChainMetadata("eip155:31337"))?.blockExplorers, undefined)
+  assert.equal(await evmChainMetadata("eip155:2147483646"), undefined)
+})
 test("validates EVM address and chain boundary values", () => {
   assert.equal(requireEvmAddress(userAddress, "account"), userAddress)
   assert.equal(requireEvmChainId("eip155:31337"), "eip155:31337")

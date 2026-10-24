@@ -20,7 +20,7 @@ export { CamEvmError } from "./errors.ts"
 export type { CamEvmErrorCode } from "./errors.ts"
 
 export { verifyCamHash, verifyCamResourceIntegrity } from "./hash.ts"
-export { assertClientChain, evmChainIdHex, evmChainIdNumber, requireEvmAddress, requireEvmChainId } from "./chain.ts"
+export { assertClientChain, evmChainIdHex, evmChainIdNumber, evmChainMetadata, requireEvmAddress, requireEvmChainId } from "./chain.ts"
 export { createHttpCamPublicClient } from "./client.ts"
 export type { CreateHttpCamPublicClientOptions } from "./client.ts"
 export { loadCamFromHost } from "./host.ts"

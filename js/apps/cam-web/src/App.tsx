@@ -40,7 +40,7 @@ import type { WalletState } from "./wallet.ts"
 import { createInjectedWalletBinding } from "./wallet-binding.ts"
 import { actionFailure, failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
-import { Feedback } from "./feedback.tsx"
+import { Feedback, TransactionFeedback } from "./feedback.tsx"
 import { IntegrityWarnings } from "./integrity-warnings.tsx"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
@@ -62,6 +62,7 @@ import {
 } from "./components.tsx"
 import {
   type PreparedCallSubmitterPorts,
+  type SubmittedTransactionReference,
   SubmissionOutcomeUnknownError,
   submittedTransactionDiagnosis,
   submitPreparedContractCall,
@@ -126,7 +127,7 @@ export function App(): ReactElement {
   const [walletRefreshing, setWalletRefreshing] = useState(false)
   const [walletAccountSynchronized, setWalletAccountSynchronized] = useState(true)
   const [notice, setNotice] = useState<Notice | undefined>(undefined)
-  const [transactionNotice, setTransactionNotice] = useState<Notice | undefined>(undefined)
+  const [transactionNotice, setTransactionNotice] = useState<(Notice & { readonly transaction?: SubmittedTransactionReference }) | undefined>(undefined)
   const [preparedCall, setPreparedCallState] = useState<CamViewerPreparedContractCall | undefined>(undefined)
   const preparedCallRef = useRef<CamViewerPreparedContractCall | undefined>(undefined)
   const [sending, setSending] = useState(false)
@@ -438,7 +439,7 @@ export function App(): ReactElement {
     // tx hash exists, the send revision owns user-visible transaction feedback.
     const ownsInteraction = () => isCurrentInteraction(interaction)
     const ownsSend = () => isCurrentSend(send)
-    let submittedTxHash: `0x${string}` | undefined
+    let submittedTransaction: SubmittedTransactionReference | undefined
     let reverted = false
 
     // React disables the button after state commit, but a second click can
@@ -459,9 +460,9 @@ export function App(): ReactElement {
         shouldContinue: () => ownsInteraction() && ownsSend(),
       })
       if (txHash === undefined) return
-      submittedTxHash = txHash
+      submittedTransaction = { chainId: ready.runtime.startup.chainId, hash: txHash }
       if (!ownsSend()) return
-      reportTransaction({ message: `Transaction submitted: ${txHash}` }, "status", false)
+      reportTransaction({ message: "Transaction submitted." }, "status", false, submittedTransaction)
 
       const nonceGap = await submittedTransactionDiagnosis({
         client: ready.runtime.publicClient,
@@ -480,7 +481,7 @@ export function App(): ReactElement {
         reverted = true
         throw new Error(`Transaction reverted: ${txHash}`)
       }
-      reportTransaction({ message: `Transaction confirmed in block ${receipt.blockNumber.toString()}. Transaction hash: ${txHash}.` }, "status", ownsInteraction())
+      reportTransaction({ message: `Transaction confirmed in block ${receipt.blockNumber.toString()}.` }, "status", ownsInteraction(), submittedTransaction)
       if (ownsInteraction()) {
         setPreparedCall(undefined)
       }
@@ -502,14 +503,14 @@ export function App(): ReactElement {
         }
       }
     } catch (error) {
-      if (!ownsSend() || (submittedTxHash === undefined && !(error instanceof SubmissionOutcomeUnknownError) && !ownsInteraction())) return
-      if (submittedTxHash !== undefined) {
+      if (!ownsSend() || (submittedTransaction === undefined && !(error instanceof SubmissionOutcomeUnknownError) && !ownsInteraction())) return
+      if (submittedTransaction !== undefined) {
         if (ownsInteraction()) {
           setPreparedCall(undefined)
         }
         reportTransaction(failureReport(error, reverted
-          ? `Transaction reverted. Transaction hash: ${submittedTxHash}.`
-          : `Transaction submitted, but confirmation could not be checked. Check its status before sending another transaction. Transaction hash: ${submittedTxHash}.`), "error", ownsInteraction())
+          ? "Transaction reverted."
+          : "Transaction submitted, but confirmation could not be checked. Check its status before sending another transaction."), "error", ownsInteraction(), submittedTransaction)
       } else if (error instanceof SubmissionOutcomeUnknownError) {
         if (ownsInteraction()) setPreparedCall(undefined)
         reportTransaction(failureReport(error.cause, "The transaction may have been sent, but the wallet did not return a transaction hash. Check your wallet before trying again."), "error", ownsInteraction())
@@ -666,8 +667,8 @@ export function App(): ReactElement {
     if (focus) arriveAtFeedback("notice")
   }
 
-  function reportTransaction(report: FailureReport, kind: Notice["kind"], focus: boolean): void {
-    setTransactionNotice({ ...report, kind })
+  function reportTransaction(report: FailureReport, kind: Notice["kind"], focus: boolean, transaction?: SubmittedTransactionReference): void {
+    setTransactionNotice({ ...report, kind, ...(transaction === undefined ? {} : { transaction }) })
     if (focus) arriveAtFeedback("transaction")
   }
 
@@ -764,7 +765,7 @@ export function App(): ReactElement {
       )}
       {transactionNotice === undefined ? null : (
         <section className="transaction-feedback" aria-label="Transaction outcome">
-          <Feedback report={transactionNotice} kind={transactionNotice.kind} className="notice" messageRef={transactionNoticeRef} />
+          <TransactionFeedback report={transactionNotice} kind={transactionNotice.kind} transaction={transactionNotice.transaction} messageRef={transactionNoticeRef} />
         </section>
       )}
       {preparedCall === undefined ? null : (

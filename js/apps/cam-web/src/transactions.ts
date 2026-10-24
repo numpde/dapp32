@@ -5,6 +5,8 @@ import type {
   CamViewerPreparedContractCall,
 } from "@cam/viewer"
 import { viewerErrorMessage } from "@cam/viewer"
+import { evmChainMetadata } from "@cam/evm-viem"
+import { requireHttpURL } from "@cam/protocol"
 import type {
   Address,
 } from "viem"
@@ -12,6 +14,19 @@ import type {
 import type {
   StartupOptions,
 } from "./startup.ts"
+
+export type SubmittedTransactionReference = {
+  readonly chainId: string
+  readonly hash: `0x${string}`
+}
+
+export async function transactionExplorer(transaction: SubmittedTransactionReference): Promise<{ readonly name: string; readonly url: string } | undefined> {
+  const explorer = (await evmChainMetadata(transaction.chainId))?.blockExplorers?.default
+  if (explorer === undefined) return undefined
+  const url = new URL(requireHttpURL(explorer.url, "Block explorer URL").href)
+  url.pathname = `${url.pathname.replace(/\/$/, "")}/tx/${transaction.hash}`
+  return { name: explorer.name, url: url.href }
+}
 
 export type SubmittedTransaction = {
   readonly blockNumber: bigint | null
