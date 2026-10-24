@@ -4,6 +4,10 @@ SHELL := bash
 
 COMPOSE_DIR := compose
 DOCKER_COMPOSE ?= docker compose
+# Compose stdout is captured by several operator workflows; progress must not
+# require a console or interleave terminal control sequences with their output.
+export COMPOSE_PROGRESS := plain
+export COMPOSE_ANSI := never
 # Intentional default: the default project name is convenient locally, but it
 # can collide with another checkout/user. Prefer explicit COMPOSE_PROJECT_NAME
 # for shared machines, CI, and parallel scenario runs.
@@ -547,7 +551,6 @@ compose_release() { \
   -f "$(COMPOSE_DIR)/release/artifact.yml" -f "$(COMPOSE_DIR)/$$app/release/artifact.yml" \
   "$${artifact_transport_args[@]}" -f "$$ceremony_root/images-artifact.yml" "$$@"; \
 }; \
-export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never; \
 completion_log="$$(mktemp "$$output_dir/artifact-completion-XXXXXXXX.log")"; \
 printf 'Completing artifact from app source %s with recovery tooling %s. Log: %s\n' "$$source_commit" "$$tool_source_commit" "$$completion_log"; \
 release_run_started=1; \
@@ -1522,7 +1525,6 @@ endef
 
 define release_viewer_settings
 viewer_interactive=0; if [[ -t 0 ]]; then viewer_interactive=1; fi; \
-export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never; \
 printf '%s\n' 'Reading the deployment artifact and preparing viewer options...' >&2; \
 viewer_settings="$$( $(1) )"; \
 mapfile -t viewer_inputs <<< "$$viewer_settings"; \

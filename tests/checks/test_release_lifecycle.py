@@ -462,6 +462,39 @@ docker() {
                     self.assertEqual(2 if inspection == "setup-failed" else 1, len(events), events)
                     self.assertFalse(any(" up --build " in f" {event} " or " down --timeout " in f" {event} " for event in events))
 
+    def test_demo_viewer_captures_use_plain_compose_output(self):
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                stub = root / "compose.sh"
+                stub.write_text(r'''
+set -eu
+printf '%s\n' "$*" >> "$CASE_ROOT/events"
+if [[ "${COMPOSE_PROGRESS-}" != plain || "${COMPOSE_ANSI-}" != never ]]; then
+  printf 'Compose attempted console progress during an operator workflow\n' >&2
+  exit 39
+fi
+if [[ "${@: -1}" == *-viewer-url ]]; then
+  printf 'http://127.0.0.1:5173/?fixture=demo\n'
+fi
+''')
+                overrides = root / "overrides.mk"
+                overrides.write_text("dapps/deps/verify: ; @:\n")
+                env = self.environment(root, root)
+                env.pop("COMPOSE_PROGRESS", None)
+                env.pop("COMPOSE_ANSI", None)
+                result = subprocess.run(
+                    ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(overrides),
+                     f"{app}/local/demo/gui/up", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:",
+                     f"DOCKER_COMPOSE=bash {stub}"],
+                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=10,
+                )
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertIn("http://127.0.0.1:5173/?fixture=demo", result.stdout)
+                events = (root / "events").read_text().splitlines()
+                self.assertEqual(1, sum(event.endswith(f"{app}-viewer-url") for event in events))
+                self.assertTrue(any("--abort-on-container-exit" in event for event in events))
+
     def test_local_viewer_uses_shared_capture_without_accepting_a_public_rpc_override(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -478,7 +511,7 @@ docker() {
   if [[ "$1 $2" == 'network inspect' ]]; then printf 'true\n'
   elif [[ " $* " == *" ps --quiet --status running "* ]]; then printf 'fixture-chain\n'
   elif [[ " $* " == *" viewer-url "* ]]; then
-    printf 'rpc:%s\ncapture:%s:%s\n' "$RELEASE_VIEWER_RPC_URL" "$COMPOSE_PROGRESS" "$COMPOSE_ANSI" >> "$CASE_ROOT/events"
+    printf 'rpc:%s\n' "$RELEASE_VIEWER_RPC_URL" >> "$CASE_ROOT/events"
     printf 'bike-nft\nhttps://raw.githubusercontent.com\nhttp://127.0.0.1:5174/rpc\nhttp://127.0.0.1:5174/?chainId=eip155%%3A31338\n'
   fi
 }
@@ -488,7 +521,6 @@ docker() {
             self.assertEqual(0, process.returncode, stdout + stderr)
             events = (root / "events").read_text().splitlines()
             self.assertIn("rpc:http://127.0.0.1:5174/rpc", events)
-            self.assertIn("capture:plain:never", events)
             self.assertIn("chainId=eip155%3A31338", stdout)
             self.assertNotIn("wrong-chain.example.test", stdout + stderr + "\n".join(events))
             self.assertTrue(any(" up --build " in f" {event} " for event in events))
