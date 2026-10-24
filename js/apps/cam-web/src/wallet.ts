@@ -86,7 +86,10 @@ export async function walletNetworkToAdd(options: WalletChainOptions): Promise<C
   const rpcUrl = requireHttpURL(options.rpcUrl, "rpcUrl").href
   // Only network registration needs this catalog; an installed custom network
   // can be selected and used for transactions without a catalog entry.
-  const chains = await import("viem/chains")
+  // Keep rich chain-client types out of metadata lookup inference.
+  const chains: Readonly<
+    Record<keyof typeof import("viem/chains"), Pick<Chain, "id" | "name" | "nativeCurrency">>
+  > = await import("viem/chains")
   // The repository's release rehearsal uses a separate Anvil chain ID.
   const knownChains = Object.values(chains)
   const chain = id === 31338
