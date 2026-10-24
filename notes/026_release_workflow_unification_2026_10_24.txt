@@ -205,6 +205,16 @@ caused by D. Its failed log is retained at
 /tmp/cam-release-unification-rendered-20261024.log. Correct the relevant
 artifact render inventory before final whole-workflow qualification.
 
+The inventory repair now composes artifact rehearsal with its real base/app
+files. Reference compositions derive from the deployment composition rather
+than repeating a stale pre-artifact file list. Exact grants also classify the
+existing setup RPC secret and shared local-viewer unit, and assign the single
+artifact output bind to compositions containing its owning artifact phase.
+No runtime grants changed. The duplicated environment dictionary snapshot was
+replaced by a test that fixture-owned values override hostile ambient values.
+All 22 rendered-posture cases passed across the full run and focused reruns
+of its two remaining grant checks; missing-variable rejection stays covered.
+
 C deployment and final committed-source qualification remain. Host workflow
 changes must preserve the existing entrypoint/environment contracts when
 consuming an older archived release source; they cannot assume a newly added

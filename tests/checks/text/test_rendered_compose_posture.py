@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import unittest
+from unittest.mock import patch
 from typing import Any
 
 from ..common import (
@@ -161,7 +162,7 @@ def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
 def release_rehearsal_units() -> tuple[tuple[str, ...], ...]:
     units = []
     for name, files in makefile_compose_units().items():
-        for mode in ("deploy", "verify"):
+        for mode in ("deploy", "verify", "artifact"):
             if name.endswith(f"_RELEASE_{mode.upper()}_COMPOSE_FILES"):
                 units.append((*files, f"compose/release/rehearsal-{mode}.yml"))
     return tuple(units)
@@ -253,122 +254,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertLess(refresh_recipe.index("$(LANE_GUARD)"), refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"))
         self.assertLess(refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"), refresh_recipe.index("$(DOCKER_COMPOSE)"))
 
-    def test_rendered_compose_fixture_env_is_explicit(self) -> None:
-        # This pins the happy-path render fixture so posture tests do not gain
-        # hidden environment inputs. It is deliberately not the fail-closed
-        # check for missing operator variables.
-        self.assertEqual(
-            {
-                "ABI_PLAN_DIR": "/tmp/abi-plan",
-                "ALLOW_UPDATE": "0",
-                "ANVIL_HOST_PORT": "8545",
-                "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
-                "BIKE_NFT_GUI_PORT": "5173",
-                "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE": "/tmp/bike-nft-release-output/deployment.json",
-                "BIKE_NFT_RELEASE_BASE_TOKEN_URI": "https://example.test/bike-nft/tokens/",
-                "BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
-                "BIKE_NFT_RELEASE_CAM_URI": "https://example.test/bike-nft/cam/main.json",
-                "BIKE_NFT_RELEASE_COLLECTION_URI": "https://example.test/bike-nft/collection.json",
-                "BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN": "0x0000000000000000000000000000000000000012",
-                "BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY": "86400",
-                "BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER": "0x0000000000000000000000000000000000000014",
-                "BIKE_NFT_RELEASE_COMPONENTS_PAUSER": "0x0000000000000000000000000000000000000013",
-                "BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID": "11155111",
-                "BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
-                "BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN": "0x0000000000000000000000000000000000000015",
-                "BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY": "86400",
-                "BIKE_NFT_RELEASE_MANAGER_CONFIGURER": "0x0000000000000000000000000000000000000017",
-                "BIKE_NFT_RELEASE_MANAGER_PAUSER": "0x0000000000000000000000000000000000000016",
-                "BIKE_NFT_RELEASE_OUTPUT_DIR": "/tmp/bike-nft-release-output",
-                "BIKE_NFT_RELEASE_REGISTRARS": "0x0000000000000000000000000000000000000018",
-                "BIKE_NFT_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
-                "BIKE_NFT_RELEASE_TOKEN_NAME": "Bicycle Components",
-                "BIKE_NFT_RELEASE_TOKEN_SYMBOL": "BIKE",
-                "CAM_HASH": "0xe06f268057be3d32e11ab8e897683376760dfa7550c95943032434e0a4f44430",
-                "CAM_PREFLIGHT_ARGS": "",
-                "CAM_PREFLIGHT_ROOT_PATH": "/work/dapps/bike-nft/cam/main.json",
-                "CAM_URI": "https://example.test/bike-nft/cam/main.json",
-                "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
-                "CDP_TARGET_ID": "00000000000000000000000000000001",
-                "FIXTURE_WALLET_APP": "pay-to-play",
-                "EXPECTED_CONTRACT_ADDRESSES": '{"PayToPlay":"0x0000000000000000000000000000000000000001"}',
-                "CDP_ORIGIN": "http://127.0.0.1:9222",
-                "COMPOSE_PROJECT_NAME": "dapps-check",
-                "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
-                "DAPP": "pay-to-play",
-                "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
-                "ESCROW_BROADCAST_PATH": "/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json",
-                "ESCROW_DEPLOYMENT_ARTIFACT_FILE": "/tmp/escrow-release-output/artifact/deployment.json",
-                "ESCROW_GUI_BIND_HOST": "127.0.0.1",
-                "ESCROW_GUI_ORIGIN": "http://127.0.0.1:5174",
-                "ESCROW_GUI_PORT": "5174",
-                "EXPECTED_CAM_HASH": "0xe06f268057be3d32e11ab8e897683376760dfa7550c95943032434e0a4f44430",
-                "EXPECTED_CAM_URI": "https://example.test/escrow/cam/main.json",
-                "ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
-                "ESCROW_RELEASE_CAM_URI": "https://example.test/escrow/cam/main.json",
-                "ESCROW_RELEASE_EXPECTED_CHAIN_ID": "11155111",
-                "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
-                "ESCROW_RELEASE_OUTPUT_DIR": "/tmp/escrow-release-output",
-                "ESCROW_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
-                "PAY_TO_PLAY_BROADCAST_DIR": "/foundry-broadcast",
-                "PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID": "11155111",
-                "PAY_TO_PLAY_RELEASE_CAM_URI": "https://example.test/pay-to-play/cam/main.json",
-                "PAY_TO_PLAY_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
-                "PAY_TO_PLAY_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
-                "PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
-                "PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN": "0x0000000000000000000000000000000000000012",
-                "PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD": "0",
-                "PAY_TO_PLAY_RELEASE_OUTPUT_DIR": "/tmp/pay-to-play-release-output",
-                "PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE": "/tmp/pay-to-play-release-output/artifact/deployment.json",
-                "PAY_TO_PLAY_BROADCAST_PATH": "/foundry-broadcast/DeployPayToPlayLocal.s.sol/31337/run-latest.json",
-                "PAY_TO_PLAY_GUI_BIND_HOST": "127.0.0.1",
-                "PAY_TO_PLAY_GUI_ORIGIN": "http://127.0.0.1:5175",
-                "PAY_TO_PLAY_GUI_PORT": "5175",
-                "PAY_TO_PLAY_FIXTURE_NETWORK": "dapps-check_pay-to-play_local",
-                "PAY_TO_PLAY_FIXTURE_PROJECT": "dapps-check",
-                "LOCAL_GID": "1000",
-                "LOCAL_UID": "1000",
-                "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
-                "RPC_INDEXER_COMPOSE_PROJECT_NAME": "dapps-rpc-indexer",
-                "REFUND_CONFIG_FILE": "/tmp/refund-config",
-                "REFUND_PRIVATE_KEY_FILE": "/tmp/refund-relayer-key",
-                "REFUND_STATE_DIR": "/tmp/refund-state",
-                "RELEASE_OUTPUT_DIR": "/tmp/release-output",
-                "RELEASE_REHEARSAL_DIR": "/tmp/release-rehearsal",
-                "RELEASE_RPC_OUTPUT_DIR": "/tmp/release-rpc-output",
-                "RELEASE_CONFIG_STAGE_DIR": "/tmp/release-config-stage",
-                "RELEASE_CONFIG_FILE": "/tmp/release-config.json",
-                "RELEASE_LOCAL_NETWORK": "dapps-release-local_anvil_internal",
-                "RELEASE_VIEWER_PORT": "5174",
-                "RELEASE_VIEWER_ORIGIN": "http://127.0.0.1:5174",
-                "RELEASE_VIEWER_APP": "pay-to-play",
-                "RELEASE_VIEWER_ARTIFACT": "/tmp/release-output/artifact/deployment.json",
-                "RELEASE_VIEWER_RESOURCE_ORIGIN": "https://raw.githubusercontent.com",
-                "RELEASE_VIEWER_RPC_URL": "https://api.avax-test.network/ext/bc/C/rpc",
-                "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
-                "RELEASE_WAIT_CASE": "delay-10",
-                "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",
-                "RELEASE_WAIT_SOCKET_DIR": "/tmp/release-wait-socket",
-                "RELEASE_APPROVAL_IMAGE": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                "RELEASE_APPROVAL_SOURCE_DIR": "/tmp/approval-image-source",
-                "RELEASE_APPROVAL_CONTEXT_DIR": "/tmp/approval-image-context",
-                "PACKAGE_INPUT_DIR": "/tmp/approval-image-manifests",
-                "RELEASE_APPROVAL_APP": "escrow",
-                "RELEASE_APPROVAL_CHAIN_ID": "11155111",
-                "RELEASE_APPROVAL_DEPLOYER": "0x0000000000000000000000000000000000000019",
-                "RELEASE_APPROVAL_REFERENCE_FILE": "/tmp/release-output/approval/reference.json",
-                "RELEASE_APPROVAL_REFERENCE_SHA256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                "RELEASE_APPROVAL_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
-                "RELEASE_APPROVAL_PLAN_SHA256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                "RELEASE_APPROVAL_SOCKET_DIR": "/tmp/release-output/approval/socket",
-                "RELEASE_APPROVAL_AUDIT_DIR": "/tmp/release-output/approval/audit",
-                "RELEASE_APPROVAL_ARTIFACTS_DIR": "/tmp/release-output/approval/artifacts",
-                "RELEASE_APPROVAL_REFERENCE_DIR": "/tmp/release-output/approval/reference",
-                "RELEASE_DEPLOYMENT_ARTIFACT_FILE": "/tmp/release-output/artifact/deployment.json",
-                "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
-            },
-            RENDERED_COMPOSE_FIXTURE_ENV,
-        )
+    def test_rendered_compose_fixture_values_override_ambient_inputs(self) -> None:
+        baseline = compose_render_env()
+        hostile_inputs = {name: "ambient-must-not-win" for name in RENDERED_COMPOSE_FIXTURE_ENV}
+        with patch.dict(os.environ, hostile_inputs):
+            challenged = compose_render_env()
+        for name in RENDERED_COMPOSE_FIXTURE_ENV:
+            self.assertEqual(baseline[name], challenged[name], name)
 
     def test_required_compose_env_vars_fail_closed_when_omitted(self) -> None:
         required_files = set(compose_files_with_required_env())
@@ -477,8 +369,11 @@ class RenderedComposePostureTest(unittest.TestCase):
             ),
         }
         expected_ports.add((makefile_compose_unit("PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES"), "pay-to-play-browser-gateway", "127.0.0.1", 8080, "5175"))
-        expected_ports.add(("compose/release/viewer.yml", "browser-gateway", "127.0.0.1", 8080, "5174"))
-        expected_secrets = {("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url")}
+        expected_ports.add((makefile_compose_unit("LOCAL_RELEASE_VIEWER_COMPOSE_FILES"), "browser-gateway", "127.0.0.1", 8080, "5174"))
+        expected_secrets = {
+            ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
+            ("compose/release/setup-rpc.yml", "rpc-proxy", "rpc_url", "rpc_url"),
+        }
         for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
             deploy = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
             reference = makefile_compose_unit(f"{app}_RELEASE_REFERENCE_COMPOSE_FILES")
@@ -501,7 +396,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                     (files, "release-rpc-proxy", "rpc_url", "rpc_url"),
                     (files, "deploy-release", "deployer_private_key", "deployer_private_key"),
                 })
-            else:
+            elif mode.endswith("rehearsal-verify.yml"):
                 expected_secrets.add((files, "verify-rpc-proxy", "rpc_url", "rpc_url"))
         for files in release_wait_units():
             expected_secrets.update({
@@ -1011,7 +906,6 @@ class RenderedComposePostureTest(unittest.TestCase):
                 expected.update({
                     (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
                     (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
-                    (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
                 })
 
         for compose_unit in compose_render_units():
@@ -1062,18 +956,18 @@ class RenderedComposePostureTest(unittest.TestCase):
                 expected.update({
                     (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
                     (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
-                    (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
                 })
         for files in release_wait_units():
             expected.update({
                 (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
                 (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
-                (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
                 (files, "release-rpc-proxy", "/tmp/release-wait-evidence", "/wait-evidence"),
             })
             if files[-1].endswith("rehearsal-ipc.yml"):
                 expected.add((files, "release-rpc-proxy", "/tmp/release-wait-socket", "/run/approval"))
         for files in compose_render_units():
+            if "compose/release/artifact.yml" in compose_unit_files(files):
+                expected.add((files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"))
             if "compose/release/reference.yml" in compose_unit_files(files):
                 expected.update({
                     (files, "release-reference-export", "/tmp/release-output/approval/artifacts", "/reference-artifacts"),
