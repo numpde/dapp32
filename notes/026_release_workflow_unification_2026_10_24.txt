@@ -168,7 +168,17 @@ All three offline release/check targets passed before and after the change:
 Bike 39 tests, Escrow 36, Pay-to-Play 27. The shared diagnostic now calls this a
 handoff, which applies to both owner and administrator holders.
 
-B, C and D remain to be implemented and qualified. In particular, host workflow
+B: release-provenance.ts now owns selected-chain admission followed by CREATE
+receipt and common-deployer proof. All six artifact/provenance entrypoints use
+it; Bike's private orchestration was deleted. Producers return observed chain
+and deployer identity; verifiers still compare that identity with the parsed
+artifact. Pay-to-Play retains its explicit transaction-input hash proof, and
+runtime code/configuration observations remain pinned to their selected block.
+The focused checks passed: Bike 39, Escrow 37, Pay-to-Play 27. The additional
+behavioral case proves a wrong chain prevents receipt reads and mixed receipt
+senders cannot produce a successful proof.
+
+C and D remain to be implemented and qualified. In particular, host workflow
 changes must preserve the existing entrypoint/environment contracts when
 consuming an older archived release source; they cannot assume a newly added
 helper exists in that older archive.

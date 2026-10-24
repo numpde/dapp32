@@ -13,8 +13,7 @@ import {
 import type { DeploymentContracts } from "./artifact-model.ts"
 import { ownershipState } from "../release-ownership.ts"
 import {
-  creationReceiptDeployer,
-  sharedCreationReceiptDeployer,
+  observeReleaseCreations,
 } from "../release-provenance.ts"
 import {
   parseReleasePlan,
@@ -138,11 +137,15 @@ async function main(): Promise<void> {
     transport: http(requiredEnv(env, "BIKE_NFT_RELEASE_RPC_URL")),
   })
 
-  const chainId = await client.getChainId()
-  if (chainId !== plan.expectedChainId) {
-    throw new Error(`release RPC chain mismatch: expected ${plan.expectedChainId}, got ${chainId}`)
-  }
-  const deployer = await proveCreationProvenance(client, contracts)
+  const { chainId, deployer } = await observeReleaseCreations({
+    client, expectedChainId: plan.expectedChainId,
+    contracts: [
+      { label: "CamRoot", ...contracts.camRoot },
+      { label: "BicycleComponents", ...contracts.components },
+      { label: "BicycleComponentManager", ...contracts.manager },
+      { label: "BicycleComponentManagerUI", ...contracts.ui },
+    ],
+  })
 
   const blockNumber = await client.getBlockNumber()
   const read: ContractReader = <T>(address: Address, abi: Abi, functionName: string, args?: readonly unknown[]) => client.readContract({
@@ -182,31 +185,6 @@ async function main(): Promise<void> {
     blockNumber: blockNumber.toString(),
     artifactPath,
   })}\n`)
-}
-
-async function proveCreationProvenance(
-  client: ReleaseClient,
-  contracts: DeploymentContracts,
-): Promise<Address> {
-  const [camRootReceipt, componentsReceipt, managerReceipt, uiReceipt] = await Promise.all([
-    client.getTransactionReceipt({ hash: contracts.camRoot.transactionHash }),
-    client.getTransactionReceipt({ hash: contracts.components.transactionHash }),
-    client.getTransactionReceipt({ hash: contracts.manager.transactionHash }),
-    client.getTransactionReceipt({ hash: contracts.ui.transactionHash }),
-  ])
-  const camRoot = creationReceiptDeployer(contracts.camRoot, camRootReceipt, "CamRoot")
-  const components = creationReceiptDeployer(
-    contracts.components,
-    componentsReceipt,
-    "BicycleComponents",
-  )
-  const manager = creationReceiptDeployer(
-    contracts.manager,
-    managerReceipt,
-    "BicycleComponentManager",
-  )
-  const ui = creationReceiptDeployer(contracts.ui, uiReceipt, "BicycleComponentManagerUI")
-  return sharedCreationReceiptDeployer([camRoot, components, manager, ui])
 }
 
 async function observeCode(

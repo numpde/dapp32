@@ -1,7 +1,7 @@
 import { resolve } from "node:path"
 import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import { DEPLOYMENT_SCHEMA, parseReleasePlan, type DeploymentArtifact } from "./shared.ts"
-import { createdContract, creationReceiptDeployer, creationTransactionInputHash, sharedCreationReceiptDeployer } from "../release-provenance.ts"
+import { createdContract, creationTransactionInputHash, observeReleaseCreations } from "../release-provenance.ts"
 import { ownershipState } from "../release-ownership.ts"
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import { requiredEnv } from "../input.ts"
@@ -21,17 +21,11 @@ async function main(): Promise<void> {
   const root = createdContract(broadcast.transactions, "CamRoot")
   const payments = createdContract(broadcast.transactions, "PayToPlay")
   const client = createPublicClient({ transport: http(requiredEnv(process.env, "PAY_TO_PLAY_RELEASE_RPC_URL")) })
-  const chainId = await client.getChainId()
-  if (chainId !== plan.expectedChainId) throw new Error(`release RPC chain mismatch: expected ${plan.expectedChainId}, got ${chainId}`)
-  const [rootReceipt, paymentReceipt, transaction] = await Promise.all([
-    client.getTransactionReceipt({ hash: root.transactionHash }),
-    client.getTransactionReceipt({ hash: payments.transactionHash }),
-    client.getTransaction({ hash: payments.transactionHash }),
-  ])
-  const deployer = sharedCreationReceiptDeployer([
-    creationReceiptDeployer(root, rootReceipt, "CamRoot"),
-    creationReceiptDeployer(payments, paymentReceipt, "PayToPlay"),
-  ])
+  const { chainId, deployer } = await observeReleaseCreations({
+    client, expectedChainId: plan.expectedChainId,
+    contracts: [{ label: "CamRoot", ...root }, { label: "PayToPlay", ...payments }],
+  })
+  const transaction = await client.getTransaction({ hash: payments.transactionHash })
   const creationInputHash = creationTransactionInputHash(payments, transaction, deployer, "PayToPlay")
   const blockNumber = await client.getBlockNumber()
   const [rootCode, paymentCode, manifest, binding] = await Promise.all([

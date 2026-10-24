@@ -16,8 +16,7 @@ import {
   deploymentContractsFromBroadcast,
 } from "./artifact-model.ts"
 import {
-  creationReceiptDeployer,
-  sharedCreationReceiptDeployer,
+  observeReleaseCreations,
 } from "../release-provenance.ts"
 import {
   DEPLOYMENT_SCHEMA,
@@ -60,21 +59,14 @@ async function main(): Promise<void> {
   )
   const contracts = deploymentContractsFromBroadcast(broadcast)
   const client = createPublicClient({ transport: http(rpcURL) })
-  const chainId = await client.getChainId()
-  if (chainId !== plan.expectedChainId) {
-    throw new Error(`release RPC chain mismatch: expected ${plan.expectedChainId}, got ${chainId}`)
-  }
-
-  const [rootReceipt, escrowReceipt, uiReceipt] = await Promise.all([
-    client.getTransactionReceipt({ hash: contracts.camRoot.transactionHash }),
-    client.getTransactionReceipt({ hash: contracts.camEscrow.transactionHash }),
-    client.getTransactionReceipt({ hash: contracts.camEscrowUI.transactionHash }),
-  ])
-  const deployer = sharedCreationReceiptDeployer([
-    creationReceiptDeployer(contracts.camRoot, rootReceipt, "CamRoot"),
-    creationReceiptDeployer(contracts.camEscrow, escrowReceipt, "CamEscrow"),
-    creationReceiptDeployer(contracts.camEscrowUI, uiReceipt, "CamEscrowUI"),
-  ])
+  const { chainId, deployer } = await observeReleaseCreations({
+    client, expectedChainId: plan.expectedChainId,
+    contracts: [
+      { label: "CamRoot", ...contracts.camRoot },
+      { label: "CamEscrow", ...contracts.camEscrow },
+      { label: "CamEscrowUI", ...contracts.camEscrowUI },
+    ],
+  })
 
   const observationBlockNumber = await client.getBlockNumber()
   const [rootCode, escrowCode, uiCode] = await Promise.all([

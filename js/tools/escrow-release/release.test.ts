@@ -35,6 +35,7 @@ import {
 import type { DeploymentArtifact } from "./shared.ts"
 import {
   creationReceiptDeployer,
+  observeReleaseCreations,
   sharedCreationReceiptDeployer,
 } from "../release-provenance.ts"
 import { requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit } from "../release-values.ts"
@@ -235,6 +236,35 @@ test("Forge broadcast extraction requires exactly one create per release contrac
       create("CamEscrowUI", UI, UI_TX),
     ],
   }), /create CamRoot exactly once/)
+})
+
+test("release provenance checks the chain before receipts and requires one observed deployer", async () => {
+  const contracts = [
+    { label: "CamRoot", address: ROOT, transactionHash: ROOT_TX },
+    { label: "CamEscrow", address: ESCROW, transactionHash: ESCROW_TX },
+  ] as const
+  let chainId = 1
+  let escrowDeployer = DEPLOYER
+  const reads: string[] = []
+  const client = {
+    getChainId: async () => chainId,
+    getTransactionReceipt: async ({ hash }: { hash: `0x${string}` }) => {
+      reads.push(hash)
+      return {
+        status: "success" as const, to: null,
+        transactionHash: hash,
+        contractAddress: hash === ROOT_TX ? ROOT : ESCROW,
+        from: hash === ROOT_TX ? DEPLOYER : escrowDeployer,
+      }
+    },
+  }
+  await assert.rejects(observeReleaseCreations({ client, expectedChainId: 11155111, contracts }), /chain mismatch/)
+  assert.deepEqual(reads, [])
+  chainId = 11155111
+  assert.deepEqual(await observeReleaseCreations({ client, expectedChainId: chainId, contracts }), { chainId, deployer: DEPLOYER })
+  assert.deepEqual(reads, [ROOT_TX, ESCROW_TX])
+  escrowDeployer = OWNER
+  await assert.rejects(observeReleaseCreations({ client, expectedChainId: chainId, contracts }), /do not share one deployer/)
 })
 
 test("creation receipts are bound to broadcast hashes and contract addresses", () => {

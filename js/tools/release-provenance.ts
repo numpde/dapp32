@@ -14,6 +14,29 @@ export type CreationReceiptEvidence = {
   readonly to: Address | null
 }
 
+type LabeledCreation = CreatedContract & { readonly label: string }
+type CreationReader = {
+  getChainId(): Promise<number>
+  getTransactionReceipt(request: { readonly hash: Hex }): Promise<CreationReceiptEvidence>
+}
+
+export async function observeReleaseCreations({ client, expectedChainId, contracts }: {
+  readonly client: CreationReader
+  readonly expectedChainId: number
+  readonly contracts: readonly [LabeledCreation, ...LabeledCreation[]]
+}): Promise<{ readonly chainId: number; readonly deployer: Address }> {
+  const chainId = await client.getChainId()
+  if (chainId !== expectedChainId) {
+    throw new Error(`release RPC chain mismatch: expected ${expectedChainId}, got ${chainId}`)
+  }
+  const receipts = await Promise.all(contracts.map(contract => client.getTransactionReceipt({ hash: contract.transactionHash })))
+  const deployers: [Address, ...Address[]] = [
+    creationReceiptDeployer(contracts[0], receipts[0]!, contracts[0].label),
+    ...contracts.slice(1).map((contract, index) => creationReceiptDeployer(contract, receipts[index + 1]!, contract.label)),
+  ]
+  return { chainId, deployer: sharedCreationReceiptDeployer(deployers) }
+}
+
 export function creationTransactionInputHash(
   contract: CreatedContract,
   transaction: { readonly hash: Hex; readonly from: Address; readonly to: Address | null; readonly input: Hex },
