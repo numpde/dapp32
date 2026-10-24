@@ -113,18 +113,26 @@ export function requireSameHttpOrigin(uri: string, origin: string, label: string
   return url
 }
 
-export function createSameOriginHttpResourceLoader(options: {
+export function createCamResourceLoader(options: {
   readonly originInput: string
   readonly originLabel: string
   readonly loadFailurePrefix: string
   readonly fetchResource: HttpResourceFetcher
   readonly cache?: HttpResourceCacheMode
+  readonly ipfsGatewayTemplate?: string
 }): (uri: string) => Promise<Uint8Array> {
   const origin = requireHttpOrigin(options.originInput, options.originLabel)
   const fetchResource = options.fetchResource
+  const gateway = options.ipfsGatewayTemplate
 
   return async (uri: string): Promise<Uint8Array> => {
-    const resourceURL = requireSameHttpOrigin(uri, origin, "CAM resource URI")
+    let resourceURL: HttpURL
+    if (uri.startsWith("ipfs://")) {
+      if (gateway === undefined) throw new Error("Choose an IPFS gateway to download this CAM resource")
+      resourceURL = requireHttpURL(resolveIpfsGatewayURL(uri, gateway), "IPFS gateway resource")
+    } else {
+      resourceURL = requireSameHttpOrigin(uri, origin, "CAM resource URI")
+    }
     // Redirects can cross authorities after the origin check. Keep redirect
     // refusal inside the shared loader so browser and tool callers cannot drift.
     const init = options.cache === undefined
@@ -137,6 +145,48 @@ export function createSameOriginHttpResourceLoader(options: {
 
     return readBoundedResponseBytes(response, resourceURL.href)
   }
+}
+
+export function resolveIpfsGatewayURL(uri: string, gateway: string): string {
+  const match = /^ipfs:\/\/([^/?#]+)(?:\/([^?#]*))?$/u.exec(uri)
+  if (match === null || !isSupportedIpfsCid(match[1]) || /[\u0000-\u001f\u007f\\]/u.test(uri)) {
+    throw new Error("IPFS resource URI must contain a supported CID and path, without credentials, query or fragment")
+  }
+  const example = gateway.replace("{CID}", "cid").replace("{PATH}", "path")
+  const url = requireHttpURL(example, "IPFS gateway")
+  if (url.protocol !== "https:" || url.search !== "" || url.hash !== ""
+    || !gateway.endsWith("/{PATH}") || gateway.split("{CID}").length !== 2 || /[{}]/u.test(example)) {
+    throw new Error("IPFS gateway must be an HTTPS template with one {CID} and a final /{PATH}, without credentials, query or fragment")
+  }
+  const cid = match[1]
+  const path = match[2] === undefined || match[2] === "" ? [] : match[2].split("/")
+  const gatewayCID = gateway.startsWith("https://{CID}.") ? subdomainCID(cid) : cid
+  const suffix = path.map(segment => {
+    const decoded = decodeURIComponent(segment)
+    if (decoded === "" || decoded === "." || decoded === ".." || /[\u0000-\u001f\u007f/\\]/u.test(decoded)) {
+      throw new Error("IPFS resource path must not contain empty segments, traversal or encoded separators")
+    }
+    return encodeURIComponent(decoded)
+  }).join("/")
+  return requireHttpURL(gateway.replace("{CID}", gatewayCID).replace("/{PATH}", suffix === "" ? "" : `/${suffix}`), "IPFS gateway resource").href
+}
+
+function subdomainCID(cid: string): string {
+  if (cid.startsWith("b")) return cid
+  // CIDv0 is a dag-pb SHA-256 multihash; subdomain gateways need CIDv1/base32.
+  const multihash = decodeBase58btc(cid)!
+  const bytes = new Uint8Array([1, 0x70, ...multihash])
+  let result = "b", buffer = 0, bits = 0
+  for (const byte of bytes) {
+    buffer = (buffer << 8) | byte
+    bits += 8
+    while (bits >= 5) {
+      bits -= 5
+      result += BASE32_ALPHABET[(buffer >>> bits) & 31]
+    }
+  }
+  if (bits > 0) result += BASE32_ALPHABET[(buffer << (5 - bits)) & 31]
+  return result
 }
 
 export function assertCamSecondaryResourceURI(uri: string, label: string): void {

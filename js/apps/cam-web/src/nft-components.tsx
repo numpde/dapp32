@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useId, useRef, useState } from "react"
 import type { ReactElement } from "react"
 import { isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import { failureReport } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
+import { IpfsGatewayContext } from "./ipfs-gateway.ts"
 import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, serializeNftMetadata, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type Resource<T> = { readonly status: "idle" | "pending" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown }
@@ -47,6 +48,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
   readonly metadataURI: string | undefined
 }): ReactElement {
   const preview = useNftResource<InertRecord>()
+  const gateway = useContext(IpfsGatewayContext)
   const loadLabel = preview.resource.status === "ready" ? "Reload preview"
     : preview.resource.status === "failed" ? "Retry loading"
     : preview.resource.status === "pending" ? "Loading preview…" : "Load preview"
@@ -56,7 +58,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
     {preview.resource.status === "ready" ? <NftMetadataPreview metadata={preview.resource.value} baseURI={metadataURI} loadImage /> : <p className="nft-placeholder">NFT preview</p>}
     <ResourceFeedback resource={preview.resource} />
     <div className="nft-details">
-      {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-actions"><button className="button-quiet" type="button" disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal)) }}>{loadLabel}</button>
+      {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-actions"><button className="button-quiet" type="button" disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal, gateway)) }}>{loadLabel}</button>
         {preview.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={preview.cancel}>Cancel loading</button> : null}</div>
       : null}
       <dl className="nft-identity">
@@ -83,12 +85,13 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly 
 }
 
 function NftImage({ uri, baseURI, alt, autoLoad }: { readonly uri: string; readonly baseURI: string | undefined; readonly alt: string; readonly autoLoad: boolean }): ReactElement {
+  const gateway = useContext(IpfsGatewayContext)
   const image = useNftResource<Blob>()
   const [source, setSource] = useState<{ readonly blob: Blob; readonly url: string } | undefined>(undefined)
   const [decodeFailed, setDecodeFailed] = useState(false)
   const embedded = uri.startsWith("data:")
   useEffect(() => {
-    if (embedded || autoLoad) void image.run(signal => loadNftImage(uri, baseURI, signal))
+    if (embedded || autoLoad) void image.run(signal => loadNftImage(uri, baseURI, signal, gateway))
   }, [embedded, autoLoad, uri, baseURI, image.run])
   useEffect(() => {
     if (image.resource.status !== "ready") return
@@ -103,7 +106,7 @@ function NftImage({ uri, baseURI, alt, autoLoad }: { readonly uri: string; reado
     : image.resource.status === "pending" ? "Loading image…" : "Load image"
   return <div className="nft-image">
     {!embedded && (showLoadButton || image.resource.status === "pending") ? <div className="nft-actions">
-      {showLoadButton ? <button className="button-quiet" type="button" disabled={image.resource.status === "pending"} onClick={() => { setDecodeFailed(false); void image.run(signal => loadNftImage(uri, baseURI, signal)) }}>{loadLabel}</button> : null}
+      {showLoadButton ? <button className="button-quiet" type="button" disabled={image.resource.status === "pending"} onClick={() => { setDecodeFailed(false); void image.run(signal => loadNftImage(uri, baseURI, signal, gateway)) }}>{loadLabel}</button> : null}
       {image.resource.status === "pending" ? <button className="button-quiet" type="button" onClick={image.cancel}>Cancel loading</button> : null}
     </div> : null}
     <ResourceFeedback resource={image.resource} />
@@ -126,6 +129,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   readonly disabled: boolean
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
+  const gateway = useContext(IpfsGatewayContext)
   const id = useId()
   const embeddedSelection = /^data:/i.test(value)
   const [mode, setMode] = useState<"hosted" | "embedded">(embeddedSelection ? "embedded" : "hosted")
@@ -166,7 +170,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
     setFeedback({ kind: "status", report: { message: "JSON download requested. Host the file, then enter its URI in Hosted JSON." } })
   }
   const editor = <>
-      <button className="button-quiet" type="button" disabled={value === "" || loading.resource.status === "pending"} onClick={() => { void loading.run(async signal => serializeNftMetadata(await loadNftMetadata(value, signal))).then(json => { if (json !== undefined) { setBaseURI(value); editDraft(json) } }) }}>Load selected metadata</button>
+      <button className="button-quiet" type="button" disabled={value === "" || loading.resource.status === "pending"} onClick={() => { void loading.run(async signal => serializeNftMetadata(await loadNftMetadata(value, signal, gateway))).then(json => { if (json !== undefined) { setBaseURI(value); editDraft(json) } }) }}>Load selected metadata</button>
       <ResourceFeedback resource={loading.resource} />
       {(["name", "description", "image"] as const).map(key => <label className="field" key={key}><span>{key === "image" ? "Image URL" : key === "name" ? "Name" : "Description"}</span><input name={`${name}.metadata.${key}`} maxLength={NFT_METADATA_MAX_BYTES} disabled={"error" in draft} value={"error" in draft || typeof draft.metadata[key] !== "string" ? "" : draft.metadata[key] as string}
         onChange={event => { if (!("error" in draft)) editDraft(JSON.stringify({ ...draft.metadata, [key]: event.currentTarget.value }, null, 2)) }} /></label>)}

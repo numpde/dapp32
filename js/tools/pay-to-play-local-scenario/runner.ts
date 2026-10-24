@@ -7,7 +7,7 @@ import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simu
 import { createCamViewerSession, viewerErrorMessage } from "../../packages/cam-viewer/dist/index.js"
 import type { CamViewerLoadedSnapshot } from "../../packages/cam-viewer/dist/index.js"
 import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
-import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, toInertValue } from "../../packages/cam-protocol/dist/index.js"
+import { createCamResourceLoader, isRecordObject, parseJsonBytes, toInertValue } from "../../packages/cam-protocol/dist/index.js"
 import type { InertRecord } from "../../packages/cam-protocol/dist/index.js"
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from "../pay-to-play-vouchers/protocol.ts"
 import { requiredEnv } from "../input.ts"
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
     host: { chainId: "eip155:31337", address: host },
     account: { address: accounts.admin.address },
     inputs: inert({}),
-    loadResource: createSameOriginHttpResourceLoader({
+    loadResource: createCamResourceLoader({
       originInput: requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN"),
       originLabel: "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN",
       fetchResource: fetch,

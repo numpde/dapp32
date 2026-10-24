@@ -40,7 +40,7 @@ import type {
   ResolvedButtonNode,
 } from "../../packages/cam-screen/dist/index.js"
 import {
-  createSameOriginHttpResourceLoader,
+  createCamResourceLoader,
   isRecordObject,
   parseJsonBytes,
   toInertValue,
@@ -147,7 +147,7 @@ async function createFixture(): Promise<Fixture> {
   })
   assert.equal(await fullPublicClient.getChainId(), 31337)
 
-  const loadResource = createSameOriginHttpResourceLoader({
+  const loadResource = createCamResourceLoader({
     originInput: resourceOrigin,
     originLabel: "ESCROW_SCENARIO_RESOURCE_ORIGIN",
     fetchResource: fetch,

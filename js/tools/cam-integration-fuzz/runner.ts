@@ -31,7 +31,7 @@ import {
   resolvedUiButtons,
 } from "../../packages/cam-screen/dist/index.js"
 import {
-  createSameOriginHttpResourceLoader,
+  createCamResourceLoader,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
   InertRecord,
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   // action must simulate and execute. The broad read-only lane keeps invalid
   // strings in its corpus so negative simulations remain observable there.
   const valueMode = options.writeMode.kind === "local-fixture" ? "write-positive" : "broad"
-  const loadResource = createSameOriginHttpResourceLoader({
+  const loadResource = createCamResourceLoader({
     originInput: options.descriptor.resourceOrigin,
     originLabel: "descriptor.resourceOrigin",
     fetchResource: fetch,

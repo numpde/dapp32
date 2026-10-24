@@ -5,7 +5,7 @@ import type { Address } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient } from "../../packages/cam-evm-viem/dist/index.js"
 import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
-import { createSameOriginHttpResourceLoader } from "../../packages/cam-protocol/dist/index.js"
+import { createCamResourceLoader } from "../../packages/cam-protocol/dist/index.js"
 import { parseReleasePlan as parseEscrowPlan, parseDeploymentArtifact as parseEscrow } from "../escrow-release/shared.ts"
 import { parseReleasePlan as parsePaymentsPlan, parseDeploymentArtifact as parsePayments } from "../pay-to-play-release/shared.ts"
 import { parseReleasePlan as parseBikePlan, parseDeploymentArtifact as parseBike } from "../bike-nft-release/shared.ts"
@@ -91,7 +91,7 @@ async function main(): Promise<void> {
     host: { chainId: `eip155:${chainId}`, address: root },
     account: { address: owners.root.address },
     inputs: {},
-    loadResource: createSameOriginHttpResourceLoader({
+    loadResource: createCamResourceLoader({
       originInput: camOrigin, originLabel: "rehearsal CAM origin", fetchResource: fetch,
       loadFailurePrefix: "Cannot load rehearsal CAM resource",
     }),

@@ -57,7 +57,15 @@ button:not(.timestamp-options):not(:disabled):active {
 
 .topbar {
   margin-bottom: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
 }
+
+.ipfs-gateway { display: grid; gap: 4px; max-width: 100%; font-size: 0.85rem; color: var(--muted); }
+.ipfs-gateway select { max-width: 100%; padding: 6px 10px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
 
 h1,
 h2,

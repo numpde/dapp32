@@ -10,7 +10,7 @@ import {
   createCamViewerSession,
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
-  createSameOriginHttpResourceLoader,
+  createCamResourceLoader,
   parseJsonBytes,
 } from "../../../packages/cam-protocol/dist/index.js"
 
@@ -22,6 +22,7 @@ import type {
 import {
   readBoundedFileSync,
 } from "../../local-cam-files.ts"
+import { defaultIpfsGateway } from "../../ipfs-gateways.ts"
 import {
   requiredArray,
   requiredEnv,
@@ -56,9 +57,10 @@ export function createLocalRpcBackend(
     description: "local Anvil RPC from Forge broadcast",
     hostLabel: `${deployment.chainId} ${deployment.camRoot}`,
     createSession(events) {
-      const loadResource = createSameOriginHttpResourceLoader({
+      const loadResource = createCamResourceLoader({
         originInput: resourceOrigin,
         originLabel: "CAM_VIEWER_RESOURCE_ORIGIN",
+        ipfsGatewayTemplate: defaultIpfsGateway.template,
         fetchResource: fetch,
         loadFailurePrefix: "local-rpc terminal failed to load CAM resource",
       })

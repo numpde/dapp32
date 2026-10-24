@@ -9,7 +9,7 @@ import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
 import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
 import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
-import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, requireHttpURL, toInertValue, type InertRecord } from "../../packages/cam-protocol/dist/index.js"
+import { createCamResourceLoader, isRecordObject, parseJsonBytes, requireHttpURL, toInertValue, type InertRecord } from "../../packages/cam-protocol/dist/index.js"
 import { discoverCustomers, runRefundBatch, type Position, type Report } from "../pay-to-play-refunds/core.ts"
 import { hashInvoice, voucherForInvoice } from "../pay-to-play-vouchers/protocol.ts"
 import { requiredEnv } from "../input.ts"
@@ -47,7 +47,7 @@ async function main() {
   const session = createCamViewerSession({
     publicClient: createHttpCamPublicClient({ rpcURL: rpcURL.href }),
     host: { chainId: "eip155:31337", address: host }, account: { address: accounts.admin.address }, inputs: inert({}),
-    loadResource: createSameOriginHttpResourceLoader({ originInput: requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN"), originLabel: "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN", fetchResource: fetch, loadFailurePrefix: "Recovery fixture CAM resource" }),
+    loadResource: createCamResourceLoader({ originInput: requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN"), originLabel: "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN", fetchResource: fetch, loadFailurePrefix: "Recovery fixture CAM resource" }),
   })
   await session.load()
   function view() { return record(session.snapshot().values?.[0]) }

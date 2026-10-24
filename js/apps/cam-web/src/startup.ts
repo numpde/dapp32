@@ -8,7 +8,7 @@ import {
   requireEvmChainId,
 } from "@cam/evm-viem"
 import {
-  createSameOriginHttpResourceLoader,
+  createCamResourceLoader,
   requireHttpOrigin,
   requireHttpURL,
   isRecordObject,
@@ -71,11 +71,12 @@ export function readStartupPolicy(env: StartupEnv): StartupPolicy {
   }
 }
 
-export function createPinnedOriginResourceLoader(resourceOrigin: string): ResourceLoader {
-  return createSameOriginHttpResourceLoader({
+export function createPinnedOriginResourceLoader(resourceOrigin: string, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
+  return createCamResourceLoader({
     originInput: resourceOrigin,
     originLabel: "resourceOrigin",
-    fetchResource: fetch,
+    fetchResource: (uri, init) => fetch(uri, signal === undefined ? init : { ...init, signal }),
+    ...(ipfsGatewayTemplate === undefined ? {} : { ipfsGatewayTemplate }),
     cache: "no-store",
     loadFailurePrefix: "failed to load CAM resource",
   })

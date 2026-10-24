@@ -1,5 +1,5 @@
 import { pathToFileURL } from "node:url"
-import { requireHttpOrigin, requireHttpURL } from "../packages/cam-protocol/dist/index.js"
+import { assertPublishedCamRootURI, requireHttpOrigin, requireHttpURL } from "../packages/cam-protocol/dist/index.js"
 import { parseDeploymentArtifact as parseBike } from "./bike-nft-release/shared.ts"
 import { parseDeploymentArtifact as parseEscrow } from "./escrow-release/shared.ts"
 import { parseDeploymentArtifact as parsePayments } from "./pay-to-play-release/shared.ts"
@@ -15,9 +15,9 @@ export function releaseViewerURL(app: string, bytes: Uint8Array, viewerOrigin: s
     default: throw new Error("Release viewer app must be bike-nft, escrow or pay-to-play")
   }
   const resources = requireHttpOrigin(resourceOrigin, "release viewer resource origin")
-  const cam = requireHttpURL(deployment.camURI, "deployment CAM URI")
-  if (cam.protocol !== "https:" || cam.origin !== resources) {
-    throw new Error("Deployment CAM must use HTTPS on the explicit viewer resource origin")
+  assertPublishedCamRootURI(deployment.camURI, "deployment CAM URI")
+  if (!deployment.camURI.startsWith("ipfs://") && requireHttpURL(deployment.camURI, "deployment CAM URI").origin !== resources) {
+    throw new Error("HTTPS deployment CAM must use the explicit viewer resource origin")
   }
   const url = new URL(requireHttpOrigin(viewerOrigin, "release viewer origin"))
   url.search = new URLSearchParams({

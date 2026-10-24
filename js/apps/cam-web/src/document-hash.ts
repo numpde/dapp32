@@ -1,4 +1,4 @@
-import { readBoundedResponseBytes, requireHttpURL } from "@cam/protocol"
+import { readBoundedResponseBytes, requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
 import type { HttpURL } from "@cam/protocol"
 import { UserFacingError } from "./errors.ts"
 
@@ -6,12 +6,15 @@ export const DOCUMENT_HASH_MAX_BYTES = 8 * 1024 * 1024
 const DEADLINE_MS = 15_000
 const ALTERNATIVES = "Choose a local file or enter the digest manually."
 
-export async function calculateDocumentHashFromURL(uri: string, signal: AbortSignal): Promise<string> {
+export async function calculateDocumentHashFromURL(uri: string, signal: AbortSignal, ipfsGatewayTemplate?: string): Promise<string> {
   // User document URLs have no CAM publication origin constraint. Redirects
   // are rejected so the explicit action never silently changes its source.
   let url: HttpURL
-  try { url = requireHttpURL(uri, "Document URL") }
-  catch (cause) { throw new UserFacingError(`Cannot read this document URL. Enter a complete http:// or https:// address without a username or password. ${ALTERNATIVES}`, { cause }) }
+  try {
+    if (uri.startsWith("ipfs://") && ipfsGatewayTemplate === undefined) throw new Error("Choose an IPFS gateway to download this document")
+    url = requireHttpURL(uri.startsWith("ipfs://") ? resolveIpfsGatewayURL(uri, ipfsGatewayTemplate!) : uri, "Document URL")
+  }
+  catch (cause) { throw new UserFacingError(`Cannot read this document URL. Enter a complete http://, https:// or ipfs:// address without a username or password; IPFS downloads need a selected gateway. ${ALTERNATIVES}`, { cause }) }
   return calculate(signal, async (activeSignal) => {
     let response: Response
     try {

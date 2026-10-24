@@ -7,6 +7,16 @@ import { failureReport } from "../src/errors.ts"
 
 const expected = (bytes: Uint8Array) => `0x${createHash("sha256").update(bytes).digest("hex")}`
 
+test("IPFS document hashing uses the selected gateway and hashes its exact response bytes", async t => {
+  const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
+  const bytes = new Uint8Array([0, 255, 13, 10])
+  const fetch = t.mock.method(globalThis, "fetch", async () => new Response(bytes))
+  const digest = await calculateDocumentHashFromURL(`ipfs://${cid}/terms.txt`, new AbortController().signal,
+    "https://gateway.example.test/ipfs/{CID}/{PATH}")
+  assert.equal(digest, expected(bytes))
+  assert.equal(fetch.mock.calls[0].arguments[0], `https://gateway.example.test/ipfs/${cid}/terms.txt`)
+})
+
 test("hash failures retain arbitrary causes behind the readable explanation", async t => {
   for (const cause of [new TypeError("connection reset"), "connection reset"]) {
     t.mock.method(globalThis, "fetch", async () => { throw cause })

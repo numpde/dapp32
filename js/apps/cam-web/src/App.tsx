@@ -4,6 +4,8 @@ import {
   useState,
 } from "react"
 import type { ReactElement } from "react"
+import { defaultIpfsGateway, publicIpfsGateways } from "../../../tools/ipfs-gateways.ts"
+import { IpfsGatewayContext } from "./ipfs-gateway.ts"
 
 import {
   sendCamContractCall,
@@ -99,6 +101,10 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 }
 
 export function App(): ReactElement {
+  const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
+  const gatewayRef = useRef(defaultIpfsGateway.template)
+  const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
   const [walletChainMatches, setWalletChainMatches] = useState(true)
@@ -146,6 +152,8 @@ export function App(): ReactElement {
 
   useEffect(() => {
     let cancelled = false
+    const controller = new AbortController()
+    resourceLoadAbortRef.current = controller
     let loadedSession: CamViewerSession | undefined
 
     async function load(): Promise<void> {
@@ -167,12 +175,12 @@ export function App(): ReactElement {
           },
           inputs: startup.inputs,
           ...(startup.route === undefined ? {} : { route: startup.route }),
-          loadResource: createPinnedOriginResourceLoader(startup.resourceOrigin),
+          loadResource: uri => createPinnedOriginResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri),
         })
         const snapshot = await session.load()
         loadedSession = session
 
-        if (!cancelled) {
+        if (!cancelled && !controller.signal.aborted) {
           const ready = {
             status: "ready" as const,
             runtime: {
@@ -185,7 +193,7 @@ export function App(): ReactElement {
           commitSnapshot(ready, snapshot, "replace")
         }
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && !controller.signal.aborted) {
           setLoadState({
             status: "failed",
             failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
@@ -198,6 +206,7 @@ export function App(): ReactElement {
 
     return () => {
       cancelled = true
+      controller.abort()
       if (loadedSession !== undefined) {
         const documentHashes = loadedSession.snapshot().documentHashes
         if (documentHashes !== undefined) {
@@ -205,7 +214,7 @@ export function App(): ReactElement {
         }
       }
     }
-  }, [])
+  }, [loadAttempt])
 
   const loadedRuntime = loadState.status === "ready" ? loadState.runtime : undefined
   useEffect(() => {
@@ -576,7 +585,7 @@ export function App(): ReactElement {
           digest = await calculateDocumentHashFromFile(requireDocumentFile(file), operation.signal)
         } else {
           if (operation.sourceURI === undefined) throw new Error("Cannot calculate document hash from URL: the field has no source URI.")
-          digest = await calculateDocumentHashFromURL(operation.sourceURI, operation.signal)
+          digest = await calculateDocumentHashFromURL(operation.sourceURI, operation.signal, gatewayRef.current)
         }
         const snapshot = operation.complete(digest)
         if (snapshot !== undefined) {
@@ -670,10 +679,27 @@ export function App(): ReactElement {
   }
 
   return (
+    <IpfsGatewayContext value={gatewayRef.current}>
     <main className="app-shell">
       <header className="topbar">
         <div>
           <h1>{headerTitle(loadState)}</h1>
+        </div>
+        <div className="ipfs-gateway">
+          <label htmlFor="ipfs-gateway-choice">IPFS gateway</label>
+          <select id="ipfs-gateway-choice" value={gatewayId} aria-describedby="ipfs-gateway-help" onChange={event => {
+            const selected = publicIpfsGateways.find(gateway => gateway.id === event.currentTarget.value)!
+            gatewayRef.current = selected.template
+            setGatewayId(selected.id)
+            if (loadState.status !== "ready") {
+              resourceLoadAbortRef.current?.abort()
+              setLoadState({ status: "loading" })
+              setLoadAttempt(attempt => attempt + 1)
+            }
+          }}>
+            {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
+          </select>
+          <small id="ipfs-gateway-help">Used for new IPFS downloads.</small>
         </div>
       </header>
       {loadState.status !== "ready" ? null : (
@@ -724,6 +750,7 @@ export function App(): ReactElement {
         <section className="panel error">
           <h2>Cannot load app</h2>
           <Feedback report={loadState.failure} kind="error" />
+          <button type="button" onClick={() => { resourceLoadAbortRef.current?.abort(); setLoadState({ status: "loading" }); setLoadAttempt(attempt => attempt + 1) }}>Retry loading</button>
         </section>
       ) : null}
 
@@ -746,6 +773,7 @@ export function App(): ReactElement {
         />
       ) : null}
     </main>
+    </IpfsGatewayContext>
   )
 }
 

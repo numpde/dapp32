@@ -15,6 +15,22 @@ import { UserFacingError } from "../src/errors.ts"
 const signal = () => new AbortController().signal
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown
 
+test("IPFS metadata and relative images use the selected gateway without changing their logical base", async t => {
+  const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
+  const requests: string[] = []
+  t.mock.method(globalThis, "fetch", async (href: string) => {
+    requests.push(href)
+    return href.endsWith(".json") ? new Response('{"image":"../images/frame.png"}')
+      : new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } })
+  })
+  const template = "https://gateway.example.test/ipfs/{CID}/{PATH}"
+  const logical = `ipfs://${cid}/metadata/frame.json`
+  const metadata = await loadNftMetadata(logical, signal(), template)
+  const image = await loadNftImage(metadata.image as string, logical, signal(), template)
+  assert.equal(image.type, "image/png")
+  assert.deepEqual(requests, [`https://gateway.example.test/ipfs/${cid}/metadata/frame.json`, `https://gateway.example.test/ipfs/${cid}/images/frame.png`])
+})
+
 test("metadata preserves extension fields and primitive traits through edits, JSON and Unicode data URI export", async t => {
   const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected network") })
   const original = parseNftMetadata('{"name":"自転車 🚲","description":"Original","attributes":[{"trait_type":"Year","value":2026},{"trait_type":"Active","value":true}],"extension":{"__proto__":"ordinary","note":"a\\\"[{"}}')

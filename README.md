@@ -33,10 +33,18 @@ Current software supports CAM 1.3.0 with UI 1.0.0: [protocol reference](https://
   [indexing proxy lane](https://numpde.github.io/dapp32/deployment/rpc/#indexing)
   starts a bounded, read-only RPC proxy for contract indexing; run the indexer
   and database separately.
-- [IPFS HTTPS gateways](tools/ipfs-gateways.json): public gateways and account-based
+- [IPFS HTTPS gateways](js/tools/ipfs-gateways.json): public gateways and account-based
   retrieval services, including URL templates, gateway tokens, content restrictions
-  and official references. This catalog is informational; commands do not select
-  gateways or load credentials from it.
+  and official references. The viewer's gateway selector uses its public file
+  endpoints; deployment commands do not load gateway credentials from it.
+
+In the browser, **IPFS gateway** selects the public endpoint for new CAM, NFT
+and document downloads. Changing it retries an unfinished initial app load;
+an open app keeps its view, form entries, wallet and transaction feedback.
+The terminal viewer uses the catalog's default public gateway. Dedicated
+gateway credentials and CAR-only services are not options in the dropdown.
+Gateway transport preserves the logical `ipfs://` resource names and the
+existing CAM hash checks; it does not add IPFS block verification.
 
 Docker with Compose and Make are the supported development entrypoints. Run
 `make help` for available lanes. Before building, testing, or running a local

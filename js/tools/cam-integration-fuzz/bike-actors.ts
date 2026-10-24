@@ -8,7 +8,7 @@ import { createHttpCamPublicClient, simulateCamContractCall } from "../../packag
 import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
 import type { CamViewerPreparedContractCall } from "../../packages/cam-viewer/dist/index.js"
 import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
-import { createSameOriginHttpResourceLoader, isRecordObject } from "../../packages/cam-protocol/dist/index.js"
+import { createCamResourceLoader, isRecordObject } from "../../packages/cam-protocol/dist/index.js"
 import type { InertRecord, InertValue } from "../../packages/cam-protocol/dist/index.js"
 import { readOptions } from "./options.ts"
 import { createWriteContext, handlePreparedWrite } from "./writes.ts"
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
     host: { chainId: options.descriptor.chainId, address: options.descriptor.camHost },
     account: { address: seller },
     inputs: {},
-    loadResource: createSameOriginHttpResourceLoader({ originInput: options.descriptor.resourceOrigin, originLabel: "descriptor.resourceOrigin", fetchResource: fetch, loadFailurePrefix: "failed to load CAM resource" }),
+    loadResource: createCamResourceLoader({ originInput: options.descriptor.resourceOrigin, originLabel: "descriptor.resourceOrigin", fetchResource: fetch, loadFailurePrefix: "failed to load CAM resource" }),
   })
   let actor = seller
   let step = 0

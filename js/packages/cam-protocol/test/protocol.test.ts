@@ -12,7 +12,8 @@ import {
   assertLoadableCamRootURI,
   assertPublishedCamRootURI,
   createExpressionRuntime,
-  createSameOriginHttpResourceLoader,
+  createCamResourceLoader,
+  resolveIpfsGatewayURL,
   expressionReferenceSyntaxError,
   CamResourceIntegrityError,
   CAM_MANIFEST_TOP_LEVEL_KEYS,
@@ -75,6 +76,47 @@ import {
   uiCallNamespaceForElement,
   verifySha256ResourceIntegrity,
 } from "../src/index.ts"
+
+test("gateway URI conversion preserves CID identity, encoded filenames and transport authority", () => {
+  const v0 = "QmNLei78zWmzUdbeRB3CiUfAizWUrbeeZh5K1rhAQKCh51"
+  const v1 = "bafybeiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  const subdomain = "https://{CID}.ipfs.example.test/{PATH}"
+  assert.equal(resolveIpfsGatewayURL(`ipfs://${v0}/frame%20one.png`, subdomain), `https://${v1}.ipfs.example.test/frame%20one.png`)
+  assert.equal(resolveIpfsGatewayURL(`ipfs://${v1}`, subdomain), `https://${v1}.ipfs.example.test/`)
+  for (const uri of [`ipfs://${v0}/%2e%2e/x`, `ipfs://${v0}/a%2fb`, `ipfs://${v0}/a%5cb`, `ipfs://${v0}/bad%zz`, `ipfs://${v0}/a//b`, "./file.json"]) {
+    assert.throws(() => resolveIpfsGatewayURL(uri, subdomain))
+  }
+  for (const template of ["http://gateway.test/{CID}/{PATH}", "https://u:p@gateway.test/{CID}/{PATH}", "https://gateway.test/{CID}/{PATH}?token=secret", "https://gateway.test/{CID}/{OTHER}"]) {
+    assert.throws(() => resolveIpfsGatewayURL(`ipfs://${v1}/main.json`, template))
+  }
+})
+
+test("IPFS downloads use the selected gateway while HTTP origin admission stays pinned", async () => {
+  const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
+  const requests: string[] = []
+  for (const template of ["https://gateway.example.test/ipfs/{CID}/{PATH}", "https://{CID}.ipfs.example.test/{PATH}"]) {
+    const load = createCamResourceLoader({
+      originInput: "https://resources.example.test", originLabel: "origin",
+      ipfsGatewayTemplate: template, loadFailurePrefix: "load failed",
+      async fetchResource(href, init) {
+        assert.equal(init.redirect, "error")
+        requests.push(href)
+        return new Response("bytes")
+      },
+    })
+    for (const path of ["main.json", "abi/Contract.json", "ui.json"]) {
+      const logical = `ipfs://${cid}/bundle/${path}`
+      assert.equal(new TextDecoder().decode(await load(logical)), "bytes")
+      assert.equal(requests.at(-1), template.replace("{CID}", cid).replace("{PATH}", `bundle/${path}`))
+    }
+    await load("https://resources.example.test/main.json")
+    const count = requests.length
+    for (const invalid of ["https://gateway.example.test/ipfs/anything", `ipfs://${cid}/../escape`, "ipfs://invalid/main.json", `ipfs://${cid}/ui.json?token=x`]) {
+      await assert.rejects(() => load(invalid))
+    }
+    assert.equal(requests.length, count, "invalid input must not reach any gateway")
+  }
+})
 
 test("exports protocol document versions from the protocol package", () => {
   assert.equal(CAM_VERSION, "1.3.0")
@@ -1027,7 +1069,7 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     readonly redirect: string
     readonly cache?: string
   }> = []
-  const loadResource = createSameOriginHttpResourceLoader({
+  const loadResource = createCamResourceLoader({
     originInput: "https://example.test",
     originLabel: "origin",
     loadFailurePrefix: "load failed",
@@ -1054,7 +1096,7 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     /outside allowed origin/,
   )
   await assert.rejects(
-    () => createSameOriginHttpResourceLoader({
+    () => createCamResourceLoader({
       originInput: "https://example.test",
       originLabel: "origin",
       loadFailurePrefix: "load failed",

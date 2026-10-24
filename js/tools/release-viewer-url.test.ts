@@ -30,6 +30,12 @@ const artifacts = {
 }
 
 for (const [app, artifact] of Object.entries(artifacts)) {
+  test(`${app} IPFS releases use ordinary viewer connection coordinates`, () => {
+    const camURI = "ipfs://bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva/main.json"
+    const url = new URL(releaseViewerURL(app, bytes({ ...artifact, camURI }), "http://127.0.0.1:5174", "https://resources.example.test", "https://rpc.example.test"))
+    assert.equal(url.searchParams.get("host"), common.camRoot)
+    assert.throws(() => releaseViewerURL(app, bytes({ ...artifact, camURI: "ipfs://invalid/main.json" }), url.origin, "https://resources.example.test", "https://rpc.example.test"))
+  })
   test(`${app} public release uses the deployed chain and explicit browser RPC`, () => {
     const rpc = "https://api.avax-test.network/ext/bc/C/rpc"
     const url = new URL(releaseViewerURL(app, bytes({ ...artifact, chainId: 43113 }), "http://127.0.0.1:5174", "https://raw.githubusercontent.com", rpc))
