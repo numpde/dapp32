@@ -33,8 +33,17 @@ ALLOWED_FORBIDDEN_NAME_LITERALS = (
     "/tmp/dapp" + "32-multiparty-fields-20261012/movie-final-state.json",
 )
 
-# These exact historical identifiers belong to the recording note, not product branding.
-ALLOWED_RECORDED_ARTIFACT_PATHS = {
+# Preserve exact external identities and operator paths only in their owning files.
+ALLOWED_FORBIDDEN_NAME_IDENTIFIERS = {
+    # Existing Docker images are identified by this label at build and reuse time.
+    repo_path("tools/release_tool_images.sh"): (
+        "io.dapp" + "32.release-tool-context",
+        "io.dapp" + "32.release-tool-context=$tree",
+    ),
+    # This is the operator-selected output directory convention.
+    repo_path("tools/release_approval_images.sh"): (
+        "$HOME/Documents/${stamp:0:8}--dapp" + "32-approval",
+    ),
     # Preserve the exact provenance text in the independently pinned peer vector.
     repo_path("tests/fixtures/pay-to-play/p2p_invoice_codec_v1.json"): ("dapp" + "32 owner",),
     repo_path("notes/017_escrow_walkthrough_recording.txt"): tuple(
@@ -172,7 +181,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         research_sources = self.verified_research_source_paths()
         self.assert_no_matches(
             FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS,
-            allowed_artifact_paths=ALLOWED_RECORDED_ARTIFACT_PATHS,
+            allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
             additional_paths=research_sources,
         )
         markers = [re.compile(re.escape(marker)) for marker in LICENSE_MARKERS]
@@ -189,6 +198,34 @@ class RepositoryHygieneTest(unittest.TestCase):
             additional_paths=research_sources,
         )
         self.assert_no_matches(SECRET_PATTERNS, "secret pattern", (), additional_paths=research_sources)
+
+    def test_forbidden_name_exceptions_preserve_exact_release_identifiers_only(self) -> None:
+        approval_script = repo_path("tools/release_approval_images.sh")
+        image_script = repo_path("tools/release_tool_images.sh")
+        examples = (
+            (approval_script, 'parent="$HOME/Documents/${stamp:0:8}--dapp' + '32-approval"', True),
+            (image_script, '--label "io.dapp' + '32.release-tool-context=$tree"', True),
+            (image_script, 'index .Config.Labels "io.dapp' + '32.release-tool-context"', True),
+            (approval_script, 'printf "dapp' + '32 deployment"', False),
+            (image_script, '--label "io.dapp' + '32.release-tool-context-extra=$tree"', False),
+            (approval_script, 'parent="$HOME/Documents/${stamp:0:8}--dapp' + '32-approval-old"', False),
+            (repo_path("tools/other.sh"), '--label "io.dapp' + '32.release-tool-context=$tree"', False),
+        )
+        for path, text, allowed in examples:
+            with self.subTest(path=path, text=text), \
+                patch(__name__ + ".iter_repo_text_files", return_value=iter((path,))), \
+                patch(__name__ + ".read_text", return_value=text):
+                if allowed:
+                    self.assert_no_matches(
+                        FORBIDDEN_NAME_PATTERNS, "forbidden project name", (),
+                        allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
+                    )
+                else:
+                    with self.assertRaisesRegex(AssertionError, "forbidden project name"):
+                        self.assert_no_matches(
+                            FORBIDDEN_NAME_PATTERNS, "forbidden project name", (),
+                            allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
+                        )
 
     def test_research_notices_and_specs_retain_branding_and_secret_checks(self) -> None:
         root = SERVICE_PAYMENT_SNAPSHOT_ROOT
