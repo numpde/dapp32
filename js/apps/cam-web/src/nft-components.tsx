@@ -5,7 +5,7 @@ import type { InertRecord } from "@cam/protocol"
 import { failureReport } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
-import { IpfsGatewayContext, useIpfsResource } from "./ipfs-gateway.ts"
+import { IpfsGatewayContext } from "./ipfs-gateway.ts"
 import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, serializeNftMetadata, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type Resource<T> = { readonly status: "idle" | "pending" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown }
@@ -48,7 +48,6 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
   readonly metadataURI: string | undefined
 }): ReactElement {
   const preview = useNftResource<InertRecord>()
-  useIpfsResource(metadataURI)
   const gateway = useContext(IpfsGatewayContext)
   const loadLabel = preview.resource.status === "ready" ? "Reload preview"
     : preview.resource.status === "failed" ? "Retry loading"
@@ -86,7 +85,6 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly 
 }
 
 function NftImage({ uri, baseURI, alt, autoLoad }: { readonly uri: string; readonly baseURI: string | undefined; readonly alt: string; readonly autoLoad: boolean }): ReactElement {
-  useIpfsResource(uri, !URL.canParse(uri) ? baseURI : undefined)
   const gateway = useContext(IpfsGatewayContext)
   const image = useNftResource<Blob>()
   const [source, setSource] = useState<{ readonly blob: Blob; readonly url: string } | undefined>(undefined)
@@ -136,7 +134,6 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   const embeddedSelection = /^data:/i.test(value)
   const [mode, setMode] = useState<"hosted" | "embedded">(embeddedSelection ? "embedded" : "hosted")
   const [hostedURI, setHostedURI] = useState(embeddedSelection ? "" : value)
-  useIpfsResource(value, mode === "hosted" ? hostedURI : undefined)
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
   const [text, setText] = useState("{}")
   const [appliedURI, setAppliedURI] = useState<string | undefined>(undefined)

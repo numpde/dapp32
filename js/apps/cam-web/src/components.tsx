@@ -30,7 +30,6 @@ import {
 } from "./prepared-call.ts"
 import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
 import { Feedback } from "./feedback.tsx"
-import { useIpfsResource } from "./ipfs-gateway.ts"
 
 export function ConnectionSummary({
   chainId,
@@ -314,7 +313,6 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
   readonly onCalculate: DocumentHashCalculate
   readonly onCancel: (name: string) => void
 }): ReactElement {
-  useIpfsResource(typeof node.props.sourceURI === "string" ? node.props.sourceURI : undefined)
   const hintId = useId()
   const issueId = useId()
   const fileInput = useRef<HTMLInputElement>(null)

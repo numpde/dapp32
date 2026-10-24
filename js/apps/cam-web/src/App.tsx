@@ -1,12 +1,11 @@
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
 } from "react"
 import type { ReactElement } from "react"
 import { defaultIpfsGateway, publicIpfsGateways } from "../../../tools/ipfs-gateways.ts"
-import { IpfsGatewayContext, IpfsResourceContext } from "./ipfs-gateway.ts"
+import { IpfsGatewayContext } from "./ipfs-gateway.ts"
 
 import {
   sendCamContractCall,
@@ -104,12 +103,6 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 export function App(): ReactElement {
   const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
   const gatewayRef = useRef(defaultIpfsGateway.template)
-  const [bundleUsesIpfs, setBundleUsesIpfs] = useState(false)
-  const [ipfsResourceCount, setIpfsResourceCount] = useState(0)
-  const registerIpfsResource = useCallback(() => {
-    setIpfsResourceCount(count => count + 1)
-    return () => setIpfsResourceCount(count => count - 1)
-  }, [])
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
@@ -159,7 +152,6 @@ export function App(): ReactElement {
 
   useEffect(() => {
     let cancelled = false
-    let attemptUsesIpfs: boolean | undefined
     const controller = new AbortController()
     resourceLoadAbortRef.current = controller
     let loadedSession: CamViewerSession | undefined
@@ -183,19 +175,12 @@ export function App(): ReactElement {
           },
           inputs: startup.inputs,
           ...(startup.route === undefined ? {} : { route: startup.route }),
-          loadResource: uri => {
-            if (!cancelled && !controller.signal.aborted) {
-              attemptUsesIpfs = attemptUsesIpfs === true || uri.startsWith("ipfs://")
-              if (attemptUsesIpfs) setBundleUsesIpfs(true)
-            }
-            return createPinnedOriginResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri)
-          },
+          loadResource: uri => createPinnedOriginResourceLoader(startup.resourceOrigin, gatewayRef.current, controller.signal)(uri),
         })
         const snapshot = await session.load()
         loadedSession = session
 
         if (!cancelled && !controller.signal.aborted) {
-          if (attemptUsesIpfs !== undefined) setBundleUsesIpfs(attemptUsesIpfs)
           const ready = {
             status: "ready" as const,
             runtime: {
@@ -209,7 +194,6 @@ export function App(): ReactElement {
         }
       } catch (error) {
         if (!cancelled && !controller.signal.aborted) {
-          if (attemptUsesIpfs !== undefined) setBundleUsesIpfs(attemptUsesIpfs)
           setLoadState({
             status: "failed",
             failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
@@ -694,7 +678,7 @@ export function App(): ReactElement {
     return sendRevision.current === revision
   }
 
-  const gatewayControl = bundleUsesIpfs || ipfsResourceCount > 0 ? <div className="ipfs-gateway">
+  const gatewayControl = <div className="ipfs-gateway">
         <dt><label htmlFor="ipfs-gateway-choice">IPFS gateway</label></dt>
         <dd>
           <select id="ipfs-gateway-choice" value={gatewayId} aria-describedby="ipfs-gateway-help" onChange={event => {
@@ -711,11 +695,10 @@ export function App(): ReactElement {
           </select>
           <span id="ipfs-gateway-help" className="visually-hidden">Used for new IPFS downloads.</span>
         </dd>
-      </div> : null
+      </div>
 
   return (
     <IpfsGatewayContext value={gatewayRef.current}>
-    <IpfsResourceContext value={registerIpfsResource}>
     <main className="app-shell">
       <header className="topbar">
         <h1>{headerTitle(loadState)}</h1>
@@ -732,7 +715,7 @@ export function App(): ReactElement {
             </button>
           )}
         >{gatewayControl}</ConnectionSummary>
-      ) : gatewayControl && <dl className="connection connection-facts">{gatewayControl}</dl>}
+      ) : <dl className="connection connection-facts">{gatewayControl}</dl>}
 
       {loadState.status === "ready" ? <IntegrityWarnings warnings={loadState.snapshot.integrityWarnings} /> : null}
       {notice === undefined ? null : (
@@ -786,7 +769,6 @@ export function App(): ReactElement {
         />
       ) : null}
     </main>
-    </IpfsResourceContext>
     </IpfsGatewayContext>
   )
 }
