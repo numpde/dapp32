@@ -4,8 +4,10 @@ import test from "node:test"
 import type { CamViewerSnapshot } from "../../packages/cam-viewer/dist/index.js"
 import { requireLoadedSnapshot } from "./snapshots.ts"
 
-test("loaded snapshots preserve pending and failed document hashing operations", () => {
+test("loaded snapshots preserve visit identity, integrity warnings and document hashing operations", () => {
   const snapshot: CamViewerSnapshot = {
+    visitId: 7,
+    integrityWarnings: [],
     canGoBack: false,
     route: "agreement",
     inputs: {},
@@ -18,8 +20,10 @@ test("loaded snapshots preserve pending and failed document hashing operations",
       submission: { status: "failed", source: "file", message: "The selected file could not be read." },
     },
   }
-  assert.deepEqual(requireLoadedSnapshot(snapshot).documentHashes, snapshot.documentHashes)
+  assert.deepEqual(requireLoadedSnapshot(snapshot), snapshot)
 
-  const { documentHashes: _documentHashes, ...incomplete } = snapshot
-  assert.throws(() => requireLoadedSnapshot(incomplete), /viewer snapshot is not loaded/)
+  for (const field of ["visitId", "integrityWarnings", "documentHashes"] as const) {
+    const { [field]: _missing, ...incomplete } = snapshot
+    assert.throws(() => requireLoadedSnapshot(incomplete), /viewer snapshot is not loaded/, field)
+  }
 })

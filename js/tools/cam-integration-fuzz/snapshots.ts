@@ -22,13 +22,16 @@ export function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoa
     || snapshot.resolvedUi === undefined
     || snapshot.values === undefined
     || snapshot.documentHashes === undefined
+    || snapshot.visitId === undefined
+    || snapshot.integrityWarnings === undefined
   ) {
     throw new Error("viewer snapshot is not loaded")
   }
 
   return {
-    canGoBack: snapshot.canGoBack,
-    ...(snapshot.account === undefined ? {} : { account: snapshot.account }),
+    ...snapshot,
+    visitId: snapshot.visitId,
+    integrityWarnings: snapshot.integrityWarnings,
     route: snapshot.route,
     inputs: snapshot.inputs,
     state: snapshot.state,
