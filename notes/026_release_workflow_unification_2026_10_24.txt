@@ -305,3 +305,12 @@ a second fixture framework. Execution results remain pending.
 An additional existing builder-cancellation check exceeded its ten-second
 test wait; this has not been diagnosed or claimed passing. Its failure is
 separate from the planner-render and ordinary lifecycle checks, which pass.
+
+That isolated cancellation failure is now diagnosed and corrected in its
+harness: the fake timeout created an extra shell parent that exited before
+reaping its fake builder under checks-container PID 1. The fake child logged
+completion, but its orphan zombie kept the process group observable. Real
+timeout owns/reaps its child. Tail-executing the rehearsal wrapper removes the
+artificial parent. The exact cancellation test now passes in 1.69 seconds;
+ordinary success-path and builder-failure checks also pass. Production process
+cleanup code was not changed.

@@ -158,6 +158,9 @@ timeout() {
     fixture_image_build "$@"
     return
   fi
+  # The real timeout reaps its command. Avoid adding a shell parent that can
+  # die before the fake builder is reaped under the checks container's PID 1.
+  if [[ "$TEST_KIND" == rehearsal-full && "$1 $2" == 'bash -c' ]]; then exec "$@"; fi
   "$@"
 }
 id() { printf '1000\n'; }
