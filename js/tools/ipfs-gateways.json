@@ -25,7 +25,7 @@
       "urlTemplate": "https://trustless-gateway.link/ipfs/{CID}/{PATH}?format=car",
       "authentication": "None.",
       "contentScope": "Verifiable CAR streams, raw blocks and IPNS records; not decoded JSON or image responses.",
-      "notes": "Requires a client that verifies and decodes the returned IPFS blocks. A plain JSON fetch cannot use this template directly. Shares backend capacity with ipfs.io and dweb.link.",
+      "notes": "Requires a client that verifies and decodes the returned IPFS blocks. A plain JSON fetch cannot use this template directly.",
       "references": [
         "https://docs.ipfs.tech/concepts/public-utilities/",
         "https://specs.ipfs.tech/http-gateways/trustless-gateway/"
