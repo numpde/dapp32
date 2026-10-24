@@ -314,3 +314,16 @@ timeout owns/reaps its child. Tail-executing the rehearsal wrapper removes the
 artificial parent. The exact cancellation test now passes in 1.69 seconds;
 ordinary success-path and builder-failure checks also pass. Production process
 cleanup code was not changed.
+
+The 206143f candidate and private snapshot 9442a12 had identical source tree
+93d97c846644690c5c80ab72057013147a18d7ef. Its Bike run completed all 22 approved
+transactions, actual read-only artifact recovery, expected pending-owner
+rejection, delayed handoffs/CAM discovery and final BikeNftReleaseVerified true.
+The recovered artifact was byte-identical to its retained baseline. Logs live
+under /tmp/cam-release-rehearsal-1000-V7Y9M2XX. All fixture resources were removed.
+
+The overall run exited 2 after its success message: the coordinator added the
+durable artifact cmp check to the root runner while Bash was still consuming
+that file, causing a trailing parse error. Both complete script versions pass
+bash -n; this run is phase evidence, not a successful process-exit qualification.
+The same single representative run must finish without editing its runner.

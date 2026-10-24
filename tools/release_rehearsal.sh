@@ -221,6 +221,8 @@ config = {"schemaVersion": 3, "app": sys.argv[1], "sourceCommit": sys.argv[2],
 ' "$app" "$(git rev-parse HEAD)"
   run_logged artifact-completion.log make "$app/release/artifact" \
     "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json" DEPLOYER_PRIVATE_KEY_FILE= PRIVATE_KEY=
+  cmp -- "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment-before-recovery.json" \
+    "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment.json"
   verify_handoffs
 }
 
