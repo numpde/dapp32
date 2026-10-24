@@ -33,6 +33,10 @@ Current software supports CAM 1.3.0 with UI 1.0.0: [protocol reference](https://
   [indexing proxy lane](https://numpde.github.io/dapp32/deployment/rpc/#indexing)
   starts a bounded, read-only RPC proxy for contract indexing; run the indexer
   and database separately.
+- [IPFS HTTPS gateways](tools/ipfs-gateways.json): public gateways and account-based
+  retrieval services, including URL templates, gateway tokens, content restrictions
+  and official references. This catalog is informational; commands do not select
+  gateways or load credentials from it.
 
 Docker with Compose and Make are the supported development entrypoints. Run
 `make help` for available lanes. Before building, testing, or running a local

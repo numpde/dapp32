@@ -1,0 +1,116 @@
+{
+  "checkedOn": "2026-10-24",
+  "purpose": "Informational catalog of HTTPS services for retrieving IPFS content. Not consumed by the deployment commands or viewer.",
+  "placeholders": {
+    "CID": "Content identifier; use CIDv1 in base32 for a subdomain URL.",
+    "PATH": "Optional path inside the CID, with each path segment URL-encoded. Omit the final slash and PATH when requesting the CID itself.",
+    "GATEWAY_NAME": "Dedicated gateway name assigned by the provider.",
+    "GATEWAY_TOKEN": "Gateway retrieval token, not a pinning or management API key.",
+    "CLIENT_ID": "thirdweb project's client ID, intended for frontend use with domain restrictions; not its secret key."
+  },
+  "notes": [
+    "These are retrieval services, not publishing or pinning services. Content still needs an available provider or pin.",
+    "No authentication requirement does not mean unlimited or free hosting: storage and egress billing depend on the content provider and service plan.",
+    "Gateway authentication restricts that endpoint. It does not make publicly available IPFS content confidential or prevent retrieval through another provider.",
+    "An HTTPS gateway returning decoded JSON or a file does not by itself prove the bytes match the CID. CAM SHA-256 checks and verifiable IPFS retrieval are separate mechanisms.",
+    "Browser fetches need compatible CORS responses. A URL working in a browser tab does not establish that JavaScript on another origin can read it.",
+    "A header keeps a token out of the URL, but a token sent by browser code remains visible to that browser's user. Query tokens also appear in URLs and may reach histories or logs.",
+    "No live availability, CORS, performance, billing or service-level guarantee is asserted by this catalog. Consult the provider's current account settings and terms."
+  ],
+  "gateways": {
+    "ipfs-io": {
+      "name": "IPFS Foundation path gateway",
+      "urlTemplate": "https://ipfs.io/ipfs/{CID}/{PATH}",
+      "authentication": "None.",
+      "contentScope": "Public IPFS content available from the network; decoded files and verifiable response formats.",
+      "notes": "Best-effort shared infrastructure. Shares backend capacity and rate limits with dweb.link and trustless-gateway.link; these are not independent failover services. Browser navigation can redirect to inbrowser.link.",
+      "references": [
+        "https://docs.ipfs.tech/concepts/public-utilities/",
+        "https://blog.ipfs.tech/2026-08-beyond-sponsored-gateways/"
+      ]
+    },
+    "dweb-link": {
+      "name": "IPFS Foundation subdomain gateway",
+      "urlTemplate": "https://{CID}.ipfs.dweb.link/{PATH}",
+      "authentication": "None.",
+      "contentScope": "Public IPFS content; each CID has its own browser origin. Subdomain CIDs must be CIDv1 in base32.",
+      "notes": "Same shared backend and limits as ipfs.io. Browser navigation can redirect to inbrowser.link. Origin isolation does not verify response bytes.",
+      "references": [
+        "https://docs.ipfs.tech/concepts/public-utilities/",
+        "https://blog.ipfs.tech/2026-08-beyond-sponsored-gateways/"
+      ]
+    },
+    "trustless-gateway-link": {
+      "name": "IPFS Foundation verifiable-response gateway",
+      "urlTemplate": "https://trustless-gateway.link/ipfs/{CID}/{PATH}?format=car",
+      "authentication": "None.",
+      "contentScope": "Verifiable CAR streams, raw blocks and IPNS records; not decoded JSON or image responses.",
+      "notes": "Requires a client that verifies and decodes the returned IPFS blocks. A plain JSON fetch cannot use this template directly. Shares backend capacity with ipfs.io and dweb.link.",
+      "references": [
+        "https://docs.ipfs.tech/concepts/public-utilities/",
+        "https://specs.ipfs.tech/http-gateways/trustless-gateway/"
+      ]
+    },
+    "filebase-public": {
+      "name": "Filebase public gateway",
+      "urlTemplate": "https://ipfs.filebase.io/ipfs/{CID}/{PATH}",
+      "authentication": "None.",
+      "contentScope": "Public IPFS content.",
+      "notes": "Shared gateway intended for testing and light usage; rate-limited. Filebase recommends a dedicated gateway for production traffic.",
+      "references": [
+        "https://filebase.com/docs/ipfs/concepts/what-is-an-ipfs-gateway"
+      ]
+    },
+    "pinata-public": {
+      "name": "Pinata public gateway",
+      "urlTemplate": "https://gateway.pinata.cloud/ipfs/{CID}/{PATH}",
+      "authentication": "None.",
+      "contentScope": "Public IPFS content available through the gateway.",
+      "notes": "Shared public endpoint; account-based dedicated gateways are listed separately. Documentation review does not establish current availability or an uptime guarantee.",
+      "references": [
+        "https://docs.ipfs.tech/quickstart/pin/",
+        "https://pinata.cloud/blog/pay-to-pin-on-ipfs-with-x402/"
+      ]
+    },
+    "pinata-dedicated": {
+      "name": "Pinata dedicated gateway",
+      "urlTemplate": "https://{GATEWAY_NAME}.mypinata.cloud/ipfs/{CID}/{PATH}",
+      "authentication": "For token-based access, supply a gateway token using the header or query alternative below. Configured IP or origin rules can also admit requests. This is not the Pinata API JWT.",
+      "headers": {
+        "x-pinata-gateway-token": "{GATEWAY_TOKEN}"
+      },
+      "queryAlternative": "pinataGatewayToken={GATEWAY_TOKEN}",
+      "contentScope": "Defaults to content pinned to the account. Retrieval from the wider IPFS network requires appropriate gateway access controls.",
+      "notes": "Provision a dedicated gateway first. Account, origin and IP restrictions affect which requests are accepted; possessing a CID is not sufficient for every gateway configuration.",
+      "references": [
+        "https://docs.pinata.cloud/gateways/gateway-access-controls"
+      ]
+    },
+    "filebase-dedicated": {
+      "name": "Filebase dedicated gateway",
+      "urlTemplate": "https://{GATEWAY_NAME}.myfilebase.com/ipfs/{CID}/{PATH}",
+      "authentication": "Configurable. A token-protected gateway requires its retrieval token using the header or query alternative below. Do not substitute an S3 access key or secret.",
+      "headers": {
+        "x-filebase-gateway-token": "{GATEWAY_TOKEN}"
+      },
+      "queryAlternative": "filebaseGatewayToken={GATEWAY_TOKEN}",
+      "contentScope": "Depends on gateway configuration: account-pinned content or selected CIDs can be enforced.",
+      "notes": "Provision the gateway and create its tokens in the Filebase dashboard. Public and restricted configurations have different retrieval scope.",
+      "references": [
+        "https://filebase.com/access-controls/",
+        "https://filebase.com/docs/ipfs/concepts/what-is-an-ipfs-gateway"
+      ]
+    },
+    "thirdweb": {
+      "name": "thirdweb project gateway",
+      "urlTemplate": "https://{CLIENT_ID}.ipfscdn.io/{CID}/{PATH}",
+      "authentication": "Project client ID in the hostname, subject to the project's API-key domain restrictions. A client ID is publishable; a backend secret key is not.",
+      "contentScope": "IPFS retrieval through the project's Storage service.",
+      "notes": "Enable and configure Storage for the project. This is the browser URL form documented for resolveScheme; use the documented SDK client for backend secret-key authentication rather than putting a secret in the URL.",
+      "references": [
+        "https://portal.thirdweb.com/typescript/v5/storage",
+        "https://portal.thirdweb.com/account/api-keys"
+      ]
+    }
+  }
+}
