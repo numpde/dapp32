@@ -52,14 +52,12 @@ export function ConnectionSummary({
 }): ReactElement {
   return (
     <section className="connection" aria-label="Account and wallet">
-      <div className="connection-account">
-        <dl><dt>Viewing as</dt><dd><code title={account}>{shortenAddress(account)}</code></dd></dl>
-      </div>
-      <div className="connection-wallet">
-        <div className="wallet-controls">
-          <dl><dt>Signing wallet</dt><dd role="status">{wallet}</dd></dl>
-          {walletAction}
-        </div>
+      <div className="connection-summary">
+        <dl className="connection-identities">
+          <div><dt>Viewing as</dt><dd><code title={account}>{shortenAddress(account)}</code></dd></div>
+          <div><dt>Signing wallet</dt><dd role="status">{wallet}</dd></div>
+        </dl>
+        {walletAction}
       </div>
       <details className="connection-details">
         <summary>Connection details · {chainId}</summary>

@@ -716,7 +716,7 @@ export function App(): ReactElement {
           }}>
             {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
           </select>
-          <small id="ipfs-gateway-help">Used for new IPFS downloads.</small>
+          <span id="ipfs-gateway-help" className="visually-hidden">Used for new IPFS downloads.</span>
         </div> : null}
       </header>
       {loadState.status !== "ready" ? null : (

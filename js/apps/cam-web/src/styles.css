@@ -56,15 +56,15 @@ button:not(.timestamp-options):not(:disabled):active {
 }
 
 .topbar {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
   gap: 16px;
 }
 
-.ipfs-gateway { display: grid; gap: 4px; max-width: 100%; font-size: 0.85rem; color: var(--muted); }
+.ipfs-gateway { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: 100%; font-size: 0.85rem; color: var(--muted); }
 .ipfs-gateway select { max-width: 100%; padding: 6px 10px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; }
 
 h1,
@@ -82,9 +82,9 @@ h1 {
 }
 
 .connection {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  gap: 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 16px;
   padding-block: 4px 16px;
   border-bottom: 1px solid var(--line);
@@ -96,11 +96,12 @@ h1 {
   align-items: baseline;
 }
 
-.connection-account, .connection-wallet { min-width: 0; }
-.connection-account dd, .connection-wallet dd { margin-top: 4px; }
-.connection-account code { font-size: 1rem; }
-.connection .wallet-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.connection-details { grid-column: 1 / -1; min-width: 0; font-size: 0.82rem; }
+.connection-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; }
+.connection-identities { display: flex; flex-wrap: wrap; gap: 8px 24px; min-width: 0; }
+.connection-identities > div { display: flex; align-items: baseline; gap: 8px; min-width: 0; max-width: 100%; }
+.connection-identities dt { flex: none; }
+.connection-identities code { font-size: inherit; }
+.connection-details { min-width: 0; font-size: 0.82rem; }
 .connection-details > summary { width: fit-content; color: var(--muted); cursor: pointer; }
 .connection-details .field-hint { font-size: inherit; }
 .connection-facts { display: grid; gap: 8px; padding-top: 12px; }
@@ -355,7 +356,6 @@ summary:focus-visible {
 
 @media (max-width: 760px) {
   .nft-row .nft-preview:has(> .nft-image) { grid-template-columns: minmax(0, 1fr); }
-  .connection,
   .key-value,
   .nft-identity > div,
   .nft-attributes > div {

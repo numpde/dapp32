@@ -23,7 +23,7 @@ const screen = (title: string) => ({ element: "Screen", requires: [], props: { t
     { element: "DocumentHashField", props: { label: "Document hash", algorithm: "sha256", sourceURI: "$state.documentURI" }, state: { key: "digest", defaultValue: "" } },
   ] : [{ element: "Nft", props: { contractAddress: address, tokenId: "1", metadataURI: `ipfs://${cid}/metadata/nft.json` } }]),
 ] })
-const uiBytes = encode({ ui: "1.0.0", nodes: { home: screen("Gateway home"), detail: screen("Gateway detail") } })
+const uiBytes = encode({ ui: "1.0.0", nodes: { home: screen("Bicycle component registry"), detail: screen("Gateway detail") } })
 const abiBytes = encode(abi)
 const protocolBytes = new TextEncoder().encode("Fixture protocol")
 const route = (node: string) => ({ kind: "read", inputs: [], call: { namespace: "contracts.App", function: "read", args: {} }, then: { namespace: "ui", function: node, args: {} } })
