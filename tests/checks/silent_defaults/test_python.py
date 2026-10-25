@@ -51,6 +51,8 @@ def is_explicit_defaulting_call(node: ast.AST) -> bool:
     if not is_defaulting_call(node):
         return False
     assert isinstance(node, ast.Call)
+    if node.func.attr == "pop" and len(node.args) == 2 and isinstance(node.args[1], ast.Constant) and node.args[1].value is None:
+        return False
     if isinstance(node.func, ast.Attribute) and node.func.attr == "setdefault":
         return True
     return len(node.args) >= 2 or any(keyword.arg == "default" for keyword in node.keywords)
@@ -116,11 +118,19 @@ def is_generic_or_default_expression(node: ast.AST) -> bool:
 
 
 def is_generic_default_if_expression(node: ast.AST) -> bool:
-    return (
-        isinstance(node, ast.IfExp)
-        and not contains_env_access(node)
-        and (is_default_literal(node.body) or is_default_literal(node.orelse))
-    )
+    if not isinstance(node, ast.IfExp) or contains_env_access(node):
+        return False
+    # Outcome selection is not defaulting. The condition must test the value
+    # that one branch keeps, with the other branch supplying its replacement.
+    if not isinstance(node.test, ast.Compare):
+        return ast.dump(node.body) == ast.dump(node.test) and is_default_literal(node.orelse)
+    if isinstance(node.test, ast.Compare) and len(node.test.ops) == 1 and len(node.test.comparators) == 1:
+        comparison = node.test.comparators[0]
+        if isinstance(comparison, ast.Constant) and comparison.value is None:
+            kept = node.orelse if isinstance(node.test.ops[0], ast.Is) else node.body
+            replacement = node.body if isinstance(node.test.ops[0], ast.Is) else node.orelse
+            return isinstance(node.test.ops[0], (ast.Is, ast.IsNot)) and ast.dump(kept) == ast.dump(node.test.left) and is_default_literal(replacement)
+    return False
 
 
 def assigned_values_by_target(statements: list[ast.stmt]) -> dict[str, ast.AST]:
@@ -318,21 +328,34 @@ def is_exception_fallback_handler(node: ast.AST) -> bool:
     return False
 
 
-def exception_fallback_waivers(source: str, tree: ast.AST) -> tuple[set[ast.ExceptHandler], list[tuple[int, str]]]:
-    """Accept `# silent-defaults: allow-exception-fallback -- reason` before same-indent except.
+def source_default_waivers(source: str, tree: ast.AST) -> tuple[set[ast.AST], list[tuple[int, str]]]:
+    """Accept reasoned allow-default and allow-exception-fallback comments locally.
 
-    It waives only that exception-fallback finding; malformed or stale directives
-    fail, while raw source classification remains unchanged.
+    Only the annotated statement or exception handler is waived. Malformed or
+    stale directives fail; raw source classification remains unchanged.
     """
     handlers = [node for node in ast.walk(tree) if isinstance(node, ast.ExceptHandler)]
-    accepted: set[ast.ExceptHandler] = set()
+    accepted: set[ast.AST] = set()
     failures: list[tuple[int, str]] = []
     for token in tokenize.generate_tokens(io.StringIO(source).readline):
         if token.type != tokenize.COMMENT or not token.string[1:].lstrip().startswith("silent-defaults"):
             continue
         prefix, separator, reason = token.string.partition(" -- ")
+        if prefix == "# silent-defaults: allow-default" and separator and reason.strip():
+            target = [node for node in ast.walk(tree) if isinstance(node, ast.stmt) and node.lineno == token.end[0] + 1 and node.col_offset == token.start[1]]
+            if token.line[:token.start[1]].strip() or len(target) != 1 or not (function_default_nodes(target[0]) or any(is_silent_default(node) and node.lineno == target[0].lineno for node in ast.walk(target[0]))):
+                failures.append((token.start[0], "must immediately precede one defaulting statement at the same indentation"))
+            else:
+                owner = target[0]
+                if isinstance(owner, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    accepted.add(owner)
+                    for default in function_default_nodes(owner):
+                        accepted.update(ast.walk(default))
+                else:
+                    accepted.update(node for node in ast.walk(owner) if is_silent_default(node) and node.lineno == owner.lineno)
+            continue
         if prefix != "# silent-defaults: allow-exception-fallback" or not separator or not reason.strip():
-            failures.append((token.start[0], "expected allow-exception-fallback and a nonblank reason"))
+            failures.append((token.start[0], "expected allow-default or allow-exception-fallback followed by -- and a nonblank reason"))
             continue
 
         target = [handler for handler in handlers if handler.lineno == token.end[0] + 1 and handler.col_offset == token.start[1]]
@@ -352,13 +375,13 @@ def python_default_findings(path: Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
     findings: list[str] = []
-    waivers, waiver_failures = exception_fallback_waivers(source, tree)
+    waivers, waiver_failures = source_default_waivers(source, tree)
     for line, message in waiver_failures:
-        findings.append(f"{path.relative_to(ROOT)}:{line}: python exception-fallback waiver: {message}")
+        findings.append(f"{path.relative_to(ROOT)}:{line}: python default waiver: {message}")
     for node in ast.walk(tree):
-        if is_silent_default(node):
+        if is_silent_default(node) and node not in waivers:
             findings.append(f"{path.relative_to(ROOT)}:{node.lineno}: python silent default: {source_snippet(source, node)}")
-        for default in function_default_nodes(node):
+        for default in ([] if node in waivers else function_default_nodes(node)):
             findings.append(
                 f"{path.relative_to(ROOT)}:{default.lineno}: "
                 f"python function default: {source_snippet(source, default)}"
@@ -383,6 +406,7 @@ class PythonSilentDefaultsTest(unittest.TestCase):
         self.assertTrue(python_source_has_default('port = parsed.port or 443'))
         self.assertTrue(python_source_has_default('path = parsed.path or "/"'))
         self.assertTrue(python_source_has_default('manager = value if value is not None else "apk"'))
+        self.assertTrue(python_source_has_default('port = config.port if config.port else 443'))
         self.assertTrue(python_source_has_default('value = env["PORT"] if "PORT" in env else "8080"'))
         self.assertTrue(python_source_has_default('if "PORT" in env:\n    port = env["PORT"]\nelse:\n    port = "8080"'))
         self.assertTrue(python_source_has_default('try:\n    port = env["PORT"]\nexcept KeyError:\n    port = "8080"'))
@@ -396,12 +420,24 @@ class PythonSilentDefaultsTest(unittest.TestCase):
         self.assertTrue(python_source_has_default('if args:\n    profile = args[0]\nelse:\n    profile = "all"'))
 
     def test_matchers_ignore_explicit_absence(self) -> None:
+        self.assertFalse(python_source_has_default('env.pop("OPTIONAL", None)'))
+        self.assertFalse(python_source_has_default('expected = 0 if failure == "proxy" else 1'))
+        self.assertFalse(python_source_has_default('reason = f" ({code})" if code in known else ""'))
         self.assertFalse(python_source_has_default('value = default if raw is None else raw'))
         self.assertFalse(python_source_has_default('value = config.get("profile")'))
         self.assertFalse(python_source_has_default('def run(optional: str | None = None):\n    pass'))
         self.assertFalse(python_source_has_default('try:\n    run()\nexcept Exception as exc:\n    raise RuntimeError("failed") from exc'))
         self.assertFalse(python_source_has_default('optional = env["OPTIONAL"] if "OPTIONAL" in env else ""'))
         self.assertFalse(python_source_has_default('optional = env["OPTIONAL"] if "OPTIONAL" in env else None'))
+
+    def test_reasoned_default_waiver_is_local_and_stale_targets_fail(self) -> None:
+        source = '# silent-defaults: allow-default -- No overrides is the ordinary inspection call.\ndef inspect(overrides=()):\n    return overrides\n'
+        self.assertTrue(python_source_has_default(source))
+        self.assertEqual([], self.findings_for_source(source))
+        self.assertTrue(self.findings_for_source(source + 'def unsafe(port="8080"):\n    return port\n'))
+        self.assertTrue(self.findings_for_source(source.replace('overrides=()', 'overrides')))
+        inline = '# silent-defaults: allow-default -- The fixture flag is optional.\ndef inspect(flag=False): return env.get("PORT", "8080")\n'
+        self.assertTrue(any('python silent default' in finding for finding in self.findings_for_source(inline)))
 
     def test_exception_fallback_waiver_is_local_and_preserves_raw_detection(self) -> None:
         source = '''def validate():
@@ -434,7 +470,7 @@ class PythonSilentDefaultsTest(unittest.TestCase):
             with self.subTest(name=name):
                 source = f"def validate():\n    try:\n        operation()\n{directive}    except ValueError as error:\n        return [str(error)]\n"
                 findings = self.findings_for_source(source)
-                self.assertTrue(any("python exception-fallback waiver" in finding for finding in findings), findings)
+                self.assertTrue(any("python default waiver" in finding for finding in findings), findings)
 
     def test_exception_fallback_waiver_does_not_cover_siblings_or_other_rules(self) -> None:
         source = '''def validate(value):
@@ -473,7 +509,7 @@ class PythonSilentDefaultsTest(unittest.TestCase):
 
         self.assertTrue(any("python exception fallback" in finding for finding in self.findings_for_source(string_marker)))
         stale_findings = self.findings_for_source(stale)
-        self.assertTrue(any("python exception-fallback waiver" in finding for finding in stale_findings), stale_findings)
+        self.assertTrue(any("python default waiver" in finding for finding in stale_findings), stale_findings)
 
         inline = '''def validate():
     try:
@@ -482,7 +518,7 @@ class PythonSilentDefaultsTest(unittest.TestCase):
         return [str(error)]
 '''
         inline_findings = self.findings_for_source(inline)
-        self.assertTrue(any("python exception-fallback waiver" in finding for finding in inline_findings), inline_findings)
+        self.assertTrue(any("python default waiver" in finding for finding in inline_findings), inline_findings)
         self.assertTrue(any("python exception fallback" in finding for finding in inline_findings), inline_findings)
 
     def findings_for_source(self, source: str) -> list[str]:

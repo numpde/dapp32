@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from .common import iter_files, path_has_symlink, read_text, repo_path
+from .common import iter_files, path_has_symlink, read_text, rendered_compose_config, repo_path
 
 
 FOUNDRY_IMAGE = "ghcr.io/foundry-rs/foundry"
@@ -42,6 +42,19 @@ class ToolchainVersionTest(unittest.TestCase):
                 if not self.is_pinned_image_reference(image):
                     failures.append(f"{path}:{line_number}: Dockerfile FROM image must be tag-and-digest pinned: {image}")
             for line_number, image in self.compose_images(text):
+                # These two images are local artifacts, not registry inputs.
+                # Their bases remain subject to the Dockerfile pin checks.
+                if path == repo_path("compose/viewer-image.yml") and image == "dapp32-viewer-builder:local":
+                    builder = rendered_compose_config("compose/viewer-image.yml")["services"]["viewer-build"]
+                    self.assertEqual(str(repo_path("containers/node-deps")), builder["build"]["context"])
+                    self.assertEqual("none", builder["build"]["network"])
+                    self.assertEqual("none", builder["network_mode"])
+                    continue
+                if path == repo_path("compose/viewer.yml") and image == "${VIEWER_IMAGE:?Set_VIEWER_IMAGE_to_a_prebuilt_viewer_image}":
+                    viewer = rendered_compose_config("compose/viewer.yml")["services"]["viewer"]
+                    self.assertEqual("never", viewer["pull_policy"])
+                    self.assertNotIn("build", viewer)
+                    continue
                 # This release image is selected by an exact local image ID at launch.
                 if path == repo_path("compose/release/approval.yml") and image == '"${RELEASE_APPROVAL_IMAGE:?missing_RELEASE_APPROVAL_IMAGE}"':
                     continue

@@ -468,7 +468,12 @@ docker() {
                 root = Path(directory)
                 stub = root / "compose.sh"
                 stub.write_text(r'''
-set -eu
+docker() {
+if [[ "$1" != compose ]]; then
+  [[ "$2" == ls ]]
+  return
+fi
+shift
 printf '%s\n' "$*" >> "$CASE_ROOT/events"
 if [[ "${COMPOSE_PROGRESS-}" != plain || "${COMPOSE_ANSI-}" != never ]]; then
   printf 'Compose attempted console progress during an operator workflow\n' >&2
@@ -477,16 +482,27 @@ fi
 if [[ "${@: -1}" == *-viewer-url ]]; then
   printf 'http://127.0.0.1:5173/?fixture=demo\n'
 fi
+}
+env() {
+  if [[ "$1 $2 $3" == '-u PRIVATE_KEY docker' ]]; then
+    shift 3
+    docker "$@"
+  else
+    command env "$@"
+  fi
+}
+export -f docker env
 ''')
                 overrides = root / "overrides.mk"
                 overrides.write_text("dapps/deps/verify: ; @:\n")
                 env = self.environment(root, root)
+                env["BASH_ENV"] = str(stub)
                 env.pop("COMPOSE_PROGRESS", None)
                 env.pop("COMPOSE_ANSI", None)
                 result = subprocess.run(
                     ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(overrides),
                      f"{app}/local/demo/gui/up", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:",
-                     f"DOCKER_COMPOSE=bash {stub}"],
+                     "DOCKER_COMPOSE=docker compose"],
                     cwd=ROOT, env=env, capture_output=True, text=True, timeout=10,
                 )
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)

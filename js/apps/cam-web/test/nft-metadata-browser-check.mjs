@@ -16,6 +16,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     assert.fail(`NFT fixture did not reach: ${expression}`)
   }
   async function click(selector, text) {
+    // silent-defaults: allow-default -- Controls with icon-only labels are located by aria-label; text labels identify the others.
     assert(await evaluate(`(() => { const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(node => (node.getAttribute('aria-label')??node.textContent) === ${JSON.stringify(text)}); if (!button) return false; button.click(); return true })()`), `control exists: ${text}`)
   }
   async function edit(selector, value) {

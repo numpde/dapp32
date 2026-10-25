@@ -14,7 +14,7 @@ import unittest
 from .common import ROOT
 
 CLEANUP = ROOT / "tools/compose_cleanup.sh"
-PROJECT = "dapp32-cleanup-test"
+PROJECT = "cam-cleanup-test"
 
 FAKE_DOCKER = r'''#!/usr/bin/env python3
 import json, os, pathlib, sys, time
@@ -42,7 +42,7 @@ if args[0] == "compose":
             state["volume"] = False
     save()
 elif args[1] == "ls":
-    assert "label=com.docker.compose.project=dapp32-cleanup-test" in args
+    assert "label=com.docker.compose.project=cam-cleanup-test" in args
     if state["mode"] == "listing-failure":
         print("fixture engine listing failed", file=sys.stderr)
         sys.exit(8)

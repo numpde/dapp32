@@ -8,6 +8,7 @@ import {
 } from "../../../packages/cam-evm-viem/dist/index.js"
 import {
   createCamViewerSession,
+  defaultIpfsGateway,
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
   createCamResourceLoader,
@@ -22,7 +23,6 @@ import type {
 import {
   readBoundedFileSync,
 } from "../../local-cam-files.ts"
-import { defaultIpfsGateway } from "../../ipfs-gateways.ts"
 import {
   requiredArray,
   requiredEnv,

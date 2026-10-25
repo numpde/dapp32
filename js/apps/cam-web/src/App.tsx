@@ -4,7 +4,7 @@ import {
   useState,
 } from "react"
 import type { ReactElement } from "react"
-import { defaultIpfsGateway, publicIpfsGateways } from "../../../tools/ipfs-gateways.ts"
+import { defaultIpfsGateway, publicIpfsGateways } from "@cam/viewer"
 import { IpfsGatewayContext } from "./ipfs-gateway.ts"
 
 import {

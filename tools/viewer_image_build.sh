@@ -16,7 +16,7 @@ for dockerfile in containers/node-deps/Dockerfile containers/viewer/Dockerfile; 
 done
 
 work_dir=$(mktemp -d)
-project=dapp32-viewer-build-$(basename "$work_dir" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
+project=cam-viewer-build-$(basename "$work_dir" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
 compose=(docker compose --env-file /dev/null -p "$project" -f "$repo_root/compose/viewer-image.yml")
 cleanup() {
   local status=$?
@@ -38,6 +38,6 @@ timeout 120s "${compose[@]}" build --pull=false viewer-build
 timeout 180s "${compose[@]}" run --no-deps --pull never --name "$project-builder" viewer-build
 # Docker copies as the invoking host user, independent of rootless UID mapping.
 docker cp "$project-builder:/out/site" "$work_dir/site"
-cp "$repo_root/containers/viewer/"{Dockerfile,nginx.conf} "$work_dir/"
+cp "$repo_root/containers/viewer/"{Dockerfile,nginx.conf,.dockerignore} "$work_dir/"
 timeout 120s docker build --network=none --pull=false --tag "$image" "$work_dir"
 printf 'Built local viewer image %s. No image was published.\n' "$image"

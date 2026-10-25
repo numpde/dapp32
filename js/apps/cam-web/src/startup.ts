@@ -79,6 +79,7 @@ export function resourcePolicyLabel(env: StartupEnv): string {
     if (resourceOrigin === undefined) return "HTTP(S) disabled; IPFS only"
     return resourceOrigin === "*" ? "Any HTTP(S) origin" : `Pinned to ${resourceOrigin}`
   } catch {
+    // silent-defaults: allow-default -- The settings summary identifies invalid configuration; startup still reports the actual failure.
     return "Invalid operator configuration"
   }
 }

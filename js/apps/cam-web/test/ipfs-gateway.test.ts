@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { defaultIpfsGateway, publicIpfsGateways } from "../../../tools/ipfs-gateways.ts"
+import { defaultIpfsGateway, publicIpfsGateways } from "@cam/viewer"
 import { createViewerResourceLoader } from "../src/startup.ts"
 
 test("ordinary downloads exclude retired HTTP gateways and use the public file gateway by default", async t => {

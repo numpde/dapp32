@@ -30,6 +30,7 @@ for (const [label, command, args] of steps) {
     exitCode = 1
   } else if (child.status !== 0) {
     console.error(`${label} failed with exit status ${child.status}.`)
+    // silent-defaults: allow-default -- An absent process status cannot establish compiler success.
     exitCode = child.status ?? 1
   }
   if (exitCode !== 0) break

@@ -5,6 +5,7 @@ import { App } from "../src/App.tsx"
 import "../src/styles.css"
 
 const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
+// silent-defaults: allow-default -- Opening the fixture without a scenario exercises its download-failure case.
 const mode = new URL(location.href).searchParams.get("scenario") ?? "fail"
 const logicalRoot = mode === "https-cross-origin" ? "https://other.fixture.test/bundle/main.json"
   : mode === "https" || mode === "https-hold" ? "https://raw.githubusercontent.com/bundle/main.json" : `ipfs://${cid}/bundle/main.json`

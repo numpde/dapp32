@@ -135,6 +135,7 @@ async function main(): Promise<void> {
       throw new Error("Local release viewer requires a deployment on fixture chain 31338")
     }
     // Prompts go to stderr; stdout carries only these validated, newline-free fields.
+    // silent-defaults: allow-default -- An empty origin field carries the explicit IPFS-only resource policy to the launcher.
     process.stdout.write([settings.app, settings.resourceOrigin ?? "", settings.rpcUrl, settings.url].join("\n") + "\n")
   } finally { reader?.close() }
 }

@@ -16,3 +16,5 @@ export type { CamViewerErrorCode } from "./errors.ts"
 export { createCamViewerSession } from "./session.ts"
 
 export { viewerErrorMessage } from "./error-message.ts"
+
+export { defaultIpfsGateway, publicIpfsGateways } from "./ipfs-gateways.ts"

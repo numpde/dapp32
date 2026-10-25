@@ -1,4 +1,4 @@
 import { createContext } from "react"
-import { defaultIpfsGateway } from "../../../tools/ipfs-gateways.ts"
+import { defaultIpfsGateway } from "@cam/viewer"
 
 export const IpfsGatewayContext = createContext(defaultIpfsGateway.template)

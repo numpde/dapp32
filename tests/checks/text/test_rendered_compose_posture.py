@@ -399,6 +399,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_all_rendered_ports_secrets_and_fixture_keys_are_explicitly_inventoried(self) -> None:
         expected_ports = {
+            ("compose/viewer.yml", "viewer", "127.0.0.1", 8080, "8080"),
             (
                 makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"),
                 "bike-nft-browser-gateway",
@@ -839,6 +840,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("https://api.avax-test.network/ext/bc/C/rpc", config["services"]["viewer-url"]["environment"]["RELEASE_VIEWER_RPC_URL"])
         self.assertEqual("https://raw.githubusercontent.com", config["services"]["cam-web"]["environment"]["VITE_CAM_WEB_RESOURCE_ORIGIN"])
         gateway = config["services"]["browser-gateway"]
+        # silent-defaults: allow-default -- Compose omits environment entirely when the gateway needs no variables.
         self.assertNotIn("VIEWER_RPC_LOCATION", gateway.get("environment", {}))
         self.assertNotIn("release-anvil", gateway["command"][-1])
 

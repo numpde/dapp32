@@ -22,6 +22,9 @@ DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", 
 # prove that omitted operator inputs fail closed. Negative render checks should
 # own that invariant instead of relying on this fixture map.
 RENDERED_COMPOSE_FIXTURE_ENV = {
+    "VIEWER_IMAGE": "sha256:" + "a" * 64,
+    "VIEWER_PORT": "8080",
+    "VIEWER_BIND_HOST": "127.0.0.1",
     "ABI_PLAN_DIR": "/tmp/abi-plan",
     "ALLOW_UPDATE": "0",
     "ANVIL_HOST_PORT": "8545",

@@ -13,6 +13,7 @@ from .common import (
 )
 
 
+# silent-defaults: allow-default -- Most recipe inspections need no Make overrides.
 def expanded_release_target(target: str, overrides: tuple[str, ...] = ()) -> str:
     """Inspect the supported release recipe after Make expands its shared owners."""
     env = {key: value for key, value in os.environ.items() if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS")}

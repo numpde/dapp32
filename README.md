@@ -44,7 +44,7 @@ for the three commands, wallet requirements and how they differ from release dep
   [indexing proxy lane](https://numpde.github.io/dapp32/deployment/rpc/#indexing)
   starts a bounded, read-only RPC proxy for contract indexing; run the indexer
   and database separately.
-- [IPFS HTTPS gateways](js/tools/ipfs-gateways.json): public gateways and account-based
+- [IPFS HTTPS gateways](js/packages/cam-viewer/src/ipfs-gateways.json): public gateways and account-based
   retrieval services, including URL templates, gateway tokens, content restrictions
   and official references. The viewer's gateway selector uses its public file
   endpoints; deployment commands do not load gateway credentials from it.

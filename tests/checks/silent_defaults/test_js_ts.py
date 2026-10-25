@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from ..common import ROOT
-from .test_shared_scanner import line_findings, repo_files
+from .test_shared_scanner import repo_files
 
 
 JS_NULLISH_FALLBACK_RE = re.compile(r"\?\?\s*(?P<value>[^;,)]+)")
@@ -153,52 +153,61 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
         self.assertTrue(js_source_has_exception_fallback("try { run() } catch { return [] }"))
 
     def test_js_ts_files_do_not_hide_runtime_fallbacks(self) -> None:
-        files = js_ts_files()
-        findings: list[str] = []
-        findings.extend(line_findings(files, JS_NULLISH_FALLBACK_RE, "JS/TS nullish fallback", skip_comments=False))
-        findings.extend(line_findings(files, JS_ENV_OR_SEARCH_DEFAULT_RE, "JS/TS env/search fallback", skip_comments=False))
-        findings.extend(
-            line_findings(files, JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE, "JS/TS assignment/return fallback", skip_comments=False)
-        )
-        findings.extend(line_findings(
-            files,
-            JS_COMPOUND_ASSIGNMENT_DEFAULT_RE,
-            "JS/TS compound assignment fallback",
-            skip_comments=False,
-        ))
-        findings.extend(line_findings(files, JS_TERNARY_DEFAULT_RE, "JS/TS ternary fallback", skip_comments=False))
-        findings.extend(line_findings(files, JS_DESTRUCTURING_DEFAULT_RE, "JS/TS destructuring default", skip_comments=False))
-        findings.extend(js_parameter_destructuring_default_findings(files))
-        findings.extend(line_findings(files, JS_OPTION_OBJECT_DEFAULT_RE, "JS/TS option object default", skip_comments=False))
-        findings.extend(line_findings(files, JS_DEFAULT_PARAMETER_RE, "JS/TS default parameter", skip_comments=False))
-        findings.extend(line_findings(files, JS_TYPED_PARAMETER_DEFAULT_RE, "JS/TS typed default parameter", skip_comments=False))
-        findings.extend(js_exception_fallback_findings(files))
-
+        findings = []
+        for path in js_ts_files():
+            findings.extend(js_default_findings_for_source(path.read_text(), str(path.relative_to(ROOT))))
         self.assertEqual([], findings)
 
+    def test_reasoned_default_waiver_is_local_and_raw_detection_remains(self) -> None:
+        source = '// silent-defaults: allow-default -- Missing labels use the control text.\nconst label = aria ?? text\n'
+        self.assertRegex(source, JS_NULLISH_FALLBACK_RE)
+        self.assertEqual([], js_default_findings_for_source(source, 'fixture'))
+        self.assertTrue(js_default_findings_for_source(source + 'const port = env.PORT ?? 8080\n', 'fixture'))
+        self.assertTrue(js_default_findings_for_source(source.replace('aria ?? text', 'text'), 'fixture'))
+        self.assertTrue(js_default_findings_for_source(source.replace(' -- Missing labels use the control text.', ''), 'fixture'))
+        stale = '// silent-defaults: allow-default -- This is not an exception fallback.\nreturn "ordinary"\n'
+        self.assertTrue(js_default_findings_for_source(stale, 'fixture'))
+        nested = 'try {} catch {\n// silent-defaults: allow-default -- This handler returns a visible error label.\nreturn "known" }\nfunction ordinary() { return "outside" }\ntry {} catch { return "unwaived" }\n'
+        findings = js_default_findings_for_source(nested, 'fixture')
+        self.assertEqual(1, len(findings), findings)
+        self.assertIn('unwaived', findings[0])
 
-def js_exception_fallback_findings(paths: list[Path]) -> list[str]:
+
+def js_default_findings_for_source(source: str, label: str) -> list[str]:
+    patterns = (
+        (JS_NULLISH_FALLBACK_RE, "JS/TS nullish fallback"),
+        (JS_ENV_OR_SEARCH_DEFAULT_RE, "JS/TS env/search fallback"),
+        (JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE, "JS/TS assignment/return fallback"),
+        (JS_COMPOUND_ASSIGNMENT_DEFAULT_RE, "JS/TS compound assignment fallback"),
+        (JS_TERNARY_DEFAULT_RE, "JS/TS ternary fallback"),
+        (JS_DESTRUCTURING_DEFAULT_RE, "JS/TS destructuring default"),
+        (JS_OPTION_OBJECT_DEFAULT_RE, "JS/TS option object default"),
+        (JS_DEFAULT_PARAMETER_RE, "JS/TS default parameter"),
+        (JS_TYPED_PARAMETER_DEFAULT_RE, "JS/TS typed default parameter"),
+    )
+    lines = source.splitlines()
     findings: list[str] = []
-    for path in paths:
-        findings.extend(
-            js_exception_fallback_findings_for_source(
-                path.read_text(encoding="utf-8"),
-                str(path.relative_to(ROOT)),
-            )
-        )
-    return findings
-
-
-def js_parameter_destructuring_default_findings(paths: list[Path]) -> list[str]:
-    findings: list[str] = []
-    for path in paths:
-        findings.extend(
-            js_parameter_destructuring_default_findings_for_source(
-                path.read_text(encoding="utf-8"),
-                str(path.relative_to(ROOT)),
-            )
-        )
-    return findings
+    for line_number, line in enumerate(lines, 1):
+        for pattern, rule in patterns:
+            for match in pattern.finditer(line):
+                findings.append(f"{label}:{line_number}: {rule}: {match.group(0).strip()}")
+    findings.extend(js_parameter_destructuring_default_findings_for_source(source, label))
+    findings.extend(js_exception_fallback_findings_for_source(source, label))
+    # Waivers filter actual locations after detection; source and brace context
+    # remain intact for every matcher, including nested exception handlers.
+    locations = [int(re.match(re.escape(label) + r":(\d+):", finding).group(1)) for finding in findings]
+    waived: set[int] = set()
+    invalid: list[str] = []
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith('// silent-defaults'):
+            continue
+        prefix, separator, reason = line.strip().partition(' -- ')
+        target = index + 2
+        if prefix != '// silent-defaults: allow-default' or not separator or not reason.strip() or target not in locations:
+            invalid.append(f"{label}:{index + 1}: JS/TS default waiver must immediately precede a finding and give a reason")
+        else:
+            waived.add(target)
+    return [finding for finding, line in zip(findings, locations) if line not in waived] + invalid
 
 
 def js_parameter_destructuring_default_findings_for_source(source: str, label: str) -> list[str]:

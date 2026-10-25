@@ -60,6 +60,7 @@ docker() {
 
 
 class ReleaseToolImagesTest(unittest.TestCase):
+    # silent-defaults: allow-default -- The ordinary fixture leaves image tags unchanged; retag=True exercises replacement.
     def run_case(self, script, *, failure="", retag=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

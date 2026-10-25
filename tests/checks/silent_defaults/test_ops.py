@@ -27,6 +27,13 @@ YAML_ENV_MAPPING_BLANK_RE = re.compile(r"^\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*):\s
 YAML_ENVIRONMENT_BLOCK_RE = re.compile(r"^(?P<indent>\s*)environment:\s*$")
 WORKFLOW_DEFAULT_FIELD_RE = re.compile(r"^\s*default:\s*(?P<value>.*)$")
 ALLOWED_MAKE_DEFAULTS = {
+    # The static viewer runs a locally built artifact; these are its documented
+    # image, host port and isolated Compose project defaults.
+    "VIEWER_IMAGE": "dapp32-viewer:local",
+    "VIEWER_PORT": "8080",
+    "VIEWER_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-viewer",
+    "RELEASE_ARTIFACT_NODE_MODULES_DIR": "$(CURDIR)/js/node_modules",
+    "RELEASE_VIEWER_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-release-viewer",
     "ALLOW_UPDATE": "0",
     "ANVIL_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-anvil",
     "ANVIL_HOST_PORT": "8545",
@@ -80,6 +87,22 @@ ALLOWED_DOCKER_DEFAULTS = {
     ("ENV", "containers/foundry/Dockerfile", "XDG_DATA_HOME", "/usr/local/share"),
 }
 ALLOWED_SHELL_DEFAULTS = {
+    # Empty optional viewer inputs reach the guided setup or artifact-derived
+    # resolution. Noninteractive mode must reject inputs it cannot resolve.
+    ("Makefile", "APP", "-", ""),
+    ("Makefile", "DEPLOYMENT_ARTIFACT_FILE", "-", ""),
+    ("Makefile", "PUBLIC_RPC_URL", "-", ""),
+    ("Makefile", "RESOURCE_ORIGIN", "-", ""),
+    ("Makefile", "viewer_interactive", "-", "0"),
+    ("compose/release/viewer.yml", "RELEASE_VIEWER_APP", "-", ""),
+    ("compose/release/viewer.yml", "RELEASE_VIEWER_RESOURCE_ORIGIN", "-", ""),
+    ("compose/release/viewer.yml", "RELEASE_VIEWER_RPC_URL", "-", ""),
+    ("compose/release/viewer.yml", "RELEASE_VIEWER_INTERACTIVE", "-", "0"),
+    ("compose/release/viewer.yml", "VIEWER_RPC_LOCATION", "-", ""),
+    # CONFIG is tested for presence to select the saved-configuration workflow.
+    ("tools/release_approval_deploy.sh", "CONFIG", "-", ""),
+    # An omitted build selector chooses all supported release helper tools.
+    ("tools/release_tool_images.sh", "1", "-", ""),
     # CAM_HASH is an optional release input: omission deliberately selects
     # automatic source hashing, as documented in make help and guided setup.
     ("Makefile", "BIKE_NFT_RELEASE_CAM_HASH", "-", "auto"),

@@ -53,6 +53,7 @@ function cancelFromControl(event: MouseEvent<HTMLButtonElement>, cancel: () => v
   const button = event.currentTarget
   const restoreFocus = document.activeElement === button
   const action = button.parentElement?.querySelector<HTMLButtonElement>('button[aria-busy]')
+    // silent-defaults: allow-default -- Image cancellation returns focus to the enclosing preview action when there is no sibling action.
     ?? button.closest('.nft-row')?.querySelector<HTMLButtonElement>('.nft-details button[aria-busy]')
   cancel()
   if (restoreFocus) requestAnimationFrame(() => action?.focus())
