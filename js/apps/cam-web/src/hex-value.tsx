@@ -40,6 +40,6 @@ function CopyableHex({ value, label, href }: HexValueProps): ReactElement {
       </button>
       <span className="visually-hidden" role="status">{result === "copied" ? `${label} copied` : ""}</span>
     </span>
-    {failure === undefined ? null : <span className="hex-copy-error" role="alert">{failure.message} <code>{value}</code>{failure.diagnostic === undefined ? null : <span className="feedback-diagnostic">{failure.diagnostic}</span>}</span>}
+    {failure === undefined ? null : <span className="hex-copy-error" role="alert">{failure.message} <input aria-label={`Full value: ${label}`} readOnly value={value} />{failure.diagnostic === undefined ? null : <span className="feedback-diagnostic">{failure.diagnostic}</span>}</span>}
   </span>
 }

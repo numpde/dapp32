@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { assertStableLayout } from './layout-stability.mjs'
 import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
-import { assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy } from './display-contracts.mjs'
+import { assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery } from './display-contracts.mjs'
 
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/action-style-fixture.html', viewerURL)
@@ -40,13 +40,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await wait(`document.querySelector('.hex-value code').textContent==='0x4444444444444444444444444444444444444444'`)
     await evaluate('window.finishOldCopy()')
     assert(await evaluate(`!document.querySelector('.hex-value [role="status"]').textContent`), 'a late copy completion does not acknowledge a different displayed address')
-    await evaluate(`navigator.clipboard.writeText=async()=>{throw new DOMException('Clipboard denied','NotAllowedError')};document.querySelector('.hex-copy').click()`)
-    await wait(`!!document.querySelector('.hex-copy-error')`)
-    assert(await evaluate(`document.querySelector('.hex-copy-error code').textContent==='0x4444444444444444444444444444444444444444'&&document.querySelector('.hex-copy-error').textContent.includes('Select and copy')`), 'clipboard failure exposes the exact selectable value for manual recovery')
-    await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: true })
-    await wait('innerWidth===320')
-    assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth&&getComputedStyle(document.querySelector('.hex-copy-error code')).userSelect!=='none'`), 'copy failure remains selectable and fits a narrow viewport')
-    await call('Emulation.clearDeviceMetricsOverride', {})
+    await assertManualCopyRecovery({ call, evaluate, wait })
     await evaluate(`window.actionFixture.account('0x1111111111111111111111111111111111111111')`)
     await evaluate(`navigator.clipboard.writeText=async value=>{window.copiedIdentifier=value}`)
     await evaluate(`document.querySelector('.wallet-button').click()`)

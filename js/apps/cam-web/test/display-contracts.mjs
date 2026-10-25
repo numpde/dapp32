@@ -90,3 +90,26 @@ async function assertFeedbackPresentation(evaluate) {
   assert.deepEqual([...severities.keys()].sort(), ['error', 'status', 'warning'], 'the fixture exercises every severity')
   assert.equal(new Set(severities.values()).size, severities.size, 'severity variants remain visually distinct')
 }
+
+export async function assertManualCopyRecovery({ call, evaluate, wait }) {
+  const expected = await evaluate(`document.querySelector('.hex-value-controls code').title`)
+  await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Clipboard denied','NotAllowedError')}}});document.querySelector('.hex-copy').focus()`)
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+  await wait(`!!document.querySelector('.hex-copy-error')`)
+  assert(await evaluate(`document.activeElement===document.querySelector('.hex-copy')`), 'copy failure does not steal focus')
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  assert(await evaluate(`(()=>{const field=document.querySelector('.hex-copy-error input');return field!==null&&document.activeElement===field&&field.readOnly&&!field.disabled&&!!field.getAttribute('aria-label')})()`), 'Tab reaches a named read-only recovery field')
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 2, windowsVirtualKeyCode: 65 })
+  const selected = await evaluate(`(()=>{const field=document.querySelector('.hex-copy-error input');return {value:field.value,start:field.selectionStart,end:field.selectionEnd,message:field.parentElement.textContent}})()`)
+  assert.equal(selected.value, expected, 'manual recovery preserves the exact original value')
+  assert.equal(selected.start, 0, 'native Select All starts at the first character')
+  assert.equal(selected.end, expected.length, 'native Select All includes the entire value')
+  assert(selected.message.includes('Select and copy') && selected.message.includes('Clipboard denied'), 'recovery retains its instruction and original failure cause')
+  await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: true })
+  await wait('innerWidth===320')
+  assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth&&document.querySelector('.hex-copy-error input').readOnly`), 'copy failure remains selectable and fits a narrow viewport')
+  await call('Emulation.clearDeviceMetricsOverride', {})
+}
