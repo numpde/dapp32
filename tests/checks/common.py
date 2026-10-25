@@ -104,6 +104,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "RELEASE_CONFIG_FILE": "/tmp/release-config.json",
     "RELEASE_LOCAL_NETWORK": "dapps-release-local_anvil_internal",
     "RELEASE_VIEWER_PORT": "5174",
+    "VIEWER_BIND_HOST": "127.0.0.1",
     "RELEASE_VIEWER_ORIGIN": "http://127.0.0.1:5174",
     "RELEASE_VIEWER_APP": "pay-to-play",
     "RELEASE_VIEWER_ARTIFACT": "/tmp/release-output/artifact/deployment.json",

@@ -11,7 +11,10 @@ services:
     mem_limit: 128m
     pids_limit: 64
     tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m"]
-    ports: ["127.0.0.1:${VIEWER_PORT:?Set_VIEWER_PORT_to_an_unprivileged_host_port}:8080"]
+    ports:
+      - host_ip: ${VIEWER_BIND_HOST:?Set_VIEWER_BIND_HOST_to_a_host_interface_IP}
+        published: "${VIEWER_PORT:?Set_VIEWER_PORT_to_an_unprivileged_host_port}"
+        target: 8080
     networks: [viewer]
     restart: unless-stopped
     stop_grace_period: 10s

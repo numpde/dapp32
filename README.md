@@ -96,8 +96,12 @@ The local `dapp32-viewer:local` image contains compiled files and Nginx, with no
 runtime Node process, source mounts or signing configuration. Rebuild explicitly
 after changing the source; starting the viewer does not rebuild or pull images.
 
-The server listens at `http://127.0.0.1:8080`. Put an existing HTTPS proxy in
-front of it; use `VIEWER_PORT` to choose another unprivileged host port.
+The server listens at `http://127.0.0.1:8080` by default. Put an existing HTTPS
+proxy in front of it; use `VIEWER_PORT` to choose another unprivileged host port.
+For a containerized proxy, set `VIEWER_BIND_HOST` to an IP already assigned to
+the host's private interface and reachable from the proxy. For example,
+`make viewer/up VIEWER_BIND_HOST=192.168.1.10 VIEWER_PORT=18080` publishes only
+on that address. Use the same settings for `viewer/status` and `viewer/down`.
 Open a viewer link with `chainId`, `host`, `account` and a browser-accessible
 `rpcUrl`; the bare page does not select an example app or chain for you.
 `make viewer/down` stops only this viewer project. Use the same Docker context

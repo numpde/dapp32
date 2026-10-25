@@ -21,9 +21,10 @@ PACKAGE_MANIFEST_FILE := $(JS_DIR)/package.json
 PACKAGE_NODE_MODULES_DIR := $(JS_DIR)/node_modules
 PACKAGE_LOCK_FILE := $(JS_DIR)/package-lock.json
 VIEWER_IMAGE ?= dapp32-viewer:local
+VIEWER_BIND_HOST ?= 127.0.0.1
 VIEWER_PORT ?= 8080
 VIEWER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-viewer
-export VIEWER_IMAGE VIEWER_PORT VIEWER_COMPOSE_PROJECT_NAME
+export VIEWER_IMAGE VIEWER_BIND_HOST VIEWER_PORT VIEWER_COMPOSE_PROJECT_NAME
 RELEASE_ARTIFACT_NODE_MODULES_DIR ?= $(CURDIR)/js/node_modules
 export RELEASE_ARTIFACT_NODE_MODULES_DIR
 ACTUAL_UID := $(shell id -u)
@@ -773,8 +774,9 @@ help:
 	  '  make viewer/status              Show this viewer container and its health.' \
 	  '  make viewer/down                Stop this viewer; does not touch chains or development viewers.' \
 	  '    VIEWER_IMAGE selects the local image; VIEWER_PORT selects a host port from 1024 to 65535.' \
+	  '    VIEWER_BIND_HOST defaults to 127.0.0.1; set an assigned private interface IP for a containerized HTTPS proxy.' \
 	  '    Select the same Docker context for build and start. Rootless resource limits need cgroup v2/systemd delegation.' \
-	  '    Forward an existing HTTPS proxy to this loopback port. The browser needs a chain/host/account/RPC link.' \
+	  '    Forward an existing HTTPS proxy to the selected listener. The browser needs a chain/host/account/RPC link.' \
 	  '' \
 	  'Prepare CAM publication (validate local files; no upload or contract deployment):' \
 	  '  make bike-nft/cam/publication/preflight CAM_URI=URI      Print CAM_HASH for the local Bike NFT bundle.' \

@@ -246,6 +246,7 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_production_viewer_serves_only_a_prebuilt_image_without_source_mounts(self) -> None:
         config = rendered_compose_config("compose/viewer.yml", env={
             "VIEWER_IMAGE": "sha256:" + "a" * 64,
+            "VIEWER_BIND_HOST": "127.0.0.1",
             "VIEWER_PORT": "8080",
         })
         self.assertEqual({"viewer"}, set(config["services"]))
@@ -261,6 +262,18 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual(8080, viewer["ports"][0]["target"])
         self.assertEqual("127.0.0.1", viewer["ports"][0]["host_ip"])
         self.assertTrue(viewer["networks"])
+
+    def test_production_viewer_publishes_only_on_the_selected_private_interface(self) -> None:
+        config = rendered_compose_config("compose/viewer.yml", env={
+            "VIEWER_IMAGE": "sha256:" + "a" * 64,
+            "VIEWER_BIND_HOST": "192.168.1.10",
+            "VIEWER_PORT": "18080",
+        })
+        ports = config["services"]["viewer"]["ports"]
+        self.assertEqual(1, len(ports))
+        self.assertEqual("192.168.1.10", ports[0]["host_ip"])
+        self.assertEqual("18080", ports[0]["published"])
+        self.assertEqual(8080, ports[0]["target"])
 
     def test_production_viewer_build_has_offline_inputs_and_an_engine_owned_output(self) -> None:
         config = rendered_compose_config("compose/viewer-image.yml")
