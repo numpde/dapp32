@@ -115,6 +115,9 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await open('explicit-zero')
     await wait('!!document.querySelector("input[name=draft]")')
     assert(await evaluate(`!${publicView}&&new URL(location.href).searchParams.get('account')==='0x0000000000000000000000000000000000000000'&&!${button}.disabled`), 'an explicit zero watch address remains a selected account')
+    await evaluate(`${button}.click()`)
+    await wait(`!!document.querySelector('.prepared-call')`)
+    assert(await evaluate(`(()=>{const review=document.querySelector('.prepared-call');return review.textContent.includes('Input: amount (uint256)')&&review.textContent.includes('9007199254740993')&&review.textContent.includes('App action')&&review.textContent.includes('After confirmation')&&!review.querySelector('details')})()`), 'the review shows named exact inputs, app action and next view without a disclosure')
 
     await open('account-required')
     await wait('!!document.querySelector(".panel.error")')

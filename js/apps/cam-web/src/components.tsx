@@ -137,11 +137,6 @@ export function PreparedCallView({
       {preparedCallFields(call).map((field) => (
         <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} />
       ))}
-      <details>
-        <summary>Technical details</summary>
-        <KeyValue label="App action" value={call.route} mono={false} />
-        <KeyValue label="After confirmation" value={`${call.then.namespace}.${call.then.function} ${formatInertValue(call.then.args)}`} mono={false} />
-      </details>
       <button
         className="send-button"
         type="button"

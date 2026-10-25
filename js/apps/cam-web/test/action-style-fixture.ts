@@ -1,5 +1,6 @@
 import { createElement } from "react"
 import { createRoot } from "react-dom/client"
+import { parseAbi } from "viem"
 import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
@@ -18,7 +19,7 @@ const actions = [
   { route: "disabledWrite", kind: "contractCall", label: "Unavailable review", disabled: true },
   { route: "longRead", kind: "navigate", label: "Open a deliberately long view description that must wrap at a narrow viewport without moving adjacent values outside their shared columns" },
 ] as const
-const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: [], function: "fixtureWrite", args: {}, then: { namespace: "routes", function: "read", args: {} } }
+const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: parseAbi(["function fixtureWrite()"]), function: "fixtureWrite", args: {}, then: { namespace: "routes", function: "read", args: {} } }
 let prepared = false
 let busy = false
 let sending = false

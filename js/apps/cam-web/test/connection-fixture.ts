@@ -10,7 +10,7 @@ const host = "0x0000000000000000000000000000000000000001"
 const target = "0x0000000000000000000000000000000000000002"
 const wallet = "0x0000000000000000000000000000000000000003"
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
-const abi = parseAbi(["function read(address subject) view returns (uint256)", "function review() view returns (address)", "function update()"])
+const abi = parseAbi(["function read(address subject) view returns (uint256)", "function review() view returns (address)", "function update(uint256 amount)"])
 const rootAbi = parseAbi(["function camManifest() view returns ((string uri, bytes32 sha256Digest))"])
 const screen = (title: string) => ({ element: "Screen", requires: [], props: { title }, children: [
   { element: "TextField", props: { label: "Draft" }, state: { key: "draft", defaultValue: "" } },
@@ -24,7 +24,7 @@ const read = (node: string) => ({ kind: "read", inputs: [], call: { namespace: "
 const cam = encode({ cam: "1.3.0", protocol: { uri: "./protocol.html", integrity: `sha256:${sha256(protocol)}` }, entry: "home",
   namespaces: { "contracts.App": { type: "contract", abiURI: "./abi.json", integrity: `sha256:${sha256(abiBytes)}` },
     ui: { type: "ui", uri: "./ui.json", integrity: `sha256:${sha256(ui)}` }, routes: { type: "routes" } },
-  routes: { home: read("home"), detail: read("detail"), update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: {} }, then: { namespace: "routes", function: "detail", args: {} } } },
+  routes: { home: read("home"), detail: read("detail"), update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: { amount: "9007199254740993" } }, then: { namespace: "routes", function: "detail", args: {} } } },
 })
 const resources = new Map([["main.json", cam], ["protocol.html", protocol], ["abi.json", abiBytes], ["ui.json", ui]])
 const state = { subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
@@ -66,7 +66,7 @@ window.fetch = async (input, init) => {
     } else if (selector === toFunctionSelector("review()")) {
       state.reviews++
       result = encodeAbiParameters([{ type: "address" }], [target])
-    } else if (selector === toFunctionSelector("update()")) {
+    } else if (selector === toFunctionSelector("update(uint256)")) {
       state.simulations++
       result = "0x"
     } else throw new Error(`Unexpected fixture selector: ${selector}`)

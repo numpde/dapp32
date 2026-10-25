@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { parseAbi } from "viem"
 
 import { formatInertValue } from "../src/display.ts"
 import {
@@ -9,9 +10,9 @@ import {
 const preparedCall = {
   route: "fund",
   address: "0x0000000000000000000000000000000000000001" as const,
-  abi: [],
+  abi: parseAbi(["function fund(uint256 channelId) payable"]),
   function: "fund",
-  args: {},
+  args: { channelId: "2" },
   then: {
     namespace: "routes",
     function: "entry",
@@ -43,7 +44,21 @@ test("transaction review keeps the target, function and inputs available for ins
   const fields = preparedCallFields({ ...preparedCall, args: { channelId: "2" } })
   assert.equal(fields.find(field => field.label === "Contract address")?.value, preparedCall.address)
   assert.equal(fields.find(field => field.label === "Contract function")?.value, "fund")
-  assert.equal(fields.find(field => field.label === "Function inputs")?.value, formatInertValue({ channelId: "2" }))
+  assert.equal(fields.find(field => field.label === "Input: channelId (uint256)")?.value, "2")
+  assert.equal(fields.find(field => field.label === "App action")?.value, "fund")
+  assert.equal(fields.find(field => field.label === "After confirmation")?.value, 'routes.entry {}')
+})
+
+test("transaction review matches the selected overload and preserves exact named values", () => {
+  const call = {
+    ...preparedCall,
+    abi: parseAbi(["function fund(address customer)", "function fund(uint256 channelId) payable"]),
+    function: "fund(uint256)",
+    args: { channelId: "90071992547409931234567890" },
+  }
+  const fields = preparedCallFields(call)
+  assert.equal(fields.find(field => field.label === "Input: channelId (uint256)")?.value, call.args.channelId)
+  assert(!fields.some(field => field.label.includes('customer')))
 })
 
 test("value-free prepared calls do not invent a transaction amount", () => {
