@@ -22,6 +22,37 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
   const button = `document.querySelector('button[aria-label="Update record"]')`
   const failures = []
   try {
+    for (const scenario of ['bare', 'partial']) {
+      await open(scenario)
+      await wait(`!!document.querySelector('#app-host')`)
+      assert.equal(await evaluate('connectionFixture.state.subjects.length'), 0, 'incomplete app coordinates cause no contract reads')
+      if (scenario === 'partial') {
+        assert.equal(await evaluate(`document.querySelector('#app-host').value`), 'needs correction', 'the setup form preserves the supplied invalid address')
+        await evaluate(`document.querySelector('#rpc-apply').click()`)
+        await wait(`!!document.querySelector('.app-setup [role="alert"]')`)
+        assert(!(await evaluate(`document.querySelector('.app-setup [role="alert"]').textContent.includes('Cannot use this RPC')`)), 'invalid app coordinates are not reported as an RPC failure')
+        assert.equal(await evaluate('connectionFixture.state.subjects.length'), 0, 'invalid app coordinates prevent contract reads')
+      }
+      await evaluate(`(() => { const choose=document.querySelector('#app-network');choose.value='custom';choose.dispatchEvent(new Event('change',{bubbles:true})) })()`)
+      await wait(`!!document.querySelector('#app-chain')`)
+      await evaluate(`(() => { for(const [selector,value] of [['#app-chain','eip155:31337'],['#app-host','0x0000000000000000000000000000000000000001']]) { const input=document.querySelector(selector);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true})) } })()`)
+      await wait(`!!document.querySelector('#rpc-endpoint-url')`)
+      await evaluate(`(() => { const input=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'https://rpc.fixture.test');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
+      if (scenario === 'bare') {
+        await evaluate(`(() => { const input=document.querySelector('#app-host');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0x0000000000000000000000000000000000000004');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
+        await evaluate(`document.querySelector('#rpc-apply').click()`)
+        await wait(`!!document.querySelector('.panel.error')`)
+        await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent==='Edit app connection').click()`)
+        await wait(`!!document.querySelector('#app-host')`)
+        assert.equal(await evaluate(`document.querySelector('#app-host').value`), '0x0000000000000000000000000000000000000004', 'failed admission preserves the entered contract address for correction')
+        assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'https://rpc.fixture.test/', 'reopened setup preserves the chosen custom RPC in memory')
+        await evaluate(`(() => { const input=document.querySelector('#app-host');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0x0000000000000000000000000000000000000001');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
+      }
+      await evaluate(`document.querySelector('#rpc-apply').click()`)
+      await wait(`!!document.querySelector('input[name=draft]')`)
+      assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'https://rpc.fixture.test/', 'the connection controls retain the chosen custom endpoint after setup')
+      assert(await evaluate(`!new URL(location.href).searchParams.has('account')&&!new URL(location.href).searchParams.has('rpcUrl')`), 'opening an app requires neither a viewing account nor a credential-bearing share URL')
+    }
     for (const scenario of ['choose-rpc', 'invalid-rpc']) {
       await open(scenario)
       await wait(`!!document.querySelector('#rpc-endpoint-choice')`)

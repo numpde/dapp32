@@ -55,15 +55,6 @@ type ChainIdClient = {
 
 const STARTUP_PARAM_NAMES = new Set(["chainId", "host", "account", "rpcUrl"])
 
-export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOptions {
-  return {
-    ...parseStartupCoordinates(url),
-    rpcUrl: requireHttpURL(requiredParam(url.searchParams, "rpcUrl"), "rpcUrl").href,
-    ...(policy.resourceOrigin === undefined ? {} : { resourceOrigin: policy.resourceOrigin }),
-    ...parseViewFragment(url.hash),
-  }
-}
-
 export function parseStartupCoordinates(url: URL): StartupCoordinates {
   const params = url.searchParams
   rejectUnknownParams(params, STARTUP_PARAM_NAMES)

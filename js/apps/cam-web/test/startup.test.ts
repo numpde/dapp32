@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { displayRpcEndpoint, parseStartupCoordinates, parseStartupOptions, parseViewFragment, readStartupPolicy, resourcePolicyLabel, urlForActiveConnection, urlForView } from "../src/startup.ts"
+import { displayRpcEndpoint, parseStartupCoordinates, parseViewFragment, readStartupPolicy, resourcePolicyLabel, urlForActiveConnection, urlForView } from "../src/startup.ts"
 
 const POLICY = {
   resourceOrigin: "https://resources.example.test",
@@ -24,7 +24,7 @@ test("startup parser rejects duplicate deep-link parameters", () => {
   url.searchParams.append("host", "0x0000000000000000000000000000000000000002")
 
   assert.throws(
-    () => parseStartupOptions(url, POLICY),
+    () => parseStartupCoordinates(url),
     /duplicate URL parameter: host/,
   )
 })
@@ -32,23 +32,23 @@ test("startup parser rejects duplicate deep-link parameters", () => {
 test("startup permits a public view without inventing a selected account", () => {
   const url = validStartupUrl()
   url.searchParams.delete("account")
-  const parsed = parseStartupOptions(url, POLICY)
+  const parsed = parseStartupCoordinates(url)
   assert.equal(parsed.account, undefined)
   assert.equal(Object.hasOwn(parsed, "account"), false)
   for (const invalid of ["", "not-an-address"]) {
     url.searchParams.set("account", invalid)
-    assert.throws(() => parseStartupOptions(url, POLICY), /account/)
+    assert.throws(() => parseStartupCoordinates(url), /account/)
   }
   url.searchParams.set("account", "0x0000000000000000000000000000000000000000")
-  assert.equal(parseStartupOptions(url, POLICY).account, "0x0000000000000000000000000000000000000000", "an explicitly selected watch address remains explicit")
+  assert.equal(parseStartupCoordinates(url).account, "0x0000000000000000000000000000000000000000", "an explicitly selected watch address remains explicit")
   url.searchParams.append("account", "0x0000000000000000000000000000000000000001")
-  assert.throws(() => parseStartupOptions(url, POLICY), /duplicate URL parameter: account/)
+  assert.throws(() => parseStartupCoordinates(url), /duplicate URL parameter: account/)
 })
 
 test("public view links remove a previously selected account instead of leaking a read subject", () => {
   const linked = urlForView(validStartupUrl(), { route: "item", inputs: {} })
   assert.equal(linked.searchParams.has("account"), false)
-  assert.equal(parseStartupOptions(linked, POLICY).account, undefined)
+  assert.equal(parseStartupCoordinates(linked).account, undefined)
 })
 
 test("connection coordinates remain available when RPC input is missing or needs correction", () => {
@@ -78,7 +78,7 @@ test("startup parser rejects unknown deep-link parameters", () => {
   url.searchParams.set("chain", "eip155:31337")
 
   assert.throws(
-    () => parseStartupOptions(url, POLICY),
+    () => parseStartupCoordinates(url),
     /unknown URL parameter: chain/,
   )
 })
@@ -94,11 +94,10 @@ test("operator resource policy supports any HTTP origin and explicit HTTP denial
   assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" }), { resourceOrigin: "*" })
   assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "none" }), {})
   const url = validStartupUrl()
-  assert.equal(parseStartupOptions(url, readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" })).resourceOrigin, "*")
   for (const name of ["resourceOrigin", "resourcePolicy"]) {
     const altered = new URL(url)
     altered.searchParams.set(name, "*")
-    assert.throws(() => parseStartupOptions(altered, POLICY), /unknown URL parameter/)
+    assert.throws(() => parseStartupCoordinates(altered), /unknown URL parameter/)
   }
 })
 
@@ -122,17 +121,17 @@ test("fragment selects an exact read-route input object without changing connect
   const url = validStartupUrl()
   const inputs = { id: "9007199254740993", nested: [true, null, { ["__proto__"]: "ordinary" }], label: "a & + # 😃" }
   url.hash = new URLSearchParams({ route: "item", inputs: JSON.stringify(inputs) }).toString()
-  const connection = parseStartupOptions(validStartupUrl(), POLICY)
-  assert.deepEqual(parseStartupOptions(url, POLICY), { ...connection, route: "item", inputs })
+  assert.deepEqual(parseStartupCoordinates(url), parseStartupCoordinates(validStartupUrl()))
+  assert.deepEqual(parseViewFragment(url.hash), { route: "item", inputs })
 })
 
 test("an empty fragment keeps the manifest entry and empty inputs", () => {
-  const parsed = parseStartupOptions(validStartupUrl(), POLICY)
+  const parsed = parseViewFragment(validStartupUrl().hash)
   assert.equal("route" in parsed ? parsed.route : undefined, undefined)
   assert.deepEqual("inputs" in parsed ? parsed.inputs : undefined, {})
   const url = validStartupUrl()
   url.hash = "route=item"
-  assert.deepEqual(parseStartupOptions(url, POLICY).inputs, {})
+  assert.deepEqual(parseViewFragment(url.hash).inputs, {})
 })
 
 test("route fragments reject ambiguous, incomplete, or non-object requests", () => {
@@ -146,7 +145,7 @@ test("route fragments reject ambiguous, incomplete, or non-object requests", () 
   ]) {
     const url = validStartupUrl()
     url.hash = fragment
-    assert.throws(() => parseStartupOptions(url, POLICY), fragment)
+    assert.throws(() => parseViewFragment(url.hash), fragment)
   }
 })
 
@@ -154,7 +153,7 @@ test("simple string inputs have readable route parameters and preserve their exa
   const inputs = { agreementId: "0x" + "ab".repeat(32), amount: "9007199254740993", flag: "true", empty: "", literal: "null" }
   const linked = urlForView(validStartupUrl(), { route: "item", inputs })
   assert.equal(linked.hash, "#route=item&agreementId=" + inputs.agreementId + "&amount=9007199254740993&flag=true&empty=&literal=null")
-  assert.deepEqual(parseStartupOptions(linked, POLICY).inputs, inputs)
+  assert.deepEqual(parseViewFragment(linked.hash).inputs, inputs)
   const empty = urlForView(validStartupUrl(), { route: "item", inputs: {} })
   assert.equal(empty.hash, "#route=item")
 })
@@ -163,7 +162,7 @@ test("flat URL inputs decode punctuation, Unicode and prototype-named fields wit
   const inputs = { ["__proto__"]: "ordinary", constructor: "value", label: "a & + # 😃", escaped: "%7B", zero: "0" }
   const linked = urlForView(validStartupUrl(), { route: "item", inputs })
   assert.equal(new URLSearchParams(linked.hash.slice(1)).has("inputs"), false)
-  assert.deepEqual(parseStartupOptions(linked, POLICY).inputs, inputs)
+  assert.deepEqual(parseViewFragment(linked.hash).inputs, inputs)
 })
 
 test("flat URL inputs reject duplicate decoded names and mixed representation", () => {
@@ -174,7 +173,7 @@ test("flat URL inputs reject duplicate decoded names and mixed representation", 
   ]) {
     const url = validStartupUrl()
     url.hash = hash
-    assert.throws(() => parseStartupOptions(url, POLICY), hash)
+    assert.throws(() => parseViewFragment(url.hash), hash)
   }
 })
 
@@ -188,21 +187,21 @@ test("structured and reserved-name inputs use one JSON envelope without changing
   ]) {
     const linked = urlForView(validStartupUrl(), { route: "item", inputs })
     assert.deepEqual([...new URLSearchParams(linked.hash.slice(1)).keys()], ["route", "inputs"])
-    assert.deepEqual(parseStartupOptions(linked, POLICY).inputs, inputs)
+    assert.deepEqual(parseViewFragment(linked.hash).inputs, inputs)
   }
 })
 
 test("flat inputs use the same decoded input byte limit as structured inputs", () => {
   const url = validStartupUrl()
   url.hash = new URLSearchParams({ route: "item", text: "😃".repeat(1024) }).toString()
-  assert.throws(() => parseStartupOptions(url, POLICY), /too large/)
+  assert.throws(() => parseViewFragment(url.hash), /too large/)
 })
 
 test("URL numeric leaves must use exact decimal strings at every nesting level", () => {
   for (const inputs of ['{"id":1}', '{"id":9007199254740993}', '{"id":1e300}', '{"nested":[{"amount":0}]}']) {
     const url = validStartupUrl()
     url.hash = new URLSearchParams({ route: "item", inputs }).toString()
-    assert.throws(() => parseStartupOptions(url, POLICY), /decimal strings/, inputs)
+    assert.throws(() => parseViewFragment(url.hash), /decimal strings/, inputs)
   }
 })
 
@@ -210,11 +209,11 @@ test("route fragment size and nesting are bounded before recursive JSON parsing"
   for (const inputs of [JSON.stringify({ text: "a".repeat(4096) }), '{"nested":' + '['.repeat(33) + 'true' + ']'.repeat(33) + '}']) {
     const url = validStartupUrl()
     url.hash = new URLSearchParams({ route: "item", inputs }).toString()
-    assert.throws(() => parseStartupOptions(url, POLICY), /limit|too large|nesting/, inputs.slice(0, 40))
+    assert.throws(() => parseViewFragment(url.hash), /limit|too large|nesting/, inputs.slice(0, 40))
   }
   const url = validStartupUrl()
   url.hash = 'route=' + 'a'.repeat(16_385) + '&inputs=%7B%7D'
-  assert.throws(() => parseStartupOptions(url, POLICY), /limit|too large/)
+  assert.throws(() => parseViewFragment(url.hash), /limit|too large/)
 })
 
 test("view URL round trips exact route inputs and the actual viewing account without replacing RPC settings", () => {
@@ -231,7 +230,7 @@ test("view URL round trips exact route inputs and the actual viewing account wit
   assert.equal(next.searchParams.get("chainId"), current.searchParams.get("chainId"))
   assert.equal(next.searchParams.get("host"), current.searchParams.get("host"))
   assert.equal(next.searchParams.get("account"), view.account.address)
-  const parsed = parseStartupOptions(next, POLICY)
+  const parsed = parseViewFragment(next.hash)
   assert.equal(parsed.route, view.route)
   assert.deepEqual(parsed.inputs, view.inputs)
 })
@@ -250,7 +249,7 @@ test("link serialization rejects route names that URL encoding would change", ()
   }
   assert.equal(current.hash, "")
   const exact = "item 😃"
-  assert.equal(parseStartupOptions(urlForView(current, { route: exact, inputs: {} }), POLICY).route, exact)
+  assert.equal(parseViewFragment(urlForView(current, { route: exact, inputs: {} }).hash).route, exact)
 })
 
 test("link bounds admit exact-limit text and count containers only outside JSON strings", () => {
@@ -258,9 +257,9 @@ test("link bounds admit exact-limit text and count containers only outside JSON 
   const exact = { text: "x".repeat(4_085) }
   const next = urlForView(current, { route: "item", inputs: exact })
   assert.equal(new TextEncoder().encode(JSON.stringify(exact)).length, 4_096)
-  assert.deepEqual(parseStartupOptions(next, POLICY).inputs, exact)
+  assert.deepEqual(parseViewFragment(next.hash).inputs, exact)
   const punctuation = { text: '["\\\\"]'.repeat(80) }
-  assert.deepEqual(parseStartupOptions(urlForView(current, { route: "item", inputs: punctuation }), POLICY).inputs, punctuation)
+  assert.deepEqual(parseViewFragment(urlForView(current, { route: "item", inputs: punctuation }).hash).inputs, punctuation)
 })
 
 

@@ -58,6 +58,7 @@ import {
 } from "./startup.ts"
 import type { ConnectionOptions, StartupCoordinates, StartupOptions } from "./startup.ts"
 import { RpcControls } from "./rpc-controls.tsx"
+import { AppSetup } from "./app-setup.tsx"
 import { createRpcConnection } from "./rpc-connection.ts"
 import {
   ConnectionSummary,
@@ -109,13 +110,13 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 }
 
 export function App(): ReactElement {
-  const [viewerLink] = useState<
-    { readonly coordinates: StartupCoordinates; readonly rpcURLs: readonly string[] } | { readonly failure: FailureReport }
+  const [viewerLink, setViewerLink] = useState<
+    { readonly coordinates: StartupCoordinates; readonly rpcURLs: readonly string[] } | { readonly failure: FailureReport; readonly rpcURLs: readonly string[] }
   >(() => {
+    const url = new URL(window.location.href)
     try {
-      const url = new URL(window.location.href)
       return { coordinates: parseStartupCoordinates(url), rpcURLs: url.searchParams.getAll("rpcUrl") }
-    } catch (error) { return { failure: failureReport(error) } }
+    } catch (error) { return { failure: failureReport(error), rpcURLs: url.searchParams.getAll("rpcUrl") } }
   })
   const [initialResourceOrigin] = useState(() => {
     const configured = import.meta.env.VITE_CAM_WEB_RESOURCE_ORIGIN
@@ -824,6 +825,8 @@ export function App(): ReactElement {
     suppliedURLs={viewerLink.rpcURLs}
     activeURL={loadState.status === "ready" ? loadState.runtime.rpc.active.url : undefined}
     busy={changingView || walletRefreshing || sending}
+    autoStart={loadRequest === undefined}
+    submitLabel="Use RPC"
     onApply={applyRpc}
   /> : null
   // silent-defaults: allow-default -- Show known app coordinates before an RPC has been selected.
@@ -833,8 +836,13 @@ export function App(): ReactElement {
     <IpfsGatewayContext value={gatewayRef.current}>
     <main className="app-shell">
       <header className="topbar">
-        <h1>{headerTitle(loadState)}</h1>
+        <h1>{"coordinates" in viewerLink ? headerTitle(loadState) : "Open app"}</h1>
       </header>
+      {"coordinates" in viewerLink ? null : <AppSetup rpcURLs={viewerLink.rpcURLs} onOpen={request => {
+        const { rpcUrl, ...coordinates } = request
+        setViewerLink({ coordinates, rpcURLs: [rpcUrl] })
+        restartLoad({ ...coordinates, rpcUrl })
+      }} />}
       {displayedConnection !== undefined ? (
         <ConnectionSummary
           chainId={displayedConnection.chainId}
@@ -876,10 +884,18 @@ export function App(): ReactElement {
 
       {loadState.status === "setup" ? <section className="panel">Choose an RPC service to open this app.</section> : null}
 
-      {loadState.status === "failed" ? (
+      {loadState.status === "failed" && "coordinates" in viewerLink ? (
         <section className="panel error">
           <h2>Cannot load app</h2>
           <Feedback report={loadState.failure} kind="error" />
+          <button type="button" onClick={() => {
+            resourceLoadAbortRef.current?.abort()
+            const rpcURLs = loadState.startup === undefined ? viewerLink.rpcURLs : [loadState.startup.rpcUrl]
+            setViewerLink({ failure: loadState.failure, rpcURLs })
+            setLoadRequest(undefined)
+            readyRef.current = { status: "setup" }
+            setLoadState(readyRef.current)
+          }}>Edit app connection</button>
           {connection === undefined ? null : <button type="button" onClick={retryUnfinishedLoad}>Retry loading</button>}
         </section>
       ) : null}

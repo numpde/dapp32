@@ -46,7 +46,7 @@ window.fetch = async (input, init) => {
   }
   let result: string
   if (rpc.method === "eth_chainId") result = "0x7a69"
-  else if (rpc.method === "eth_getCode") result = "0x6000"
+  else if (rpc.method === "eth_getCode") result = String(rpc.params[0]).toLowerCase() === "0x0000000000000000000000000000000000000004" ? "0x" : "0x6000"
   else if (rpc.method === "eth_call") {
     const data = rpc.params[0].data
     const selector = data.slice(0, 10)
@@ -100,6 +100,8 @@ const url = new URL(location.href)
 url.search = new URLSearchParams({ chainId: "eip155:31337", host, rpcUrl: "https://rpc.fixture.test" }).toString()
 if (scenario === "choose-rpc") url.searchParams.delete("rpcUrl")
 if (scenario === "invalid-rpc") url.searchParams.set("rpcUrl", "not a URL")
+if (scenario === "bare") url.search = ""
+if (scenario === "partial") url.search = new URLSearchParams({ chainId: "eip155:31337", host: "needs correction", rpcUrl: "https://rpc.fixture.test" }).toString()
 if (scenario === "explicit-zero") url.searchParams.set("account", zeroAddress)
 history.replaceState(null, "", url)
 createRoot(document.getElementById("root")!).render(createElement(App))

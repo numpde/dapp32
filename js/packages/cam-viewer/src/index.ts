@@ -19,4 +19,4 @@ export { viewerErrorMessage } from "./error-message.ts"
 
 export { defaultIpfsGateway, publicIpfsGateways } from "./ipfs-gateways.ts"
 
-export { publicRpcEndpoints } from "./rpc-catalog.ts"
+export { evmNetworkChoices, publicRpcEndpoints } from "./rpc-catalog.ts"
