@@ -156,7 +156,7 @@ async function submitDeposit() {
   return submitPreparedContractCall({
     ports, publicClient: {} as PreparedCallSimulationClient, walletAddress: ACCOUNT,
     startup: { chainId: "eip155:2147483646", rpcUrl: "https://rpc.example.test", host: OTHER_ACCOUNT,
-      account: ACCOUNT, resourceOrigin: "https://cam.example.test", inputs: {} },
+      account: ACCOUNT, inputs: {} },
     call: { route: "deposit", address: OTHER_ACCOUNT, abi: DEPOSIT_ABI, function: "deposit", args: {}, value: "3",
       then: { namespace: "routes", function: "done", args: {} } },
     shouldContinue: () => true,

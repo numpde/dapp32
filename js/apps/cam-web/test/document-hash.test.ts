@@ -1,9 +1,12 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import test from "node:test"
+import { assertDownloadAllowed } from "@cam/protocol"
 
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL, DOCUMENT_HASH_MAX_BYTES } from "../src/document-hash.ts"
 import { failureReport } from "../src/errors.ts"
+
+const allowDownload = (uri: string) => assertDownloadAllowed(uri, { kind: "https-or-ipfs" })
 
 const expected = (bytes: Uint8Array) => `0x${createHash("sha256").update(bytes).digest("hex")}`
 
@@ -11,16 +14,19 @@ test("IPFS document hashing uses the selected gateway and hashes its exact respo
   const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
   const bytes = new Uint8Array([0, 255, 13, 10])
   const fetch = t.mock.method(globalThis, "fetch", async () => new Response(bytes))
-  const digest = await calculateDocumentHashFromURL(`ipfs://${cid}/terms.txt`, new AbortController().signal,
+  const admitted: string[] = []
+  const admit = (uri: string) => { admitted.push(uri); assertDownloadAllowed(uri, { kind: "ipfs-only" }) }
+  const digest = await calculateDocumentHashFromURL(`ipfs://${cid}/terms.txt`, new AbortController().signal, admit,
     "https://gateway.example.test/ipfs/{CID}/{PATH}")
   assert.equal(digest, expected(bytes))
   assert.equal(fetch.mock.calls[0].arguments[0], `https://gateway.example.test/ipfs/${cid}/terms.txt`)
+  assert.deepEqual(admitted, [`ipfs://${cid}/terms.txt`], "document admission uses the original logical source")
 })
 
 test("hash failures retain arbitrary causes behind the readable explanation", async t => {
   for (const cause of [new TypeError("connection reset"), "connection reset"]) {
     t.mock.method(globalThis, "fetch", async () => { throw cause })
-    await assert.rejects(calculateDocumentHashFromURL("https://example.test/document", new AbortController().signal), error => {
+    await assert.rejects(calculateDocumentHashFromURL("https://example.test/document", new AbortController().signal, allowDownload), error => {
       const report = failureReport(error)
       assert.match(report.message, /Cannot read.*URL/)
       assert.doesNotMatch(report.message, /connection reset/)
@@ -49,14 +55,14 @@ test("URL hashing explicitly requests readable bytes without credentials, referr
     assert(init?.signal instanceof AbortSignal)
     return new Response(bytes)
   })
-  assert.equal(await calculateDocumentHashFromURL("https://documents.example.test/evidence", new AbortController().signal), expected(bytes))
+  assert.equal(await calculateDocumentHashFromURL("https://documents.example.test/evidence", new AbortController().signal, allowDownload), expected(bytes))
   assert.equal(fetch.mock.callCount(), 1)
 })
 
 test("unsupported and credential-bearing URLs fail before retrieval", async (t) => {
   const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected network") })
   for (const uri of ["file:///secret", "ipfs://example", "https://user:password@example.test/file", "relative.txt"]) {
-    await assert.rejects(calculateDocumentHashFromURL(uri, new AbortController().signal), /HTTP|URL|credential/i)
+    await assert.rejects(calculateDocumentHashFromURL(uri, new AbortController().signal, allowDownload), /HTTP|URL|credential/i)
   }
   assert.equal(fetch.mock.callCount(), 0)
 })
@@ -77,24 +83,24 @@ test("URL limits apply to actual decoded body bytes regardless of transfer heade
     start(controller) { controller.enqueue(new Uint8Array(DOCUMENT_HASH_MAX_BYTES)); controller.enqueue(new Uint8Array([1])) },
     cancel() { cancelled = true },
   }), { headers: { "Content-Length": "1", "Content-Encoding": "gzip" } }))
-  await assert.rejects(calculateDocumentHashFromURL("https://example.test/large", new AbortController().signal), /8 MiB/)
+  await assert.rejects(calculateDocumentHashFromURL("https://example.test/large", new AbortController().signal, allowDownload), /8 MiB/)
   assert.equal(cancelled, true)
 })
 
 test("unreadable and failed HTTP responses give file/manual alternatives", async (t) => {
   let cancelled = false
   t.mock.method(globalThis, "fetch", async () => new Response(new ReadableStream({ cancel() { cancelled = true } }), { status: 403 }))
-  await assert.rejects(calculateDocumentHashFromURL("https://example.test/private", new AbortController().signal), /403.*file.*manual/i)
+  await assert.rejects(calculateDocumentHashFromURL("https://example.test/private", new AbortController().signal, allowDownload), /403.*file.*manual/i)
   assert.equal(cancelled, true)
   t.mock.method(globalThis, "fetch", async () => { throw new TypeError("Failed to fetch") })
-  await assert.rejects(calculateDocumentHashFromURL("https://example.test/private", new AbortController().signal), /CORS.*file.*manual/i)
+  await assert.rejects(calculateDocumentHashFromURL("https://example.test/private", new AbortController().signal, allowDownload), /CORS.*file.*manual/i)
 })
 
 test("cancelling a stalled body stops acquisition", async (t) => {
   let cancelled = false
   t.mock.method(globalThis, "fetch", async () => new Response(new ReadableStream({ cancel() { cancelled = true } })))
   const controller = new AbortController()
-  const pending = calculateDocumentHashFromURL("https://example.test/stalled", controller.signal)
+  const pending = calculateDocumentHashFromURL("https://example.test/stalled", controller.signal, allowDownload)
   await new Promise(resolve => setImmediate(resolve))
   controller.abort()
   await assert.rejects(pending, /cancelled/i)
@@ -105,14 +111,14 @@ test("opaque responses fail without attempting a no-cors retry", async (t) => {
   const response = Response.error()
   Object.defineProperty(response, "type", { value: "opaque" })
   const fetch = t.mock.method(globalThis, "fetch", async () => response)
-  await assert.rejects(calculateDocumentHashFromURL("https://example.test/opaque", new AbortController().signal), /Cannot read document bytes.*file.*manual/i)
+  await assert.rejects(calculateDocumentHashFromURL("https://example.test/opaque", new AbortController().signal, allowDownload), /Cannot read document bytes.*file.*manual/i)
   assert.equal(fetch.mock.callCount(), 1)
 })
 
 test("deadline bounds a stalled fetch even if its transport ignores cancellation", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] })
   t.mock.method(globalThis, "fetch", () => new Promise<Response>(() => {}))
-  const pending = calculateDocumentHashFromURL("https://example.test/stalled", new AbortController().signal)
+  const pending = calculateDocumentHashFromURL("https://example.test/stalled", new AbortController().signal, allowDownload)
   const rejected = assert.rejects(pending, /15 seconds.*file.*manual/i)
   t.mock.timers.tick(15_000)
   await rejected
@@ -122,7 +128,7 @@ test("deadline also bounds and cancels a stalled decoded response body", async (
   t.mock.timers.enable({ apis: ["setTimeout"] })
   let cancelled = false
   t.mock.method(globalThis, "fetch", async () => new Response(new ReadableStream({ cancel() { cancelled = true } })))
-  const pending = calculateDocumentHashFromURL("https://example.test/stalled", new AbortController().signal)
+  const pending = calculateDocumentHashFromURL("https://example.test/stalled", new AbortController().signal, allowDownload)
   const rejected = assert.rejects(pending, /15 seconds/)
   await new Promise(resolve => setImmediate(resolve))
   t.mock.timers.tick(15_000)
@@ -149,7 +155,7 @@ test("a transport response arriving after cancellation releases its unread body"
   const body = new ReadableStream<Uint8Array>({ cancel() { cancelled = true } })
   t.mock.method(globalThis, "fetch", () => new Promise<Response>(resolve => { respond = resolve }))
   const controller = new AbortController()
-  const pending = calculateDocumentHashFromURL("https://example.test/late", controller.signal)
+  const pending = calculateDocumentHashFromURL("https://example.test/late", controller.signal, allowDownload)
   controller.abort()
   await assert.rejects(pending, /cancelled/i)
   respond(new Response(body))

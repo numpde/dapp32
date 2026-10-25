@@ -110,6 +110,9 @@ export type {
 
 export {
   assertCamResourceSize,
+  assertDownloadAllowed,
+  assertRemoteResourceURI,
+  downloadScopeForPrefix,
   assertCamSecondaryResourceURI,
   assertLoadableCamRootURI,
   assertPublishedCamRootURI,
@@ -126,6 +129,7 @@ export {
 } from "./resources.ts"
 export type {
   CamResourceIntegrityErrorCode,
+  DownloadScope,
   HttpResourceCacheMode,
   HttpResourceFetcher,
   HttpResourceResponse,

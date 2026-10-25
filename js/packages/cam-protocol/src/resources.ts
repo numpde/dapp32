@@ -1,4 +1,51 @@
 export const CAM_RESOURCE_MAX_BYTES = 2 * 1024 * 1024
+
+export type DownloadScope =
+  | { readonly kind: "https-or-ipfs" | "ipfs-only" | "http-only" }
+  | { readonly kind: "prefix"; readonly prefix: string }
+
+export function downloadScopeForPrefix(prefix: string): Extract<DownloadScope, { kind: "prefix" }> {
+  const url = requireDownloadURL(prefix, "Download URL prefix")
+  if (url.hash !== "") throw new Error("Download URL prefix must not contain a fragment")
+  return { kind: "prefix", prefix: url.href }
+}
+
+export function assertDownloadAllowed(uri: string, scope: DownloadScope): void {
+  const url = requireDownloadURL(uri, "Download URL")
+  switch (scope.kind) {
+    case "https-or-ipfs":
+      if (url.protocol === "https:" || url.protocol === "ipfs:") return
+      break
+    case "ipfs-only":
+      if (url.protocol === "ipfs:") return
+      break
+    case "http-only":
+      if (url.protocol === "http:") return
+      break
+    case "prefix": {
+      const prefix = new URL(scope.prefix)
+      if (url.protocol === prefix.protocol && url.host === prefix.host && url.href.startsWith(prefix.href)) return
+      break
+    }
+  }
+  throw new Error(`URL is outside the selected download scope: ${uri}`)
+}
+
+export function assertRemoteResourceURI(uri: string, label: string): void {
+  requireDownloadURL(uri, label)
+}
+
+function requireDownloadURL(uri: string, label: string): URL {
+  // Scope selects a URL space; loaders retain CID and transport-specific path validation.
+  const url = requireAbsoluteURI(uri, label)
+  rejectRawUrlSyntax(uri, label)
+  rejectUriCredentials(url, label)
+  if ((url.protocol !== "http:" && url.protocol !== "https:" && url.protocol !== "ipfs:") || url.host === "") {
+    throw new Error(`${label}: expected an absolute HTTP, HTTPS or IPFS URL`)
+  }
+  return url
+}
+
 const SCHEME_RE = /^[A-Za-z][A-Za-z0-9+.-]*:/
 const HIERARCHICAL_URI_RE = /^([A-Za-z][A-Za-z0-9+.-]*:\/\/[^/?#]*)([^?#]*)([?#].*)?$/
 const SHA256_INTEGRITY_PREFIX = "sha256:"
@@ -69,7 +116,7 @@ export type HttpResourceFetcher = (
 
 export function requireHttpURL(value: string, label: string): HttpURL {
   assertURIString(value, label)
-  rejectRawHttpUrlSyntax(value, label)
+  rejectRawUrlSyntax(value, label)
   let url: URL
   try {
     url = new URL(value)
@@ -86,7 +133,7 @@ export function requireHttpURL(value: string, label: string): HttpURL {
   return url
 }
 
-function rejectRawHttpUrlSyntax(value: string, label: string): void {
+function rejectRawUrlSyntax(value: string, label: string): void {
   // WHATWG URL parsing is intentionally forgiving: it can strip controls and
   // treat backslashes as path separators. CAM accepts only reviewable HTTP(S)
   // strings here, so reject raw forms that would be parsed as a different URL.

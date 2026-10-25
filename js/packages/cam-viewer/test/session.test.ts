@@ -449,24 +449,24 @@ test("Bike screen links navigate without a wallet and start registration with a 
   }))
   const session = createSession(sessionFixtureOptions({ publicClient }))
   await session.load()
-  async function follow(label: string, route: string) {
+  async function follow(route: string) {
     const snapshot = session.snapshot()
     assert.ok(snapshot.resolvedUi)
-    const button = resolvedUiButtons(snapshot.resolvedUi).find(button => button.props.label === label)
-    assert.ok(button, `screen offers ${label}`)
+    const button = resolvedUiButtons(snapshot.resolvedUi).find(button => button.call.function === route)
+    assert.ok(button, `screen offers navigation to ${route}`)
     assert.equal(session.actionKind(button), "navigate")
     const result = await session.dispatchAction(button)
     assert.equal(result.type, "navigated", "screen links must not prepare a transaction")
     assert.equal(session.snapshot().route, route)
   }
-  await follow("Register a component", "register")
+  await follow("register")
   assert.equal(session.snapshot().inputs.serialNumber, "")
-  await follow("Account and component lookup", "entry")
+  await follow("entry")
   session.updateState({ serialNumber: BIKE_SERIAL_NUMBER })
-  await follow("Look up component", "component")
-  await follow("Register a component", "register")
+  await follow("component")
+  await follow("register")
   assert.equal(session.snapshot().inputs.serialNumber, "", "new registration must not target the loaded NFT")
-  await follow("Account and component lookup", "entry")
+  await follow("entry")
 })
 
 test("load resolves host CAM, entry route, UI resource, and entry view", async () => {

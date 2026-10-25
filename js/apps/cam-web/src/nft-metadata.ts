@@ -39,12 +39,12 @@ export function readNftMetadataDataURI(uri: string): string {
   return decodeMetadata(bytes)
 }
 
-export async function loadNftMetadata(uri: string, signal: AbortSignal, ipfsGatewayTemplate?: string): Promise<InertRecord> {
+export async function loadNftMetadata(uri: string, signal: AbortSignal, assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string): Promise<InertRecord> {
   signal.throwIfAborted()
   if (uri.startsWith("data:")) {
     return parseNftMetadata(readNftMetadataDataURI(uri))
   }
-  const url = nftHttpURL(uri, "NFT details", undefined, ipfsGatewayTemplate)
+  const url = nftHttpURL(uri, "NFT details", assertAllowed, undefined, ipfsGatewayTemplate)
   return withDeadline(signal, "NFT metadata", async activeSignal => {
     const response = await fetchReadable(url.href, activeSignal, "NFT metadata")
     const bytes = await readBytes(response, activeSignal, NFT_METADATA_MAX_BYTES, "NFT metadata")
@@ -52,7 +52,7 @@ export async function loadNftMetadata(uri: string, signal: AbortSignal, ipfsGate
   })
 }
 
-export async function loadNftImage(uri: string, baseURI: string | undefined, signal: AbortSignal, ipfsGatewayTemplate?: string): Promise<Blob> {
+export async function loadNftImage(uri: string, baseURI: string | undefined, signal: AbortSignal, assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string): Promise<Blob> {
   signal.throwIfAborted()
   if (uri.startsWith("data:")) {
     const { bytes, type } = readDataURI(uri, NFT_IMAGE_MAX_BYTES)
@@ -68,7 +68,7 @@ export async function loadNftImage(uri: string, baseURI: string | undefined, sig
       throw new UserFacingError("Cannot load NFT image: a relative image URI needs an HTTP(S) or IPFS metadata URL. Use an absolute image URL.")
     }
   }
-  const url = nftHttpURL(uri, "NFT image", relative ? baseURI : undefined, ipfsGatewayTemplate)
+  const url = nftHttpURL(uri, "NFT image", assertAllowed, relative ? baseURI : undefined, ipfsGatewayTemplate)
   return withDeadline(signal, "NFT image", async activeSignal => {
     const response = await fetchReadable(url.href, activeSignal, "NFT image")
     const contentType = response.headers.get("content-type")
@@ -86,16 +86,18 @@ export async function loadNftImage(uri: string, baseURI: string | undefined, sig
   })
 }
 
-function nftHttpURL(uri: string, label: "NFT details" | "NFT image", baseURI?: string, ipfsGatewayTemplate?: string): HttpURL {
+function nftHttpURL(uri: string, label: "NFT details" | "NFT image", assertAllowed: (uri: string) => void, baseURI?: string, ipfsGatewayTemplate?: string): HttpURL {
   try {
     const absolute = baseURI === undefined ? uri : baseURI.startsWith("ipfs://")
       ? resolveCamResourceURI(baseURI, uri) : new URL(uri, requireHttpURL(baseURI, "Metadata document URL").href).href
+    assertAllowed(absolute)
     if (absolute.startsWith("ipfs://")) {
       if (ipfsGatewayTemplate === undefined) throw new Error("Choose an IPFS gateway to download this resource")
       return requireHttpURL(resolveIpfsGatewayURL(absolute, ipfsGatewayTemplate), `${label} gateway URL`)
     }
     return requireHttpURL(absolute, `${label} URL`)
   } catch (cause) {
+    if (cause instanceof UserFacingError) throw cause
     throw new UserFacingError(`Cannot load ${label}. Enter a complete http://, https:// or ipfs:// address without a username or password; IPFS downloads need a selected gateway.`, { cause })
   }
 }

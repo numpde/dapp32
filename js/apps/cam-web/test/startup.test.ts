@@ -1,12 +1,9 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { displayRpcEndpoint, parseStartupCoordinates, parseViewFragment, readStartupPolicy, resourcePolicyLabel, urlForActiveConnection, urlForView } from "../src/startup.ts"
+import { displayRpcEndpoint, parseStartupCoordinates, parseViewFragment, readStartupPolicy, urlForActiveConnection, urlForView } from "../src/startup.ts"
 
-const POLICY = {
-  resourceOrigin: "https://resources.example.test",
 
-}
 
 test("view-link parsing keeps the parser cause behind its public explanation", () => {
   for (const fragment of ["#route=home&bad=%zz", "#route=home&inputs=%7Bbad%7D"]) {
@@ -83,16 +80,16 @@ test("startup parser rejects unknown deep-link parameters", () => {
   )
 })
 
-test("startup policy permits IPFS-only loading without inventing an HTTP resource origin", () => {
-  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test" }), POLICY)
-  assert.deepEqual(readStartupPolicy({}), {})
-  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "" }), {})
-  assert.throws(() => readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test/path" }), /origin/)
+test("boot download scope preserves URL prefixes and defaults to IPFS only", () => {
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test" }), { kind: "prefix", prefix: "https://resources.example.test/" })
+  assert.deepEqual(readStartupPolicy({}), { kind: "ipfs-only" })
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "" }), { kind: "ipfs-only" })
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test/path" }), { kind: "prefix", prefix: "https://resources.example.test/path" })
 })
 
-test("operator resource policy supports any HTTP origin and explicit HTTP denial without URL overrides", () => {
-  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" }), { resourceOrigin: "*" })
-  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "none" }), {})
+test("boot wildcard allows HTTPS or IPFS without URL policy overrides", () => {
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" }), { kind: "https-or-ipfs" })
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "none" }), { kind: "ipfs-only" })
   const url = validStartupUrl()
   for (const name of ["resourceOrigin", "resourcePolicy"]) {
     const altered = new URL(url)
@@ -263,11 +260,6 @@ test("link bounds admit exact-limit text and count containers only outside JSON 
 })
 
 
-test("connection policy labels describe the configured authority before a CAM is loaded", () => {
-  assert.equal(resourcePolicyLabel({}), "HTTP(S) disabled; IPFS only")
-  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "none" }), "HTTP(S) disabled; IPFS only")
-  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "*" }), "Any HTTP(S) origin")
-  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://example.test:443/" }), "Pinned to https://example.test")
-  assert.equal(resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: "typo" }), "Invalid operator configuration")
-  assert.throws(() => readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "typo" }), /expected absolute URL/)
+test("invalid boot download scope remains an error rather than an unrestricted fallback", () => {
+  assert.throws(() => readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "typo" }), /absolute/)
 })

@@ -9,12 +9,12 @@ import {
 } from "@cam/evm-viem"
 import {
   createCamResourceLoader,
-  requireHttpOrigin,
+  downloadScopeForPrefix,
   requireHttpURL,
   isRecordObject,
   parseJsonText,
 } from "@cam/protocol"
-import type { InertRecord } from "@cam/protocol"
+import type { DownloadScope, InertRecord } from "@cam/protocol"
 import type { CamViewerLoadedSnapshot } from "@cam/viewer"
 import type {
   Address,
@@ -32,17 +32,12 @@ export type ConnectionOptions = StartupCoordinates & {
 }
 
 export type StartupOptions = ConnectionOptions & {
-  readonly resourceOrigin?: string
   readonly route?: string
   readonly inputs: InertRecord
 }
 
-export type StartupPolicy = {
-  readonly resourceOrigin?: string
-}
-
 export type StartupEnv = {
-  readonly VITE_CAM_WEB_RESOURCE_ORIGIN?: string
+  readonly VITE_CAM_WEB_RESOURCE_ORIGIN?: string | undefined
 }
 
 type HostCodeClient = {
@@ -66,37 +61,35 @@ export function parseStartupCoordinates(url: URL): StartupCoordinates {
   }
 }
 
-export function readStartupPolicy(env: StartupEnv): StartupPolicy {
-  if (env.VITE_CAM_WEB_RESOURCE_ORIGIN === undefined || env.VITE_CAM_WEB_RESOURCE_ORIGIN === "" || env.VITE_CAM_WEB_RESOURCE_ORIGIN === "none") return {}
-  if (env.VITE_CAM_WEB_RESOURCE_ORIGIN === "*") return { resourceOrigin: "*" }
-  return {
-    resourceOrigin: requireHttpOrigin(
-      env.VITE_CAM_WEB_RESOURCE_ORIGIN,
-      "VITE_CAM_WEB_RESOURCE_ORIGIN",
-    ),
+export function readStartupPolicy(env: StartupEnv): DownloadScope {
+  const setting = env.VITE_CAM_WEB_RESOURCE_ORIGIN
+  if (setting === undefined || setting === "" || setting === "none") return { kind: "ipfs-only" }
+  if (setting === "*") return { kind: "https-or-ipfs" }
+  return downloadScopeForPrefix(setting)
+}
+
+export function downloadScopeLabel(scope: DownloadScope): string {
+  switch (scope.kind) {
+    case "https-or-ipfs": return "HTTPS or IPFS"
+    case "ipfs-only": return "IPFS only"
+    case "http-only": return "HTTP only (danger!)"
+    case "prefix": return `URL prefix: ${scope.prefix}`
   }
 }
 
-export function resourcePolicyLabel(env: StartupEnv): string {
-  try {
-    const { resourceOrigin } = readStartupPolicy(env)
-    if (resourceOrigin === undefined) return "HTTP(S) disabled; IPFS only"
-    return resourceOrigin === "*" ? "Any HTTP(S) origin" : `Pinned to ${resourceOrigin}`
-  } catch {
-    // silent-defaults: allow-default -- The settings summary identifies invalid configuration; startup still reports the actual failure.
-    return "Invalid operator configuration"
-  }
-}
-
-export function createViewerResourceLoader(resourceOrigin: string | undefined, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
-  return createCamResourceLoader({
-    ...(resourceOrigin === undefined ? {} : { originInput: resourceOrigin }),
+export function createViewerResourceLoader(assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
+  const load = createCamResourceLoader({
+    originInput: "*",
     originLabel: "resourceOrigin",
     fetchResource: (uri, init) => fetch(uri, signal === undefined ? init : { ...init, signal }),
     ...(ipfsGatewayTemplate === undefined ? {} : { ipfsGatewayTemplate }),
     cache: "no-store",
     loadFailurePrefix: "failed to load CAM resource",
   })
+  return async uri => {
+    assertAllowed(uri)
+    return load(uri)
+  }
 }
 
 export function displayRpcEndpoint(rpcUrl: string): string {

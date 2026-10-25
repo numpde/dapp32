@@ -64,7 +64,7 @@ test("Bike handover review and rejected-wallet retry preserve the record collect
     ports, publicClient, walletAddress: BIKE_ACCOUNT_ADDRESS,
     startup: {
       chainId: "eip155:31337", host: BIKE_HOST_ADDRESS, account: BIKE_ACCOUNT_ADDRESS,
-      rpcUrl: "http://127.0.0.1:8545", resourceOrigin: "http://127.0.0.1:5173", inputs: {},
+      rpcUrl: "http://127.0.0.1:8545", inputs: {},
     },
     call: prepared.call, shouldContinue: () => true,
   })

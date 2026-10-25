@@ -1,10 +1,10 @@
 import { useCallback, useContext, useEffect, useId, useRef, useState } from "react"
 import type { MouseEvent, ReactElement } from "react"
-import { assertLoadableCamRootURI, isRecordObject } from "@cam/protocol"
+import { assertRemoteResourceURI, isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import { failureReport, UserFacingError } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
-import { IpfsGatewayContext } from "./ipfs-gateway.ts"
+import { DownloadContext } from "./download-context.ts"
 import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readNftMetadataDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type SettledResource<T> = { readonly status: "idle" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown; readonly value?: T }
@@ -64,7 +64,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
   readonly metadataURI: string | undefined
 }): ReactElement {
   const preview = useNftResource<InertRecord>()
-  const gateway = useContext(IpfsGatewayContext)
+  const downloads = useContext(DownloadContext)
   const metadata = preview.value
   const loadLabel = preview.settled.status === "ready" ? "Reload preview"
     : preview.settled.status === "failed" ? "Retry loading" : "Load preview"
@@ -73,7 +73,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
     {metadata !== undefined ? <NftMetadataPreview metadata={metadata} baseURI={metadataURI} loadImage /> : <p className="nft-placeholder">NFT preview</p>}
     <ResourceFeedback resource={preview.resource} />
     <div className="nft-details">
-      {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-actions"><button className="button-quiet resource-load" type="button" aria-busy={preview.resource.status === "pending"} disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal, gateway)) }}>{loadLabel}</button>
+      {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-actions"><button className="button-quiet resource-load" type="button" aria-busy={preview.resource.status === "pending"} disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal, downloads.assertAllowed, downloads.gateway)) }}>{loadLabel}</button>
         <button className="button-quiet resource-cancel" type="button" aria-label="Cancel loading" aria-hidden={preview.resource.status !== "pending"} disabled={preview.resource.status !== "pending"} onClick={event => cancelFromControl(event, preview.cancel)}>Cancel</button></div>
       : null}
       <dl className="nft-identity">
@@ -100,14 +100,14 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly 
 }
 
 function NftImage({ uri, baseURI, alt, autoLoadFrom }: { readonly uri: string; readonly baseURI: string | undefined; readonly alt: string; readonly autoLoadFrom: InertRecord | undefined }): ReactElement {
-  const gateway = useContext(IpfsGatewayContext)
+  const downloads = useContext(DownloadContext)
   const image = useNftResource<Blob>()
   const [source, setSource] = useState<string | undefined>(undefined)
   const [decodeFailed, setDecodeFailed] = useState(false)
   const embedded = uri.startsWith("data:")
   const blob = image.value
   useEffect(() => {
-    if (embedded || autoLoadFrom !== undefined) void image.run(signal => loadNftImage(uri, baseURI, signal, gateway))
+    if (embedded || autoLoadFrom !== undefined) void image.run(signal => loadNftImage(uri, baseURI, signal, downloads.assertAllowed, downloads.gateway))
   }, [embedded, autoLoadFrom, uri, baseURI, image.run])
   useEffect(() => {
     if (blob === undefined) return
@@ -122,7 +122,7 @@ function NftImage({ uri, baseURI, alt, autoLoadFrom }: { readonly uri: string; r
   const cancel = <button className={`button-quiet resource-cancel${showLoadButton ? "" : " image-cancel-overlay"}`} type="button" aria-label="Cancel loading" aria-hidden={image.resource.status !== "pending"} disabled={image.resource.status !== "pending"} onClick={event => cancelFromControl(event, image.cancel)}>Cancel</button>
   return <div className="nft-image">
     {!embedded ? showLoadButton ? <div className="nft-actions">
-      <button className="button-quiet resource-load" type="button" aria-busy={image.resource.status === "pending"} disabled={image.resource.status === "pending"} onClick={() => { void image.run(signal => loadNftImage(uri, baseURI, signal, gateway)) }}>{loadLabel}</button>
+      <button className="button-quiet resource-load" type="button" aria-busy={image.resource.status === "pending"} disabled={image.resource.status === "pending"} onClick={() => { void image.run(signal => loadNftImage(uri, baseURI, signal, downloads.assertAllowed, downloads.gateway)) }}>{loadLabel}</button>
       {cancel}
     </div> : cancel : null}
     {!embedded && !showLoadButton && image.resource.status === "pending" ? <span className="image-loading" aria-hidden="true">Loading image…</span> : null}
@@ -151,7 +151,7 @@ function initialMetadataDraft(value: string | null): ReturnType<typeof metadataD
 function hostedMetadata(uri: string): { value: string } | { value: null; error: unknown } {
   try {
     if (uri === "") throw new UserFacingError("Enter a metadata JSON URL, or choose Embed JSON.")
-    assertLoadableCamRootURI(uri, "Metadata JSON URL")
+    assertRemoteResourceURI(uri, "Metadata JSON URL")
     return { value: uri }
   } catch (cause) {
     return { value: null, error: cause instanceof UserFacingError ? cause : new UserFacingError("Enter a complete http://, https:// or ipfs:// JSON URL without a username or password.", { cause }) }

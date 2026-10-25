@@ -39,6 +39,7 @@ const png = await canvas.convertToBlob({ type: "image/png" })
 const requests: string[] = []
 let rootAttempts = 0
 let aborted = 0
+let releaseRootRequest: (() => void) | undefined
 window.fetch = async (input, init) => {
   const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
   if (new URL(href).origin === "https://rpc.fixture.test") {
@@ -59,8 +60,14 @@ window.fetch = async (input, init) => {
   requests.push(href)
   if (href.endsWith("/bundle/main.json")) {
     rootAttempts++
-    if (rootAttempts === 1 && (mode === "hold" || mode === "https-hold")) return new Promise((_resolve, reject) => {
-      init?.signal?.addEventListener("abort", () => { aborted++; reject(init.signal!.reason) }, { once: true })
+    if (rootAttempts === 1 && (mode === "hold" || mode === "https-hold")) return new Promise((resolve, reject) => {
+      const onAbort = () => { aborted++; releaseRootRequest = undefined; reject(init!.signal!.reason) }
+      init?.signal?.addEventListener("abort", onAbort, { once: true })
+      releaseRootRequest = () => {
+        init?.signal?.removeEventListener("abort", onAbort)
+        releaseRootRequest = undefined
+        resolve(new Response(camBytes))
+      }
     })
     if (rootAttempts === 1 && mode === "fail") return new Response("Fixture gateway unavailable", { status: 503 })
     return new Response(mode === "corrupt" ? new Uint8Array([...camBytes, 32]) : camBytes)
@@ -75,5 +82,5 @@ window.fetch = async (input, init) => {
 const url = new URL(location.href)
 url.search = new URLSearchParams({ chainId: "eip155:31337", host, account, rpcUrl: "https://rpc.fixture.test" }).toString()
 history.replaceState(null, "", url)
-Object.assign(window, { gatewayFixture: { requests, get aborted() { return aborted }, logicalRoot } })
+Object.assign(window, { gatewayFixture: { requests, get aborted() { return aborted }, logicalRoot, releaseRoot() { releaseRootRequest?.() } } })
 createRoot(document.getElementById("root")!).render(createElement(App))

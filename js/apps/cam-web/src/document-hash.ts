@@ -6,15 +6,14 @@ export const DOCUMENT_HASH_MAX_BYTES = 8 * 1024 * 1024
 const DEADLINE_MS = 15_000
 const ALTERNATIVES = "Choose a local file or enter the digest manually."
 
-export async function calculateDocumentHashFromURL(uri: string, signal: AbortSignal, ipfsGatewayTemplate?: string): Promise<string> {
-  // User document URLs have no CAM publication origin constraint. Redirects
-  // are rejected so the explicit action never silently changes its source.
+export async function calculateDocumentHashFromURL(uri: string, signal: AbortSignal, assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string): Promise<string> {
   let url: HttpURL
   try {
+    assertAllowed(uri)
     if (uri.startsWith("ipfs://") && ipfsGatewayTemplate === undefined) throw new Error("Choose an IPFS gateway to download this document")
     url = requireHttpURL(uri.startsWith("ipfs://") ? resolveIpfsGatewayURL(uri, ipfsGatewayTemplate!) : uri, "Document URL")
   }
-  catch (cause) { throw new UserFacingError(`Cannot read this document URL. Enter a complete http://, https:// or ipfs:// address without a username or password; IPFS downloads need a selected gateway. ${ALTERNATIVES}`, { cause }) }
+  catch (cause) { if (cause instanceof UserFacingError) throw cause; throw new UserFacingError(`Cannot read this document URL. Enter a complete http://, https:// or ipfs:// address without a username or password; IPFS downloads need a selected gateway. ${ALTERNATIVES}`, { cause }) }
   return calculate(signal, async (activeSignal) => {
     let response: Response
     try {

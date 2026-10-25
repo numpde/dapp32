@@ -48,8 +48,16 @@ test("fully specified viewer setup is noninteractive and rejects contradictory a
   const input = { bytes: bytes(artifacts.escrow), viewerOrigin: "http://127.0.0.1:5174", rpcUrl: "https://public.example.test", ask: async () => { throw new Error("must not prompt") } }
   assert.equal((await prepareReleaseViewer(input)).app, "escrow")
   await assert.rejects(() => prepareReleaseViewer({ ...input, app: "bike-nft" }), /APP|artifact/)
-  await assert.rejects(() => prepareReleaseViewer({ ...input, resourceOrigin: "https://other.example.test" }), /origin/)
+  assert.equal((await prepareReleaseViewer({ ...input, resourceOrigin: "https://other.example.test" })).resourceOrigin, "https://other.example.test/")
   await assert.rejects(() => prepareReleaseViewer({ bytes: input.bytes, viewerOrigin: input.viewerOrigin }), /PUBLIC_RPC_URL|interactive/)
+})
+
+test("release viewer setup preserves chosen prefixes and rejects malformed settings", async () => {
+  const prefix = "https://raw.githubusercontent.com/org/repo/commit/dapps/example/cam/"
+  const input = { bytes: bytes(artifacts.escrow), viewerOrigin: "http://127.0.0.1:5174", rpcUrl: "https://public.example.test" }
+  assert.equal((await prepareReleaseViewer({ ...input, resourceOrigin: prefix })).resourceOrigin, prefix)
+  assert.equal((await prepareReleaseViewer({ ...input, resourceOrigin: "https://raw.githubusercontent.com/org/other/" })).resourceOrigin, "https://raw.githubusercontent.com/org/other/")
+  await assert.rejects(() => prepareReleaseViewer({ ...input, resourceOrigin: "not a URI" }), /absolute/)
 })
 
 test("a chain without a catalog public endpoint still names the required chain in its custom prompt", async () => {
@@ -87,7 +95,6 @@ for (const [app, artifact] of Object.entries(artifacts)) {
       chainId: "eip155:43113", host: common.camRoot, account: common.deployer, rpcUrl: rpc,
     })
     assert.throws(() => releaseViewerURL(app, bytes(artifact), url.origin, "https://raw.githubusercontent.com", "https://user:secret@example.test/rpc"), /username|password|credentials/)
-    assert.throws(() => releaseViewerURL(app, bytes(artifact), url.origin, "https://other.example", rpc), /resource origin/)
   })
   test(`${app} attachment uses its canonical release artifact and ordinary viewer inputs`, () => {
     const url = new URL(releaseViewerURL(app, bytes(artifact), "http://127.0.0.1:5174", "https://raw.githubusercontent.com", "http://127.0.0.1:5174/rpc"))
@@ -96,7 +103,6 @@ for (const [app, artifact] of Object.entries(artifacts)) {
       chainId: "eip155:31338", host: common.camRoot, account: common.deployer,
       rpcUrl: "http://127.0.0.1:5174/rpc",
     })
-    assert.throws(() => releaseViewerURL(app, bytes(artifact), url.origin, "https://other.example", "http://127.0.0.1:5174/rpc"), /resource origin/)
     assert.doesNotThrow(() => releaseViewerURL(app, bytes({ ...artifact, camHash: hash(0) }), url.origin, "https://raw.githubusercontent.com", "http://127.0.0.1:5174/rpc"))
   })
 }
@@ -106,7 +112,7 @@ test("attachment rejects unknown apps before interpreting an artifact", () => {
 })
 
 
-test("release operator may allow any HTTP origin or disable HTTP without adding policy to the link", async () => {
+test("release operator may select HTTPS/IPFS or IPFS-only without adding policy to the link", async () => {
   for (const [resourceOrigin, expected] of [["*", "*"], ["none", undefined]] as const) {
     const settings = await prepareReleaseViewer({
       bytes: bytes(artifacts.escrow), viewerOrigin: "http://127.0.0.1:5174",

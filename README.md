@@ -50,33 +50,38 @@ for the three commands, wallet requirements and how they differ from release dep
   endpoints; deployment commands do not load gateway credentials from it.
 
 In the browser, **IPFS gateway** selects the public endpoint for new CAM, NFT
-and document downloads. Changing it retries an unfinished initial app load;
-an open app keeps its view, form entries, wallet and transaction feedback.
+and document downloads. Changing it retries a failed initial app load. Open apps and pending
+downloads keep their view, form entries, wallet and transaction feedback.
 The terminal viewer uses the catalog's default public gateway. Dedicated
 gateway credentials and CAR-only services are not options in the dropdown.
 Gateway transport preserves the logical `ipfs://` resource names and the
 existing CAM hash checks; it does not add IPFS block verification.
 
 To attach the viewer to a public-chain deployment, run `make viewer/release/up`.
-It asks for `deployment.json`, derives the app and HTTPS resource origin, and
+It asks for `deployment.json`, derives the app and default download prefix, and
 offers the artifact chain's public RPC from the catalog or a custom URL. IPFS
-bundles need no HTTP origin pin. To deploy a general-purpose viewer, set
-`RESOURCE_ORIGIN='*'` to permit any validated HTTP(S) CAM resource origin.
-Set `RESOURCE_ORIGIN=none` to disable HTTP(S) CAM downloads, or supply the
-artifact's HTTP(S) origin to keep downloads pinned. The default remains the
-artifact-derived origin, with HTTP(S) disabled for IPFS bundles.
-These launch settings choose the initial **CAM resources** selection. On the
-page you can allow any HTTP(S) origin, pin to the manifest's HTTP(S) origin, or
-disable HTTP(S). The choice remains available if loading fails; changing it
-retries an unfinished load. An open app keeps its view and drafts: the new
-selection applies to subsequent CAM downloads, leaving loaded content and
-already-started requests intact. Viewer URL parameters cannot set this choice.
-For other browser deployments the equivalent build setting is
-`VITE_CAM_WEB_RESOURCE_ORIGIN` (`*`, `none`, or a literal origin); an unset or
-empty setting disables HTTP(S). Browser CORS and mixed-content restrictions
-still apply. Resource URL validation, redirect refusal, byte limits, cancellation
-and integrity checks remain in effect; this policy adds no backend proxy.
-The RPC URL is visible in the browser link, so use a browser-public endpoint.
+bundles default to IPFS only. `RESOURCE_ORIGIN` sets the initial **Download
+scope**: the artifact's HTTPS origin by default, `*` for HTTPS or IPFS, `none`
+for IPFS only, or a URL prefix. A prefix retains its full path; it may intentionally
+block the selected app until changed on the page.
+
+On the page, choose **HTTPS or IPFS**, **IPFS only**, **HTTP only (danger!)**,
+the configured URL prefix, or a custom URL prefix, then choose **Apply**.
+The configured preset comes from the viewer's boot setting; manifests cannot
+add presets. The full configured prefix remains visible. For a folder, include
+the trailing slash, such as `https://example.org/app/`.
+
+The scope applies to new CAM, NFT, image and document downloads, before IPFS
+gateway translation. Loaded content and admitted pending requests stay intact;
+each later request uses the current scope. RPC, wallet operations, local files
+and data URIs are separate. A failed initial load can retry after Apply.
+Viewer URL parameters cannot set the scope. Other browser deployments use
+`VITE_CAM_WEB_RESOURCE_ORIGIN` for the same boot setting; an unset or empty value
+selects IPFS only. Browser CORS and mixed-content restrictions, redirect refusal,
+byte limits and integrity checks remain in effect.
+
+An RPC URL supplied in a browser link is visible there. Custom RPC URLs entered
+on the page stay in memory and are not added to shared links.
 This command does not read a signing configuration or private key. For scripts,
 supply `DEPLOYMENT_ARTIFACT_FILE` and `PUBLIC_RPC_URL` directly; no prompts appear.
 

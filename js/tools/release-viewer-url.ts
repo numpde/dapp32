@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url"
 import { createInterface } from "node:readline/promises"
-import { assertPublishedCamRootURI, isRecordObject, parseJsonBytes, requireHttpOrigin, requireHttpURL } from "../packages/cam-protocol/dist/index.js"
+import { assertPublishedCamRootURI, downloadScopeForPrefix, isRecordObject, parseJsonBytes, requireHttpOrigin, requireHttpURL } from "../packages/cam-protocol/dist/index.js"
 import { DEPLOYMENT_SCHEMA as BIKE_SCHEMA, parseDeploymentArtifact as parseBike } from "./bike-nft-release/shared.ts"
 import { DEPLOYMENT_SCHEMA as ESCROW_SCHEMA, parseDeploymentArtifact as parseEscrow } from "./escrow-release/shared.ts"
 import { DEPLOYMENT_SCHEMA as PAYMENTS_SCHEMA, parseDeploymentArtifact as parsePayments } from "./pay-to-play-release/shared.ts"
@@ -25,15 +25,15 @@ function readDeployment(bytes: Uint8Array, app?: string) {
   return { app: reader.app, deployment: reader.parse(bytes) }
 }
 
-function resourceOrigin(camURI: string, supplied?: string): string | undefined {
+function resourceDownloadSetting(camURI: string, supplied?: string): string | undefined {
   assertPublishedCamRootURI(camURI, "deployment CAM URI")
   if (supplied === "*") return "*"
   if (supplied === "none") return undefined
-  const explicit = supplied === undefined ? undefined : requireHttpOrigin(supplied, "release viewer resource origin")
-  if (camURI.startsWith("ipfs://")) return explicit
-  const origin = requireHttpURL(camURI, "deployment CAM URI").origin
-  if (explicit !== undefined && explicit !== origin) throw new Error("HTTPS deployment CAM must use the explicit viewer resource origin")
-  return origin
+  if (supplied !== undefined) {
+    const scope = downloadScopeForPrefix(supplied)
+    return scope.prefix
+  }
+  return camURI.startsWith("ipfs://") ? undefined : requireHttpURL(camURI, "deployment CAM URI").origin
 }
 
 function viewerURL(deployment: ReturnType<typeof readDeployment>["deployment"], viewerOrigin: string, rpcUrl: string): string {
@@ -47,7 +47,7 @@ function viewerURL(deployment: ReturnType<typeof readDeployment>["deployment"], 
 
 export function releaseViewerURL(app: string, bytes: Uint8Array, viewerOrigin: string, suppliedOrigin: string | undefined, rpcUrl: string): string {
   const { deployment } = readDeployment(bytes, app)
-  resourceOrigin(deployment.camURI, suppliedOrigin)
+  resourceDownloadSetting(deployment.camURI, suppliedOrigin)
   return viewerURL(deployment, viewerOrigin, rpcUrl)
 }
 
@@ -97,7 +97,7 @@ export async function prepareReleaseViewer(options: {
   readonly ask?: Ask
 }) {
   const { app, deployment } = readDeployment(options.bytes, options.app)
-  const origin = resourceOrigin(deployment.camURI, options.resourceOrigin)
+  const origin = resourceDownloadSetting(deployment.camURI, options.resourceOrigin)
   let rpc = options.rpcUrl
   if (rpc === undefined) {
     if (options.ask === undefined) throw new Error("Set PUBLIC_RPC_URL to a browser-public endpoint, or run viewer setup in an interactive terminal")

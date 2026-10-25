@@ -5,7 +5,9 @@ import {
 } from "react"
 import type { ReactElement } from "react"
 import { defaultIpfsGateway, publicIpfsGateways } from "@cam/viewer"
-import { IpfsGatewayContext } from "./ipfs-gateway.ts"
+import { DownloadContext } from "./download-context.ts"
+import { assertDownloadAllowed, downloadScopeForPrefix } from "@cam/protocol"
+import type { DownloadScope } from "@cam/protocol"
 
 import {
   sendCamContractCall,
@@ -49,7 +51,7 @@ import {
   assertRpcChain,
   createViewerResourceLoader,
   displayRpcEndpoint,
-  resourcePolicyLabel,
+  downloadScopeLabel,
   parseStartupCoordinates,
   parseViewFragment,
   urlForView,
@@ -118,20 +120,17 @@ export function App(): ReactElement {
       return { coordinates: parseStartupCoordinates(url), rpcURLs: url.searchParams.getAll("rpcUrl") }
     } catch (error) { return { failure: failureReport(error), rpcURLs: url.searchParams.getAll("rpcUrl") } }
   })
-  const [initialResourceOrigin] = useState(() => {
-    const configured = import.meta.env.VITE_CAM_WEB_RESOURCE_ORIGIN
-    if (configured === undefined || configured === "") return "none"
-    try {
-      const origin = readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: configured }).resourceOrigin
-      if (origin === undefined) return "none"
-      return origin
-    }
-    // Preserve invalid input for startup diagnostics and explicit correction.
-    catch { return configured }
+  const [bootResourceSetting] = useState(import.meta.env.VITE_CAM_WEB_RESOURCE_ORIGIN)
+  const bootPrefix = bootResourceSetting !== undefined && bootResourceSetting !== "" && bootResourceSetting !== "*" && bootResourceSetting !== "none" ? bootResourceSetting : undefined
+  const [downloadScope, setDownloadScope] = useState<DownloadScope | undefined>(() => {
+    try { return readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: bootResourceSetting }) }
+    // silent-defaults: allow-default -- Invalid boot settings remain unset for repair; startup still reports their parsing failure.
+    catch { return undefined }
   })
-  const [resourceOrigin, setResourceOrigin] = useState(initialResourceOrigin)
-  const resourceOriginRef = useRef(initialResourceOrigin)
-  const [manifestOrigin, setManifestOrigin] = useState<string | undefined>(undefined)
+  const downloadScopeRef = useRef(downloadScope)
+  const [scopeChoice, setScopeChoice] = useState<string>(downloadScope === undefined || downloadScope.kind === "prefix" ? "boot" : downloadScope.kind)
+  const [customPrefix, setCustomPrefix] = useState("")
+  const [scopeError, setScopeError] = useState<FailureReport | undefined>(undefined)
   const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
   const gatewayRef = useRef(defaultIpfsGateway.template)
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
@@ -188,12 +187,11 @@ export function App(): ReactElement {
     const controller = new AbortController()
     resourceLoadAbortRef.current = controller
     let loadedSession: CamViewerSession | undefined
-    let firstResource = true
 
     async function load(): Promise<void> {
       try {
         const startup: StartupOptions = { ...requestedConnection, ...parseViewFragment(new URL(window.location.href).hash) }
-        readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current })
+        currentDownloadScope()
         const options = startup
         readyRef.current = { status: "loading", startup }
         setLoadState(readyRef.current)
@@ -215,14 +213,7 @@ export function App(): ReactElement {
           },
           inputs: options.inputs,
           ...(options.route === undefined ? {} : { route: options.route }),
-          loadResource: uri => {
-            if (firstResource && !controller.signal.aborted) {
-              firstResource = false
-              const root = new URL(uri)
-              setManifestOrigin(root.protocol === "https:" || root.protocol === "http:" ? root.origin : undefined)
-            }
-            return createViewerResourceLoader(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current }).resourceOrigin, gatewayRef.current, controller.signal)(uri)
-          },
+          loadResource: uri => createViewerResourceLoader(assertCurrentDownloadAllowed, gatewayRef.current, controller.signal)(uri),
         })
         const snapshot = await session.load()
         loadedSession = session
@@ -663,7 +654,7 @@ export function App(): ReactElement {
           digest = await calculateDocumentHashFromFile(requireDocumentFile(file), operation.signal)
         } else {
           if (operation.sourceURI === undefined) throw new Error("Cannot calculate document hash from URL: the field has no source URI.")
-          digest = await calculateDocumentHashFromURL(operation.sourceURI, operation.signal, gatewayRef.current)
+          digest = await calculateDocumentHashFromURL(operation.sourceURI, operation.signal, assertCurrentDownloadAllowed, gatewayRef.current)
         }
         const snapshot = operation.complete(digest)
         if (snapshot !== undefined) {
@@ -796,19 +787,54 @@ export function App(): ReactElement {
     } finally { setViewChanging(false) }
   }
 
-  const pinnedOrigins = [...new Set([initialResourceOrigin, resourceOrigin, manifestOrigin]
-    .filter((origin): origin is string => origin !== undefined && origin !== "*" && origin !== "none"))]
-  const resourcePolicy = <div className="resource-policy">
-    <dt><label htmlFor="resource-origin-choice">CAM resources</label></dt>
-    <dd><select id="resource-origin-choice" value={resourceOrigin} aria-describedby="resource-origin-help" onChange={event => {
-      resourceOriginRef.current = event.currentTarget.value
-      setResourceOrigin(event.currentTarget.value)
-      retryUnfinishedLoad()
-    }}>
-      <option value="*">Any HTTP(S) origin</option>
-      {pinnedOrigins.map(origin => <option key={origin} value={origin}>{resourcePolicyLabel({ VITE_CAM_WEB_RESOURCE_ORIGIN: origin })}</option>)}
-      <option value="none">HTTP(S) disabled; IPFS only</option>
-    </select><span id="resource-origin-help" className="visually-hidden">Applies to new CAM downloads. Loaded content is kept.</span></dd>
+  function currentDownloadScope(): DownloadScope {
+    if (downloadScopeRef.current === undefined) return readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: bootResourceSetting })
+    return downloadScopeRef.current
+  }
+
+  function assertCurrentDownloadAllowed(uri: string): void {
+    try { assertDownloadAllowed(uri, currentDownloadScope()) }
+    catch (cause) { throw new UserFacingError("Cannot download this resource. Check its URL and the selected download scope.", { cause }) }
+  }
+
+  function commitDownloadScope(scope: DownloadScope): void {
+    downloadScopeRef.current = scope
+    setDownloadScope(scope)
+    setScopeError(undefined)
+    if (readyRef.current.status === "failed") retryUnfinishedLoad()
+  }
+
+  const resourcePolicy = <div className="download-scope">
+    <dt><label htmlFor="download-scope-choice">Download scope</label></dt>
+    <dd><div className="connection-form">
+      <select id="download-scope-choice" value={scopeChoice} aria-describedby="download-scope-help" onChange={event => {
+        const choice = event.currentTarget.value
+        setScopeChoice(choice)
+        setScopeError(undefined)
+      }}>
+        <option value="https-or-ipfs">HTTPS or IPFS</option>
+        <option value="ipfs-only">IPFS only</option>
+        <option value="http-only">HTTP only (danger!)</option>
+        {bootPrefix === undefined ? null : <option value="boot">Only {bootPrefix.length <= 64 ? bootPrefix : `${bootPrefix.slice(0, 61)}…`}</option>}
+        <option value="custom">Custom URL prefix</option>
+      </select>
+      {scopeChoice === "boot" && bootPrefix !== undefined ? <label className="field"><span>Configured URL prefix</span><input readOnly value={bootPrefix} /></label> : null}
+      {scopeChoice === "custom" ? <>
+        <label className="field"><span>URL prefix</span><input id="download-prefix" type="url" value={customPrefix} onChange={event => { setCustomPrefix(event.currentTarget.value); setScopeError(undefined) }} /></label>
+        <p className="field-hint">For a folder, include the trailing slash: https://example.org/app/.</p>
+      </> : null}
+      <button className="button-quiet" id="download-scope-apply" type="button" onClick={() => {
+        try {
+          if (scopeChoice === "custom") commitDownloadScope(downloadScopeForPrefix(customPrefix))
+          else if (scopeChoice === "boot") commitDownloadScope(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: bootResourceSetting }))
+          else if (scopeChoice === "https-or-ipfs" || scopeChoice === "ipfs-only" || scopeChoice === "http-only") commitDownloadScope({ kind: scopeChoice })
+        } catch (cause) { setScopeError(failureReport(cause, "Cannot apply this download scope.")) }
+      }}>Apply</button>
+      {scopeChoice === "http-only" || (scopeChoice === "custom" && /^http:/i.test(customPrefix)) || (scopeChoice === "boot" && bootPrefix !== undefined && /^http:/i.test(bootPrefix)) ? <p className="field-hint">HTTP is unencrypted. Your browser may block HTTP downloads.</p> : null}
+      <p id="download-scope-help" className="field-hint">Applies to new CAM, NFT, image and document downloads. Loaded content and pending downloads are kept.</p>
+      {downloadScope === undefined ? null : <p className="field-hint" role="status">In use: {downloadScopeLabel(downloadScope)}</p>}
+      {scopeError === undefined ? null : <Feedback report={scopeError} kind="error" />}
+    </div></dd>
   </div>
 
   const gatewayControl = <div className="ipfs-gateway">
@@ -818,7 +844,7 @@ export function App(): ReactElement {
             const selected = publicIpfsGateways.find(gateway => gateway.id === event.currentTarget.value)!
             gatewayRef.current = selected.template
             setGatewayId(selected.id)
-            retryUnfinishedLoad()
+            if (readyRef.current.status === "failed") retryUnfinishedLoad()
           }}>
             {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
           </select>
@@ -839,7 +865,7 @@ export function App(): ReactElement {
   const displayedConnection = connection ?? ("coordinates" in viewerLink ? viewerLink.coordinates : undefined)
 
   return (
-    <IpfsGatewayContext value={gatewayRef.current}>
+    <DownloadContext value={{ gateway: gatewayRef.current, assertAllowed: assertCurrentDownloadAllowed }}>
     <main className="app-shell">
       <header className="topbar">
         <h1>{"coordinates" in viewerLink ? headerTitle(loadState) : "Open app"}</h1>
@@ -927,7 +953,7 @@ export function App(): ReactElement {
         />
       ) : null}
     </main>
-    </IpfsGatewayContext>
+    </DownloadContext>
   )
 }
 

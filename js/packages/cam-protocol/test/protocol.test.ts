@@ -8,6 +8,8 @@ import {
   abiTupleArraySuffix,
   abiTypeSignature,
   assertCamResourceSize,
+  assertDownloadAllowed,
+  downloadScopeForPrefix,
   assertCamSecondaryResourceURI,
   assertLoadableCamRootURI,
   assertPublishedCamRootURI,
@@ -77,6 +79,28 @@ import {
   uiCallNamespaceForElement,
   verifySha256ResourceIntegrity,
 } from "../src/index.ts"
+
+test("download scopes admit the logical scheme, independently of an IPFS gateway", () => {
+  const sources = ["https://example.test/document", "http://example.test/document", "ipfs://QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o/document"]
+  for (const [kind, allowed] of [["https-or-ipfs", [0, 2]], ["ipfs-only", [2]], ["http-only", [1]]] as const) {
+    sources.forEach((source, index) => {
+      if (allowed.some(value => value === index)) assert.doesNotThrow(() => assertDownloadAllowed(source, { kind }))
+      else assert.throws(() => assertDownloadAllowed(source, { kind }), /download scope/)
+    })
+  }
+})
+
+test("download prefixes retain paths and reject lookalike authorities or gateway substitutions", () => {
+  const scope = downloadScopeForPrefix("https://example.test/contracts/bike/")
+  assert.doesNotThrow(() => assertDownloadAllowed("https://example.test/contracts/bike/ui.json", scope))
+  for (const source of ["https://example.test/contracts/escrow/ui.json", "https://example.test.evil.test/contracts/bike/ui.json", "http://example.test/contracts/bike/ui.json", "ipfs://QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o/ui.json"]) {
+    assert.throws(() => assertDownloadAllowed(source, scope), /download scope/)
+  }
+  const exactFile = downloadScopeForPrefix("https://example.test/contracts/bike/main.json")
+  assert.throws(() => assertDownloadAllowed("https://example.test/contracts/bike/ui.json", exactFile), /download scope/, "a filename prefix must not silently become a directory prefix")
+  const ipfsFolder = "ipfs://QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o/folder/"
+  assert.doesNotThrow(() => assertDownloadAllowed(`${ipfsFolder}frame%20one.png`, downloadScopeForPrefix(ipfsFolder)), "download admission supports encoded filenames and folder prefixes independently of CAM publication grammar")
+})
 
 test("an unconfigured HTTP pin permits selected IPFS transport but denies every HTTP resource before fetch", async () => {
   const requests: string[] = []

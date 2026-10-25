@@ -798,16 +798,16 @@ help:
 	  '    RPC and CAM URLs work only inside the Docker network. CAM uses HTTP, not HTTPS;' \
 	  '    the host browser cannot open http://release-cam:8080. This flow supports deployment and verification.' \
 	  '  make network/local/viewer/up     Attach the browser viewer to an existing local release.' \
-	  '    Set APP, DEPLOYMENT_ARTIFACT_FILE and RESOURCE_ORIGIN (published HTTPS CAM origin).' \
+	  '    Set APP, DEPLOYMENT_ARTIFACT_FILE and RESOURCE_ORIGIN (initial download URL prefix).' \
 	  '    Open the printed URL in your browser. Loopback port defaults to 5174; set RELEASE_VIEWER_PORT to override.' \
 	  '    The fixture RPC endpoint permits local test transactions. No signing key is mounted.' \
 	  '  make network/local/viewer/down   Stop only that viewer; leave the chain running.' \
 	  '  make viewer/release/up           Open an existing public-chain release; deploys nothing.' \
 	  '    Interactive: select deployment.json, then choose its chain public RPC or enter another public URL.' \
-	  '    App and HTTPS resource origin come from that artifact; IPFS needs no HTTP origin pin.' \
+	  '    App and default download prefix come from the artifact; IPFS defaults to IPFS only.' \
 	  '    Scripts: set DEPLOYMENT_ARTIFACT_FILE and PUBLIC_RPC_URL. Optional APP must agree.' \
-	  '    RESOURCE_ORIGIN sets the initial page choice: artifact origin by default, * for any HTTP(S), or none to deny HTTP(S).' \
-	  '    Change CAM resources on the page; URL parameters cannot set it. Quote RESOURCE_ORIGIN="*" in your shell.' \
+	  '    RESOURCE_ORIGIN: artifact origin by default, * for HTTPS or IPFS, none for IPFS only, or a URL prefix.' \
+	  '    Choose Download scope, then Apply on the page; URL parameters cannot set it. Quote RESOURCE_ORIGIN="*".' \
 	  '    Browser CORS and mixed-content restrictions still apply.' \
 	  '    PUBLIC_RPC_URL is visible in the browser link: use a public endpoint without credentials.' \
 	  '    No signing configuration or private key is read. RPC connectivity is checked when the browser loads.' \
@@ -1605,7 +1605,7 @@ network/local/viewer/up:
 	case "$$viewer_app" in bike-nft|escrow|pay-to-play) ;; *) printf '%s\n' 'APP must be bike-nft, escrow or pay-to-play.' >&2; exit 2 ;; esac; \
 	viewer_artifact="$${DEPLOYMENT_ARTIFACT_FILE:?Set DEPLOYMENT_ARTIFACT_FILE}"; \
 	require_release_file "$$viewer_artifact" DEPLOYMENT_ARTIFACT_FILE; \
-	viewer_resource_origin="$${RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN to the published HTTPS CAM origin}"; \
+	viewer_resource_origin="$${RESOURCE_ORIGIN:?Set RESOURCE_ORIGIN to an initial download scope or URL prefix}"; \
 	port="$$RELEASE_VIEWER_PORT"; \
 	if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'RELEASE_VIEWER_PORT must be a TCP port in 1..65535.' >&2; exit 2; fi; \
 	RELEASE_REHEARSAL_NETWORK="$(LOCAL_RELEASE_NETWORK)"; require_release_local_network; \

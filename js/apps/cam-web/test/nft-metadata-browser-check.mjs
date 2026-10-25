@@ -77,6 +77,9 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     assert.equal(await evaluate('window.nftFixture.uri()'), null, 'an empty newly active URL clears the embedded URI')
     await edit('input[name="tokenURI"]', 'https://nft.fixture.test/manual.json')
     assert.equal(await evaluate('window.nftFixture.uri()'), 'https://nft.fixture.test/manual.json')
+    const encodedIpfs = 'ipfs://QmT78zSuBmuS4z925WZfrqQ1qHaJ56DQaTfyMUF7F8ff5o/metadata%20one.json'
+    await edit('input[name="tokenURI"]', encodedIpfs)
+    assert.equal(await evaluate('window.nftFixture.uri()'), encodedIpfs, 'metadata preparation accepts encoded IPFS filenames without applying CAM publication grammar')
     await edit('input[name="tokenURI"]', '')
     assert.equal(await evaluate('window.nftFixture.uri()'), null, 'clearing the active URL removes the prior transaction URI')
     await click(`${editor} [role="tab"]`, 'Embed JSON')
