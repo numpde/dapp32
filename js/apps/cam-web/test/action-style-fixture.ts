@@ -4,7 +4,7 @@ import { parseAbi } from "viem"
 import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
-import { TransactionFeedback } from "../src/feedback.tsx"
+import { Feedback, TransactionFeedback } from "../src/feedback.tsx"
 import { IntegrityWarnings } from "../src/integrity-warnings.tsx"
 import type { SubmittedTransactionReference } from "../src/transactions.ts"
 import "../src/styles.css"
@@ -67,7 +67,8 @@ function render(): void {
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
     createElement(UiView, props),
-    createElement(IntegrityWarnings, { warnings: [{ status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
+    createElement(Feedback, { report: { message: "Ready to continue." }, kind: "status", className: "notice" }),
+    createElement(IntegrityWarnings, { warnings: [{ status: "unverified", uri: "https://example.test/manifest.json", expectedHash: `0x${"00".repeat(32)}`, actualHash: fixtureDigest }, { status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
     prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy && !sending, sending, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
     transactionReport === undefined ? null : createElement("section", { className: "transaction-feedback" }, createElement(TransactionFeedback, {
       report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },

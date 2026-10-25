@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 
 export async function assertDisplayedValues({ call, evaluate }) {
+  await assertFeedbackPresentation(evaluate)
   const rows = await evaluate(`(()=>{const rows=[...document.querySelectorAll('dl')];return rows.map(row=>{const outer=row.parentElement.closest('dl');return {tags:[...row.children].map(child=>child.tagName),invalidParent:outer!==null&&row.parentElement.closest('dd')?.parentElement!==outer,label:row.firstElementChild?.textContent,overflow:row.scrollWidth>row.clientWidth+1}})})()`)
   assert(rows.length > 0, 'the fixture must exercise property rows')
   for (const row of rows) {
@@ -70,4 +71,22 @@ export async function assertDisplayFailureWitnesses(ports) {
   await ports.evaluate(`document.querySelector('.hex-value').setAttribute('aria-disabled','true')`)
   try { await assert.rejects(() => assertDisplayedValues(ports), /read-only copy is enabled in the accessibility tree/) }
   finally { await ports.evaluate(`document.querySelector('.hex-value').removeAttribute('aria-disabled')`) }
+}
+
+async function assertFeedbackPresentation(evaluate) {
+  const boxes = await evaluate(`[...document.querySelectorAll('.error-feedback')].map(box=>{const style=getComputedStyle(box),message=box.querySelector('.feedback-message'),text=getComputedStyle(message);return {kind:box.dataset.kind,role:box.getAttribute('role'),geometry:[style.padding,style.margin,style.borderWidth,style.borderStyle,style.borderRadius],typography:[text.fontFamily,text.fontSize,text.fontWeight,text.lineHeight],background:style.backgroundColor,border:style.borderInlineStartColor,overflow:box.scrollWidth>box.clientWidth+1}})`)
+  assert(boxes.length > 0, 'the fixture exercises feedback')
+  const first = boxes[0]
+  const severities = new Map()
+  for (const box of boxes) {
+    assert.deepEqual(box.geometry, first.geometry, 'feedback variants share box geometry')
+    assert.deepEqual(box.typography, first.typography, 'feedback variants share message typography')
+    assert.equal(box.role, box.kind === 'error' ? 'alert' : 'status', 'feedback retains its announcement role')
+    assert(!box.overflow, 'feedback content fits its container')
+    const colors = JSON.stringify([box.background, box.border])
+    if (severities.has(box.kind)) assert.equal(colors, severities.get(box.kind), 'severity colors do not depend on the feedback caller')
+    severities.set(box.kind, colors)
+  }
+  assert.deepEqual([...severities.keys()].sort(), ['error', 'status', 'warning'], 'the fixture exercises every severity')
+  assert.equal(new Set(severities.values()).size, severities.size, 'severity variants remain visually distinct')
 }

@@ -6,6 +6,19 @@ import { failureReport } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { HexValue } from "./hex-value.tsx"
 
+export function FeedbackBox({ kind, message, className, messageRef, children }: {
+  readonly kind: "error" | "warning" | "status"
+  readonly message: ReactNode
+  readonly className?: string | undefined
+  readonly messageRef?: Ref<HTMLParagraphElement> | undefined
+  readonly children?: ReactNode
+}): ReactElement {
+  return <div className={className === undefined ? "error-feedback" : `error-feedback ${className}`} data-kind={kind} role={kind === "error" ? "alert" : "status"}>
+    <p className="feedback-message" ref={messageRef} tabIndex={messageRef === undefined ? undefined : -1}>{message}</p>
+    {children}
+  </div>
+}
+
 export function Feedback({ report, kind, className, messageRef, children }: {
   readonly report: FailureReport
   readonly kind: "error" | "status"
@@ -13,10 +26,9 @@ export function Feedback({ report, kind, className, messageRef, children }: {
   readonly messageRef?: Ref<HTMLParagraphElement>
   readonly children?: ReactNode
 }): ReactElement {
-  return <div className={className === undefined ? "error-feedback" : `error-feedback ${className}`} data-kind={kind} role={kind === "error" ? "alert" : "status"}>
-    <p className="feedback-message" ref={messageRef} tabIndex={messageRef === undefined ? undefined : -1}>{children === undefined ? report.message : children}</p>
+  return <FeedbackBox kind={kind} message={children === undefined ? report.message : children} className={className} messageRef={messageRef}>
     {report.diagnostic === undefined ? null : <code className="feedback-diagnostic">{report.diagnostic}</code>}
-  </div>
+  </FeedbackBox>
 }
 
 type ExplorerResult = { readonly transaction: SubmittedTransactionReference } & (
