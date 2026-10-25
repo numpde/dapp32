@@ -48,7 +48,9 @@ contract PayToPlayNativeAssetTest is PayToPlayTestBase {
 
     function testFundingValueMismatchesRevertWithoutChangingPositionOrNativeBalances() public {
         _fund(customer, channel, 80);
-        assertEq(payments.collect(customer, channel, 30, INVOICE_HASH, _sign(customer, channel, 30)), 30);
+        assertEq(
+            payments.collect(customer, channel, 30, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 30)), 30
+        );
         vm.prank(customer);
         payments.requestWithdrawal(channel, 20);
         vm.deal(customer, 100);
@@ -90,7 +92,9 @@ contract PayToPlayNativeAssetTest is PayToPlayTestBase {
 
     function testZeroFundingIsACompleteNoOp() public {
         _fund(customer, channel, 80);
-        assertEq(payments.collect(customer, channel, 30, INVOICE_HASH, _sign(customer, channel, 30)), 30);
+        assertEq(
+            payments.collect(customer, channel, 30, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 30)), 30
+        );
         vm.prank(customer);
         payments.requestWithdrawal(channel, 20);
         PayToPlay.PositionView memory positionBefore = _position(channel);

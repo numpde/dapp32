@@ -9,7 +9,7 @@
     "contracts.PayToPlay": {
       "type": "contract",
       "abiURI": "./abi/PayToPlay.json",
-      "integrity": "sha256:0xf8580f76c7cc13f1baf01b50543e5b7ecc297ed493f35bebfb63517c6b261100"
+      "integrity": "sha256:0x88fac0e8f8376dbf66d991bddbb9c36cc976d5894203192f5da4653c1c2ee20e"
     },
     "routes": {
       "type": "routes"
@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x506704d0cb8e5dfb769b3d0c74c8d36c2f60e7f01954f942b7da67b441b478ed"
+      "integrity": "sha256:0x39d1054cd3ad03f168b233de3deb2349fbb790c7d6bb9f7d3ec16128cfa9af52"
     }
   },
   "routes": {
@@ -73,6 +73,7 @@
       "kind": "write",
       "inputs": [
         "payee",
+        "collector",
         "claimPeriod"
       ],
       "call": {
@@ -80,6 +81,7 @@
         "function": "createChannel",
         "args": {
           "payee": "$inputs.payee",
+          "collector": "$inputs.collector",
           "claimPeriod": "$inputs.claimPeriod"
         }
       },
@@ -259,6 +261,7 @@
         "channelId",
         "cumulativeTotal",
         "invoiceHash",
+        "maxAmount",
         "signature"
       ],
       "call": {
@@ -269,6 +272,7 @@
           "channelId": "$inputs.channelId",
           "cumulativeTotal": "$inputs.cumulativeTotal",
           "invoiceHash": "$inputs.invoiceHash",
+          "maxAmount": "$inputs.maxAmount",
           "signature": "$inputs.signature"
         }
       },
@@ -496,6 +500,30 @@
       "then": {
         "namespace": "routes",
         "function": "recovery",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "setCollector": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId",
+        "collector"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "setCollector",
+        "args": {
+          "channelId": "$inputs.channelId",
+          "nextCollector": "$inputs.collector"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
         "args": {
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"

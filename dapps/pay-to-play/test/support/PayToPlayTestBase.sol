@@ -21,8 +21,8 @@ abstract contract PayToPlayTestBase is Test {
         payee = makeAddr("pay-to-play fixture payee");
         relayer = makeAddr("pay-to-play fixture relayer");
         payments = new PayToPlay(address(this), PERIOD);
-        channel = payments.createChannel(payee, PERIOD);
-        otherChannel = payments.createChannel(makeAddr("pay-to-play fixture second payee"), PERIOD);
+        channel = payments.createChannel(payee, address(this), PERIOD);
+        otherChannel = payments.createChannel(makeAddr("pay-to-play fixture second payee"), address(this), PERIOD);
         vm.startPrank(customer);
         payments.registerVoucherKey(channel, vm.addr(VOUCHER_KEY));
         payments.registerVoucherKey(otherChannel, vm.addr(VOUCHER_KEY));

@@ -18,8 +18,8 @@ contract PayToPlayRecoveryHandler is Test {
 
     constructor() {
         payments = new PayToPlay(address(this), 100);
-        payments.createChannel(makeAddr("recovery payee one"), 100);
-        payments.createChannel(makeAddr("recovery payee two"), 100);
+        payments.createChannel(makeAddr("recovery payee one"), address(this), 100);
+        payments.createChannel(makeAddr("recovery payee two"), address(this), 100);
         customers[0] = makeAddr("recovery customer one");
         customers[1] = makeAddr("recovery customer two");
         voucherKey = vm.addr(KEY);
@@ -42,12 +42,12 @@ contract PayToPlayRecoveryHandler is Test {
         funded += amount;
     }
 
-    function collect(uint8 who, uint8 channel, uint96 total, bytes32 invoiceHash) external {
+    function collect(uint8 who, uint8 channel, uint96 total, bytes32 invoiceHash, uint96 maxAmount) external {
         address customer = customers[who % 2];
         uint256 id = 1 + channel % 2;
         if (_view(customer, id).phase == PayToPlay.Phase.RefundOnly) return;
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(KEY, payments.voucherDigest(customer, id, total, invoiceHash));
-        uint256 amount = payments.collect(customer, id, total, invoiceHash, abi.encodePacked(r, s, v));
+        uint256 amount = payments.collect(customer, id, total, invoiceHash, maxAmount, abi.encodePacked(r, s, v));
         collected += amount;
         actuallyPaid[customer][id] += amount;
     }

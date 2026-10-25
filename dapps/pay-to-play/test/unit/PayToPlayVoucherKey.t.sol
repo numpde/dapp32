@@ -15,7 +15,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
     event VoucherKeyRegistered(address indexed customer, uint256 indexed channelId, address indexed voucherKey);
 
     function testRegistrationIsOwnerScopedAndAvailableWithoutFunding() public {
-        uint256 fresh = payments.createChannel(payee, PERIOD);
+        uint256 fresh = payments.createChannel(payee, address(this), PERIOD);
         address key = vm.addr(VOUCHER_KEY);
         PayToPlay.PositionView memory before_ = payments.viewPosition(customer, fresh, customer);
         assertEq(before_.voucherKey, address(0));
@@ -34,7 +34,8 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         assertEq(after_.balance, 0);
         assertEq(after_.voucherPaid, 0);
         assertFalse(_hasAction(after_.actions, "registerVoucherKey"));
-        assertTrue(_hasAction(payments.viewPosition(customer, fresh, relayer).actions, "collect"));
+        assertFalse(_hasAction(payments.viewPosition(customer, fresh, relayer).actions, "collect"));
+        assertTrue(_hasAction(payments.viewPosition(customer, fresh, address(this)).actions, "collect"));
         assertEq(payments.viewPosition(relayer, fresh, relayer).voucherKey, relayer);
     }
 
@@ -45,7 +46,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.ChannelNotFound.selector, 99));
         payments.registerVoucherKey(99, vm.addr(VOUCHER_KEY));
         vm.stopPrank();
-        uint256 fresh = payments.createChannel(payee, PERIOD);
+        uint256 fresh = payments.createChannel(payee, address(this), PERIOD);
         vm.prank(customer);
         vm.expectRevert(PayToPlay.InvalidVoucherKey.selector);
         payments.registerVoucherKey(fresh, address(0));
@@ -64,11 +65,11 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
     }
 
     function testUnregisteredPositionCannotCollectButCanRecoverItsFunds() public {
-        uint256 fresh = payments.createChannel(payee, PERIOD);
+        uint256 fresh = payments.createChannel(payee, address(this), PERIOD);
         _fund(customer, fresh, 100);
         bytes memory signature = _sign(customer, fresh, 100);
         vm.expectRevert(PayToPlay.VoucherKeyNotRegistered.selector);
-        payments.collect(customer, fresh, 100, INVOICE_HASH, signature);
+        payments.collect(customer, fresh, 100, INVOICE_HASH, type(uint256).max, signature);
         vm.prank(customer);
         payments.requestWithdrawal(fresh, 100);
         vm.warp(_position(fresh).readyAt);
@@ -77,7 +78,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
     }
 
     function testRegistrationAfterFundingPreservesAccountingAndDeadline() public {
-        uint256 fresh = payments.createChannel(payee, PERIOD);
+        uint256 fresh = payments.createChannel(payee, address(this), PERIOD);
         _fund(customer, fresh, 100);
         vm.prank(customer);
         payments.requestWithdrawal(fresh, 40);
@@ -98,10 +99,13 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         (uint8 v, bytes32 r, bytes32 s) =
             vm.sign(CUSTOMER_KEY, payments.voucherDigest(customer, channel, 100, INVOICE_HASH));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, INVOICE_HASH, abi.encodePacked(r, s, v));
+        payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, abi.encodePacked(r, s, v));
         assertEq(_position(channel).balance, 100);
         assertEq(_position(channel).voucherPaid, 0);
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 100);
+        assertEq(
+            payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 100)),
+            100
+        );
     }
 
     function testVoucherKeyHasNoAuthorityOverCustomersWithdrawal() public {
@@ -119,19 +123,19 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         // Model changing account code, including the validation-policy change enabled by EIP-7702.
         vm.etch(customer, address(policy).code);
         vm.etch(vm.addr(VOUCHER_KEY), address(policy).code);
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 100);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, signature), 100);
         assertEq(_position(channel).voucherKey, vm.addr(VOUCHER_KEY));
         assertEq(payee.balance, 100);
     }
 
     function testKeyWithCodeMayBeRegisteredAndUsedForDirectECDSA() public {
-        uint256 fresh = payments.createChannel(payee, PERIOD);
+        uint256 fresh = payments.createChannel(payee, address(this), PERIOD);
         RejectingVoucherPolicy policy = new RejectingVoucherPolicy();
         vm.etch(vm.addr(VOUCHER_KEY), address(policy).code);
         vm.prank(customer);
         payments.registerVoucherKey(fresh, vm.addr(VOUCHER_KEY));
         _fund(customer, fresh, 50);
-        assertEq(payments.collect(customer, fresh, 50, INVOICE_HASH, _sign(customer, fresh, 50)), 50);
+        assertEq(payments.collect(customer, fresh, 50, INVOICE_HASH, type(uint256).max, _sign(customer, fresh, 50)), 50);
     }
 
     function testKeyAndUnpaidVoucherSurviveWithdrawalAndRefill() public {
@@ -146,12 +150,12 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         payments.registerVoucherKey(channel, customer);
         assertEq(_position(channel).voucherKey, vm.addr(VOUCHER_KEY));
         _fund(customer, channel, 30);
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 30);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, signature), 30);
         assertEq(_position(channel).voucherPaid, 30);
     }
 
     function testMoveDoesNotTransferOrResetVoucherKeys() public {
-        uint256 fresh = payments.createChannel(payee, PERIOD);
+        uint256 fresh = payments.createChannel(payee, address(this), PERIOD);
         _fund(customer, channel, 100);
         vm.prank(customer);
         payments.requestWithdrawal(channel, 100);
@@ -169,19 +173,27 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         payments.move(fresh, channel);
         assertEq(_position(fresh).voucherKey, customer);
         assertEq(_position(channel).voucherKey, vm.addr(VOUCHER_KEY));
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 100);
+        assertEq(
+            payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 100)),
+            100
+        );
     }
 
     function testInvalidSignaturesFailEvenWhenPaymentWouldBeZero() public {
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 0, INVOICE_HASH, hex"abcd");
+        payments.collect(customer, channel, 0, INVOICE_HASH, type(uint256).max, hex"abcd");
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, INVOICE_HASH, new bytes(65));
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 0);
+        payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, new bytes(65));
+        assertEq(
+            payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 100)), 0
+        );
         _fund(customer, channel, 100);
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 100);
+        assertEq(
+            payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 100)),
+            100
+        );
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, INVOICE_HASH, hex"abcd");
+        payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, hex"abcd");
         assertEq(_position(channel).voucherPaid, 100);
     }
 
@@ -192,7 +204,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         uint256 order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141;
         bytes memory signature = abi.encodePacked(r, bytes32(order - uint256(s)), v == 27 ? uint8(28) : uint8(27));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, INVOICE_HASH, signature);
+        payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, signature);
         assertEq(_position(channel).balance, 100);
         assertEq(_position(channel).voucherPaid, 0);
     }
@@ -201,7 +213,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         _fund(customer, channel, 100);
         bytes memory signature = _sign(customer, channel, 50);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, INVOICE_HASH, signature);
-        assertEq(payments.collect(customer, channel, 50, INVOICE_HASH, signature), 50);
+        payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, signature);
+        assertEq(payments.collect(customer, channel, 50, INVOICE_HASH, type(uint256).max, signature), 50);
     }
 }

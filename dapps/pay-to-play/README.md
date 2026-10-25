@@ -15,19 +15,29 @@ The repository implements settlement and a generic CAM interface, not a service
 that sells API access, provisions work, tracks purchase credit or issues delivery
 refunds. Those responsibilities remain with the integrating P2P service.
 
+This interface requires a replacement deployment. It does not upgrade an existing
+contract. The voucher fields, domain name/version and `VoucherCollected` event
+remain unchanged; a new deployment address changes the EIP-712 verifying contract,
+so signatures for the old deployment do not authorize payments on the replacement.
+Clients must update the `createChannel` and `collect` calls and decode the added
+`collector` field in both `Channel` and `PositionView` (after `payee` and `admin`,
+respectively). The constructor and the `ChannelCreated` and `VoucherCollected`
+event schemas stay unchanged. Creation also emits `CollectorChanged`, so select
+receipt events by their topic rather than assuming one payment-contract log.
+
 ## From deposit to payment
 
 Suppose Alice buys work from Bob's service. The admin creates channel 7 with
-Bob's payment address and a fixed claim period. Example amounts below are wei,
-not whole native coins; transaction fees are separate.
+Bob's payment address, a collector address, and a fixed claim period. Example
+amounts below are wei, not whole native coins; transaction fees are separate.
 
 Alice deposits 100 into her channel-7 position and registers signing key K.
 K signs a voucher with `customer = Alice`, `channelId = 7`,
 `cumulativeTotal = 30`, and `invoiceHash` committing to the invoice for that
 purchase. Bob verifies the invoice, registered key, signature and available
-backing before deciding to deliver work. Anybody can then submit that voucher:
-the contract pays Bob 30, leaves Alice's balance at 70, and records 30 as actually
-paid. A later voucher for cumulative total 50 with another invoice hash can pay
+backing before deciding to deliver work. The configured collector submits the
+voucher with a payment limit of 30. The contract pays Bob 30, leaves Alice's
+balance at 70, and records 30 as actually paid. A later voucher for cumulative total 50 with another invoice hash can pay
 another 20, not another 50.
 
 Funding alone authorizes no charge. A voucher authorizes payment; it does not
@@ -37,7 +47,9 @@ the invoice reference but does not read the invoice or allocate payment to it.
 
 ## A channel is shared; each account's balance is separate
 
-A channel defines one current payment recipient and one fixed claim period.
+A channel defines one current payment recipient, one current collector, and a
+fixed claim period. The payee must be nonzero; a zero collector pauses voucher
+collection for that channel.
 The claim period is the wait for an ordinary withdrawal and the final window
 for voucher collection during wind-down; it is not a voucher expiry field.
 Each `(customer, channelId)` has a separate position: balance, lifetime amount
@@ -59,9 +71,10 @@ unchanged; an invoice naming a merchant does not remove that trust assumption.
 | --- | --- |
 | Balance owner (`customer`) | Funds its position, registers its key, requests withdrawals, moves funds, renews, closes its funding cycle, and chooses its full-refund recipient. |
 | Permanent voucher key | Signs cumulative payment authority and its invoice reference for that position; has no separate withdrawal, refund-destination or administrative authority. |
+| Channel collector | Only this address may submit voucher payments for its channel. The admin can change it or set it to zero to pause collection. |
 | Channel payee | Receives collected payments and may start position wind-down or permanent channel retirement. |
-| Contract admin | Creates channels, changes payees, and may start wind-down/retirement; cannot sign customer vouchers or select customer refund destinations. |
-| Relayer | May collect a supplied valid voucher, complete an authorized mature withdrawal, or execute a due full refund. Receives no right to choose the destination. |
+| Contract admin | Creates channels, changes payees and collectors, and may start wind-down/retirement; cannot sign customer vouchers or select customer refund destinations. |
+| Relayer | May complete an authorized mature withdrawal or execute a due full refund. Voucher collection requires the configured channel collector. Receives no right to choose the destination. |
 
 The selected account in the viewer determines displayed actions but does not
 prove signing authority. Before a wallet connects, that account comes from the
@@ -92,9 +105,10 @@ block, advance chain time, reload publication resources or execute a refund.
 **Back** rereads a prior view and restores compatible drafts when session
 history exists. Reloading or changing the connected account clears drafts.
 
-For collection, enter the signed cumulative total, exact 32-byte invoice hash,
-and signature together. Signing details display that same reference and its
-EIP-712 digest. This generic form does not fetch, validate or approve invoice
+For collection, connect the configured collector and enter the signed cumulative
+total, exact 32-byte invoice hash, signature, and the maximum payment for this
+transaction. The maximum is separate from the signed voucher. Signing details
+display that same reference and its EIP-712 digest. This generic form does not fetch, validate or approve invoice
 contents; the external signing client must verify and display the invoice,
 merchant, settlement context and cumulative increase before authorization.
 
@@ -130,11 +144,18 @@ refunding a position do not change its key or lifetime paid amount.
 Before the applicable collection deadline:
 
 ```text
-payment = min(max(authorized total - lifetime actually paid, 0), current balance)
+payment = min(maxAmount, max(authorized total - lifetime actually paid, 0), current balance)
 ```
 
+Only the channel’s configured nonzero collector can submit collection. The admin
+sets the collector when creating the channel and can rotate it later. The
+contract checks the immediate caller; a collector contract controls who can
+trigger its own calls. Zero pauses that channel’s collection without blocking withdrawals or refunds.
+`maxAmount` is an unsigned per-transaction limit, not a new voucher field or a
+lifetime limit: repeated authorized calls can collect the unpaid remainder.
 A registered key and valid canonical ECDSA signature are required even for a
-zero payment. Only successful voucher transfers increase `voucherPaid`.
+zero payment or a zero limit. Only successful voucher transfers increase
+`voucherPaid`.
 
 A position starting with `voucherPaid = 0` and a voucher for 100 can collect 30
 from a balance of 30, then another 20 after a
@@ -271,7 +292,7 @@ over customers, send coins, or depend on a receiver accepting payment. After
 the applicable deadline, each balance can be refunded independently. An admin
 can change a broken payee during settlement, but cannot extend the deadline.
 
-Channel 0 has no payee or voucher keys and cannot collect vouchers. It follows
+Channel 0 has no payee, collector or voucher keys and cannot collect vouchers. It follows
 the same annual recovery and ordinary withdrawal rules; only the admin can
 retire it. Retiring channel 0 does not retire other channels.
 
@@ -380,12 +401,12 @@ Invoice references are bytes32; signatures are bytes.
 | Function | Authority and effect |
 | --- | --- |
 | `asset()` | Read the contract's immutable native-asset identifier, the ERC-7528 sentinel `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`. It identifies the native asset; it does not provide a symbol, decimals or display labels. |
-| `channelCount`, `channel(id)` | Read channel directory, payee, claim period, close deadline and escrow total. |
+| `channelCount`, `channel(id)` | Read channel directory, payee, collector, claim period, close deadline and escrow total. |
 | `viewPosition(customer, id, actor)` | Read balances, key, ordinary request, scheduled/effective recovery dates, phase, recipient and contract-derived action IDs. |
 | `voucherDigest(customer, id, total, invoiceHash)` | Read EIP-712 digest; does not establish signature validity, invoice validity or collectibility. |
 | `registerVoucherKey(id, key)` | Customer permanently registers a nonzero key in an operating, nonzero channel. |
 | `fund(id, amount)` payable | Require `msg.value == amount`, then credit the sender; positive funding renews the operating cycle. For an operating position, zero amount with zero value changes nothing. |
-| `collect(customer, id, total, invoiceHash, signature)` | Anyone submits K's voucher; authenticate its reference and pay current channel recipient, only before recovery cutoff. |
+| `collect(customer, id, total, invoiceHash, maxAmount, signature)` | Only the channel collector submits K's voucher; authenticate its reference and pay up to maxAmount to the current channel recipient, only before recovery cutoff. |
 | `requestWithdrawal(id, amount)` | Customer starts an ordinary request only if none exists. |
 | `setWithdrawal(id, amount)` | Customer replaces/starts an ordinary request and wait while operating. |
 | `withdraw(customer, id)` | Anyone consumes a mature request, paying the customer. |
@@ -395,7 +416,8 @@ Invoice references are bytes32; signatures are bytes.
 | `closeChannel(id)` | Admin/payee starts irreversible channel retirement; no customer iteration. |
 | `setRefundRecipient(id, recipient)` | Customer changes only its full-refund destination, in any phase. |
 | `refund(customer, id)` | Anyone executes due full recovery to the stored destination. |
-| `createChannel(payee, period)`, `setPayee(id, payee)` | Admin-only; period capped at 30 days, recipient changes stop after channel closes. |
+| `createChannel(payee, collector, period)`, `setPayee(id, payee)` | Admin-only; payee must be nonzero, period is capped at 30 days, and recipient changes stop after channel closes. Zero collector starts the channel paused. |
+| `setCollector(id, collector)` | Admin changes only that channel's collector; zero pauses collection. Channel 0 cannot have a collector. |
 
 The UI route `recovery(customer, channelId)` reads the same complete position
 snapshot as `position`. Recovery writes continue to that screen. Sender-owned

@@ -44,7 +44,8 @@ contract PayToPlayHandler is Test {
         uint256 beforePaid = payments.viewPosition(address(this), id, address(this)).voucherPaid;
         (uint8 v, bytes32 r, bytes32 s) =
             vm.sign(VOUCHER_KEY, payments.voucherDigest(address(this), id, total, invoiceHash));
-        uint256 amount = payments.collect(address(this), id, total, invoiceHash, abi.encodePacked(r, s, v));
+        uint256 amount =
+            payments.collect(address(this), id, total, invoiceHash, type(uint256).max, abi.encodePacked(r, s, v));
         totalCollected += amount;
         assertEq(payments.viewPosition(address(this), id, address(this)).voucherPaid, beforePaid + amount);
     }
@@ -79,9 +80,11 @@ contract PayToPlayInvariantTest is Test {
 
     function setUp() public {
         payments = new PayToPlay(address(this), 100);
-        payments.createChannel(makeAddr("pay-to-play invariant payee one"), 100);
-        payments.createChannel(makeAddr("pay-to-play invariant payee two"), 100);
+        payments.createChannel(makeAddr("pay-to-play invariant payee one"), address(this), 100);
+        payments.createChannel(makeAddr("pay-to-play invariant payee two"), address(this), 100);
         handler = new PayToPlayHandler(payments);
+        payments.setCollector(1, address(handler));
+        payments.setCollector(2, address(handler));
         vm.deal(address(handler), 1_000_000 ether);
         handler.fund(1, 100);
         handler.request(1, 50, false);

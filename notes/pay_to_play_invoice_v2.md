@@ -14,7 +14,7 @@ The EIP-712 domain is `PayToPlay`, version `2`, with the deployment chain ID and
 Voucher(address customer,uint256 channelId,uint256 cumulativeTotal,bytes32 invoiceHash)
 
 voucherDigest(customer, channelId, cumulativeTotal, invoiceHash)
-collect(customer, channelId, cumulativeTotal, invoiceHash, signature)
+collect(customer, channelId, cumulativeTotal, invoiceHash, maxAmount, signature)
 ```
 
 `VoucherCollected` contains customer, channelId, payee, actual amount, resulting lifetime voucherPaid and invoiceHash. Customer, channelId and payee remain indexed; invoiceHash is not indexed. Old function selectors, three-field vouchers and domain version 1 are not supported by this deployment.
@@ -26,8 +26,13 @@ The registered permanent voucher key signs the message. The customer field remai
 The contract still pays:
 
 ```text
-min(max(cumulativeTotal - voucherPaid, 0), position.balance)
+min(maxAmount, max(cumulativeTotal - voucherPaid, 0), position.balance)
 ```
+
+Only the channel's configured nonzero collector may submit this call. The admin
+sets the collector at channel creation and may rotate it or set it to zero to
+pause that channel. `maxAmount` is unsigned and limits one collection call; it
+does not change the voucher or prevent reuse for the unpaid remainder.
 
 The reference is opaque onchain. There is no per-invoice storage, uniqueness constraint, allocation, consumption flag, expiry check or fulfillment check. Zero hashes are accepted as opaque values; clients/services must not mistake that for evidence of a valid invoice.
 

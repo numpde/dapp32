@@ -20,6 +20,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
 
     struct Channel {
         address payee;
+        address collector;
         uint64 claimPeriod;
         uint256 closeAt;
         uint256 escrowTotal;
@@ -42,6 +43,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         uint64 claimPeriod;
         uint256 channelCount;
         address admin;
+        address collector;
         uint256 balance;
         uint256 voucherPaid;
         uint256 requestedAmount;
@@ -66,6 +68,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
     mapping(address => mapping(uint256 => Position)) private _positions;
 
     error AdminRequired();
+    error CollectorRequired();
     error ClosureAuthorityRequired();
     error ClaimPeriodTooLong(uint64 claimPeriod);
     error PositionNotOperating();
@@ -90,6 +93,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
 
     event ChannelCreated(uint256 indexed channelId, address payee, uint64 claimPeriod);
     event PayeeChanged(uint256 indexed channelId, address previousPayee, address payee);
+    event CollectorChanged(uint256 indexed channelId, address previousCollector, address collector);
     event VoucherKeyRegistered(address indexed customer, uint256 indexed channelId, address indexed voucherKey);
     event PositionRenewed(address indexed customer, uint256 indexed channelId, uint256 refundAt);
     event PositionClosing(address indexed customer, uint256 indexed channelId, uint256 refundAt);
@@ -121,12 +125,25 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         _;
     }
 
-    function createChannel(address payee, uint64 claimPeriod) external onlyAdmin returns (uint256 channelId) {
+    function setCollector(uint256 channelId, address nextCollector) external onlyAdmin {
+        Channel storage definition = _channel(channelId);
+        if (channelId == 0) revert NullChannelCannotCollect();
+        address previous = definition.collector;
+        definition.collector = nextCollector;
+        emit CollectorChanged(channelId, previous, nextCollector);
+    }
+
+    function createChannel(address payee, address collector, uint64 claimPeriod)
+        external
+        onlyAdmin
+        returns (uint256 channelId)
+    {
         if (payee == address(0)) revert InvalidPayee();
         _validateClaimPeriod(claimPeriod);
         channelId = channelCount++;
-        _channels[channelId] = Channel(payee, claimPeriod, 0, 0);
+        _channels[channelId] = Channel(payee, collector, claimPeriod, 0, 0);
         emit ChannelCreated(channelId, payee, claimPeriod);
+        emit CollectorChanged(channelId, address(0), collector);
     }
 
     function setPayee(uint256 channelId, address payee) external onlyAdmin {
@@ -273,10 +290,12 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         uint256 channelId,
         uint256 cumulativeTotal,
         bytes32 invoiceHash,
+        uint256 maxAmount,
         bytes calldata signature
     ) external nonReentrant returns (uint256 amount) {
         Channel storage definition = _channel(channelId);
         if (channelId == 0) revert NullChannelCannotCollect();
+        if (definition.collector == address(0) || msg.sender != definition.collector) revert CollectorRequired();
         Position storage position = _positions[customer][channelId];
         {
             uint256 deadline = _refundAt(definition, position);
@@ -290,7 +309,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
             if (err != ECDSA.RecoverError.NoError || recovered != voucherKey) revert InvalidVoucherSignature();
         }
         if (cumulativeTotal <= position.voucherPaid) return 0;
-        amount = _min(cumulativeTotal - position.voucherPaid, position.balance);
+        amount = _min(maxAmount, _min(cumulativeTotal - position.voucherPaid, position.balance));
         if (amount == 0) return 0;
         position.balance -= amount;
         position.voucherPaid += amount;
@@ -324,6 +343,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         view_.claimPeriod = definition.claimPeriod;
         view_.channelCount = channelCount;
         view_.admin = owner();
+        view_.collector = definition.collector;
         view_.balance = position.balance;
         view_.voucherPaid = position.voucherPaid;
         view_.voucherKey = position.voucherKey;
@@ -372,7 +392,8 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         }
         if (channelId != 0) {
             if (position.voucherKey != address(0) && phase != Phase.RefundOnly) {
-                available[count++] = "collect";
+                available[count++] = "voucherDigest";
+                if (actor != address(0) && actor == definition.collector) available[count++] = "collect";
             } else if (position.voucherKey == address(0) && ownPosition && operating) {
                 available[count++] = "registerVoucherKey";
             }
@@ -388,6 +409,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         }
         if (operator && definition.closeAt == 0) available[count++] = "closeChannel";
         if (actor == owner() && actor != address(0)) {
+            if (channelId != 0) available[count++] = "setCollector";
             available[count++] = "createChannel";
             if (channelId != 0 && (definition.closeAt == 0 || block.timestamp < definition.closeAt)) {
                 available[count++] = "setPayee";

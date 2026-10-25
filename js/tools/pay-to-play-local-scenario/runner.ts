@@ -148,14 +148,15 @@ async function main(): Promise<void> {
     await position("customer", "1")
     return { invoice, cumulativeTotal: total.toString(), invoiceHash, signature }
   }
-  async function collect(signed: Awaited<ReturnType<typeof voucher>>) {
+  async function collect(signed: Awaited<ReturnType<typeof voucher>>, maxAmount: string) {
     const beforePaid = BigInt(String(view().voucherPaid))
     const beforeBalance = BigInt(String(view().balance))
     const total = BigInt(signed.cumulativeTotal)
     const remaining = total > beforePaid ? total - beforePaid : 0n
-    const expected = remaining < beforeBalance ? remaining : beforeBalance
+    const available = remaining < beforeBalance ? remaining : beforeBalance
+    const expected = available < BigInt(maxAmount) ? available : BigInt(maxAmount)
     const { receipt, abi } = await write("relayer", "collect", {
-      cumulativeTotal: signed.cumulativeTotal, invoiceHash: signed.invoiceHash, signature: signed.signature,
+      cumulativeTotal: signed.cumulativeTotal, invoiceHash: signed.invoiceHash, maxAmount, signature: signed.signature,
     })
     const logs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
     assert.equal(logs.length, expected === 0n ? 0 : 1, "zero collection does not emit an invoice receipt")
@@ -175,7 +176,7 @@ async function main(): Promise<void> {
 
   action("createChannel", false)
   assert.equal(loaded().state.fundAmount, undefined, "entry chooser must not display a balance form")
-  await write("admin", "createChannel", { newPayee: accounts.payee.address, newClaimPeriod: "60" })
+  await write("admin", "createChannel", { newPayee: accounts.payee.address, newChannelCollector: accounts.relayer.address, newClaimPeriod: "60" })
   await position("customer", "1")
   assert.equal(String(view().payee).toLowerCase(), accounts.payee.address.toLowerCase())
   action("createChannel", true)
@@ -186,7 +187,7 @@ async function main(): Promise<void> {
   await write("customer", "registerVoucherKey", { newVoucherKey: voucherSigner.address })
   assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase())
   action("registerVoucherKey", true)
-  action("collect", false)
+  action("collect", true)
   await write("customer", "fund", { fundAmount: "100" })
   assert.equal(view().effectiveBalance, "100")
   // P2P assigns disjoint cumulative intervals; this fixture is not its durable purchase ledger.
@@ -196,7 +197,8 @@ async function main(): Promise<void> {
   assert.equal(view().effectiveBalance, "20")
   action("requestWithdrawal", true)
 
-  await collect(firstPurchase)
+  await collect(firstPurchase, "20")
+  await collect(firstPurchase, "40")
   assert.equal(view().balance, "40")
   assert.equal(view().voucherPaid, "60")
   assert.equal(view().requestedAmount, "80")
@@ -214,23 +216,23 @@ async function main(): Promise<void> {
   await position("customer", "1")
   await write("customer", "fund", { fundAmount: "30" })
   const recipientBefore = await publicClient.getBalance({ address: accounts.admin.address })
-  await collect(secondPurchase)
+  await collect(secondPurchase, secondPurchase.cumulativeTotal)
   assert.equal(await publicClient.getBalance({ address: accounts.admin.address }), recipientBefore + 30n)
   assert.equal(view().voucherPaid, "90")
   await position("customer", "1")
   await write("customer", "fund", { fundAmount: "20" })
-  await collect(secondPurchase)
+  await collect(secondPurchase, secondPurchase.cumulativeTotal)
   assert.equal(view().voucherPaid, "100")
   assert.equal(view().balance, "10")
-  await collect(firstPurchase)
+  await collect(firstPurchase, firstPurchase.cumulativeTotal)
   assert.equal(view().balance, "10", "older voucher must not repay")
   await position("customer", "1")
   const larger = await voucher(150n, 100n)
-  await collect(larger)
+  await collect(larger, larger.cumulativeTotal)
   assert.equal(view().voucherPaid, "110")
   await position("customer", "1")
   await write("customer", "fund", { fundAmount: "40" })
-  await collect(larger)
+  await collect(larger, larger.cumulativeTotal)
   assert.equal(view().voucherPaid, "150")
   assert.equal(view().balance, "0")
 
@@ -250,7 +252,7 @@ async function main(): Promise<void> {
   await write("customer", "fund", { fundAmount: "10" })
   assert.equal(view().readyAt, renewedReady, "top-up preserves wait")
   const duringWait = await voucher(210n, 150n)
-  await collect(duringWait)
+  await collect(duringWait, duringWait.cumulativeTotal)
   assert.equal(view().balance, "50")
   assert.equal(view().effectiveBalance, "0")
   assert.equal(view().readyAt, renewedReady)
@@ -270,7 +272,7 @@ async function main(): Promise<void> {
   await write("customer", "fund", { fundAmount: "20" })
   await write("customer", "requestWithdrawal", { withdrawAmount: "20" })
   const emptyingVoucher = await voucher(230n, 210n)
-  await collect(emptyingVoucher)
+  await collect(emptyingVoucher, emptyingVoucher.cumulativeTotal)
   assert.equal(view().balance, "0")
   await mature()
   await write("relayer", "withdraw", {})
@@ -287,7 +289,8 @@ async function main(): Promise<void> {
   const invoiceA = await voucher(260n, 230n)
   const invoiceB = await voucher(300n, 260n)
   assert.notEqual(invoiceA.invoiceHash, invoiceB.invoiceHash)
-  session.updateState(inert({ cumulativeTotal: invoiceB.cumulativeTotal, invoiceHash: invoiceA.invoiceHash, signature: invoiceB.signature }))
+  await position("relayer", "1")
+  session.updateState(inert({ cumulativeTotal: invoiceB.cumulativeTotal, maxAmount: invoiceB.cumulativeTotal, invoiceHash: invoiceA.invoiceHash, signature: invoiceB.signature }))
   const substituted = await session.dispatchAction(action("collect", false))
   assert.equal(substituted.type, "contractCall")
   if (substituted.type !== "contractCall") throw new Error("fixture expected a collection")
@@ -297,12 +300,12 @@ async function main(): Promise<void> {
   await session.refresh()
   assert.equal(view().balance, "50")
   const merchantBefore = await publicClient.getBalance({ address: accounts.admin.address })
-  await collect(invoiceB)
+  await collect(invoiceB, invoiceB.cumulativeTotal)
   assert.equal(view().voucherPaid, "280", "B's collection covers A's 30 and 20 of B's 40")
-  await collect(invoiceA)
+  await collect(invoiceA, invoiceA.cumulativeTotal)
   await position("customer", "1")
   await write("customer", "fund", { fundAmount: "20" })
-  const abi = await collect(invoiceB)
+  const abi = await collect(invoiceB, invoiceB.cumulativeTotal)
   assert.equal(view().voucherPaid, "300")
   assert.equal(await publicClient.getBalance({ address: accounts.admin.address }), merchantBefore + 70n)
   const merchantPosition = object(await publicClient.readContract({

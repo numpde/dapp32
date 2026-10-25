@@ -4,7 +4,7 @@ import { execFile } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { createPublicClient, createWalletClient, decodeEventLog, http, keccak256, parseAbiItem, sha256, stringToBytes, type Address, type Hex } from "viem"
+import { createPublicClient, createWalletClient, decodeEventLog, http, keccak256, parseAbiItem, toEventSelector, sha256, stringToBytes, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
 import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
@@ -82,8 +82,8 @@ async function main() {
   const COLLECTED = parseAbiItem("event VoucherCollected(address indexed customer,uint256 indexed channelId,address indexed payee,uint256 amount,uint256 voucherPaid,bytes32 invoiceHash)")
   async function create() {
     await open("admin", accounts.admin.address, "0", false)
-    const receipt = await write("admin", "createChannel", { newPayee: accounts.payee.address, newClaimPeriod: "60" })
-    const logs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
+    const receipt = await write("admin", "createChannel", { newPayee: accounts.payee.address, newChannelCollector: accounts.relayer.address, newClaimPeriod: "60" })
+    const logs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && log.topics[0] === toEventSelector(CREATED))
     assert.equal(logs.length, 1)
     return decodeEventLog({ abi: [CREATED], eventName: "ChannelCreated", data: logs[0]!.data, topics: logs[0]!.topics }).args.channelId.toString()
   }
@@ -111,7 +111,7 @@ async function main() {
       acceptBefore: (now + 3600n).toString(), termsHash: sha256(stringToBytes("recovery fixture terms")),
     }
     return {
-      cumulativeTotal: total.toString(), invoiceHash: hashInvoice(invoice),
+      cumulativeTotal: total.toString(), maxAmount: total.toString(), invoiceHash: hashInvoice(invoice),
       signature: await accounts.relayer.signTypedData(voucherForInvoice(invoice)),
     }
   }

@@ -16,6 +16,6 @@ export default {
     relayer: { address: '0xD722F0C1a90D654D3dFf81E348E0319729D4dA84', privateKey: `0x${'da'.repeat(32)}` },
     recipient: { address: '0x14Dcb427A216216791fB63973c5b13878de30916', privateKey: `0x${'fa'.repeat(32)}` },
   },
-  contracts: { PayToPlay: ['createChannel', 'setPayee', 'registerVoucherKey', 'fund', 'requestWithdrawal', 'setWithdrawal', 'withdraw', 'move', 'collect', 'renewPosition', 'closePosition', 'closeChannel', 'setRefundRecipient', 'refund'] },
+  contracts: { PayToPlay: ['createChannel', 'setPayee', 'setCollector', 'registerVoucherKey', 'fund', 'requestWithdrawal', 'setWithdrawal', 'withdraw', 'move', 'collect', 'renewPosition', 'closePosition', 'closeChannel', 'setRefundRecipient', 'refund'] },
   maxValue: 100000000000000000000n, maxGas: 2000000n, maxCalldataHexLength: 4096,
 }

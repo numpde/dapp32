@@ -191,10 +191,16 @@ the service/client must apply their own invoice validation before signing.
 Submit the exact signed fields to:
 
 ```text
-collect(customer, channelId, cumulativeTotal, invoiceHash, signature)
+collect(customer, channelId, cumulativeTotal, invoiceHash, maxAmount, signature)
 ```
 
-Payment is still `min(max(cumulativeTotal - voucherPaid, 0), balance)` before
+Only the channel’s configured nonzero collector can submit this call. The admin
+sets it at channel creation and can rotate it or set it to zero to pause that
+channel. `maxAmount` is an unsigned per-call limit; it is not part of the voucher
+and does not prevent repeated partial collection. Withdrawal and refund rights
+are independent of the collector.
+
+Payment is `min(maxAmount, max(cumulativeTotal - voucherPaid, 0), balance)` before
 the applicable recovery cutoff. `VoucherCollected` reports the actual payment,
 the resulting lifetime paid total, and the submitted voucher's invoice hash.
 There is no event for a valid zero payment.

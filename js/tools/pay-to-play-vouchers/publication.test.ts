@@ -38,7 +38,7 @@ test("published ABI has invoice-bearing collection and digest only", async () =>
   const identity = (field: Field) => ({ name: field.name, type: field.type })
   assert.deepEqual(inputs(abi, "function", "voucherDigest").map(identity), voucherFields)
   assert.deepEqual(inputs(abi, "function", "collect").map(identity), [
-    ...voucherFields, { name: "signature", type: "bytes" },
+    ...voucherFields, { name: "maxAmount", type: "uint256" }, { name: "signature", type: "bytes" },
   ])
   const event = inputs(abi, "event", "VoucherCollected")
   assert.deepEqual(event.map(identity), [
@@ -68,7 +68,7 @@ test("CAM routes require and preserve the invoice reference and declare exact re
   for (const name of ["collect", "voucherDigest"]) {
     const route = manifest.routes[name]!
     assert.deepEqual(route.inputs, name === "collect"
-      ? [...voucherFields.map(field => field.name), "signature"]
+      ? [...voucherFields.map(field => field.name), "maxAmount", "signature"]
       : voucherFields.map(field => field.name))
     assert.equal(route.call.function, name)
     assert.equal(route.call.args.invoiceHash, "$inputs.invoiceHash")

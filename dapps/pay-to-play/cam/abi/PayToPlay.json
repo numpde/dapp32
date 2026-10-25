@@ -96,6 +96,11 @@
             "internalType": "address"
           },
           {
+            "name": "collector",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
             "name": "claimPeriod",
             "type": "uint64",
             "internalType": "uint64"
@@ -184,6 +189,11 @@
         "internalType": "bytes32"
       },
       {
+        "name": "maxAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
         "name": "signature",
         "type": "bytes",
         "internalType": "bytes"
@@ -204,6 +214,11 @@
     "inputs": [
       {
         "name": "payee",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "collector",
         "type": "address",
         "internalType": "address"
       },
@@ -415,6 +430,24 @@
   },
   {
     "type": "function",
+    "name": "setCollector",
+    "inputs": [
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nextCollector",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setPayee",
     "inputs": [
       {
@@ -533,6 +566,11 @@
           },
           {
             "name": "admin",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "collector",
             "type": "address",
             "internalType": "address"
           },
@@ -709,6 +747,31 @@
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CollectorChanged",
+    "inputs": [
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "previousCollector",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "collector",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -1103,6 +1166,11 @@
   {
     "type": "error",
     "name": "ClosureAuthorityRequired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CollectorRequired",
     "inputs": []
   },
   {

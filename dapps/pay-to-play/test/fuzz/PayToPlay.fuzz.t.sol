@@ -9,16 +9,31 @@ contract PayToPlayFuzzTest is PayToPlayTestBase {
     {
         _fund(customer, channel, initial);
         bytes memory signature = _sign(customer, channel, total, invoiceHash);
-        uint256 first = payments.collect(customer, channel, total, invoiceHash, signature);
+        uint256 first = payments.collect(customer, channel, total, invoiceHash, type(uint256).max, signature);
         assertEq(first, initial < total ? initial : total);
         _fund(customer, channel, later);
-        uint256 second = payments.collect(customer, channel, total, invoiceHash, signature);
+        uint256 second = payments.collect(customer, channel, total, invoiceHash, type(uint256).max, signature);
         uint256 expected = uint256(initial) + later;
         if (expected > total) expected = total;
         assertEq(first + second, expected);
         assertEq(_position(channel).voucherPaid, expected);
         assertEq(_position(channel).balance + expected, uint256(initial) + later);
-        assertEq(payments.collect(customer, channel, total, invoiceHash, signature), 0);
+        assertEq(payments.collect(customer, channel, total, invoiceHash, type(uint256).max, signature), 0);
+    }
+
+    function testFuzzCollectionRespectsCapAndPreservesUnpaidEntitlement(uint96 balance, uint96 total, uint96 maxAmount)
+        public
+    {
+        _fund(customer, channel, balance);
+        bytes memory signature = _sign(customer, channel, total);
+        uint256 expected = balance < total ? balance : total;
+        if (expected > maxAmount) expected = maxAmount;
+        assertEq(payments.collect(customer, channel, total, INVOICE_HASH, maxAmount, signature), expected);
+        assertEq(_position(channel).voucherPaid, expected);
+        assertEq(_position(channel).balance, uint256(balance) - expected);
+        uint256 remaining = balance < total ? balance : total;
+        remaining -= expected;
+        assertEq(payments.collect(customer, channel, total, INVOICE_HASH, type(uint256).max, signature), remaining);
     }
 
     function testFuzzWithdrawalConsumesCapAfterCollection(uint96 rawBalance, uint96 rawRequest, uint96 total) public {
@@ -27,7 +42,9 @@ contract PayToPlayFuzzTest is PayToPlayTestBase {
         _fund(customer, channel, balance);
         vm.prank(customer);
         payments.requestWithdrawal(channel, request);
-        uint256 paid = payments.collect(customer, channel, total, INVOICE_HASH, _sign(customer, channel, total));
+        uint256 paid = payments.collect(
+            customer, channel, total, INVOICE_HASH, type(uint256).max, _sign(customer, channel, total)
+        );
         uint256 remaining = balance - paid;
         assertEq(_position(channel).effectiveBalance, remaining > request ? remaining - request : 0);
         vm.warp(_position(channel).readyAt);
@@ -45,8 +62,8 @@ contract PayToPlayFuzzTest is PayToPlayTestBase {
         bytes memory first = _sign(customer, channel, total, invoiceHash);
         bytes memory second = _sign(customer, channel, total, otherHash);
         _fund(customer, channel, balance);
-        uint256 paid = payments.collect(customer, channel, total, invoiceHash, first);
-        assertEq(payments.collect(customer, channel, total, otherHash, second), 0);
+        uint256 paid = payments.collect(customer, channel, total, invoiceHash, type(uint256).max, first);
+        assertEq(payments.collect(customer, channel, total, otherHash, type(uint256).max, second), 0);
         assertEq(_position(channel).voucherPaid, paid);
         assertEq(_position(channel).balance + paid, balance);
     }
@@ -55,7 +72,7 @@ contract PayToPlayFuzzTest is PayToPlayTestBase {
         bytes memory signature = _sign(customer, channel, total, invoiceHash);
         _fund(customer, channel, balance);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, total, invoiceHash ^ bytes32(uint256(1)), signature);
+        payments.collect(customer, channel, total, invoiceHash ^ bytes32(uint256(1)), type(uint256).max, signature);
         assertEq(_position(channel).balance, balance);
         assertEq(_position(channel).voucherPaid, 0);
         assertEq(payments.channel(channel).escrowTotal, balance);

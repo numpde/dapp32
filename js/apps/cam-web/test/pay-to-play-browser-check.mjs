@@ -159,7 +159,7 @@ const provider = fixtureWalletSource({
   accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])),
   initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
 })
-const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.querySelector('.key-label')?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
+const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,transactionHash:document.querySelector('.transaction-feedback .hex-value code')?.title,buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(row=>{const cell=row.lastElementChild;const identifier=cell.querySelector('.hex-value code');return [row.querySelector('.key-label').textContent,identifier===null ? cell.textContent : identifier.title]})),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
 async function wait(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30_000)
   while (Date.now() < until) {
@@ -185,7 +185,7 @@ async function send(label) {
   await click(label)
   await wait(state => state.prepared && state.notices.some(value => value.includes('Simulation passed')), `${label} simulation`)
   await click('Send with wallet')
-  await wait(state => sent === before + 1 && state.transaction?.includes(lastHash) && state.transaction.includes('Transaction confirmed in block'), `${label} confirmation`)
+  await wait(state => sent === before + 1 && state.transactionHash === lastHash && state.transaction.includes('Transaction confirmed in block'), `${label} confirmation`)
 }
 async function inspect(customer, channelId) {
   if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) await click('Change account or channel')
@@ -229,12 +229,13 @@ try {
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Reconnect wallet'), 'wallet connection')
   await fill('newPayee', accounts.recipient.address)
+  await fill('newChannelCollector', accounts.relayer.address)
   await fill('newClaimPeriod.seconds', '60')
   await send('Create channel')
   await wait(state => state.text.includes('Choose an account and channel'), 'creation lookup')
   assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')
   const receipt = await publicClient.getTransactionReceipt({ hash: lastHash })
-  const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
+  const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && decodeEventLog({ abi, ...log }).eventName === 'ChannelCreated')
   assert.equal(creationLogs.length, 1, 'creation receipt must identify one channel')
   const created = decodeEventLog({ abi, eventName: 'ChannelCreated', ...creationLogs[0] })
   const id = String(created.args.channelId)
@@ -318,6 +319,7 @@ try {
   disabled(state, 'Request withdrawal')
   disabled(state, 'Replace withdrawal request')
   await fill('cumulativeTotal', '60')
+  await fill('maxAmount', '60')
   await fill('invoiceHash', invoiceHash)
   await fill('signature', signature)
   phase = 'voucher signing details'
@@ -348,10 +350,11 @@ try {
   await role('admin')
   await inspect(accounts.admin.address, '0')
   await fill('newPayee', accounts.recipient.address)
+  await fill('newChannelCollector', accounts.relayer.address)
   await fill('newClaimPeriod.seconds', '0')
   await send('Create channel')
   const recoveryReceipt = await publicClient.getTransactionReceipt({ hash: lastHash })
-  const recoveryLog = recoveryReceipt.logs.find(log => log.address.toLowerCase() === payments.toLowerCase())
+  const recoveryLog = recoveryReceipt.logs.find(log => log.address.toLowerCase() === payments.toLowerCase() && decodeEventLog({ abi, ...log }).eventName === 'ChannelCreated')
   assert(recoveryLog, 'recovery channel receipt must contain its creation event')
   const recoveryId = String(decodeEventLog({ abi, eventName: 'ChannelCreated', ...recoveryLog }).args.channelId)
   await inspect(accounts.customer.address, recoveryId)

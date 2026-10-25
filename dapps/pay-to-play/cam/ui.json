@@ -45,6 +45,13 @@
         {
           "element": "Status",
           "props": {
+            "label": "Collector (zero pauses collection)",
+            "value": "$view.collector"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
             "label": "Channels created (including channel 0)",
             "value": "$view.channelCount"
           }
@@ -352,7 +359,7 @@
             "defaultValue": ""
           },
           "enabledWhen": {
-            "member": "collect",
+            "member": "voucherDigest",
             "in": "$view.actions"
           }
         },
@@ -366,7 +373,7 @@
             "defaultValue": ""
           },
           "enabledWhen": {
-            "member": "collect",
+            "member": "voucherDigest",
             "in": "$view.actions"
           }
         },
@@ -384,6 +391,26 @@
               "cumulativeTotal": "$state.cumulativeTotal",
               "invoiceHash": "$state.invoiceHash"
             }
+          },
+          "enabledWhen": {
+            "member": "voucherDigest",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Maximum payment in this transaction",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "maxAmount",
+            "defaultValue": ""
           },
           "enabledWhen": {
             "member": "collect",
@@ -417,7 +444,8 @@
               "channelId": "$view.channelId",
               "cumulativeTotal": "$state.cumulativeTotal",
               "invoiceHash": "$state.invoiceHash",
-              "signature": "$state.signature"
+              "signature": "$state.signature",
+              "maxAmount": "$state.maxAmount"
             }
           },
           "enabledWhen": {
@@ -490,6 +518,45 @@
           "element": "Text",
           "props": {
             "text": "Only the admin can create channels or change recipients. A recipient change redirects unpaid voucher payments from every customer in this channel, including already-signed vouchers. Customer balances and withdrawal waits stay the same."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Only the collector shown above can submit voucher payments. The payment limit applies to this transaction; the same signed voucher can be used again for an unpaid remainder. The admin can change this channel’s collector or set it to zero to pause its collection. Withdrawals and refunds do not require the collector."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "New collector for this channel (zero pauses collection)"
+          },
+          "state": {
+            "key": "newCollector",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "setCollector",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Change collector"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setCollector",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "collector": "$state.newCollector"
+            }
+          },
+          "enabledWhen": {
+            "member": "setCollector",
+            "in": "$view.actions"
           }
         }
       ]
@@ -700,6 +767,20 @@
           }
         },
         {
+          "element": "TextField",
+          "props": {
+            "label": "Collector for the new channel (zero starts paused)"
+          },
+          "state": {
+            "key": "newChannelCollector",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "createChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
           "element": "DurationField",
           "props": {
             "label": "Withdrawal wait for new channel"
@@ -723,7 +804,8 @@
             "function": "createChannel",
             "args": {
               "payee": "$state.newPayee",
-              "claimPeriod": "$state.newClaimPeriod"
+              "claimPeriod": "$state.newClaimPeriod",
+              "collector": "$state.newChannelCollector"
             }
           },
           "enabledWhen": {

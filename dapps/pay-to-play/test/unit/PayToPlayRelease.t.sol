@@ -140,7 +140,7 @@ contract PayToPlayReleaseTest is Test {
     function testNormalUseDoesNotInvalidateReleaseVerification() external {
         (CamRoot root, PayToPlay payments) = _accepted(60);
         vm.prank(ADMIN);
-        uint256 id = payments.createChannel(address(0x123), 20);
+        uint256 id = payments.createChannel(address(0x123), address(this), 20);
         vm.deal(address(this), 1 ether);
         payments.fund{value: 1 ether}(id, 1 ether);
         harness.verify(_artifact(root, payments, 60), SOURCE);

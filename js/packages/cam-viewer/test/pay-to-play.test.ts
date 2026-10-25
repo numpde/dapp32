@@ -29,7 +29,7 @@ async function fixture() {
   const cam = parseCam(parseJsonBytes(root))
   const abi = parseJsonBytes(new Uint8Array(await readFile(new URL("abi/PayToPlay.json", directory)))) as Abi
   const chainState = {
-    channelCount: 3n, payee: other, mature: false, voucherKey,
+    channelCount: 3n, payee: other, collector: other, mature: false, voucherKey,
     phase: 0n, scheduledRefundAt: 31536160n, refundAt: 31536160n,
     closeAt: 0n, balance: 100n, refundRecipient: customer,
   }
@@ -52,17 +52,17 @@ async function fixture() {
         const ownPosition = actor === viewedCustomer && actor !== zero
         const operating = chainState.phase === 0n
         const operator = actor !== zero && (actor === other || (id !== 0n && actor === chainState.payee))
-        const voucherActions = id === 0n ? [] : key !== zero && chainState.phase !== 2n ? ["collect"] : key === zero && ownPosition && operating ? ["registerVoucherKey"] : []
+        const voucherActions = id === 0n ? [] : key !== zero && chainState.phase !== 2n ? ["voucherDigest", ...(actor !== zero && actor === chainState.collector ? ["collect"] : [])] : key === zero && ownPosition && operating ? ["registerVoucherKey"] : []
         return {
           customer: viewedCustomer, channelId: id, payee: chainState.payee, claimPeriod: 60n,
-          channelCount: chainState.channelCount, admin: other, balance: chainState.balance, voucherPaid: 0n,
+          channelCount: chainState.channelCount, admin: other, collector: chainState.collector, balance: chainState.balance, voucherPaid: 0n,
           requestedAmount: 0n, readyAt: 0n, effectiveBalance: chainState.balance, voucherKey: key,
           scheduledRefundAt: chainState.scheduledRefundAt, refundAt: chainState.refundAt,
           settleAt: chainState.refundAt === 0n ? 0n : chainState.refundAt - 60n,
           closeAt: chainState.closeAt, escrowTotal: chainState.balance,
           refundRecipient: chainState.refundRecipient, phase: chainState.phase,
           actions: [
-            ...(actor === other ? ["createChannel", ...(id !== 0n && (chainState.closeAt === 0n || chainState.phase !== 2n) ? ["setPayee"] : [])] : []),
+            ...(actor === other ? ["createChannel", ...(id !== 0n ? ["setCollector"] : []), ...(id !== 0n && (chainState.closeAt === 0n || chainState.phase !== 2n) ? ["setPayee"] : [])] : []),
             ...(ownPosition ? ["setRefundRecipient", ...(operating ? ["fund", "requestWithdrawal", "setWithdrawal", ...(chainState.scheduledRefundAt !== 0n ? ["renewPosition"] : [])] : []), ...(chainState.mature ? ["withdraw", "move"] : [])] : []),
             ...((ownPosition || operator) && operating && chainState.scheduledRefundAt !== 0n ? ["closePosition"] : []),
             ...(operator && chainState.closeAt === 0n ? ["closeChannel"] : []),
@@ -176,7 +176,7 @@ test("every write captures its explicit affected balance when prepared", async (
     registerVoucherKey: { channelId: "1", voucherKey },
     fund: { channelId: "1", amount: "20" }, requestWithdrawal: { channelId: "1", amount: "20" },
     setWithdrawal: { channelId: "1", amount: "20" }, move: { channelId: "1", targetId: "0" },
-    withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", invoiceHash, signature: "0x" },
+    withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", maxAmount: "20", invoiceHash, signature: "0x" },
     setPayee: { customer: other, channelId: "1", payee: customer },
   })) {
     const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route, inputs: toInertValue(inputs) as InertRecord })
@@ -192,7 +192,7 @@ test("every write captures its explicit affected balance when prepared", async (
 
 test("channel creation continues to a current lookup without predicting a created ID", async () => {
   const { cam, abi, session, chainState } = await fixture()
-  const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route: "createChannel", inputs: { payee: other, claimPeriod: "60" } })
+  const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route: "createChannel", inputs: { payee: other, collector: other, claimPeriod: "60" } })
   assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "channelLookup", args: {} }))
   await session.load()
   chainState.channelCount = 5n
@@ -217,6 +217,7 @@ test("channel creation continues to a current lookup without predicting a create
 test("voucher details use Back to restore drafts and label direct position navigation as fresh", async () => {
   const { session } = await fixture()
   await session.load()
+  await session.setAccount({ address: other })
   await session.navigate("position", { customer, channelId: "1" })
   session.editAmount("cumulativeTotal", "base", "20")
   const draft = session.updateState({ invoiceHash, signature: "unfinished signature" })
@@ -360,7 +361,7 @@ test("collection preparation requires an exact bytes32 reference and preserves t
     cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host,
     account: { address: other }, route: "collect",
   }
-  const base = { customer, channelId: "1", cumulativeTotal: "20", signature: "0xabcd" }
+  const base = { customer, channelId: "1", cumulativeTotal: "20", maxAmount: "20", signature: "0xabcd" }
   await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: base }))
   for (const invalid of ["", "0x", "0x12", `0x${"ab".repeat(31)}`, `0x${"ab".repeat(33)}`, `0x${"zz".repeat(32)}`]) {
     await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...base, invoiceHash: invalid } }))
@@ -368,7 +369,7 @@ test("collection preparation requires an exact bytes32 reference and preserves t
   const prepared = await prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...base, invoiceHash } })
   assert.equal(prepared.function, "collect")
   assert.deepEqual(prepared.args, toInertValue({
-    customer, channelId: "1", cumulativeTotal: "20", invoiceHash, signature: "0xabcd",
+    customer, channelId: "1", cumulativeTotal: "20", maxAmount: "20", invoiceHash, signature: "0xabcd",
   }))
   assert.deepEqual(prepared.then.args, toInertValue({ customer, channelId: "1" }))
   await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...base, invoiceHash, payee: other } }))
@@ -377,8 +378,10 @@ test("collection preparation requires an exact bytes32 reference and preserves t
 test("invoice-reference drafts survive refresh but are cleared by wallet changes", async () => {
   const { session } = await fixture()
   await session.load()
+  await session.setAccount({ address: other })
   await session.navigate("position", { customer, channelId: "1" })
   session.editAmount("cumulativeTotal", "base", "20")
+  session.editAmount("maxAmount", "base", "20")
   let loaded = session.updateState({ invoiceHash, signature: "0xabcd" })
   const button = resolvedUiButtons(loaded.resolvedUi).find(item => item.call.function === "collect")!
   const result = await session.dispatchAction(button)
@@ -390,10 +393,36 @@ test("invoice-reference drafts survive refresh but are cleared by wallet changes
   assert.equal(loaded.state.signature, "0xabcd")
   session.updateState({ invoiceHash: `0x${"cd".repeat(32)}` })
   assert.equal(result.call.args.invoiceHash, invoiceHash, "later draft edits cannot rewrite the reviewed call")
-  loaded = await session.setAccount({ address: other })
+  loaded = await session.setAccount({ address: customer })
   assert.equal(loaded.state.invoiceHash, "")
   assert.equal(loaded.state.signature, "")
   assert.deepEqual(loaded.inputs, toInertValue({ customer, channelId: "1" }))
+})
+
+test("collector changes gate payments without blocking signing details or changing the inspected balance", async () => {
+  const { session, chainState } = await fixture()
+  await session.load()
+  await session.navigate("position", { customer, channelId: "1" })
+  const actions = () => Object.fromEntries(resolvedUiButtons(session.snapshot().resolvedUi!).map(button => [button.call.function, !button.disabled]))
+  assert.equal(actions().collect, false)
+  assert.equal(actions().voucherDigest, true)
+  await session.setAccount({ address: other })
+  assert.equal(actions().collect, true)
+  chainState.collector = voucherKey
+  await session.refresh()
+  assert.equal(actions().collect, false)
+  const edited = session.updateState({ newCollector: zero })
+  const change = resolvedUiButtons(edited.resolvedUi).find(button => button.call.function === "setCollector")!
+  const prepared = await session.dispatchAction(change)
+  assert.equal(prepared.type, "contractCall")
+  if (prepared.type !== "contractCall") assert.fail("admin collector change must prepare a transaction")
+  assert.deepEqual(prepared.call.args, toInertValue({ channelId: "1", nextCollector: zero }))
+  assert.deepEqual(prepared.call.then.args, toInertValue({ customer, channelId: "1" }))
+  chainState.collector = zero
+  await session.setAccount({ address: zero })
+  assert.equal(actions().collect, false)
+  assert.equal(actions().voucherDigest, true)
+  assert.deepEqual(session.snapshot().inputs, toInertValue({ customer, channelId: "1" }))
 })
 
 test("signing details display the supplied invoice hash and reject an invoice-less read", async () => {

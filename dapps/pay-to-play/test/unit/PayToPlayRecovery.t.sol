@@ -58,13 +58,13 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
         payments.setWithdrawal(channel, 10);
         vm.stopPrank();
-        assertEq(payments.collect(customer, channel, 30, INVOICE_HASH, signature), 30);
+        assertEq(payments.collect(customer, channel, 30, INVOICE_HASH, type(uint256).max, signature), 30);
         vm.warp(deadline - 1);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.RefundNotReady.selector, deadline));
         payments.refund(customer, channel);
         vm.warp(deadline);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.VoucherCollectionEnded.selector, deadline));
-        payments.collect(customer, channel, 30, INVOICE_HASH, signature);
+        payments.collect(customer, channel, 30, INVOICE_HASH, type(uint256).max, signature);
         uint256 before = customer.balance;
         vm.prank(relayer);
         assertEq(payments.refund(customer, channel), 70);
@@ -94,7 +94,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         uint256 first = _position(channel).refundAt;
         vm.warp(block.timestamp + 10);
         _fund(customer, channel, 0);
-        payments.collect(customer, channel, 10, INVOICE_HASH, _sign(customer, channel, 10));
+        payments.collect(customer, channel, 10, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 10));
         assertEq(_position(channel).refundAt, first);
         _fund(customer, channel, 1);
         assertEq(_position(channel).refundAt, first + 10);
@@ -194,7 +194,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         uint256 before = _position(otherChannel).refundAt;
         vm.prank(customer);
         payments.requestWithdrawal(channel, 10);
-        payments.collect(customer, channel, 10, INVOICE_HASH, _sign(customer, channel, 10));
+        payments.collect(customer, channel, 10, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 10));
         vm.warp(_position(channel).readyAt);
         vm.prank(customer);
         assertEq(payments.move(channel, otherChannel), 0);
@@ -213,7 +213,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
     function testRefundClearsCycleAndRequestsButNeverKeyOrPaidTotal() public {
         _fund(customer, channel, 100);
         bytes memory voucher = _sign(customer, channel, 100);
-        payments.collect(customer, channel, 20, INVOICE_HASH, _sign(customer, channel, 20));
+        payments.collect(customer, channel, 20, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 20));
         vm.prank(customer);
         payments.requestWithdrawal(channel, 40);
         payments.closePosition(customer, channel);
@@ -229,14 +229,14 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         assertEq(_position(channel).settleAt, block.timestamp + 365 days);
         vm.expectRevert(PayToPlay.WithdrawalNotRequested.selector);
         payments.withdraw(customer, channel);
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, voucher), 30);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, voucher), 30);
         assertEq(_position(channel).voucherPaid, 50);
     }
 
     function testEmptyBalanceDoesNotBypassSettlementAndZeroRefundEndsTheCycle() public {
         _fund(customer, channel, 100);
         payments.closePosition(customer, channel);
-        payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100));
+        payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 100));
         vm.prank(customer);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
         payments.fund{value: 0}(channel, 0);
@@ -267,7 +267,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         payments.registerVoucherKey(channel, relayer);
         bytes memory signature = _sign(customer, channel, 100);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.VoucherCollectionEnded.selector, deadline));
-        payments.collect(customer, channel, 100, INVOICE_HASH, signature);
+        payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, signature);
         vm.expectRevert(PayToPlay.ChannelClosed.selector);
         payments.setPayee(channel, relayer);
         assertEq(payments.refund(customer, channel), 0, "closed-channel refund retry cannot pay twice");
@@ -280,7 +280,9 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         payments.setPayee(channel, relayer);
         assertEq(payments.channel(channel).closeAt, deadline);
         assertEq(_position(channel).refundRecipient, customer);
-        assertEq(payments.collect(customer, channel, 30, INVOICE_HASH, _sign(customer, channel, 30)), 30);
+        assertEq(
+            payments.collect(customer, channel, 30, INVOICE_HASH, type(uint256).max, _sign(customer, channel, 30)), 30
+        );
         assertEq(relayer.balance, 30);
         vm.warp(deadline);
         uint256 before = customer.balance;
@@ -309,15 +311,15 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
 
     function testClaimPeriodCapAppliesToConstructorAndChannelCreation() public {
         uint64 maximum = payments.MAX_CLAIM_PERIOD();
-        payments.createChannel(payee, maximum);
+        payments.createChannel(payee, address(this), maximum);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.ClaimPeriodTooLong.selector, maximum + 1));
-        payments.createChannel(payee, maximum + 1);
+        payments.createChannel(payee, address(this), maximum + 1);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.ClaimPeriodTooLong.selector, maximum + 1));
         new PayToPlay(address(this), maximum + 1);
     }
 
     function testZeroClaimPeriodMakesEarlyClosureImmediatelyRefundOnly() public {
-        uint256 immediate = payments.createChannel(payee, 0);
+        uint256 immediate = payments.createChannel(payee, address(this), 0);
         _fund(customer, immediate, 20);
         payments.closePosition(customer, immediate);
         assertEq(uint256(_position(immediate).phase), uint256(PayToPlay.Phase.RefundOnly));
@@ -415,7 +417,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         payments.closeChannel(channel);
         assertFalse(_hasAction(_position(channel).actions, "fund"));
         assertFalse(_hasAction(_position(channel).actions, "renewPosition"));
-        assertTrue(_hasAction(_position(channel).actions, "collect"));
+        assertTrue(_hasAction(payments.viewPosition(customer, channel, address(this)).actions, "collect"));
         vm.warp(payments.channel(channel).closeAt);
         assertTrue(_hasAction(payments.viewPosition(customer, channel, relayer).actions, "refund"));
         assertFalse(_hasAction(_position(channel).actions, "collect"));
@@ -423,8 +425,8 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
     }
 
     function testChannelClosureGasDoesNotScaleWithItsCustomers() public {
-        uint256 populated = payments.createChannel(payee, PERIOD);
-        uint256 empty = payments.createChannel(payee, PERIOD);
+        uint256 populated = payments.createChannel(payee, address(this), PERIOD);
+        uint256 empty = payments.createChannel(payee, address(this), PERIOD);
         for (uint256 i = 1; i <= 32; i++) {
             _fund(address(uint160(1000 + i)), populated, 1);
         }
