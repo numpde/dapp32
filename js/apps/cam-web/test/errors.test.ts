@@ -1,14 +1,42 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { ContractFunctionExecutionError, ContractFunctionRevertedError, HttpRequestError, sha256 } from "viem"
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, HttpRequestError, encodeErrorResult, sha256 } from "viem"
 import { isRecordObject } from "@cam/protocol"
 import { createCamViewerSession, viewerErrorMessage } from "@cam/viewer"
 import { BIKE_ACCOUNT_ADDRESS, BIKE_CAM_URI, BIKE_UI_URI, bikeHost, bikeContractAddresses } from "../../../../tests/fixtures/cam/bike.mts"
 import { bikeCamJson } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import { bikeResourceBytes, createMockCamPublicClient, createMockResourceLoader, encodeJson } from "../../../../tests/fixtures/cam/mock.mts"
-import { CamEvmError, validateCamContractCall } from "@cam/evm-viem"
+import { CamEvmError, simulateCamContractCall, validateCamContractCall } from "@cam/evm-viem"
 
 import { actionFailure, failureReport, UserFacingError } from "../src/errors.ts"
+
+test("a decoded contract rejection survives the simulation and UI error boundaries", async () => {
+  const abi = [{ type: "function", name: "updateMetadata", stateMutability: "nonpayable", inputs: [{ name: "tokenURI", type: "string" }], outputs: [] }, { type: "error", name: "EmptyTokenURI", inputs: [] }] as const
+  const revert = new ContractFunctionRevertedError({ abi, functionName: "updateMetadata", data: encodeErrorResult({ abi, errorName: "EmptyTokenURI" }), cause: new Error("RPC Request failed.", { cause: new Error("Execution reverted for an unknown reason.") }) })
+  const sdk = new ContractFunctionExecutionError(revert, { abi, functionName: "updateMetadata", args: [""] })
+  const address = "0x0000000000000000000000000000000000000001"
+  await assert.rejects(() => simulateCamContractCall({
+    publicClient: { simulateContract: async () => { throw sdk } },
+    account: address,
+    call: { address, abi, function: "updateMetadata", args: { tokenURI: "" } },
+  }), error => {
+    const report = actionFailure(error, "Update NFT details")
+    assert.equal(report.message, "Update NFT details was rejected by the contract.")
+    assert.match(report.diagnostic!, /EmptyTokenURI\(\)/)
+    assert.match(report.diagnostic!, /CAM write simulation failed: updateMetadata/)
+    assert.match(report.diagnostic!, /reverted/)
+    assert.doesNotMatch(report.diagnostic!, /unknown reason|RPC Request failed/i)
+    assert.doesNotMatch(report.message, /RPC|network|connection/i)
+    return true
+  })
+})
+
+test("invalid action arguments ask for input correction and retain the exact cause", () => {
+  const error = new CamEvmError("CAM_WRITE_INVALID_ARGUMENT", "CAM ABI argument updateMetadata.tokenURI: expected string")
+  const report = actionFailure(error, "Update NFT details")
+  assert.match(report.message, /Correct the input values/)
+  assert.match(report.diagnostic!, /updateMetadata.tokenURI: expected string/)
+})
 
 test("web failure reports render SDK prose without escaped layout whitespace or broken punctuation", () => {
   const reason = "The workshop permission expired. Ask the owner to renew it."
@@ -49,6 +77,9 @@ test("web SDK failures retain safe reasons without flattened signed request evid
   assert.match(report.diagnostic!, /HTTP request failed/)
   assert.match(report.diagnostic!, /Connection closed\. The response was not received\./)
   assert.doesNotMatch(JSON.stringify(report), /fixture-private-signature|fixture-api-key|Request body|\\\\u000a|\.:/)
+  const action = actionFailure(new CamEvmError("CAM_WRITE_SIMULATION_FAILED", "CAM write simulation failed", cause), "Update NFT details")
+  assert.equal(action.message, "Update NFT details failed.")
+  assert.match(action.diagnostic!, /HTTP request failed/)
 })
 
 test("structured provider diagnostics retain sanitized causes without serializing unrelated provider data", () => {

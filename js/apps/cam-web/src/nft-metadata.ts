@@ -24,25 +24,25 @@ export function parseNftMetadata(text: string): InertRecord {
   }
 }
 
-export function serializeNftMetadata(metadata: InertRecord): string {
-  const text = JSON.stringify(metadata, null, 2) + "\n"
-  parseNftMetadata(text)
-  return text
-}
-
 export function nftMetadataDataURI(metadata: InertRecord): string {
-  const bytes = new TextEncoder().encode(serializeNftMetadata(metadata))
+  const json = JSON.stringify(metadata)
+  assertMetadataTextBounds(json)
+  const bytes = new TextEncoder().encode(json)
   let binary = ""
   for (const byte of bytes) binary += String.fromCharCode(byte)
   return `data:application/json;base64,${btoa(binary)}`
 }
 
+export function readNftMetadataDataURI(uri: string): string {
+  const { bytes, type } = readDataURI(uri, NFT_METADATA_MAX_BYTES)
+  if (type !== "application/json") throw new UserFacingError("Cannot read NFT metadata: a data URI must contain application/json.")
+  return decodeMetadata(bytes)
+}
+
 export async function loadNftMetadata(uri: string, signal: AbortSignal, ipfsGatewayTemplate?: string): Promise<InertRecord> {
   signal.throwIfAborted()
   if (uri.startsWith("data:")) {
-    const { bytes, type } = readDataURI(uri, NFT_METADATA_MAX_BYTES)
-    if (type !== "application/json") throw new UserFacingError("Cannot read NFT metadata: a data URI must contain application/json.")
-    return parseNftMetadata(decodeMetadata(bytes))
+    return parseNftMetadata(readNftMetadataDataURI(uri))
   }
   const url = nftHttpURL(uri, "NFT details", undefined, ipfsGatewayTemplate)
   return withDeadline(signal, "NFT metadata", async activeSignal => {

@@ -135,7 +135,6 @@ dd,
 .nft-tabs [role="tab"] { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; }
 .nft-tabs [aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
 .nft-editor [role="tabpanel"] > .field-hint { margin-block: 12px; }
-.nft-hosted-draft { margin-block: 12px; }
 .nft-source, .nft-identity dd { overflow-wrap: anywhere; word-break: break-word; }
 .error-feedback { min-width: 0; overflow-wrap: anywhere; margin-block: 12px; padding: 12px 16px; border-inline-start: 3px solid var(--accent); border-radius: 4px; background: #eef6f4; }
 .error-feedback[data-kind="error"] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--panel)); }

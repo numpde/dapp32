@@ -23,7 +23,7 @@ const call: CamViewerPreparedContractCall = { route: "write", address: "0x000000
 let prepared = false
 let busy = false
 let sending = false
-let draft = "unchanged"
+let draft: string | null = "unchanged"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
 const events = { navigate: 0, contractCall: 0, unsupported: 0, send: 0, wallet: 0, calculate: 0, cancel: 0, back: 0, refresh: 0 }
@@ -46,7 +46,7 @@ function render(): void {
   const props = { snapshot, canReviewTransaction: true, actionKind: fixtureActionKind, viewRef: null, changingView: busy, sending,
     onBack: async () => { events.back++ }, onRefresh: async () => { events.refresh++ },
     onAction: async (action: ResolvedButtonNode) => { const kind = fixtureActionKind(action); events[kind]++; if (kind === "contractCall") prepared = true; render() },
-    onInput: (_name: string, value: string) => { draft = value; render() }, onAmount: () => {}, onInteger: () => {}, onDuration: () => {}, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },
+    onInput: (_name: string, value: string | null) => { draft = value; render() }, onAmount: () => {}, onInteger: () => {}, onDuration: () => {}, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },
   }
   root.render(createElement("main", { className: "app-shell" },
     createElement(ConnectionSummary, {

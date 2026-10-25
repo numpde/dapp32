@@ -85,7 +85,7 @@ export function UiView({
   readonly onBack: () => Promise<void>
   readonly onRefresh: () => Promise<void>
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
-  readonly onInput: (name: string, value: string) => void
+  readonly onInput: (name: string, value: string | null) => void
   readonly onAmount: AmountEdit
   readonly onInteger: IntegerEdit
   readonly onDuration: DurationEdit
@@ -180,7 +180,7 @@ function UiNodeView({
   readonly state: Record<string, InertValue>
   readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
-  readonly onInput: (name: string, value: string) => void
+  readonly onInput: (name: string, value: string | null) => void
   readonly onAmount: AmountEdit
   readonly onInteger: IntegerEdit
   readonly onDuration: DurationEdit
@@ -229,7 +229,7 @@ function UiNodeView({
     case "DocumentHashField":
       return <DocumentHashFieldView node={node} value={stateString(state, node.state.key)} status={documentHashes[node.state.key]} onInput={onInput} onCalculate={onDocumentHash} onCancel={onCancelDocumentHash} />
     case "NftMetadataField":
-      return <NftMetadataFieldView key={JSON.stringify([scopeKey, node.state.key])} label={stringProp(node.props, "label")} name={node.state.key} value={stateString(state, node.state.key)} disabled={node.disabled === true} onInput={onInput} />
+      return <NftMetadataFieldView key={JSON.stringify([scopeKey, node.state.key])} label={stringProp(node.props, "label")} name={node.state.key} value={state[node.state.key] === null ? null : stateString(state, node.state.key)} disabled={node.disabled === true} onInput={onInput} />
     case "Status":
       if (node.props.format === "timestampSeconds") return <TimestampStatusView key={JSON.stringify([node.props.label, node.props.zeroText])} node={node} />
       return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
@@ -308,7 +308,7 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
   readonly node: ResolvedDocumentHashFieldNode
   readonly value: string
   readonly status: CamViewerDocumentHashStatus | undefined
-  readonly onInput: (name: string, value: string) => void
+  readonly onInput: (name: string, value: string | null) => void
   readonly onCalculate: DocumentHashCalculate
   readonly onCancel: (name: string) => void
 }): ReactElement {

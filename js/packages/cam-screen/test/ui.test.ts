@@ -1248,6 +1248,8 @@ test("NftMetadataField keeps the token URI scalar and participates in state and 
   } } })
   const initial = resolveInitialUiNode(ui, "app", {}, { ...context, inputs: { uri: "https://example.test/token.json" }, state: {} })
   assert.deepEqual({ ...initial.state }, { tokenURI: "https://example.test/token.json" })
+  const empty = resolveInitialUiNode(ui, "app", {}, { ...context, inputs: { uri: "" }, state: {} })
+  assert.equal(empty.state.tokenURI, null, "an empty metadata field has no canonical URI")
   assert.deepEqual(resolvedUiInputNames(initial.resolvedUi), ["tokenURI"])
   assert.equal(initial.resolvedUi.element, "NftMetadataField")
   assert.equal("disabled" in initial.resolvedUi && initial.resolvedUi.disabled, true)

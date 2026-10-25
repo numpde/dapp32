@@ -579,7 +579,7 @@ export function App(): ReactElement {
     }
   }
 
-  function updateInput(name: string, value: string): void {
+  function updateInput(name: string, value: string | null): void {
     if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
     try {

@@ -1,4 +1,6 @@
 import { viewerErrorMessage } from "@cam/viewer"
+import { CamEvmError } from "@cam/evm-viem"
+import { ContractFunctionExecutionError, ContractFunctionRevertedError } from "viem"
 
 export class UserFacingError extends Error {}
 
@@ -19,9 +21,23 @@ export function failureReport(error: unknown, explanation?: string): FailureRepo
 }
 
 export function actionFailure(error: unknown, label: unknown): FailureReport {
-  const explanation = typeof label === "string" && isReadableErrorText(label)
-    ? `${viewerErrorMessage(label.trim())} failed.`
-    : "Cannot complete this action."
+  const readableLabel = typeof label === "string" && isReadableErrorText(label) ? viewerErrorMessage(label.trim()) : undefined
+  const action = readableLabel === undefined ? "This action" : readableLabel
+  let explanation = readableLabel === undefined ? "Cannot complete this action." : `${action} failed.`
+  try {
+    if (error instanceof CamEvmError) {
+      if (error.code === "CAM_WRITE_INVALID_ARGUMENT" || error.code === "CAM_ROUTE_INVALID_ARGUMENT") {
+        explanation = `${action} failed. Correct the input values and try again.`
+      } else if (error.cause instanceof ContractFunctionExecutionError && error.cause.cause instanceof ContractFunctionRevertedError) {
+        const revert = error.cause.cause
+        if (revert.data !== undefined) {
+          // Decoded contract evidence supersedes generic transport wrappers.
+          // Keep the original thrown chain intact; select only its known stage and revert for display.
+          return failureReport({ message: error.message, cause: { shortMessage: revert.shortMessage, data: revert.data, reason: revert.reason } }, `${action} was rejected by the contract.`)
+        }
+      }
+    }
+  } catch { /* Provider-controlled objects cannot replace the original failure while it is being described. */ }
   return failureReport(error, explanation)
 }
 

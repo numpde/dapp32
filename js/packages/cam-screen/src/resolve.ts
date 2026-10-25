@@ -340,7 +340,7 @@ function collectInitialStateFromNode(
         state[binding.key] = projection.canonical
         const drafts = context.numericDrafts as Record<string, NumericDraft>
         drafts[binding.key] = draft
-      } else state[binding.key] = binding.defaultValue
+      } else state[binding.key] = node.element === "NftMetadataField" && binding.defaultValue === "" ? null : binding.defaultValue
       return
     }
     case "DurationField": {

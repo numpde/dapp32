@@ -8,7 +8,6 @@ import {
   loadNftMetadata,
   nftMetadataDataURI,
   parseNftMetadata,
-  serializeNftMetadata,
 } from "../src/nft-metadata.ts"
 import { UserFacingError } from "../src/errors.ts"
 
@@ -35,7 +34,7 @@ test("metadata preserves extension fields and primitive traits through edits, JS
   const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected network") })
   const original = parseNftMetadata('{"name":"自転車 🚲","description":"Original","attributes":[{"trait_type":"Year","value":2026},{"trait_type":"Active","value":true}],"extension":{"__proto__":"ordinary","note":"a\\\"[{"}}')
   const changed = { ...original, description: "Corrected" }
-  const json = serializeNftMetadata(changed)
+  const json = JSON.stringify(changed)
   assert.deepEqual(plain(parseNftMetadata(json)), plain(changed))
   assert.deepEqual(plain(await loadNftMetadata(nftMetadataDataURI(changed), signal())), plain(changed))
   assert.deepEqual(plain(await loadNftMetadata(`data:application/json;charset=utf-8,${encodeURIComponent(json)}`, signal())), plain(changed))

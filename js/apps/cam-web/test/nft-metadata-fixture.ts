@@ -14,11 +14,7 @@ const publishedURI = "https://nft.fixture.test/metadata.json"
 const metadata = { name: "Fixture NFT", description: "Prepared independently of minting", image: "https://nft.fixture.test/image.png", attributes: [{ trait_type: "Year", value: 2026, display_type: "number", extension: true }], extra: { retained: true } }
 let viewerURI = `data:application/json,${encodeURIComponent(JSON.stringify(metadata))}`
 const requests: string[] = []
-const copies: string[] = []
-let copyRejected = false
-const downloads: string[] = []
 const revoked: string[] = []
-const blobs = new Map<string, Blob>()
 const originalFetch = window.fetch.bind(window)
 let held: (() => void) | undefined
 let hold = false
@@ -38,17 +34,9 @@ window.fetch = async (input, init) => {
   }
   return originalFetch(input, init)
 }
-Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text: string) => { if (copyRejected) throw new Error("Clipboard access denied", { cause: new Error("Permission denied") }); copies.push(text) } } })
-const createURL = URL.createObjectURL.bind(URL)
 const revokeURL = URL.revokeObjectURL.bind(URL)
-URL.createObjectURL = blob => { const uri = createURL(blob); if (blob instanceof Blob) blobs.set(uri, blob); return uri }
-URL.revokeObjectURL = uri => { revoked.push(uri); blobs.delete(uri); revokeURL(uri) }
-const originalClick = HTMLAnchorElement.prototype.click
-HTMLAnchorElement.prototype.click = function () {
-  if (this.download === "nft-metadata.json") { void blobs.get(this.href)!.text().then(text => downloads.push(text)); return }
-  originalClick.call(this)
-}
-let tokenURI = publishedURI
+URL.revokeObjectURL = uri => { revoked.push(uri); revokeURL(uri) }
+let tokenURI: string | null = publishedURI
 let route = "fixture"
 let account: `0x${string}` = "0x0000000000000000000000000000000000000001"
 let busy = false
@@ -60,12 +48,12 @@ function render(): void {
   ] } }
   root.render(createElement(UiView, { snapshot, canReviewTransaction: true, actionKind: () => "unsupported" as const, viewRef: null, changingView: busy, sending: false,
     onBack: async () => {}, onRefresh: async () => {}, onAction: async () => {},
-    onInput: (name: string, value: string) => { if (name !== "tokenURI") throw new Error("Disabled input changed"); tokenURI = value; render() },
+    onInput: (name: string, value: string | null) => { if (name !== "tokenURI") throw new Error("Disabled input changed"); tokenURI = value; render() },
     onAmount: () => {}, onInteger: () => {}, onDuration: () => {}, onDocumentHash: async () => {}, onCancelDocumentHash: () => {},
   }))
 }
-Object.assign(window, { nftFixture: { requests, copies, downloads, revoked, metadata, publishedURI,
-  rejectCopy(value: boolean) { copyRejected = value },
+Object.assign(window, { nftFixture: { requests, revoked, metadata, publishedURI,
+  seed(uri: string) { tokenURI = uri; route = `${route}-seed`; render() },
   holdMetadata() { hold = true },
   releaseMetadata() { hold = false; held?.(); held = undefined },
   holdImage() { holdImage = true },

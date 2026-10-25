@@ -58,6 +58,15 @@ test("an unchosen workshop duration does not block metadata correction or NFT ha
   assert.equal(fixture.reads.filter(call => call.functionName === "viewDelegation").length, 0)
 })
 
+test("a missing metadata URI blocks its update while leaving unrelated owner actions available", async () => {
+  const fixture = ownerWorkflowSessionOptions()
+  const session = createCamViewerSession(fixture.options)
+  await session.load()
+  const snapshot = session.updateState({ tokenURI: null, to: BUYER })
+  await assert.rejects(() => session.dispatchAction(button(snapshot, "updateComponentMetadata")), error => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+  assert.equal((await session.dispatchAction(button(snapshot, "transferComponent"))).type, "contractCall")
+})
+
 test("published Bike delegation route inspects an arbitrary workshop independently of connected owner", async () => {
   requireRoute("delegation")
   const fixture = ownerWorkflowSessionOptions()

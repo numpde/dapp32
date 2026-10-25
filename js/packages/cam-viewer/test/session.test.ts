@@ -2128,6 +2128,11 @@ test("updateState resolves route actions, while write routes are surfaced withou
   routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress)
   const registerSnapshot = await session.navigate("register", { serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER })
   assert.equal(registerSnapshot.state.owner, "")
+  assert.equal(registerSnapshot.state.tokenURI, null)
+  const missingMetadata = session.updateState({ owner: registeredOwnerAddress })
+  const missingMetadataButton = resolvedUiButtons(missingMetadata.resolvedUi).find(button => button.call.function === "registerComponent")
+  assert.ok(missingMetadataButton)
+  await assert.rejects(() => session.dispatchAction(missingMetadataButton), error => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
   const preparedRegisterSnapshot = session.updateState({
     owner: registeredOwnerAddress,
     tokenURI: BIKE_REGISTRATION_TOKEN_URI,
