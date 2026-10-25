@@ -4,7 +4,7 @@ import { assertRemoteResourceURI, isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import { failureReport, UserFacingError } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
-import { HexValue } from "./hex-value.tsx"
+import { PropertyRow } from "./property-row.tsx"
 import { DownloadContext } from "./download-context.ts"
 import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readNftMetadataDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
@@ -77,12 +77,12 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
       {metadataURI !== undefined && metadataURI !== "" ? <div className="nft-actions"><button className="button-quiet resource-load" type="button" aria-busy={preview.resource.status === "pending"} disabled={preview.resource.status === "pending"} onClick={() => { void preview.run(signal => loadNftMetadata(metadataURI, signal, downloads.assertAllowed, downloads.gateway)) }}>{loadLabel}</button>
         <button className="button-quiet resource-cancel" type="button" aria-label="Cancel loading" aria-hidden={preview.resource.status !== "pending"} disabled={preview.resource.status !== "pending"} onClick={event => cancelFromControl(event, preview.cancel)}>Cancel</button></div>
       : null}
-      <dl className="nft-identity">
-        {metadataURI !== undefined && metadataURI !== "" ? <div><dt>Metadata URI</dt><dd>{metadataURI}</dd></div> : null}
-        {imageReference ? <div><dt>Image reference in metadata</dt><dd>{imageReference}</dd></div> : null}
-        <div><dt>NFT contract</dt><dd><HexValue value={contractAddress} label="NFT contract address" /></dd></div>
-        <div><dt>Token ID</dt><dd>{tokenId}</dd></div>
-      </dl>
+      <div className="nft-identity">
+        {metadataURI !== undefined && metadataURI !== "" ? <PropertyRow label="Metadata URI" value={metadataURI} /> : null}
+        {imageReference ? <PropertyRow label="Image reference in metadata" value={imageReference} /> : null}
+        <PropertyRow label="NFT contract" value={contractAddress} />
+        <PropertyRow label="Token ID" value={tokenId} />
+      </div>
     </div>
   </section>
 }
@@ -94,8 +94,8 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly 
     <div className="nft-preview-summary">
     {typeof metadata.name === "string" && metadata.name !== "" ? <h3>{metadata.name}</h3> : null}
     {typeof metadata.description === "string" && metadata.description !== "" ? <p>{metadata.description}</p> : null}
-    <dl className="nft-attributes">{attributes.map((attribute, index) => isRecordObject(attribute) && typeof attribute.trait_type === "string" && (typeof attribute.value === "string" || typeof attribute.value === "number" || typeof attribute.value === "boolean")
-      ? <div key={index}><dt>{attribute.trait_type}</dt><dd><HexValue value={String(attribute.value)} label={attribute.trait_type} /></dd></div> : null)}</dl>
+    <div className="nft-attributes">{attributes.map((attribute, index) => isRecordObject(attribute) && typeof attribute.trait_type === "string" && (typeof attribute.value === "string" || typeof attribute.value === "number" || typeof attribute.value === "boolean")
+      ? <PropertyRow key={index} label={attribute.trait_type} value={String(attribute.value)} /> : null)}</div>
     </div>
   </section>
 }
@@ -191,10 +191,10 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
     onInput(name, "error" in next || relative ? null : next.uri)
   }
 
-  return <fieldset className="nft-editor" disabled={disabled}>
+  return <fieldset className="nft-editor">
     <legend>{label}</legend>
     <div className="nft-tabs" role="tablist" aria-label={`${label} source`}>
-      {(["hosted", "embedded"] as const).map((tab, index) => <button key={tab} ref={node => { tabs.current[index] = node }} id={`${id}-${tab}-tab`} type="button" role="tab" aria-selected={mode === tab} aria-controls={`${id}-${tab}-panel`} tabIndex={mode === tab ? 0 : -1} onClick={() => changeMode(tab)} onKeyDown={event => {
+      {(["hosted", "embedded"] as const).map((tab, index) => <button key={tab} disabled={disabled} ref={node => { tabs.current[index] = node }} id={`${id}-${tab}-tab`} type="button" role="tab" aria-selected={mode === tab} aria-controls={`${id}-${tab}-panel`} tabIndex={mode === tab ? 0 : -1} onClick={() => changeMode(tab)} onKeyDown={event => {
         let next: number
         if (event.key === "ArrowLeft" || event.key === "ArrowRight") next = 1 - index
         else if (event.key === "Home") next = 0
@@ -206,7 +206,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
       }}>{tab === "hosted" ? "JSON URL" : "Embed JSON"}</button>)}
     </div>
     {mode === "hosted" ? <section id={`${id}-hosted-panel`} role="tabpanel" aria-labelledby={`${id}-hosted-tab`} tabIndex={0}>
-      <label className="field"><span>Metadata JSON URL</span><input name={name} value={hostedURI} aria-invalid={"error" in hosted} aria-describedby={`${id}-hosted-feedback`} onChange={event => {
+      <label className="field"><span>Metadata JSON URL</span><input disabled={disabled} name={name} value={hostedURI} aria-invalid={"error" in hosted} aria-describedby={`${id}-hosted-feedback`} onChange={event => {
         const next = event.currentTarget.value
         setHostedURI(next)
         onInput(name, hostedMetadata(next).value)
@@ -214,8 +214,8 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
       <div id={`${id}-hosted-feedback`}>{"error" in hosted ? <Feedback report={failureReport(hosted.error)} kind="error" /> : <p className="field-hint">Use the URL of the JSON document describing this NFT.</p>}</div>
     </section> : <section id={`${id}-embedded-panel`} role="tabpanel" aria-labelledby={`${id}-embedded-tab`} tabIndex={0}>
       <p className="field-hint">Store this JSON on chain. Images at external URLs remain separate.</p>
-      {(["name", "description", "image"] as const).map(key => <label className="field" key={key}><span>{key === "image" ? "Image URL" : key === "name" ? "Name" : "Description"}</span><input name={`${name}.metadata.${key}`} maxLength={NFT_METADATA_MAX_BYTES} disabled={"error" in draft} value={"error" in draft || typeof draft.metadata[key] !== "string" ? "" : draft.metadata[key] as string} onChange={event => { if (!("error" in draft)) editDraft(JSON.stringify({ ...draft.metadata, [key]: event.currentTarget.value })) }} /></label>)}
-      <details><summary>Advanced JSON</summary><label className="field"><span>Metadata JSON</span><textarea name={`${name}.metadata.json`} maxLength={NFT_METADATA_MAX_BYTES} value={draft.text} aria-invalid={"error" in draft} onChange={event => editDraft(event.currentTarget.value)} /></label></details>
+      {(["name", "description", "image"] as const).map(key => <label className="field" key={key}><span>{key === "image" ? "Image URL" : key === "name" ? "Name" : "Description"}</span><input name={`${name}.metadata.${key}`} maxLength={NFT_METADATA_MAX_BYTES} disabled={disabled || "error" in draft} value={"error" in draft || typeof draft.metadata[key] !== "string" ? "" : draft.metadata[key] as string} onChange={event => { if (!("error" in draft)) editDraft(JSON.stringify({ ...draft.metadata, [key]: event.currentTarget.value })) }} /></label>)}
+      <details><summary>Advanced JSON</summary><label className="field"><span>Metadata JSON</span><textarea disabled={disabled} name={`${name}.metadata.json`} maxLength={NFT_METADATA_MAX_BYTES} value={draft.text} aria-invalid={"error" in draft} onChange={event => editDraft(event.currentTarget.value)} /></label></details>
       {"error" in draft ? <Feedback report={failureReport(draft.error)} kind="error" /> : relativeImage ? <p className="field-error" role="alert">Enter an absolute image URL before embedding this JSON.</p> : <NftMetadataPreview metadata={draft.metadata} baseURI={undefined} loadImage={false} />}
     </section>}
   </fieldset>

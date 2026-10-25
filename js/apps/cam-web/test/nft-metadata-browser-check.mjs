@@ -93,10 +93,10 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
 
     assert(await evaluate(`[...document.querySelectorAll('.nft-editor')][1].querySelectorAll('input,textarea,button').length>0&&[...[...document.querySelectorAll('.nft-editor')][1].querySelectorAll('input,textarea,button')].every(node=>node.matches(':disabled'))`), 'field disablement reaches all nested controls')
     await evaluate(`window.nftFixture.busy(true)`)
-    await wait(`document.querySelector('.elements').disabled`)
-    assert(await evaluate(`[...document.querySelectorAll('.elements input,.elements textarea,.elements button')].every(node=>node.matches(':disabled'))`), 'view transition disables NFT loading and all editor controls')
+    await wait(`[...document.querySelectorAll('.elements input,.elements textarea,.elements [role="tab"]')].every(node=>node.matches(':disabled'))`)
+    assert(await evaluate(`[...document.querySelectorAll('.elements input,.elements textarea,.elements [role="tab"]')].every(node=>node.matches(':disabled'))&&[...document.querySelectorAll('.nft-row .resource-load')].every(node=>!node.matches(':disabled'))`), 'view transition disables edits while read-only NFT loading remains available')
     await evaluate(`window.nftFixture.busy(false)`)
-    await wait(`!document.querySelector('.elements').disabled`)
+    await wait(`!document.querySelector('.nft-editor input').matches(':disabled')`)
 
     for (const kind of ['account', 'route']) {
       if (!(await evaluate(`!!document.querySelector('.nft-row .nft-preview')`))) {
@@ -150,7 +150,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     await click('.nft-row button', 'Load preview')
     await wait(`[...document.querySelectorAll('.nft-row button')].some(button=>button.textContent==='Retry loading')`)
     await evaluate(`window.nftFixture.response(undefined);window.nftFixture.holdMetadata()`)
-    await assertStableLayout(evaluate, { error: '.nft-row [role="alert"]', details: '.nft-row .nft-details', following: '.nft-editor:not([disabled])' }, async () => {
+    await assertStableLayout(evaluate, { error: '.nft-row [role="alert"]', details: '.nft-row .nft-details', following: '.nft-editor:has(input:not(:disabled))' }, async () => {
       await click('.nft-row button', 'Retry loading')
       await wait(`!!document.querySelector('.nft-row button[aria-busy="true"]')`)
     }, 'failed preview retry pending')
@@ -159,7 +159,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     assert(await evaluate(`!document.querySelector('.nft-row [role="alert"]')&&[...document.querySelectorAll('.nft-row button')].some(button=>button.textContent==='Reload preview')`), 'retry recovers the preview and clears the failed state')
     for (const width of [1280, 320]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 320 })
-      const anchors = { image: '.nft-row img', details: '.nft-row .nft-details', following: '.nft-editor:not([disabled])' }
+      const anchors = { image: '.nft-row img', details: '.nft-row .nft-details', following: '.nft-editor:has(input:not(:disabled))' }
       const displayedImage = await evaluate(`document.querySelector('.nft-row img').src`)
       await evaluate(`window.nftFixture.holdMetadata()`)
       await assertStableLayout(evaluate, anchors, async () => {

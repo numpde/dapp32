@@ -5,6 +5,7 @@ import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
 import { TransactionFeedback } from "../src/feedback.tsx"
+import { IntegrityWarnings } from "../src/integrity-warnings.tsx"
 import type { SubmittedTransactionReference } from "../src/transactions.ts"
 import "../src/styles.css"
 
@@ -20,6 +21,11 @@ const actions = [
   { route: "longRead", kind: "navigate", label: "Open a deliberately long view description that must wrap at a narrow viewport without moving adjacent values outside their shared columns" },
 ] as const
 const fixtureDigest = `0x${"ab".repeat(32)}`
+const canvas = new OffscreenCanvas(2, 2)
+canvas.getContext("2d")!.fillRect(0, 0, 2, 2)
+const image = await canvas.convertToBlob({ type: "image/png" })
+const imageURI = `data:image/png;base64,${btoa(String.fromCharCode(...new Uint8Array(await image.arrayBuffer())))}`
+const metadata = `data:application/json,${encodeURIComponent(JSON.stringify({ name: "Component preview", image: imageURI, attributes: [{ trait_type: "Document", value: fixtureDigest }] }))}`
 const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: parseAbi(["function fixtureWrite(address owner, bytes payload, bytes32 digest)"]), function: "fixtureWrite", args: { owner: "0x1111111111111111111111111111111111111111", payload: fixtureDigest, digest: fixtureDigest }, then: { namespace: "routes", function: "read", args: {} } }
 let prepared = false
 let busy = false
@@ -35,7 +41,7 @@ function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCa
   return declared.kind
 }
 function render(): void {
-  const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "" }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "", metadata }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Status", props: { label: "Before actions", value: "Before" }, children: [] },
     { element: "Status", props: { label: "Document digest", value: fixtureDigest }, children: [] },
     { element: "Screen", props: { title: "Fixture actions" }, children: [
@@ -43,8 +49,10 @@ function render(): void {
       ...actions.map(item => ({ element: "Button" as const, props: { label: item.label }, call: { namespace: "routes", function: item.route, args: {} }, children: [] as const, ...("disabled" in item ? { disabled: item.disabled } : {}) })),
     ] },
     { element: "DocumentHashField", props: { label: "Document", algorithm: "sha256", sourceURI: "https://example.test/document" }, state: { key: "document" }, children: [] },
+    { element: "Nft", props: { contractAddress: "0x5555555555555555555555555555555555555555", tokenId: "42", metadataURI: metadata }, children: [] },
+    { element: "NftMetadataField", props: { label: "NFT details" }, state: { key: "metadata" }, children: [] },
     { element: "Status", props: { label: "Timestamp", value: "100", format: "timestampSeconds" }, formattedValue: "1970-01-01 00:01:40 UTC (100 Unix seconds)", children: [] },
-    { element: "Status", props: { label: "After actions", value: "After" }, children: [] },
+    { element: "Status", props: { label: "Unbroken".repeat(40), value: "After" }, children: [] },
   ] } }
   const props = { snapshot, canReviewTransaction: true, actionKind: fixtureActionKind, viewRef: null, changingView: busy, sending,
     onBack: async () => { events.back++ }, onRefresh: async () => { events.refresh++ },
@@ -59,6 +67,7 @@ function render(): void {
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
     createElement(UiView, props),
+    createElement(IntegrityWarnings, { warnings: [{ status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
     prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy && !sending, sending, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
     transactionReport === undefined ? null : createElement("section", { className: "transaction-feedback" }, createElement(TransactionFeedback, {
       report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },

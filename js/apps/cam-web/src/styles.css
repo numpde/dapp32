@@ -66,6 +66,8 @@ button:not(.timestamp-options):not(:disabled):active {
 .hex-value { display: inline-grid; max-width: 100%; vertical-align: middle; }
 .hex-value-controls { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
 .hex-value-controls code { white-space: nowrap; }
+.hex-middle { display: inline-block; inline-size: 3ch; overflow: hidden; position: relative; text-indent: -9999px; vertical-align: bottom; }
+.hex-ellipsis::after { content: "..."; position: absolute; inset-inline-start: 0; text-indent: 0; }
 .hex-copy { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; padding: 4px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
 .hex-copy svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .hex-copy:hover, .hex-copy:focus-visible { background: var(--line); color: var(--ink); }
@@ -94,13 +96,17 @@ h1 {
 }
 
 .key-value {
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   align-items: baseline;
 }
+.key-value > dt { min-inline-size: 0; flex: 0 0 240px; max-inline-size: 100%; }
+.key-value > dd { flex: 1 1 150px; min-inline-size: min-content; max-inline-size: 100%; }
 
 .connection-facts { display: grid; gap: 8px; }
-.connection-facts > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); align-items: baseline; gap: 8px; }
+.connection-facts > .key-value { gap: 8px; border: 0; padding: 0; }
+.connection-facts > .key-value > dt { flex-basis: 140px; }
 .connection-facts code { font-size: inherit; }
 .connection-facts .wallet-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 
@@ -109,9 +115,8 @@ dt {
   font-size: 0.82rem;
 }
 
-dd,
-.key-value span {
-  min-width: 0;
+.key-value > dt,
+.key-value > dd {
   overflow-wrap: anywhere;
 }
 
@@ -153,15 +158,11 @@ dd,
 .feedback-diagnostic { display: block; margin-block-start: 8px; color: var(--muted); font-size: 0.875em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .transaction-feedback a { color: var(--accent); }
 .nft-identity, .nft-attributes { margin-block: 8px; }
-.nft-identity > div, .nft-attributes > div { display: grid; gap: 12px; padding-block: 6px; }
-.nft-identity dt, .nft-attributes dt { color: var(--muted); }
-.nft-identity dd, .nft-attributes dd { margin: 0; }
 .nft-preview { display: grid; gap: 12px; margin-block: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 6px; overflow-wrap: anywhere; }
 .nft-preview-summary { display: grid; align-content: start; gap: 12px; min-width: 0; }
 .nft-preview-summary > h3 { margin: 0; font-size: 1.2rem; line-height: 1.3; }
 .nft-preview p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .nft-preview-summary > .nft-attributes { margin: 0; }
-.nft-preview .nft-attributes > div { border-top: 1px solid var(--line); }
 .nft-image { display: grid; align-content: start; gap: 8px; min-width: 0; min-block-size: 40px; position: relative; }
 .nft-image .nft-actions { margin: 0; }
 .resource-cancel[aria-hidden="true"] { visibility: hidden; }
@@ -174,7 +175,6 @@ button.resource-load[aria-busy="true"] { color: var(--accent); background: linea
 @keyframes resource-loading { to { background-position: -100% 0; } }
 .nft-image img { display: block; max-inline-size: 100%; max-block-size: 360px; object-fit: contain; }
 .nft-row .nft-preview:has(> .nft-image) { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 20px; }
-.nft-row .nft-attributes > div { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
 .nft-editor textarea { inline-size: 100%; min-block-size: 130px; resize: vertical; padding: 12px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); color: var(--ink); }
 .nft-editor details > summary, .nft-row details > summary { cursor: pointer; }
 
@@ -312,10 +312,6 @@ summary:focus-visible {
   color: var(--ink);
 }
 
-.key-value, .nft-identity > div, .nft-attributes > div {
-  grid-template-columns: minmax(150px, 240px) minmax(0, 1fr);
-}
-
 .key-value {
   padding: 6px 0;
   border-top: 1px solid var(--line);
@@ -324,6 +320,7 @@ summary:focus-visible {
 .key-value:first-child {
   border-top: 0;
 }
+.mono-value > dd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 
 .timestamp-label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
 .timestamp-options { display: inline-flex; min-height: 0; padding: 1px; border: 1px solid var(--line); border-radius: 999px; background: #edf2f6; cursor: pointer; }
@@ -364,11 +361,7 @@ summary:focus-visible {
 
 @media (max-width: 760px) {
   .nft-row .nft-preview:has(> .nft-image) { grid-template-columns: minmax(0, 1fr); }
-  .key-value,
-  .nft-identity > div,
-  .nft-attributes > div {
-    grid-template-columns: 1fr;
-  }
+  .key-value > dt { flex-basis: 100%; }
 
   .key-value {
     gap: 4px;
@@ -382,5 +375,6 @@ summary:focus-visible {
 @media (max-width: 480px) {
   .app-shell { width: calc(100% - 24px); padding-block: 24px; }
   .elements { padding: 16px; }
-  .connection-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .connection-facts > .key-value { gap: 2px; }
+  .connection-facts > .key-value > dt { flex-basis: 100%; }
 }

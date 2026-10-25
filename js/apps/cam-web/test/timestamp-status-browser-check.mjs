@@ -24,7 +24,7 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 740, deviceScaleFactor: 1, mobile: width === 320 })
       for (const [value, label, absent] of [['120', 'At', false], ['120', 'A longer timestamp field label that must wrap within its own cell', false], ['0', 'No active request', true]]) {
         await evaluate(`window.timestampFixture.show(${JSON.stringify(value)},${JSON.stringify(label)},'No deadline')`)
-        await wait(`document.querySelectorAll('.elements > .key-value').length===3&&[...document.querySelectorAll('.elements .key-label')].some(l=>l.textContent===${JSON.stringify(label)})`)
+        await wait(`document.querySelectorAll('.elements > .key-value').length===3&&[...document.querySelectorAll('.elements .key-label, .timestamp-label > span:first-child')].some(l=>l.textContent===${JSON.stringify(label)})`)
         await checkLayout(width <= 760)
         if (!absent) {
           await evaluate(`document.querySelector('button.timestamp-options').click()`)
@@ -60,7 +60,7 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     await keyboard('Enter', 'Enter', 13)
     await wait(`document.body.innerText.includes('In 20 seconds')&&window.timestampFixture.activeTimers()===1`)
     assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.getAttribute('aria-label')==='Relative time for Deadline'&&[...b.querySelectorAll('[data-mode]')].every(s=>s.getAttribute('aria-hidden')==='true'&&s.title&&s.querySelector('svg'))&&!document.querySelector('.timestamp-status [aria-live],.timestamp-status [role="status"]')})()`))
-    assert(await evaluate(`(()=>{const row=document.querySelector('.timestamp-status'),control=row.querySelector('.timestamp-options'),value=row.lastElementChild,id=control.getAttribute('aria-describedby'),hint=document.getElementById(id),r=hint?.getBoundingClientRect();return value.getAttribute('aria-describedby')===id&&hint.textContent==='Relative to your device clock.'&&r.width<=1&&r.height<=1})()`), 'relative clock help describes the value and control without a visible paragraph')
+    assert(await evaluate(`(()=>{const row=document.querySelector('.timestamp-status'),control=row.querySelector('.timestamp-options'),value=row.querySelector('.timestamp-value'),id=control.getAttribute('aria-describedby'),hint=document.getElementById(id),r=hint?.getBoundingClientRect();return value.getAttribute('aria-describedby')===id&&hint.textContent==='Relative to your device clock.'&&r.width<=1&&r.height<=1})()`), 'relative clock help describes the value and control without a visible paragraph')
     await evaluate(`window.timestampFixture.setClock(121)`)
     await wait(`document.body.innerText.includes('1 second ago')`)
     await evaluate(`window.timestampFixture.show('140','Deadline','No deadline')`)

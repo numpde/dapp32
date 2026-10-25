@@ -465,7 +465,7 @@ try {
     assert.equal(await evaluate('location.href'), committed.href, 'editing changed the selected agreement URL')
     await enter('agreementId', 'not-an-identifier')
     await clickButton('Open agreement by ID')
-    await waitFor(async () => (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".elements")?.disabled'), 'rejected lookup')
+    await waitFor(async () => (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".ui-meta > button:last-of-type")?.disabled'), 'rejected lookup')
     assert.equal(await evaluate('location.href'), committed.href, 'failed lookup changed the committed URL')
     assert.equal(await field('agreementId'), 'not-an-identifier', 'failed lookup discarded correction input')
     assert((await evaluate('document.body.innerText')).includes(first), 'failed lookup changed the loaded agreement')
@@ -602,7 +602,7 @@ try {
       { route: 'agreement', inputs: 'null' },
     ]) {
       await evaluate(`location.hash = new URLSearchParams(${JSON.stringify(request)}).toString()`)
-      await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".elements")?.disabled'), 'rejected fragment restored URL')
+      await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".ui-meta > button:last-of-type")?.disabled'), 'rejected fragment restored URL')
       assert.equal(await field('agreementRef'), 'malformed-link-draft', 'failed link changed the current draft')
     }
     assert.equal(transactionRequests.length, 0, 'failed fragment requested a transaction')
@@ -613,7 +613,7 @@ try {
     await enter('agreementRef', 'batched-link-draft')
     const committed = await evaluate('location.href')
     await evaluate("location.hash='route=missing-first-route';location.hash='route=missing-second-route'")
-    await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".elements")?.disabled'), 'batched rejected fragments restore committed view')
+    await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".ui-meta > button:last-of-type")?.disabled'), 'batched rejected fragments restore committed view')
     assert.equal(await field('agreementRef'), 'batched-link-draft')
     await clickButton('View account credit')
     await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'new history branch after batched rejection')

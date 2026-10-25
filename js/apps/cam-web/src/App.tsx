@@ -6,6 +6,7 @@ import {
 import type { ReactElement } from "react"
 import { defaultIpfsGateway, publicIpfsGateways } from "@cam/viewer"
 import { DownloadContext } from "./download-context.ts"
+import { ControlRow } from "./property-row.tsx"
 import { assertDownloadAllowed, downloadScopeForPrefix } from "@cam/protocol"
 import type { DownloadScope } from "@cam/protocol"
 
@@ -822,9 +823,8 @@ export function App(): ReactElement {
     } catch (cause) { setScopeError(failureReport(cause, "Cannot use this download scope.")) }
   }
 
-  const resourcePolicy = <div className="download-scope">
-    <dt><label htmlFor="download-scope-choice">Download scope</label></dt>
-    <dd><div className="connection-form">
+  const resourcePolicy = <ControlRow className="download-scope" label="Download scope" controlId="download-scope-choice">
+    <div className="connection-form">
       <select id="download-scope-choice" value={scopeDraft.choice} onChange={event => editScope({ ...scopeDraft, choice: event.currentTarget.value })}>
         <option value="https-or-ipfs">HTTPS or IPFS</option>
         <option value="ipfs-only">IPFS only</option>
@@ -836,12 +836,10 @@ export function App(): ReactElement {
       {scopeDraft.choice === "custom" ? <label className="field"><span>URL prefix</span><input id="download-prefix" type="url" value={scopeDraft.prefix} placeholder="https://example.org/app/" onChange={event => editScope({ ...scopeDraft, prefix: event.currentTarget.value })} /></label> : null}
       {scopeDraft.choice === "http-only" || (scopeDraft.choice === "custom" && /^http:/i.test(scopeDraft.prefix)) || (scopeDraft.choice === "boot" && bootPrefix !== undefined && /^http:/i.test(bootPrefix)) ? <p className="field-hint">HTTP is unencrypted. Your browser may block HTTP downloads.</p> : null}
       {scopeError === undefined ? null : <Feedback report={scopeError} kind="error" />}
-    </div></dd>
-  </div>
+    </div>
+  </ControlRow>
 
-  const gatewayControl = <div className="ipfs-gateway">
-        <dt><label htmlFor="ipfs-gateway-choice">IPFS gateway</label></dt>
-        <dd>
+  const gatewayControl = <ControlRow className="ipfs-gateway" label="IPFS gateway" controlId="ipfs-gateway-choice">
           <select id="ipfs-gateway-choice" value={gatewayId} aria-describedby="ipfs-gateway-help" onChange={event => {
             const selected = publicIpfsGateways.find(gateway => gateway.id === event.currentTarget.value)!
             gatewayRef.current = selected.template
@@ -851,8 +849,7 @@ export function App(): ReactElement {
             {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
           </select>
           <span id="ipfs-gateway-help" className="visually-hidden">Used for new IPFS downloads.</span>
-        </dd>
-      </div>
+      </ControlRow>
 
   const rpcControl = "coordinates" in viewerLink ? <RpcControls
     chainId={viewerLink.coordinates.chainId}
@@ -888,7 +885,7 @@ export function App(): ReactElement {
             </button>
           )}
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
-      ) : <dl className="connection connection-facts">{resourcePolicy}{gatewayControl}</dl>}
+      ) : <div className="connection connection-facts">{resourcePolicy}{gatewayControl}</div>}
 
       {loadState.status === "ready" ? <IntegrityWarnings warnings={loadState.snapshot.integrityWarnings} /> : null}
       {notice === undefined ? null : (

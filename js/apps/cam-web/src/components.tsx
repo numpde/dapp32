@@ -31,6 +31,7 @@ import {
 import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
 import { Feedback } from "./feedback.tsx"
 import { HexValue } from "./hex-value.tsx"
+import { PropertyRow } from "./property-row.tsx"
 
 export function ConnectionSummary({
   chainId,
@@ -49,13 +50,13 @@ export function ConnectionSummary({
 }): ReactElement {
   return (
     <section className="connection" aria-label="Account and wallet">
-      <dl className="connection-facts">
-        <div><dt>Viewing as</dt><dd>{account === undefined ? "Public view" : <HexValue value={account} label="viewing address" />}</dd></div>
-        <div><dt>Signing wallet</dt><dd className="wallet-value"><span role="status"><HexValue value={wallet} label="wallet address" /></span>{walletAction}</dd></div>
-        <div><dt>Chain</dt><dd>{chainId}</dd></div>
-        <div><dt>CAM contract</dt><dd><HexValue value={host} label="CAM contract address" /></dd></div>
+      <div className="connection-facts">
+        <PropertyRow label="Viewing as" value={account === undefined ? "Public view" : account} />
+        <PropertyRow label="Signing wallet" value={<span className="wallet-value"><span role="status"><HexValue value={wallet} label="wallet address" /></span>{walletAction}</span>} />
+        <PropertyRow label="Chain" value={chainId} />
+        <PropertyRow label="CAM contract" value={host} />
         {children}
-      </dl>
+      </div>
     </section>
   )
 }
@@ -108,9 +109,9 @@ export function UiView({
           <KeyValue label="UI resource" value={snapshot.uiURI} mono={false} />
         </details>
       </div>
-      <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView root={true} headingLevel={2} scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
-      </fieldset>
+      <div className="elements" role="group" aria-label="Current view">
+        <UiNodeView busy={changingView || sending} root={true} headingLevel={2} scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+      </div>
     </section>
   )
 }
@@ -157,6 +158,7 @@ export function PreparedCallView({
 
 function UiNodeView({
   node,
+  busy,
   root,
   headingLevel,
   actionKind,
@@ -173,6 +175,7 @@ function UiNodeView({
   onCancelDocumentHash,
 }: {
   readonly node: ResolvedUiNode
+  readonly busy: boolean
   readonly root: boolean
   readonly headingLevel: number
   readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
@@ -193,7 +196,7 @@ function UiNodeView({
     case "Fragment": {
       const titled = node.element === "Screen" && !root
       const children = node.children.map((child, index) => (
-        <UiNodeView key={index} root={false} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView key={index} busy={busy} root={false} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       ))
       if (!titled) return <>{children}</>
       const title = displayText(stringProp(node.props, "title"))
@@ -212,7 +215,7 @@ function UiNodeView({
             // the DOM so tests, autofill, and agents do not need a parallel
             // mapping from rendered inputs back to protocol state.
             name={name}
-            disabled={node.disabled === true}
+            disabled={busy || node.disabled === true}
             value={stateString(state, name)}
             onChange={(event) => onInput(name, event.currentTarget.value)}
           />
@@ -222,15 +225,15 @@ function UiNodeView({
     case "Address":
       return <KeyValue label={stringProp(node.props, "label")} value={stringProp(node.props, "address")} mono={true} />
     case "AmountField":
-      return <AmountFieldView node={node} onAmount={onAmount} />
+      return <AmountFieldView node={node} disabled={busy || node.disabled === true} onAmount={onAmount} />
     case "DurationField":
-      return <DurationFieldView node={node} onDuration={onDuration} />
+      return <DurationFieldView node={node} disabled={busy || node.disabled === true} onDuration={onDuration} />
     case "NonNegativeIntegerField":
-      return <IntegerFieldView node={node} onInteger={onInteger} />
+      return <IntegerFieldView node={node} disabled={busy || node.disabled === true} onInteger={onInteger} />
     case "DocumentHashField":
-      return <DocumentHashFieldView node={node} value={stateString(state, node.state.key)} status={documentHashes[node.state.key]} onInput={onInput} onCalculate={onDocumentHash} onCancel={onCancelDocumentHash} />
+      return <DocumentHashFieldView node={node} disabled={busy || node.disabled === true} value={stateString(state, node.state.key)} status={documentHashes[node.state.key]} onInput={onInput} onCalculate={onDocumentHash} onCancel={onCancelDocumentHash} />
     case "NftMetadataField":
-      return <NftMetadataFieldView key={JSON.stringify([scopeKey, node.state.key])} label={stringProp(node.props, "label")} name={node.state.key} value={state[node.state.key] === null ? null : stateString(state, node.state.key)} disabled={node.disabled === true} onInput={onInput} />
+      return <NftMetadataFieldView key={JSON.stringify([scopeKey, node.state.key])} label={stringProp(node.props, "label")} name={node.state.key} value={state[node.state.key] === null ? null : stateString(state, node.state.key)} disabled={busy || node.disabled === true} onInput={onInput} />
     case "Status":
       if (node.props.format === "timestampSeconds") return <TimestampStatusView key={JSON.stringify([node.props.label, node.props.zeroText])} node={node} />
       return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
@@ -247,7 +250,7 @@ function UiNodeView({
           aria-label={label}
           aria-description={kind === "contractCall" && !canReviewTransaction ? "Connect a wallet to review this transaction" : effect}
           type="button"
-          disabled={node.disabled === true || (kind === "contractCall" && !canReviewTransaction)}
+          disabled={busy || node.disabled === true || (kind === "contractCall" && !canReviewTransaction)}
           onClick={() => {
             void onAction(node)
           }}
@@ -278,9 +281,8 @@ function TimestampStatusView({ node }: { readonly node: ResolvedStatusNode }): R
   const label = stringProp(node.props, "label")
   const dateText = node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue
   if (!hasTimestamp) return <KeyValue label={label} value={dateText} mono={false} />
-  return <div className="key-value timestamp-status">
-    <div className="timestamp-label">
-      <span className="key-label">{displayText(label)}</span>
+  return <PropertyRow className="timestamp-status" label={<span className="timestamp-label">
+      <span>{displayText(label)}</span>
       <button className="timestamp-options" type="button" aria-label={`Relative time for ${label}`} aria-pressed={relative} aria-describedby={clockHint} title="Date / Relative time"
         onClick={() => { setNowSeconds(Math.floor(Date.now() / 1000)); setRelative(value => !value) }}>
         <span className="timestamp-segment" data-mode="date" data-selected={!relative} aria-hidden="true" title="Date">
@@ -295,9 +297,7 @@ function TimestampStatusView({ node }: { readonly node: ResolvedStatusNode }): R
         </span>
         <span id={clockHint} className="visually-hidden">Relative to your device clock.</span>
       </button>
-    </div>
-    <span className="timestamp-value" aria-describedby={relative ? clockHint : undefined}>{displayText(relative ? relativeText : dateText)}</span>
-  </div>
+    </span>} value={<span className="timestamp-value" aria-describedby={relative ? clockHint : undefined}>{displayText(relative ? relativeText : dateText)}</span>} />
 }
 
 type AmountEdit = (name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }) => void
@@ -305,8 +305,9 @@ type DurationEdit = (name: string, part: DurationPart, text: string, options?: {
 type IntegerEdit = (name: string, text: string, options?: { readonly composing?: boolean }) => void
 type DocumentHashCalculate = (name: string, source: "url" | "file", file?: File) => Promise<void>
 
-function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCancel }: {
+function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalculate, onCancel }: {
   readonly node: ResolvedDocumentHashFieldNode
+  readonly disabled: boolean
   readonly value: string
   readonly status: CamViewerDocumentHashStatus | undefined
   readonly onInput: (name: string, value: string | null) => void
@@ -325,23 +326,23 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
     { kind: "file", visible: status?.status === "succeeded" && status.source === "file", text: "SHA-256 calculated from local file bytes. The URI has not been checked." },
     { kind: "url", visible: status?.status === "succeeded" && status.source === "url", text: "SHA-256 calculated from the bytes returned by this URL after HTTP decoding." },
   ]
-  return <fieldset className="document-hash-field" disabled={node.disabled === true}>
+  return <fieldset className="document-hash-field">
     <legend>{displayText(node.props.label)}</legend>
     <label className="field">
       <span>SHA-256 digest</span>
-      <input name={node.state.key} value={value} autoComplete="off" spellCheck={false} aria-invalid={invalid} aria-describedby={invalid ? `${hintId} ${issueId}` : hintId}
+      <input disabled={disabled} name={node.state.key} value={value} autoComplete="off" spellCheck={false} aria-invalid={invalid} aria-describedby={invalid ? `${hintId} ${issueId}` : hintId}
         onChange={event => onInput(node.state.key, event.currentTarget.value)} />
     </label>
     <p id={hintId} className="field-hint">Enter 0x followed by 64 hexadecimal characters, or calculate from exact document bytes. Files stay on this device; selecting one does not upload it or check the URI. Limit: 8 MiB and 15 seconds.</p>
     {invalid ? <p id={issueId} className="field-hint" role="status">The digest must be 0x followed by exactly 64 hexadecimal characters. Your entry is kept unchanged.</p> : null}
-    <button ref={fileAction} className="resource-load" aria-busy={pending && status.source === "file"} type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>
-    <input ref={fileInput} type="file" aria-label={`Choose file for ${displayText(node.props.label)}`} hidden onChange={event => {
+    <button ref={fileAction} disabled={disabled} className="resource-load" aria-busy={pending && status.source === "file"} type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>
+    <input ref={fileInput} disabled={disabled} type="file" aria-label={`Choose file for ${displayText(node.props.label)}`} hidden onChange={event => {
       const file = event.currentTarget.files?.[0]
       event.currentTarget.value = ""
       if (file !== undefined) void onCalculate(node.state.key, "file", file)
     }} />
-    {node.props.sourceURI === undefined ? null : <button ref={urlAction} className="resource-load" aria-busy={pending && status.source === "url"} type="button" disabled={node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
-    <button className="button-quiet resource-cancel" type="button" aria-hidden={!pending} disabled={!pending} onClick={event => {
+    {node.props.sourceURI === undefined ? null : <button ref={urlAction} className="resource-load" aria-busy={pending && status.source === "url"} type="button" disabled={disabled || node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
+    <button className="button-quiet resource-cancel" type="button" aria-hidden={!pending} disabled={disabled || !pending} onClick={event => {
       const restoreFocus = document.activeElement === event.currentTarget
       const action = status?.source === "file" ? fileAction.current : urlAction.current
       onCancel(node.state.key)
@@ -451,7 +452,7 @@ function NumericInput({ value, composing: modelComposing, issue, onEdit, ...inpu
     }} />
 }
 
-function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFieldNode; readonly onAmount: AmountEdit }): ReactElement {
+function AmountFieldView({ node, disabled, onAmount }: { readonly node: ResolvedAmountFieldNode; readonly disabled: boolean; readonly onAmount: AmountEdit }): ReactElement {
   const hintId = useId()
   const issue = node.draft.issue
   const activeText = node.draft.representation === "base" ? node.draft.baseText : node.draft.displayText
@@ -460,13 +461,13 @@ function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFiel
     : issue === "precision" ? `This amount cannot be represented exactly with ${node.unit.decimals} decimal places. Remove nonzero extra fractional digits.`
     : issue === "tooLong" ? activeText === "" ? `Input is too long (limit ${MAX_NUMERIC_TEXT_LENGTH}). The value was cleared; enter it again.` : `The amount exceeds the limit of ${MAX_NUMERIC_DIGITS} base-unit digits.`
     : node.draft.status === "incomplete" ? "Finish entering the amount." : undefined
-  return <fieldset className="amount-field" disabled={node.disabled === true}>
+  return <fieldset className="amount-field">
     <legend>{displayText(stringProp(node.props, "label"))}</legend>
     <div className="amount-pair">
       {(["base", "display"] as const).map((representation) => <label className="field" key={representation}>
         <span>{displayText(representation === "base" ? node.unit.baseLabel : node.unit.displayLabel)}</span>
         <NumericInput key={JSON.stringify([node.state.key, node.unit.assetId, node.unit.baseLabel, node.unit.displayLabel, node.unit.decimals])}
-          name={representation === "base" ? node.state.key : `${node.state.key}.display`} data-amount-representation={representation}
+          disabled={disabled} name={representation === "base" ? node.state.key : `${node.state.key}.display`} data-amount-representation={representation}
           inputMode={representation === "base" ? "numeric" : "decimal"} value={representation === "base" ? node.draft.baseText : node.draft.displayText}
           composing={node.draft.composing} issue={issue} aria-describedby={explanation === undefined ? undefined : hintId} aria-invalid={node.draft.status === "invalid"}
           onEdit={(text, options) => onAmount(node.state.key, representation, text, options)} />
@@ -476,7 +477,7 @@ function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFiel
   </fieldset>
 }
 
-function DurationFieldView({ node, onDuration }: { readonly node: ResolvedDurationFieldNode; readonly onDuration: DurationEdit }): ReactElement {
+function DurationFieldView({ node, disabled, onDuration }: { readonly node: ResolvedDurationFieldNode; readonly disabled: boolean; readonly onDuration: DurationEdit }): ReactElement {
   const hintId = useId()
   const issue = node.draft.issue
   const explanation = issue === "belowMin" ? `Enter a total of at least ${node.props.min} seconds.`
@@ -485,12 +486,12 @@ function DurationFieldView({ node, onDuration }: { readonly node: ResolvedDurati
     : node.draft.status === "invalid" ? "Use whole numbers with digits only. A part that is too long or contains a line break is cleared; enter it again."
     : node.draft.status === "incomplete" ? "Finish entering the duration."
     : "Whole numbers only. Blank parts count as 0 once you enter a value."
-  return <fieldset className="duration-field" disabled={node.disabled === true} aria-describedby={hintId}>
+  return <fieldset className="duration-field" aria-describedby={hintId}>
     <legend>{displayText(node.props.label)}</legend>
     <div className="duration-parts">
       {DURATION_PARTS.map(part => <label className="field" key={part}>
         <span>{part[0].toUpperCase() + part.slice(1)}</span>
-        <NumericInput key={`${node.state.key}.${part}`} name={`${node.state.key}.${part}`} inputMode="numeric"
+        <NumericInput key={`${node.state.key}.${part}`} disabled={disabled} name={`${node.state.key}.${part}`} inputMode="numeric"
           value={node.draft.parts[part].text} composing={node.draft.parts[part].composing} issue={node.draft.parts[part].issue}
           aria-describedby={hintId} aria-invalid={node.draft.status === "invalid"}
           onEdit={(text, options) => onDuration(node.state.key, part, text, options)} />
@@ -501,7 +502,7 @@ function DurationFieldView({ node, onDuration }: { readonly node: ResolvedDurati
   </fieldset>
 }
 
-function IntegerFieldView({ node, onInteger }: { readonly node: ResolvedNonNegativeIntegerFieldNode; readonly onInteger: IntegerEdit }): ReactElement {
+function IntegerFieldView({ node, disabled, onInteger }: { readonly node: ResolvedNonNegativeIntegerFieldNode; readonly disabled: boolean; readonly onInteger: IntegerEdit }): ReactElement {
   const hintId = useId()
   const issue = node.draft.issue
   const explanation = issue === "syntax" ? "Enter a nonnegative whole number using digits only."
@@ -513,7 +514,7 @@ function IntegerFieldView({ node, onInteger }: { readonly node: ResolvedNonNegat
   return <div>
     <label className="field">
       <span>{displayText(stringProp(node.props, "label"))}</span>
-      <NumericInput key={node.state.key} name={node.state.key} inputMode="numeric" disabled={node.disabled === true} value={node.draft.text}
+      <NumericInput key={node.state.key} name={node.state.key} inputMode="numeric" disabled={disabled} value={node.draft.text}
         composing={node.draft.composing} issue={issue} aria-describedby={explanation === undefined ? undefined : hintId} aria-invalid={node.draft.status === "invalid"}
         onEdit={(text, options) => onInteger(node.state.key, text, options)} />
     </label>
@@ -562,10 +563,5 @@ function KeyValue({
   readonly mono: boolean
   readonly compact?: boolean | undefined
 }): ReactElement {
-  return (
-    <div className="key-value">
-      <span className="key-label">{displayText(label)}</span>
-      <span className={mono ? "mono" : undefined}>{compact === false ? displayText(value) : <HexValue value={value} label={label} />}</span>
-    </div>
-  )
+  return <PropertyRow label={label} className={mono ? "mono-value" : "text-value"} value={compact === false ? <span>{displayText(value)}</span> : value} />
 }

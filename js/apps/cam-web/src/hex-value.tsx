@@ -30,9 +30,8 @@ function CopyableHex({ value, label, href }: HexValueProps): ReactElement {
 
   const prefix = value.startsWith("sha256:") ? "sha256:" : ""
   const hex = value.slice(prefix.length)
-  const short = `${prefix}${hex.slice(0, 6)}...${hex.slice(-4)}`
   const failure = typeof result === "object" ? result : undefined
-  const code = <code title={value}><span className="hex-short" aria-hidden="true">{short}</span><span className="visually-hidden">{value}</span></code>
+  const code = <code title={value}><span>{prefix}{hex.slice(0, 6)}</span><span className="hex-middle">{hex.slice(6, -4)}<span className="hex-ellipsis" aria-hidden="true" /></span><span>{hex.slice(-4)}</span></code>
   return <span className="hex-value">
     <span className="hex-value-controls">
       {href === undefined ? code : <a href={href} target="_blank" rel="noopener noreferrer" title={`View ${label}`}>{code}</a>}

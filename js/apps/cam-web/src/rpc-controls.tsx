@@ -5,6 +5,7 @@ import { requireHttpURL } from "@cam/protocol"
 import { failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
+import { ControlRow } from "./property-row.tsx"
 
 type RpcDraft = { readonly choice: string; readonly customURL: string }
 type Candidate = { readonly draft: RpcDraft; readonly url: string }
@@ -111,9 +112,8 @@ export function RpcControls({ chainId, suppliedURLs, activeURL, busy, mode, onAp
   const checked = mode === "connection" && displayedURL !== undefined && displayedURL === activeURL && currentAttempt?.status !== "checking" && currentAttempt?.status !== "failed"
   const check = checked ? <span role="img" aria-label="RPC connection checked" title="RPC connection checked">✓</span> : null
 
-  return <div className="rpc-connection">
-    <dt><label htmlFor="rpc-endpoint-choice">RPC service</label></dt>
-    <dd><form id="rpc-connection-form" className="connection-form" noValidate aria-busy={currentAttempt?.status === "checking"} onSubmit={event => { event.preventDefault(); clearTimeout(timer.current); timer.current = undefined; enqueue(draft) }}>
+  return <ControlRow className="rpc-connection" label="RPC service" controlId="rpc-endpoint-choice">
+    <form id="rpc-connection-form" className="connection-form" noValidate aria-busy={currentAttempt?.status === "checking"} onSubmit={event => { event.preventDefault(); clearTimeout(timer.current); timer.current = undefined; enqueue(draft) }}>
       <div className="rpc-input-row"><select id="rpc-endpoint-choice" value={draft.choice} onChange={event => edit({ ...draft, choice: event.currentTarget.value })}>
         {endpoints.map(endpoint => <option key={endpoint.url} value={endpoint.url}>{endpoint.name}</option>)}
         <option value="custom">Custom RPC URL</option>
@@ -121,6 +121,6 @@ export function RpcControls({ chainId, suppliedURLs, activeURL, busy, mode, onAp
       {draft.choice === "custom" ? <label className="field"><span>Custom RPC URL</span><div className="rpc-input-row"><input id="rpc-endpoint-url" type="url" value={draft.customURL} onChange={event => edit({ ...draft, customURL: event.currentTarget.value })} /><span className="rpc-check" role="status">{check}</span></div></label> : null}
       {mode === "setup" ? <button id="app-open" className="button-quiet" type="submit" disabled={busy || currentAttempt?.status === "checking"}>Open app</button> : null}
       {currentAttempt?.status === "failed" ? <Feedback report={currentAttempt.failure} kind="error" /> : null}
-    </form></dd>
-  </div>
+    </form>
+  </ControlRow>
 }
