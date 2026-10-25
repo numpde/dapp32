@@ -21,7 +21,7 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: ../../tools/rpc-catalog.json
+        source: ../../js/packages/cam-viewer/src/rpc-catalog.json
         target: /catalog/rpc-catalog.json
         read_only: true
         bind: {create_host_path: false}

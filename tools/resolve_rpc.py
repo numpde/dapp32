@@ -17,8 +17,8 @@ def unique_fields(pairs):
     return fields
 
 
-def select_endpoint(network: str, service: str, expected_chain: str) -> tuple[int, str]:
-    with Path(__file__).with_name("rpc-catalog.json").open() as source:
+def select_endpoint(catalog_path: Path, network: str, service: str, expected_chain: str) -> tuple[int, str]:
+    with catalog_path.open() as source:
         catalog = json.load(source, object_pairs_hook=unique_fields)
     if not isinstance(catalog, dict):
         raise ValueError("RPC catalog must be a JSON object keyed by network name.")
@@ -59,13 +59,14 @@ def fill_api_key(endpoint: str, supplied: bool) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("catalog", type=Path)
     parser.add_argument("network")
     parser.add_argument("service")
     parser.add_argument("output", type=Path)
     parser.add_argument("expected_chain")
     parser.add_argument("--api-key-stdin", action="store_true")
     args = parser.parse_args()
-    chain_id, template = select_endpoint(args.network, args.service, args.expected_chain)
+    chain_id, template = select_endpoint(args.catalog, args.network, args.service, args.expected_chain)
     endpoint = fill_api_key(template, args.api_key_stdin)
     # Exclusive creation also refuses existing and dangling symlinks.
     descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

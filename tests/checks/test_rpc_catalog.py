@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-import shutil
 import stat
 import subprocess
 import sys
@@ -16,7 +15,7 @@ from .common import repo_path, rendered_compose_config
 
 class RpcCatalogTest(unittest.TestCase):
     def test_reference_metadata_pairs_each_mainnet_with_one_testnet(self) -> None:
-        catalog = json.loads(repo_path("tools/rpc-catalog.json").read_text())
+        catalog = json.loads(repo_path("js/packages/cam-viewer/src/rpc-catalog.json").read_text())
         mainnets = {key: chain for key, chain in catalog.items() if "mainnet" not in chain}
         indexes = [chain["index"] for chain in mainnets.values()]
         self.assertEqual(len(indexes), len(set(indexes)))
@@ -47,7 +46,7 @@ class RpcCatalogTest(unittest.TestCase):
                     self.assertIn("public", chain["services"])
 
     def test_retired_networks_cannot_supply_a_release_endpoint(self) -> None:
-        catalog = json.loads(repo_path("tools/rpc-catalog.json").read_text())
+        catalog = json.loads(repo_path("js/packages/cam-viewer/src/rpc-catalog.json").read_text())
         for network, chain in catalog.items():
             if chain.get("retired"):
                 with self.subTest(network=network), tempfile.TemporaryDirectory() as temporary:
@@ -59,6 +58,7 @@ class RpcCatalogTest(unittest.TestCase):
     def test_resolver_container_has_only_its_catalog_source_and_output(self) -> None:
         service = rendered_compose_config("compose/release/rpc.yml")["services"]["rpc-resolve"]
         self.assertEqual("none", service["network_mode"])
+        self.assertEqual(["python3", "-I", "-B", "/catalog/resolve_rpc.py", "/catalog/rpc-catalog.json"], service["entrypoint"])
         self.assertIs(True, service["read_only"])
         self.assertEqual(["ALL"], service["cap_drop"])
         self.assertEqual({"/catalog/resolve_rpc.py", "/catalog/rpc-catalog.json", "/out"}, {volume["target"] for volume in service["volumes"]})
@@ -66,9 +66,11 @@ class RpcCatalogTest(unittest.TestCase):
             self.assertIn(volume["bind"], ({}, {"create_host_path": False}))
             if volume["target"] != "/out":
                 self.assertIs(True, volume["read_only"])
+            if volume["target"] == "/catalog/rpc-catalog.json":
+                self.assertEqual(str(repo_path("js/packages/cam-viewer/src/rpc-catalog.json")), volume["source"])
 
-    def resolve(self, directory: Path, chain: str, service: str, key: str = "", script: Path | None = None, expected_chain: str = ""):
-        command = [sys.executable, "-I", "-B", str(script if script is not None else repo_path("tools/resolve_rpc.py")), chain, service, str(directory / "rpc-url"), expected_chain]
+    def resolve(self, directory: Path, chain: str, service: str, key: str = "", catalog: Path | None = None, expected_chain: str = ""):
+        command = [sys.executable, "-I", "-B", str(repo_path("tools/resolve_rpc.py")), str(catalog if catalog is not None else repo_path("js/packages/cam-viewer/src/rpc-catalog.json")), chain, service, str(directory / "rpc-url"), expected_chain]
         credential = b""
         if key:
             command.append("--api-key-stdin")
@@ -77,7 +79,7 @@ class RpcCatalogTest(unittest.TestCase):
         return subprocess.CompletedProcess(result.args, result.returncode, result.stdout.decode(), result.stderr.decode())
 
     def test_every_catalog_entry_resolves_without_revealing_credentials(self) -> None:
-        with repo_path("tools/rpc-catalog.json").open() as source:
+        with repo_path("js/packages/cam-viewer/src/rpc-catalog.json").open() as source:
             entries = json.load(source)
         self.assertTrue(entries)
         for network, entry in entries.items():
@@ -158,16 +160,14 @@ class RpcCatalogTest(unittest.TestCase):
     def test_new_network_flows_from_catalog_without_resolver_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            script = directory / "resolve_rpc.py"
-            shutil.copyfile(repo_path("tools/resolve_rpc.py"), script)
             catalog = {"future-testnet": {"chainId": 123456789, "services": {"public": "https://rpc.example.test"}}}
             (directory / "rpc-catalog.json").write_text(json.dumps(catalog))
-            result = self.resolve(directory, "future-testnet", "public", script=script)
+            result = self.resolve(directory, "future-testnet", "public", catalog=directory / "rpc-catalog.json")
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertIn("123456789", result.stdout)
             self.assertEqual("https://rpc.example.test\n", (directory / "rpc-url").read_text())
             (directory / "rpc-url").unlink()
-            unavailable = self.resolve(directory, "future-testnet", "alchemy", script=script)
+            unavailable = self.resolve(directory, "future-testnet", "alchemy", catalog=directory / "rpc-catalog.json")
             self.assertNotEqual(0, unavailable.returncode)
             self.assertFalse((directory / "rpc-url").exists())
 
@@ -194,10 +194,8 @@ class RpcCatalogTest(unittest.TestCase):
         for catalog in catalogs:
             with self.subTest(catalog=catalog), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
-                script = directory / "resolve_rpc.py"
-                shutil.copyfile(repo_path("tools/resolve_rpc.py"), script)
                 (directory / "rpc-catalog.json").write_text(catalog)
-                result = self.resolve(directory, "base-sepolia", "public", script=script)
+                result = self.resolve(directory, "base-sepolia", "public", catalog=directory / "rpc-catalog.json")
                 self.assertNotEqual(0, result.returncode)
                 self.assertEqual("", result.stdout)
                 self.assertFalse((directory / "rpc-url").exists())

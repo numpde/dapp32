@@ -1449,7 +1449,7 @@ dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 tests: tests/checks dapps/tests js/ci tests/live cast/offline/check wallet/addresses/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run dapps/release/rehearsal/check
 
 release/rpc/list:
-	@cat tools/rpc-catalog.json
+	@cat js/packages/cam-viewer/src/rpc-catalog.json
 
 dapps/release/rehearsal/check:
 	@for app in bike-nft escrow pay-to-play; do $(MAKE) "$$app/release/rehearsal/run" RPC_URL_FILE=/must-not-use-parent-rpc DEPLOYER_PRIVATE_KEY_FILE=/must-not-use-parent-key || exit "$$?"; done
