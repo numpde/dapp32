@@ -51,7 +51,6 @@ import {
   assertRpcChain,
   createViewerResourceLoader,
   displayRpcEndpoint,
-  downloadScopeLabel,
   parseStartupCoordinates,
   parseViewFragment,
   urlForView,
@@ -122,15 +121,24 @@ export function App(): ReactElement {
   })
   const [bootResourceSetting] = useState(import.meta.env.VITE_CAM_WEB_RESOURCE_ORIGIN)
   const bootPrefix = bootResourceSetting !== undefined && bootResourceSetting !== "" && bootResourceSetting !== "*" && bootResourceSetting !== "none" ? bootResourceSetting : undefined
-  const [downloadScope, setDownloadScope] = useState<DownloadScope | undefined>(() => {
+  const [initialDownloadScope] = useState<DownloadScope | undefined>(() => {
     try { return readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: bootResourceSetting }) }
     // silent-defaults: allow-default -- Invalid boot settings remain unset for repair; startup still reports their parsing failure.
     catch { return undefined }
   })
-  const downloadScopeRef = useRef(downloadScope)
-  const [scopeChoice, setScopeChoice] = useState<string>(downloadScope === undefined || downloadScope.kind === "prefix" ? "boot" : downloadScope.kind)
-  const [customPrefix, setCustomPrefix] = useState("")
+  const downloadScopeRef = useRef(initialDownloadScope)
+  const [scopeDraft, setScopeDraft] = useState<{ choice: string; prefix: string }>({ choice: initialDownloadScope === undefined || initialDownloadScope.kind === "prefix" ? "boot" : initialDownloadScope.kind, prefix: "" })
+  const scopeDraftRef = useRef(scopeDraft)
   const [scopeError, setScopeError] = useState<FailureReport | undefined>(undefined)
+  useEffect(() => {
+    if (scopeDraft.choice !== "custom") return
+    const timer = setTimeout(() => {
+      if (scopeDraftRef.current !== scopeDraft) return
+      try { commitDownloadScope(downloadScopeForPrefix(scopeDraft.prefix)) }
+      catch (cause) { setScopeError(failureReport(cause, "Enter a complete URL prefix.")) }
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [scopeDraft])
   const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
   const gatewayRef = useRef(defaultIpfsGateway.template)
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
@@ -769,6 +777,7 @@ export function App(): ReactElement {
     if (sendingRef.current || changingViewRef.current || walletRefreshingRef.current) throw new UserFacingError("Finish the current operation before changing RPC.")
     const current = readyRef.current
     if (current.status !== "ready") {
+      if (current.status === "loading" && current.startup?.rpcUrl === url) return
       // silent-defaults: allow-default -- Retry keeps bootstrap account changes; untouched setup uses the supplied link coordinates.
       const coordinates = connectionOptions(current) ?? ("coordinates" in viewerLink ? viewerLink.coordinates : undefined)
       if (coordinates === undefined) throw new UserFacingError("Provide the app's network and CAM contract address first.")
@@ -799,40 +808,33 @@ export function App(): ReactElement {
 
   function commitDownloadScope(scope: DownloadScope): void {
     downloadScopeRef.current = scope
-    setDownloadScope(scope)
     setScopeError(undefined)
     if (readyRef.current.status === "failed") retryUnfinishedLoad()
+  }
+
+  function editScope(next: typeof scopeDraft): void {
+    scopeDraftRef.current = next
+    setScopeDraft(next)
+    setScopeError(undefined)
+    try {
+      if (next.choice === "boot") commitDownloadScope(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: bootResourceSetting }))
+      else if (next.choice === "https-or-ipfs" || next.choice === "ipfs-only" || next.choice === "http-only") commitDownloadScope({ kind: next.choice })
+    } catch (cause) { setScopeError(failureReport(cause, "Cannot use this download scope.")) }
   }
 
   const resourcePolicy = <div className="download-scope">
     <dt><label htmlFor="download-scope-choice">Download scope</label></dt>
     <dd><div className="connection-form">
-      <select id="download-scope-choice" value={scopeChoice} aria-describedby="download-scope-help" onChange={event => {
-        const choice = event.currentTarget.value
-        setScopeChoice(choice)
-        setScopeError(undefined)
-      }}>
+      <select id="download-scope-choice" value={scopeDraft.choice} onChange={event => editScope({ ...scopeDraft, choice: event.currentTarget.value })}>
         <option value="https-or-ipfs">HTTPS or IPFS</option>
         <option value="ipfs-only">IPFS only</option>
         <option value="http-only">HTTP only (danger!)</option>
         {bootPrefix === undefined ? null : <option value="boot">Only {bootPrefix.length <= 64 ? bootPrefix : `${bootPrefix.slice(0, 61)}…`}</option>}
         <option value="custom">Custom URL prefix</option>
       </select>
-      {scopeChoice === "boot" && bootPrefix !== undefined ? <label className="field"><span>Configured URL prefix</span><input readOnly value={bootPrefix} /></label> : null}
-      {scopeChoice === "custom" ? <>
-        <label className="field"><span>URL prefix</span><input id="download-prefix" type="url" value={customPrefix} onChange={event => { setCustomPrefix(event.currentTarget.value); setScopeError(undefined) }} /></label>
-        <p className="field-hint">For a folder, include the trailing slash: https://example.org/app/.</p>
-      </> : null}
-      <button className="button-quiet" id="download-scope-apply" type="button" onClick={() => {
-        try {
-          if (scopeChoice === "custom") commitDownloadScope(downloadScopeForPrefix(customPrefix))
-          else if (scopeChoice === "boot") commitDownloadScope(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: bootResourceSetting }))
-          else if (scopeChoice === "https-or-ipfs" || scopeChoice === "ipfs-only" || scopeChoice === "http-only") commitDownloadScope({ kind: scopeChoice })
-        } catch (cause) { setScopeError(failureReport(cause, "Cannot apply this download scope.")) }
-      }}>Apply</button>
-      {scopeChoice === "http-only" || (scopeChoice === "custom" && /^http:/i.test(customPrefix)) || (scopeChoice === "boot" && bootPrefix !== undefined && /^http:/i.test(bootPrefix)) ? <p className="field-hint">HTTP is unencrypted. Your browser may block HTTP downloads.</p> : null}
-      <p id="download-scope-help" className="field-hint">Applies to new CAM, NFT, image and document downloads. Loaded content and pending downloads are kept.</p>
-      {downloadScope === undefined ? null : <p className="field-hint" role="status">In use: {downloadScopeLabel(downloadScope)}</p>}
+      {scopeDraft.choice === "boot" && bootPrefix !== undefined ? <label className="field"><span>Configured URL prefix</span><input readOnly value={bootPrefix} /></label> : null}
+      {scopeDraft.choice === "custom" ? <label className="field"><span>URL prefix</span><input id="download-prefix" type="url" value={scopeDraft.prefix} placeholder="https://example.org/app/" onChange={event => editScope({ ...scopeDraft, prefix: event.currentTarget.value })} /></label> : null}
+      {scopeDraft.choice === "http-only" || (scopeDraft.choice === "custom" && /^http:/i.test(scopeDraft.prefix)) || (scopeDraft.choice === "boot" && bootPrefix !== undefined && /^http:/i.test(bootPrefix)) ? <p className="field-hint">HTTP is unencrypted. Your browser may block HTTP downloads.</p> : null}
       {scopeError === undefined ? null : <Feedback report={scopeError} kind="error" />}
     </div></dd>
   </div>
@@ -857,8 +859,7 @@ export function App(): ReactElement {
     suppliedURLs={viewerLink.rpcURLs}
     activeURL={loadState.status === "ready" ? loadState.runtime.rpc.active.url : undefined}
     busy={changingView || walletRefreshing || sending}
-    autoStart={loadRequest === undefined}
-    submitLabel="Use RPC"
+    mode="connection"
     onApply={applyRpc}
   /> : null
   // silent-defaults: allow-default -- Show known app coordinates before an RPC has been selected.

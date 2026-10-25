@@ -39,7 +39,7 @@ window.fetch = async (input, init) => {
     if (bytes === undefined) throw new Error(`Unexpected fixture resource: ${url.href}`)
     return new Response(bytes)
   }
-  if (!["https://rpc.fixture.test", "https://candidate.fixture.test"].includes(url.origin)) throw new Error(`Unexpected fixture endpoint: ${url.origin}`)
+  if (!["https://rpc.fixture.test", "https://candidate.fixture.test", "https://next.fixture.test"].includes(url.origin)) throw new Error(`Unexpected fixture endpoint: ${url.origin}`)
   const rpc = JSON.parse(String(init?.body)) as { method: string; id: number; params: [{ data: `0x${string}` }] }
   if (url.origin === "https://candidate.fixture.test" && rpc.method === "eth_chainId" && state.holdCandidate) {
     state.candidateStarted = true

@@ -5,68 +5,122 @@ import { requireHttpURL } from "@cam/protocol"
 import { failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
-import { displayRpcEndpoint } from "./startup.ts"
 
-export function RpcControls({ chainId, suppliedURLs, activeURL, busy, autoStart, submitLabel, onApply }: {
+type RpcDraft = { readonly choice: string; readonly customURL: string }
+type Candidate = { readonly draft: RpcDraft; readonly url: string }
+type Attempt =
+  | { readonly draft: RpcDraft; readonly status: "checking" | "settled" }
+  | { readonly draft: RpcDraft; readonly status: "failed"; readonly failure: FailureReport }
+
+export function RpcControls({ chainId, suppliedURLs, activeURL, busy, mode, onApply }: {
   readonly chainId: string
   readonly suppliedURLs: readonly string[]
   readonly activeURL: string | undefined
   readonly busy: boolean
-  readonly autoStart: boolean
-  readonly submitLabel: string
+  readonly mode: "setup" | "connection"
   readonly onApply: (url: string) => Promise<void>
 }): ReactElement {
   const [endpoints] = useState(() => publicRpcEndpoints(chainId))
-  const [choice, setChoice] = useState(() => {
+  const [draft, setDraft] = useState<RpcDraft>(() => {
+    const customURL = suppliedURLs.length === 0 ? "" : suppliedURLs[0]!
+    let choice = endpoints.length === 0 ? "custom" : endpoints[0]!.url
     if (suppliedURLs.length > 0) {
       try {
-        const supplied = requireHttpURL(suppliedURLs[0]!, "RPC URL").href
-        return endpoints.some(endpoint => endpoint.url === supplied) ? supplied : "custom"
+        const supplied = requireHttpURL(customURL, "RPC URL").href
+        choice = endpoints.some(endpoint => endpoint.url === supplied) ? supplied : "custom"
       }
-      // silent-defaults: allow-default -- Invalid explicit links stay editable as Custom, without choosing another endpoint.
-      catch { return "custom" }
+      // Invalid explicit links remain editable instead of selecting another service.
+      catch { choice = "custom" }
     }
-    return endpoints.length === 0 ? "custom" : endpoints[0]!.url
+    return { choice, customURL }
   })
-  const [customURL, setCustomURL] = useState(suppliedURLs.length === 0 ? "" : suppliedURLs[0]!)
-  const [error, setError] = useState<FailureReport | undefined>(undefined)
-  const started = useRef(false)
-  const applying = useRef(false)
-  const [checking, setChecking] = useState(false)
+  const initialDraft = useRef(draft)
+  const currentDraft = useRef(draft)
+  const ports = useRef({ busy, onApply })
+  ports.current = { busy, onApply }
+  const mounted = useRef(true)
+  const running = useRef<Candidate | undefined>(undefined)
+  const pending = useRef<Candidate | undefined>(undefined)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [attempt, setAttempt] = useState<Attempt | undefined>(undefined)
 
-  async function apply(): Promise<void> {
-    if (applying.current) return
-    applying.current = true
-    setChecking(true)
-    setError(undefined)
+  function edit(next: RpcDraft): void {
+    currentDraft.current = next
+    pending.current = undefined
+    setDraft(next)
+    setAttempt(undefined)
+  }
+
+  function enqueue(selected: RpcDraft): void {
+    if (selected !== currentDraft.current) return
+    if (running.current?.draft === selected || pending.current?.draft === selected) return
     try {
-      const url = choice === "custom" ? customURL : choice
-      await onApply(requireHttpURL(url, "RPC URL").href)
+      const url = requireHttpURL(selected.choice === "custom" ? selected.customURL : selected.choice, "RPC URL").href
+      pending.current = { draft: selected, url }
+      drain()
     } catch (cause) {
-      setError(failureReport(cause, "Cannot use this RPC. Correct the URL or choose another service."))
-    } finally { applying.current = false; setChecking(false) }
+      setAttempt({ draft: selected, status: "failed", failure: failureReport(cause, "Enter a complete http:// or https:// RPC URL.") })
+    }
+  }
+
+  function drain(): void {
+    if (!mounted.current || running.current !== undefined || ports.current.busy) return
+    const candidate = pending.current
+    if (candidate === undefined) return
+    pending.current = undefined
+    if (candidate.draft !== currentDraft.current) return
+    running.current = candidate
+    setAttempt({ draft: candidate.draft, status: "checking" })
+    void run(candidate)
+  }
+
+  async function run(candidate: Candidate): Promise<void> {
+    try {
+      await ports.current.onApply(candidate.url)
+      if (mounted.current && candidate.draft === currentDraft.current) setAttempt({ draft: candidate.draft, status: "settled" })
+    } catch (cause) {
+      if (mounted.current && candidate.draft === currentDraft.current) setAttempt({ draft: candidate.draft, status: "failed", failure: failureReport(cause, "Cannot connect to this RPC.") })
+    } finally {
+      running.current = undefined
+      drain()
+    }
   }
 
   useEffect(() => {
-    if (started.current || !autoStart) return
-    started.current = true
-    if (suppliedURLs.length > 1) {
-      setError(failureReport(new UserFacingError("This link has more than one RPC URL. Choose the service to use.")))
-    } else if (suppliedURLs.length > 0 || choice !== "custom") void apply()
+    mounted.current = true
+    return () => { mounted.current = false; pending.current = undefined }
   }, [])
+  useEffect(() => {
+    if (mode === "setup") return
+    if (draft === initialDraft.current && suppliedURLs.length > 1) {
+      setAttempt({ draft, status: "failed", failure: failureReport(new UserFacingError("This link has more than one RPC URL. Choose the service to use.")) })
+      return
+    }
+    if (draft.choice !== "custom") { enqueue(draft); return }
+    if (draft.customURL === "" && suppliedURLs.length === 0) return
+    timer.current = setTimeout(() => { timer.current = undefined; enqueue(draft) }, 400)
+    return () => { clearTimeout(timer.current); timer.current = undefined }
+  }, [draft, mode])
+  useEffect(() => { if (!busy) drain() }, [busy])
+
+  let displayedURL: string | undefined
+  try { displayedURL = requireHttpURL(draft.choice === "custom" ? draft.customURL : draft.choice, "RPC URL").href }
+  // An incomplete draft has no endpoint whose connection can be acknowledged.
+  catch { displayedURL = undefined }
+  const currentAttempt = attempt?.draft === draft ? attempt : undefined
+  const checked = mode === "connection" && displayedURL !== undefined && displayedURL === activeURL && currentAttempt?.status !== "checking" && currentAttempt?.status !== "failed"
+  const check = checked ? <span role="img" aria-label="RPC connection checked" title="RPC connection checked">✓</span> : null
 
   return <div className="rpc-connection">
     <dt><label htmlFor="rpc-endpoint-choice">RPC service</label></dt>
-    <dd><form id="rpc-connection-form" className="connection-form" noValidate onSubmit={event => { event.preventDefault(); void apply() }}>
-      <select id="rpc-endpoint-choice" aria-describedby="rpc-help" value={choice} disabled={checking} onChange={event => { setChoice(event.currentTarget.value); setError(undefined) }}>
+    <dd><form id="rpc-connection-form" className="connection-form" noValidate aria-busy={currentAttempt?.status === "checking"} onSubmit={event => { event.preventDefault(); clearTimeout(timer.current); timer.current = undefined; enqueue(draft) }}>
+      <div className="rpc-input-row"><select id="rpc-endpoint-choice" value={draft.choice} onChange={event => edit({ ...draft, choice: event.currentTarget.value })}>
         {endpoints.map(endpoint => <option key={endpoint.url} value={endpoint.url}>{endpoint.name}</option>)}
         <option value="custom">Custom RPC URL</option>
-      </select>
-      {choice === "custom" ? <label className="field"><span>Custom RPC URL</span><input id="rpc-endpoint-url" type="url" aria-describedby="rpc-help" value={customURL} disabled={checking} onChange={event => { setCustomURL(event.currentTarget.value); setError(undefined) }} /></label> : null}
-      <button id="rpc-apply" className="button-quiet" type="submit" disabled={busy || checking} aria-busy={checking}>{submitLabel}</button>
-      <p className="field-hint" id="rpc-help">Changes last until you reload this page.</p>
-      {activeURL === undefined ? null : <p className="field-hint" role="status">In use: {displayRpcEndpoint(activeURL)}</p>}
-      {error === undefined ? null : <Feedback report={error} kind="error" />}
+      </select><span className="rpc-check" role="status">{draft.choice === "custom" ? null : check}</span></div>
+      {draft.choice === "custom" ? <label className="field"><span>Custom RPC URL</span><div className="rpc-input-row"><input id="rpc-endpoint-url" type="url" value={draft.customURL} onChange={event => edit({ ...draft, customURL: event.currentTarget.value })} /><span className="rpc-check" role="status">{check}</span></div></label> : null}
+      {mode === "setup" ? <button id="app-open" className="button-quiet" type="submit" disabled={busy || currentAttempt?.status === "checking"}>Open app</button> : null}
+      {currentAttempt?.status === "failed" ? <Feedback report={currentAttempt.failure} kind="error" /> : null}
     </form></dd>
   </div>
 }

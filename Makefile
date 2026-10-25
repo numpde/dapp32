@@ -807,7 +807,7 @@ help:
 	  '    App and default download prefix come from the artifact; IPFS defaults to IPFS only.' \
 	  '    Scripts: set DEPLOYMENT_ARTIFACT_FILE and PUBLIC_RPC_URL. Optional APP must agree.' \
 	  '    RESOURCE_ORIGIN: artifact origin by default, * for HTTPS or IPFS, none for IPFS only, or a URL prefix.' \
-	  '    Choose Download scope, then Apply on the page; URL parameters cannot set it. Quote RESOURCE_ORIGIN="*".' \
+	  '    Download scope choices apply immediately; custom prefixes apply after typing pauses. URL parameters cannot set it. Quote RESOURCE_ORIGIN="*".' \
 	  '    Browser CORS and mixed-content restrictions still apply.' \
 	  '    PUBLIC_RPC_URL is visible in the browser link: use a public endpoint without credentials.' \
 	  '    No signing configuration or private key is read. RPC connectivity is checked when the browser loads.' \

@@ -42,7 +42,6 @@ async function select(id) {
 }
 async function choosePolicy(value) {
   await evaluate(`(() => {const choice=document.querySelector('#download-scope-choice');choice.value=${JSON.stringify(value)};choice.dispatchEvent(new Event('change',{bubbles:true}))})()`)
-  await evaluate(`document.querySelector('#download-scope-apply').click()`)
 }
 async function open(scenario, scope) {
   const url = new URL('/test/ipfs-gateway-fixture.html', viewer)
@@ -139,17 +138,15 @@ try {
   await open('https-hold', 'https-or-ipfs')
   await wait('gatewayFixture.requests.length===1')
   await evaluate(`(()=>{const select=document.querySelector('#download-scope-choice');select.value='ipfs-only';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
-  assert(await evaluate(`document.querySelector('.download-scope [role="status"]').textContent.includes('HTTPS or IPFS')`), 'choosing a preset only edits the draft until Apply')
-  await evaluate(`document.querySelector('#download-scope-apply').click()`)
-  assert.equal(await evaluate('gatewayFixture.aborted'), 0, 'applying a scope leaves an admitted pending download running')
+  assert(await evaluate(`!document.querySelector('#download-scope-apply')`), 'download scope choices apply without a separate button')
+  assert.equal(await evaluate('gatewayFixture.aborted'), 0, 'changing a scope leaves an admitted pending download running')
   await evaluate('gatewayFixture.releaseRoot()')
   await wait('!!document.querySelector(".panel.error")')
   assert(await evaluate(`document.querySelector('.panel.error').textContent.includes('download scope')&&gatewayFixture.aborted===0&&gatewayFixture.requests.length===1`), 'later nested resources use the new scope without cancelling the admitted root')
   await evaluate(`(()=>{const select=document.querySelector('#download-scope-choice');select.value='custom';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
   await evaluate(`(()=>{const input=document.querySelector('#download-prefix');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'https://raw.githubusercontent.com/bundle/');input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
-  await evaluate(`document.querySelector('#download-scope-apply').click()`)
   await wait('!!document.querySelector("input[name=draft]")')
-  assert(await evaluate(`document.querySelector('.download-scope [role="status"]').textContent.includes('https://raw.githubusercontent.com/bundle/')`), 'a full custom folder prefix recovers the blocked new requests')
+  assert(await evaluate(`document.querySelector('#download-prefix').value==='https://raw.githubusercontent.com/bundle/'`), 'a custom folder prefix recovers blocked requests after editing settles')
   assert(await evaluate(`![...document.querySelectorAll('#download-scope-choice option')].some(option=>option.value==='https://raw.githubusercontent.com')`), 'manifest discovery never creates a scope preset')
   console.log(JSON.stringify({ ipfsGateway: true, rootAndRelativeResources: true, retryAndCancellation: true, readyDraftPreserved: true, nftRelativeImage: true, narrowWidth: 320, resourcePolicy: policy }))
 } catch (error) {

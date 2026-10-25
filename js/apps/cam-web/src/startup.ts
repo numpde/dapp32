@@ -68,15 +68,6 @@ export function readStartupPolicy(env: StartupEnv): DownloadScope {
   return downloadScopeForPrefix(setting)
 }
 
-export function downloadScopeLabel(scope: DownloadScope): string {
-  switch (scope.kind) {
-    case "https-or-ipfs": return "HTTPS or IPFS"
-    case "ipfs-only": return "IPFS only"
-    case "http-only": return "HTTP only (danger!)"
-    case "prefix": return `URL prefix: ${scope.prefix}`
-  }
-}
-
 export function createViewerResourceLoader(assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string, signal?: AbortSignal): ResourceLoader {
   const load = createCamResourceLoader({
     originInput: "*",

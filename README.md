@@ -65,8 +65,13 @@ scope**: the artifact's HTTPS origin by default, `*` for HTTPS or IPFS, `none`
 for IPFS only, or a URL prefix. A prefix retains its full path; it may intentionally
 block the selected app until changed on the page.
 
+RPC service choices connect automatically; a custom URL is checked after typing
+pauses. A checkmark identifies the displayed endpoint only when it is the app's
+working connection. Press Enter in the custom URL field to retry it unchanged.
+
 On the page, choose **HTTPS or IPFS**, **IPFS only**, **HTTP only (danger!)**,
-the configured URL prefix, or a custom URL prefix, then choose **Apply**.
+the configured URL prefix, or a custom URL prefix. Presets take effect immediately;
+a custom prefix takes effect when you pause typing.
 The configured preset comes from the viewer's boot setting; manifests cannot
 add presets. The full configured prefix remains visible. For a folder, include
 the trailing slash, such as `https://example.org/app/`.
@@ -74,7 +79,7 @@ the trailing slash, such as `https://example.org/app/`.
 The scope applies to new CAM, NFT, image and document downloads, before IPFS
 gateway translation. Loaded content and admitted pending requests stay intact;
 each later request uses the current scope. RPC, wallet operations, local files
-and data URIs are separate. A failed initial load can retry after Apply.
+and data URIs are separate. Changing the scope retries a failed initial load.
 Viewer URL parameters cannot set the scope. Other browser deployments use
 `VITE_CAM_WEB_RESOURCE_ORIGIN` for the same boot setting; an unset or empty value
 selects IPFS only. Browser CORS and mixed-content restrictions, redirect refusal,

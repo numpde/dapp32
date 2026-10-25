@@ -18,6 +18,9 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await call('Page.navigate', { url: url.href })
     await wait('!!window.connectionFixture')
   }
+  async function editRPC(value) {
+    await evaluate(`(()=>{const input=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+  }
   const publicView = `document.querySelector('.connection-facts')?.textContent.includes('Public view')`
   const button = `document.querySelector('button[aria-label="Update record"]')`
   const failures = []
@@ -28,7 +31,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       assert.equal(await evaluate('connectionFixture.state.subjects.length'), 0, 'incomplete app coordinates cause no contract reads')
       if (scenario === 'partial') {
         assert.equal(await evaluate(`document.querySelector('#app-host').value`), 'needs correction', 'the setup form preserves the supplied invalid address')
-        await evaluate(`document.querySelector('#rpc-apply').click()`)
+        await evaluate(`document.querySelector('#app-open').click()`)
         await wait(`!!document.querySelector('.app-setup [role="alert"]')`)
         assert(!(await evaluate(`document.querySelector('.app-setup [role="alert"]').textContent.includes('Cannot use this RPC')`)), 'invalid app coordinates are not reported as an RPC failure')
         assert.equal(await evaluate('connectionFixture.state.subjects.length'), 0, 'invalid app coordinates prevent contract reads')
@@ -40,7 +43,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       await evaluate(`(() => { const input=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'https://rpc.fixture.test');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
       if (scenario === 'bare') {
         await evaluate(`(() => { const input=document.querySelector('#app-host');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0x0000000000000000000000000000000000000004');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
-        await evaluate(`document.querySelector('#rpc-apply').click()`)
+        await evaluate(`document.querySelector('#app-open').click()`)
         await wait(`!!document.querySelector('.panel.error')`)
         await evaluate(`document.querySelector('.wallet-button').click()`)
         await wait(`document.querySelector('.wallet-button')?.textContent==='Reconnect wallet'&&!!document.querySelector('.panel.error')`)
@@ -51,7 +54,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
         await evaluate(`(() => { const input=document.querySelector('#app-host');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0x0000000000000000000000000000000000000001');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
         await evaluate(`(() => { const input=document.querySelector('#app-account');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
       }
-      await evaluate(`document.querySelector('#rpc-apply').click()`)
+      await evaluate(`document.querySelector('#app-open').click()`)
       await wait(`!!document.querySelector('input[name=draft]')`)
       assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'https://rpc.fixture.test/', 'the connection controls retain the chosen custom endpoint after setup')
       if (scenario === 'bare') assert(await evaluate(`document.querySelector('.wallet-value').textContent.includes('Not connected')&&document.querySelector('.wallet-button').textContent==='Connect wallet'`), 'reopening setup starts a fresh wallet binding without displaying an old signer')
@@ -63,7 +66,6 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       if (scenario === 'invalid-rpc') assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'not a URL', 'invalid explicit RPC remains available for correction')
       assert.equal(await evaluate('connectionFixture.state.subjects.length'), 0, 'no RPC read starts without a valid selected endpoint')
       await evaluate(`(() => { const input=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'https://rpc.fixture.test');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
-      await evaluate(`document.querySelector('#rpc-apply').click()`)
       await wait('!!document.querySelector("input[name=draft]")')
       assert(await evaluate(`!new URL(location.href).searchParams.has('rpcUrl')`), 'an on-page custom endpoint is not copied into the shared URL')
     }
@@ -72,23 +74,31 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     assert(await evaluate(publicView), 'public EVM reads are not presented as a selected account')
     assert(await evaluate(`connectionFixture.state.subjects.every(subject=>subject==='0x0000000000000000000000000000000000000000')&&!new URL(location.href).searchParams.has('account')`), 'the public read subject stays out of the shared account URL')
     assert(await evaluate(`${button}.disabled`), 'even a manifest-exposed transaction is unavailable in public mode')
-    await evaluate(`(() => { const draft=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(draft,'keep this draft');draft.dispatchEvent(new Event('input',{bubbles:true}));const rpc=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(rpc,'https://candidate.fixture.test');rpc.dispatchEvent(new Event('input',{bubbles:true}));connectionFixture.state.holdCandidate=true })()`)
-    await evaluate(`document.querySelector('#rpc-apply').click()`)
+    await wait(`!!document.querySelector('[aria-label="RPC connection checked"]')`)
+    assert(await evaluate(`!document.querySelector('#rpc-apply')&&!document.querySelector('#rpc-help')&&!document.querySelector('.rpc-connection').textContent.includes('In use:')`), 'live RPC controls have no apply button or redundant status prose')
+    await evaluate(`(() => { const draft=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(draft,'keep this draft');draft.dispatchEvent(new Event('input',{bubbles:true}));connectionFixture.state.holdCandidate=true })()`)
+    await editRPC('https://candidate.fixture.test')
     await wait('connectionFixture.state.candidateStarted')
-    assert(await evaluate(`document.querySelector('#rpc-endpoint-url').disabled&&document.querySelector('#rpc-endpoint-choice').disabled`), 'pending RPC validation keeps the visible candidate associated with its result')
+    assert(await evaluate(`!document.querySelector('#rpc-endpoint-url').disabled&&!document.querySelector('#rpc-endpoint-choice').disabled&&!document.querySelector('[aria-label="RPC connection checked"]')`), 'checking keeps controls editable and never acknowledges an unchecked endpoint')
+    await editRPC('https://next.fixture.test')
+    await evaluate('new Promise(resolve=>setTimeout(resolve,450))')
+    assert(await evaluate(`!document.querySelector('[aria-label="RPC connection checked"]')`), 'the latest draft is not acknowledged while an earlier check is still held')
     await evaluate('connectionFixture.releaseCandidate()')
-    await wait(`!document.querySelector('#rpc-apply').disabled&&!!document.querySelector('.rpc-connection [role="alert"]')`)
-    assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&document.querySelector('.rpc-connection').textContent.includes('In use: https://rpc.fixture.test')`), 'a failed candidate keeps the active endpoint and draft')
-    await evaluate('connectionFixture.state.failCandidateRead=true;document.querySelector("#rpc-apply").click()')
-    await wait(`!document.querySelector('#rpc-apply').disabled&&!!document.querySelector('.rpc-connection [role="alert"]')`)
-    assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&document.querySelector('.rpc-connection').textContent.includes('In use: https://rpc.fixture.test')`), 'a failed candidate view refresh rolls back transport without losing its draft')
+    await wait(`!!document.querySelector('[aria-label="RPC connection checked"]')&&connectionFixture.state.readOrigins.at(-1)==='https://next.fixture.test'`)
+    assert(await evaluate(`!document.querySelector('.rpc-connection [role="alert"]')&&document.querySelector('input[name=draft]').value==='keep this draft'`), 'a late failure cannot report against the newer draft and the queued endpoint is eventually used')
+    await evaluate('connectionFixture.state.failCandidateRead=true')
+    await editRPC('https://candidate.fixture.test')
+    await wait(`!!document.querySelector('.rpc-connection [role="alert"]')&&!document.querySelector('.rpc-connection form').getAttribute('aria-busy').includes('true')`)
+    assert(await evaluate(`!document.querySelector('[aria-label="RPC connection checked"]')&&document.querySelector('input[name=draft]').value==='keep this draft'`), 'a failed refresh preserves the form and does not acknowledge its endpoint')
     const beforeRefresh = await evaluate('connectionFixture.state.readOrigins.length')
     await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent==='Refresh').click()`)
-    await wait(`connectionFixture.state.readOrigins.length>${beforeRefresh}&&!document.querySelector('#rpc-apply').disabled`)
-    assert.equal(await evaluate('connectionFixture.state.readOrigins.at(-1)'), 'https://rpc.fixture.test', 'the next real read after failed candidate refresh uses the original endpoint')
-    await evaluate('connectionFixture.state.failCandidateRead=false;document.querySelector("#rpc-apply").click()')
-    await wait(`document.querySelector('.rpc-connection').textContent.includes('In use: https://candidate.fixture.test')`)
-    assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&!new URL(location.href).searchParams.has('rpcUrl')`), 'successful transport refresh preserves the draft and removes the stale endpoint from the URL')
+    await wait(`connectionFixture.state.readOrigins.length>${beforeRefresh}`)
+    assert.equal(await evaluate('connectionFixture.state.readOrigins.at(-1)'), 'https://next.fixture.test', 'the next read after a failed candidate refresh still uses the last good endpoint')
+    await evaluate('connectionFixture.state.failCandidateRead=false;document.querySelector("#rpc-endpoint-url").focus()')
+    await call('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'})
+    await call('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+    await wait(`!!document.querySelector('[aria-label="RPC connection checked"]')&&connectionFixture.state.readOrigins.at(-1)==='https://candidate.fixture.test'`)
+    assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&!new URL(location.href).searchParams.has('rpcUrl')`), 'Enter retries the unchanged endpoint while preserving drafts and URL privacy')
     if (process.env.PROOF_DIR) {
       for (const width of [1280, 320]) {
         await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
@@ -147,6 +157,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
 
     await open('held')
     await wait(`connectionFixture.state.subjects.length===1&&!!document.querySelector('.wallet-button')`)
+    assert(await evaluate(`!document.querySelector('[aria-label="RPC connection checked"]')`), 'bootstrap callback completion does not acknowledge a held unfinished connection')
     await evaluate('document.querySelector(".wallet-button").click()')
     await wait(`!!document.querySelector('input[name=draft]')&&new URL(location.href).searchParams.get('account')===connectionFixture.wallet`)
     await evaluate('connectionFixture.releasePublicReads();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
