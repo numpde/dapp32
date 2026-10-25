@@ -267,6 +267,12 @@ export function App(): ReactElement {
 
   const connection = connectionOptions(loadState)
   useEffect(() => {
+    setWallet(initialWalletState())
+    walletRefreshingRef.current = false
+    walletAccountSynchronizedRef.current = true
+    setWalletRefreshing(false)
+    setWalletAccountSynchronized(true)
+    setWalletChainMatches(true)
     if (connection === undefined) return
     const binding = createInjectedWalletBinding({
       chainId: connection.chainId,
@@ -890,6 +896,7 @@ export function App(): ReactElement {
           <Feedback report={loadState.failure} kind="error" />
           <button type="button" onClick={() => {
             resourceLoadAbortRef.current?.abort()
+            setNotice(undefined)
             const rpcURLs = loadState.startup === undefined ? viewerLink.rpcURLs : [loadState.startup.rpcUrl]
             setViewerLink({ failure: loadState.failure, rpcURLs })
             setLoadRequest(undefined)

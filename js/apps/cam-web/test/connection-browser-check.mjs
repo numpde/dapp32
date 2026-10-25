@@ -42,15 +42,19 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
         await evaluate(`(() => { const input=document.querySelector('#app-host');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0x0000000000000000000000000000000000000004');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
         await evaluate(`document.querySelector('#rpc-apply').click()`)
         await wait(`!!document.querySelector('.panel.error')`)
+        await evaluate(`document.querySelector('.wallet-button').click()`)
+        await wait(`document.querySelector('.wallet-button')?.textContent==='Reconnect wallet'&&!!document.querySelector('.panel.error')`)
         await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent==='Edit app connection').click()`)
         await wait(`!!document.querySelector('#app-host')`)
         assert.equal(await evaluate(`document.querySelector('#app-host').value`), '0x0000000000000000000000000000000000000004', 'failed admission preserves the entered contract address for correction')
         assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'https://rpc.fixture.test/', 'reopened setup preserves the chosen custom RPC in memory')
         await evaluate(`(() => { const input=document.querySelector('#app-host');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0x0000000000000000000000000000000000000001');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
+        await evaluate(`(() => { const input=document.querySelector('#app-account');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
       }
       await evaluate(`document.querySelector('#rpc-apply').click()`)
       await wait(`!!document.querySelector('input[name=draft]')`)
       assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'https://rpc.fixture.test/', 'the connection controls retain the chosen custom endpoint after setup')
+      if (scenario === 'bare') assert(await evaluate(`document.querySelector('.wallet-value').textContent.includes('Not connected')&&document.querySelector('.wallet-button').textContent==='Connect wallet'`), 'reopening setup starts a fresh wallet binding without displaying an old signer')
       assert(await evaluate(`!new URL(location.href).searchParams.has('account')&&!new URL(location.href).searchParams.has('rpcUrl')`), 'opening an app requires neither a viewing account nor a credential-bearing share URL')
     }
     for (const scenario of ['choose-rpc', 'invalid-rpc']) {
