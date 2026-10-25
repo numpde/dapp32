@@ -45,24 +45,17 @@
     .reference { display: block; margin-bottom: 7px; font-size: .85rem; }
     .retired { display: inline-block; color: #812e18; background: #fce7df; border-radius: 3px; padding: 1px 6px; margin-bottom: 6px; }
     #load-status { min-height: 1.6em; }
-    #open-catalog { border: 1px solid var(--line); padding: 16px; background: var(--paper); border-radius: 8px; margin: 18px 0; }
-    input[type=file] { max-width: 100%; font: inherit; }
     footer { margin-top: 24px; font-size: .9rem; }
     [hidden] { display: none !important; }
     @media (max-width: 600px) { main { padding: 24px 12px 40px; } .toolbar { gap: 16px; } }
-    @media print { .toolbar, #open-catalog, .hint { display: none !important; } main { max-width: none; padding: 0; } .table-wrap { overflow: visible; border: 0; } table { min-width: 0; font-size: 8pt; } th, td { padding: 7px 4px; } code { font-size: 7pt; } }
+    @media print { .toolbar, .hint { display: none !important; } main { max-width: none; padding: 0; } .table-wrap { overflow: visible; border: 0; } table { min-width: 0; font-size: 8pt; } th, td { padding: 7px 4px; } code { font-size: 7pt; } }
   </style>
 </head>
 <body><nav aria-label="Primary" style="display:flex;flex-wrap:wrap;gap:20px;padding:20px 24px"><a href="../../">dapp32</a><a href="../../examples/">Example apps</a><a href="../">Deployment</a><a href="../rpc/">RPC selection</a></nav>
 <main id="main">
   <h1>EVM networks and their testnets</h1>
   <p class="intro">Switch between mainnets and application testnets. Network indexes and row links stay fixed; testnet names show their mainnet in brackets.</p>
-  <noscript><p>Enable JavaScript to load the network table from <a href="https://raw.githubusercontent.com/numpde/dapp32/main/tools/rpc-catalog.json">the RPC catalog</a>.</p></noscript>
-  <div id="open-catalog" hidden>
-    <p id="file-help">When opening this HTML directly from disk, choose this repository’s <code>tools/rpc-catalog.json</code> to display the table. The file stays in your browser.</p>
-    <label for="catalog-file">Open RPC catalog</label>
-    <input id="catalog-file" type="file" accept=".json,application/json" aria-describedby="file-help">
-  </div>
+  <noscript><p>Enable JavaScript to load the network table from <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json">the RPC catalog</a>.</p></noscript>
   <p id="load-status" role="status">Loading the RPC catalog…</p>
   <div id="reference" hidden>
     <div class="toolbar">
@@ -87,13 +80,12 @@
   </div>
   <footer>
     <p>A curated reference for widely used EVM ecosystems, including the networks discussed in this repository. Chain-specific execution, fees, and tooling can differ. Source-check dates describe documentation checks, not live RPC tests.</p>
-    <p>Source: <a href="https://raw.githubusercontent.com/numpde/dapp32/main/tools/rpc-catalog.json">tools/rpc-catalog.json</a>. This page reads the catalog directly and keeps no separate network list. Endpoint selection for deployments is described in <a href="../rpc/">the RPC services guide</a>.</p>
+    <p>Source: <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json">js/packages/cam-viewer/src/rpc-catalog.json</a>. This page reads the catalog directly and keeps no separate network list. Endpoint selection for deployments is described in <a href="../rpc/">the RPC services guide</a>.</p>
     <p>Public RPC services can impose rate and method limits. Mainnet and testnet balances and deployments are separate. A retired testnet is retained for identification and has no selectable RPC service.</p>
   </footer>
 </main>
 <script type="module">
   const status = document.querySelector('#load-status');
-  const filePanel = document.querySelector('#open-catalog');
   const tbody = document.querySelector('#networks');
   const jump = document.querySelector('#network-jump');
   const radios = [...document.querySelectorAll('input[name=view]')];
@@ -183,7 +175,6 @@
     }
     render();
     document.querySelector('#reference').hidden = false;
-    filePanel.hidden = true;
     if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
   }
 
@@ -191,30 +182,13 @@
   jump.addEventListener('change', () => {
     if (jump.value) location.hash = jump.value;
   });
-  document.querySelector('#catalog-file').addEventListener('change', async event => {
-    const file = event.target.files[0];
-    if (!file) return;
-    try {
-      showCatalog(JSON.parse(await file.text()));
-    } catch (error) {
-      document.querySelector('#reference').hidden = true;
-      filePanel.hidden = false;
-      status.textContent = `Cannot display this file as the RPC catalog: ${error.message} Choose tools/rpc-catalog.json from this checkout.`;
-    }
-  });
-  if (location.protocol === 'file:') {
-    filePanel.hidden = false;
-    status.textContent = 'Choose the RPC catalog above to display the table.';
-  } else {
-    try {
-      const response = await fetch('https://raw.githubusercontent.com/numpde/dapp32/main/tools/rpc-catalog.json', {cache: 'no-store'});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      showCatalog(await response.json());
-    } catch (error) {
-      document.querySelector('#reference').hidden = true;
-      filePanel.hidden = false;
-      status.textContent = `Cannot load https://raw.githubusercontent.com/numpde/dapp32/main/tools/rpc-catalog.json: ${error.message} Serve this page from the repository root, or choose the catalog file above.`;
-    }
+  try {
+    const response = await fetch('https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json', {cache: 'no-store'});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    showCatalog(await response.json());
+  } catch (error) {
+    document.querySelector('#reference').hidden = true;
+    status.textContent = `Cannot load the RPC catalog: ${error.message}. Reload this page to retry.`;
   }
 </script>
 </body>

@@ -8,7 +8,7 @@ PYTHON_IMAGE := docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875
 
 .PHONY: help pages/check
 help:
-	@printf '%s\n' 'make pages/check SOURCE_REPO=/path/to/dapp32' '  Check this site’s local links, fragments and examples against the source repository’s committed HEAD.' '  Uses an offline, read-only Python container; requires Docker and a local source checkout.'
+	@printf '%s\n' 'make pages/check SOURCE_REPO=/path/to/dapp32' '  Check this site’s local links, fragments and examples against the source repository’s committed HEAD.' '  Uses an offline, read-only Python container; requires Docker and a local source checkout.' 'make pages/networks/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Open an owned browser tab to check automatic catalog loading and failure feedback.' '  Requires a running CDP browser; fetches the public catalog without visiting RPC endpoints.'
 
 pages/check:
 	@: "$${SOURCE_REPO:?Set SOURCE_REPO to the dapp32 source checkout.}"; \
@@ -22,3 +22,15 @@ pages/check:
 	  --mount "type=bind,src=$$PWD,dst=/site,readonly" \
 	  --mount "type=bind,src=$$archive,dst=/source,readonly" \
 	  "$(PYTHON_IMAGE)" python3 -I -B /site/check_pages.py --source-archive /source
+
+NODE_IMAGE := docker.io/library/node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
+CDP_ORIGIN ?= http://127.0.0.1:9222
+
+.PHONY: pages/networks/check
+pages/networks/check:
+	docker run --rm --pull never --network host --read-only --user 65532:65532 \
+	  --cap-drop ALL --security-opt no-new-privileges --memory 256m --pids-limit 64 \
+	  --env CDP_ORIGIN="$(CDP_ORIGIN)" --env PAGE_HTML=/page.html \
+	  --mount "type=bind,src=$$PWD/check_networks.mjs,dst=/check.mjs,readonly" \
+	  --mount "type=bind,src=$$PWD/deployment/networks/index.html,dst=/page.html,readonly" \
+	  "$(NODE_IMAGE)" node /check.mjs
