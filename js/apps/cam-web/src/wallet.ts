@@ -14,9 +14,6 @@ import {
   isRecordObject,
   requireHttpURL,
 } from "@cam/protocol"
-import {
-  shortenAddress,
-} from "./evm.ts"
 
 export type WalletState =
   | { readonly status: "unavailable" }
@@ -116,7 +113,7 @@ export function walletLabel(wallet: WalletState): string {
     case "disconnected":
       return "Not connected"
     case "connected":
-      return shortenAddress(wallet.address)
+      return wallet.address
   }
 }
 

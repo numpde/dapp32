@@ -22,14 +22,31 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       const labels=[...connection.querySelectorAll('dt')]
       const value=label=>labels.find(term=>term.textContent===label)?.nextElementSibling
       return !connection.querySelector('details')
-        && value('Viewing as')?.textContent==='0x1111111111111111111111111111111111111111'
-        && value('Signing wallet')?.textContent.includes('0x2222222222222222222222222222222222222222')
+        && value('Viewing as')?.querySelector('.hex-short')?.textContent==='0x1111...1111'
+        && value('Signing wallet')?.querySelector('.hex-short')?.textContent==='0x2222...2222'
         && value('Chain')?.textContent==='eip155:31337'
-        && value('CAM contract')?.textContent==='0x3333333333333333333333333333333333333333'
+        && value('CAM contract')?.querySelector('.hex-short')?.textContent==='0x3333...3333'
         && ['Viewing as','Signing wallet','Chain','CAM contract'].every(label=>value(label)?.getClientRects().length>0)
         && !!value('Signing wallet').querySelector('[role="status"]')
         && !connection.querySelector('.wallet-button').disabled
     })()`), 'account, wallet, chain and contract facts are visible without expansion, with the wallet action available')
+    await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedIdentifier=value}}});document.querySelector('button[aria-label="Copy viewing address"]').click()`)
+    await wait(`document.querySelector('.connection-facts [role="status"]').textContent==='viewing address copied'`)
+    assert.equal(await evaluate('window.copiedIdentifier'), '0x1111111111111111111111111111111111111111', 'copy writes the exact full address rather than its shortened display')
+    assert(await evaluate(`document.querySelector('.hex-value code').title===window.copiedIdentifier`), 'the full value is available on pointer hover')
+    const accessibility = await call('Accessibility.getFullAXTree', {})
+    assert(accessibility.nodes.some(node => !node.ignored && node.role?.value === 'StaticText' && node.name?.value === '0x1111111111111111111111111111111111111111'), 'assistive technology receives the exact full address')
+    await evaluate(`navigator.clipboard.writeText=()=>new Promise(resolve=>{window.finishOldCopy=resolve});document.querySelector('button[aria-label="Copy viewing address"]').click();window.actionFixture.account('0x4444444444444444444444444444444444444444')`)
+    await wait(`document.querySelector('.hex-value .hex-short').textContent==='0x4444...4444'`)
+    await evaluate('window.finishOldCopy()')
+    assert(await evaluate(`!document.querySelector('.hex-value [role="status"]').textContent`), 'a late copy completion does not acknowledge a different displayed address')
+    await evaluate(`navigator.clipboard.writeText=async()=>{throw new DOMException('Clipboard denied','NotAllowedError')};document.querySelector('button[aria-label="Copy viewing address"]').click()`)
+    await wait(`!!document.querySelector('.hex-copy-error')`)
+    assert(await evaluate(`document.querySelector('.hex-copy-error code').textContent==='0x4444444444444444444444444444444444444444'&&document.querySelector('.hex-copy-error').textContent.includes('Select and copy')`), 'clipboard failure exposes the exact selectable value for manual recovery')
+    await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: false })
+    assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth&&getComputedStyle(document.querySelector('.hex-copy-error code')).userSelect!=='none'`), 'copy failure remains selectable and fits a narrow viewport')
+    await call('Emulation.clearDeviceMetricsOverride', {})
+    await evaluate(`window.actionFixture.account('0x1111111111111111111111111111111111111111')`)
     await evaluate(`document.querySelector('.wallet-button').click()`)
     assert(await evaluate(`window.actionFixture.events.wallet===1&&window.actionFixture.events.send===0`), 'wallet connection remains usable without sending a transaction')
     assert(await evaluate(`(() => { const group=document.querySelector('section[aria-label="Fixture actions"]');return group?.querySelector('h2')?.textContent==='Fixture actions'&&!!group.querySelector('input[name="draft"]')&&group.querySelectorAll('.action-button').length===6 })()`), 'a declared group keeps its heading, inputs and commands together')
@@ -44,6 +61,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await evaluate(`document.querySelectorAll('.action-button')[1].click()`)
     await wait(`!!document.querySelector('.prepared-call')`)
     assert(await evaluate(`window.actionFixture.events.contractCall===1&&window.actionFixture.events.send===0`), 'write actions only prepare review')
+    assert(await evaluate(`(()=>{const row=label=>[...document.querySelectorAll('.prepared-call .key-value')].find(row=>row.firstElementChild.textContent===label)?.lastElementChild;return row('Input: payload (bytes)').textContent==='0x'+'ab'.repeat(32)&&!row('Input: payload (bytes)').querySelector('.hex-value')&&row('Input: digest (bytes32)').querySelector('.hex-short').textContent==='0xabab...abab'&&row('Input: owner (address)').querySelector('.hex-short').textContent==='0x1111...1111'&&[...document.querySelectorAll('.elements .key-value')].find(row=>row.firstElementChild.textContent==='Document digest').querySelector('.hex-short').textContent==='0xabab...abab'})()`), 'generic status and transaction identifiers share compact displays while dynamic calldata stays exact and unshortened')
 
     const styles = await evaluate(`(() => {
       const signature = element => {
@@ -140,12 +158,14 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     const transactionHash = `0x${'ab'.repeat(32)}`
     await evaluate(`window.actionFixture.transaction('eip155:43113',${JSON.stringify(transactionHash)})`)
     await wait(`!!document.querySelector('.transaction-feedback a')`)
-    assert(await evaluate(`(() => {const link=document.querySelector('.transaction-feedback a');return link.href===${JSON.stringify(`https://testnet.snowtrace.io/tx/${transactionHash}`)}&&link.textContent===${JSON.stringify(transactionHash)}&&link.target==='_blank'&&link.rel.includes('noopener')&&document.querySelector('.transaction-feedback').textContent.includes('Receipt wait timed out.')})()`), 'uncertain confirmation retains its cause and links the exact submitted hash on its own chain, independently of the viewer chain')
+    assert(await evaluate(`(() => {const link=document.querySelector('.transaction-feedback a');return link.href===${JSON.stringify(`https://testnet.snowtrace.io/tx/${transactionHash}`)}&&link.querySelector('.hex-short').textContent==='0xabab...abab'&&link.querySelector('code').title===${JSON.stringify(transactionHash)}&&link.target==='_blank'&&link.rel.includes('noopener')&&document.querySelector('.transaction-feedback').textContent.includes('Receipt wait timed out.')})()`), 'uncertain confirmation retains its cause and links the exact submitted hash on its own chain, independently of the viewer chain')
+    await evaluate(`navigator.clipboard.writeText=async value=>{window.copiedIdentifier=value};document.querySelector('.transaction-feedback button[aria-label="Copy transaction hash"]').click()`)
+    await wait(`window.copiedIdentifier===${JSON.stringify(transactionHash)}`)
     await evaluate(`window.actionFixture.transaction('eip155:1',${JSON.stringify(`0x${'cd'.repeat(32)}`)})`)
     await wait(`document.querySelector('.transaction-feedback a')?.href===${JSON.stringify(`https://etherscan.io/tx/0x${'cd'.repeat(32)}`)}`)
     assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), 'linked hashes fit the narrow viewport')
     await evaluate(`window.actionFixture.transaction('eip155:2147483646',${JSON.stringify(transactionHash)})`)
-    await wait(`!document.querySelector('.transaction-feedback a')&&document.querySelector('.transaction-feedback code')?.textContent===${JSON.stringify(transactionHash)}`)
+    await wait(`!document.querySelector('.transaction-feedback a')&&document.querySelector('.transaction-feedback code')?.title===${JSON.stringify(transactionHash)}`)
     await evaluate(`window.actionFixture.transaction('eip155:43113',undefined)`)
     await wait(`!document.querySelector('.transaction-feedback a, .transaction-feedback .feedback-message code')`)
     assert(await evaluate(`window.actionFixture.events.send===0&&document.querySelector('.transaction-feedback').textContent.includes('Check the transaction before sending another.')`), 'explorer presentation neither submits a transaction nor invents a hash when none was returned')

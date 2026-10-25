@@ -19,11 +19,13 @@ const actions = [
   { route: "disabledWrite", kind: "contractCall", label: "Unavailable review", disabled: true },
   { route: "longRead", kind: "navigate", label: "Open a deliberately long view description that must wrap at a narrow viewport without moving adjacent values outside their shared columns" },
 ] as const
-const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: parseAbi(["function fixtureWrite()"]), function: "fixtureWrite", args: {}, then: { namespace: "routes", function: "read", args: {} } }
+const fixtureDigest = `0x${"ab".repeat(32)}`
+const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: parseAbi(["function fixtureWrite(address owner, bytes payload, bytes32 digest)"]), function: "fixtureWrite", args: { owner: "0x1111111111111111111111111111111111111111", payload: fixtureDigest, digest: fixtureDigest }, then: { namespace: "routes", function: "read", args: {} } }
 let prepared = false
 let busy = false
 let sending = false
 let draft: string | null = "unchanged"
+let viewingAccount = "0x1111111111111111111111111111111111111111"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
 const events = { navigate: 0, contractCall: 0, unsupported: 0, send: 0, wallet: 0, calculate: 0, cancel: 0, back: 0, refresh: 0 }
@@ -35,6 +37,7 @@ function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCa
 function render(): void {
   const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "" }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Status", props: { label: "Before actions", value: "Before" }, children: [] },
+    { element: "Status", props: { label: "Document digest", value: fixtureDigest }, children: [] },
     { element: "Screen", props: { title: "Fixture actions" }, children: [
       { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },
       ...actions.map(item => ({ element: "Button" as const, props: { label: item.label }, call: { namespace: "routes", function: item.route, args: {} }, children: [] as const, ...("disabled" in item ? { disabled: item.disabled } : {}) })),
@@ -51,7 +54,7 @@ function render(): void {
   root.render(createElement("main", { className: "app-shell" },
     createElement(ConnectionSummary, {
       chainId: "eip155:31337", host: "0x3333333333333333333333333333333333333333",
-      account: "0x1111111111111111111111111111111111111111",
+      account: viewingAccount,
       wallet: "0x2222222222222222222222222222222222222222",
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
@@ -64,6 +67,7 @@ function render(): void {
   ))
 }
 Object.assign(window, { actionFixture: { events,
+  account(value: string) { viewingAccount = value; render() },
   transaction(chainId: string, hash: `0x${string}` | undefined) { transactionReport = { transaction: hash === undefined ? undefined : { chainId, hash } }; render() },
   hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
 render()

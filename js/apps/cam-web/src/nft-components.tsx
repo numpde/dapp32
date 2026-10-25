@@ -4,6 +4,7 @@ import { assertRemoteResourceURI, isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import { failureReport, UserFacingError } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
+import { HexValue } from "./hex-value.tsx"
 import { DownloadContext } from "./download-context.ts"
 import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readNftMetadataDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
@@ -79,7 +80,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
       <dl className="nft-identity">
         {metadataURI !== undefined && metadataURI !== "" ? <div><dt>Metadata URI</dt><dd>{metadataURI}</dd></div> : null}
         {imageReference ? <div><dt>Image reference in metadata</dt><dd>{imageReference}</dd></div> : null}
-        <div><dt>NFT contract</dt><dd>{contractAddress}</dd></div>
+        <div><dt>NFT contract</dt><dd><HexValue value={contractAddress} label="NFT contract address" /></dd></div>
         <div><dt>Token ID</dt><dd>{tokenId}</dd></div>
       </dl>
     </div>
@@ -94,7 +95,7 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly 
     {typeof metadata.name === "string" && metadata.name !== "" ? <h3>{metadata.name}</h3> : null}
     {typeof metadata.description === "string" && metadata.description !== "" ? <p>{metadata.description}</p> : null}
     <dl className="nft-attributes">{attributes.map((attribute, index) => isRecordObject(attribute) && typeof attribute.trait_type === "string" && (typeof attribute.value === "string" || typeof attribute.value === "number" || typeof attribute.value === "boolean")
-      ? <div key={index}><dt>{attribute.trait_type}</dt><dd>{String(attribute.value)}</dd></div> : null)}</dl>
+      ? <div key={index}><dt>{attribute.trait_type}</dt><dd><HexValue value={String(attribute.value)} label={attribute.trait_type} /></dd></div> : null)}</dl>
     </div>
   </section>
 }

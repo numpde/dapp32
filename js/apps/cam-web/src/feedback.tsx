@@ -4,6 +4,7 @@ import { transactionExplorer } from "./transactions.ts"
 import type { SubmittedTransactionReference } from "./transactions.ts"
 import { failureReport } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
+import { HexValue } from "./hex-value.tsx"
 
 export function Feedback({ report, kind, className, messageRef, children }: {
   readonly report: FailureReport
@@ -43,7 +44,7 @@ export function TransactionFeedback({ report, kind, transaction, messageRef }: {
   const explorer = current?.status === "ready" ? current.explorer : undefined
   return <>
     <Feedback report={report} kind={kind} className="notice" {...(messageRef === undefined ? {} : { messageRef })}>
-      {report.message}{transaction === undefined ? null : <> Transaction hash: <code>{explorer === undefined ? transaction.hash : <a href={explorer.url} target="_blank" rel="noopener noreferrer" aria-label={`View transaction on ${explorer.name}`}>{transaction.hash}</a>}</code></>}
+      {report.message}{transaction === undefined ? null : <> Transaction hash: <HexValue value={transaction.hash} label="transaction hash" {...(explorer === undefined ? {} : { href: explorer.url })} /></>}
     </Feedback>
     {current?.status === "failed" ? <Feedback report={current.failure} kind="error" /> : null}
   </>

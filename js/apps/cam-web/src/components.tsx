@@ -30,6 +30,7 @@ import {
 } from "./prepared-call.ts"
 import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
 import { Feedback } from "./feedback.tsx"
+import { HexValue } from "./hex-value.tsx"
 
 export function ConnectionSummary({
   chainId,
@@ -49,10 +50,10 @@ export function ConnectionSummary({
   return (
     <section className="connection" aria-label="Account and wallet">
       <dl className="connection-facts">
-        <div><dt>Viewing as</dt><dd>{account === undefined ? "Public view" : <code>{account}</code>}</dd></div>
-        <div><dt>Signing wallet</dt><dd className="wallet-value"><span role="status">{wallet}</span>{walletAction}</dd></div>
+        <div><dt>Viewing as</dt><dd>{account === undefined ? "Public view" : <HexValue value={account} label="viewing address" />}</dd></div>
+        <div><dt>Signing wallet</dt><dd className="wallet-value"><span role="status"><HexValue value={wallet} label="wallet address" /></span>{walletAction}</dd></div>
         <div><dt>Chain</dt><dd>{chainId}</dd></div>
-        <div><dt>CAM contract</dt><dd><code>{host}</code></dd></div>
+        <div><dt>CAM contract</dt><dd><HexValue value={host} label="CAM contract address" /></dd></div>
         {children}
       </dl>
     </section>
@@ -135,7 +136,7 @@ export function PreparedCallView({
     <section className="panel prepared-call" ref={reviewRef} tabIndex={-1} aria-labelledby="prepared-call-title">
       <h2 id="prepared-call-title">Review transaction</h2>
       {preparedCallFields(call).map((field) => (
-        <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} />
+        <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} compact={field.compact} />
       ))}
       <button
         className="send-button"
@@ -200,7 +201,7 @@ function UiNodeView({
       return <section className="ui-section" aria-label={title}><Heading>{title}</Heading>{children}</section>
     }
     case "Text":
-      return <p className="text-row">{displayText(stringProp(node.props, "text"))}</p>
+      return <p className="text-row"><HexValue value={stringProp(node.props, "text")} label="value" /></p>
     case "TextField": {
       const name = stateKey(node)
       return (
@@ -554,15 +555,17 @@ function KeyValue({
   label,
   value,
   mono,
+  compact,
 }: {
   readonly label: string
   readonly value: string
   readonly mono: boolean
+  readonly compact?: boolean | undefined
 }): ReactElement {
   return (
     <div className="key-value">
       <span className="key-label">{displayText(label)}</span>
-      <span className={mono ? "mono" : undefined}>{displayText(value)}</span>
+      <span className={mono ? "mono" : undefined}>{compact === false ? displayText(value) : <HexValue value={value} label={label} />}</span>
     </div>
   )
 }
