@@ -40,6 +40,10 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       await wait(`!!document.querySelector('#app-chain')`)
       await evaluate(`(() => { for(const [selector,value] of [['#app-chain','eip155:31337'],['#app-host','0x0000000000000000000000000000000000000001']]) { const input=document.querySelector(selector);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true})) } })()`)
       await wait(`!!document.querySelector('#rpc-endpoint-url')`)
+      const document = await call('DOM.getDocument', {})
+      const input = await call('DOM.querySelector', { nodeId: document.root.nodeId, selector: '#rpc-endpoint-url' })
+      const accessible = await call('Accessibility.getPartialAXTree', { nodeId: input.nodeId, fetchRelatives: false })
+      assert(accessible.nodes.some(node => !node.ignored && node.name?.value === 'Custom RPC URL'), 'the custom endpoint retains an accessible input name')
       await evaluate(`(() => { const input=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'https://rpc.fixture.test');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
       if (scenario === 'bare') {
         await evaluate(`(() => { const input=document.querySelector('#app-host');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0x0000000000000000000000000000000000000004');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
@@ -90,6 +94,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await editRPC('https://candidate.fixture.test')
     await wait(`!!document.querySelector('.rpc-connection [role="alert"]')&&!document.querySelector('.rpc-connection form').getAttribute('aria-busy').includes('true')`)
     assert(await evaluate(`!document.querySelector('[aria-label="RPC connection checked"]')&&document.querySelector('input[name=draft]').value==='keep this draft'`), 'a failed refresh preserves the form and does not acknowledge its endpoint')
+    assert(await evaluate(`(()=>{const input=document.querySelector('#rpc-endpoint-url');const help=document.getElementById(input.getAttribute('aria-describedby'));return !!help?.querySelector('[role="alert"]')})()`), 'the endpoint input describes its connection failure')
     const beforeRefresh = await evaluate('connectionFixture.state.readOrigins.length')
     await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent==='Refresh').click()`)
     await wait(`connectionFixture.state.readOrigins.length>${beforeRefresh}`)

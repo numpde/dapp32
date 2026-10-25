@@ -118,9 +118,9 @@ export function RpcControls({ chainId, suppliedURLs, activeURL, busy, mode, onAp
         {endpoints.map(endpoint => <option key={endpoint.url} value={endpoint.url}>{endpoint.name}</option>)}
         <option value="custom">Custom RPC URL</option>
       </select><span className="rpc-check" role="status">{draft.choice === "custom" ? null : check}</span></div>
-      {draft.choice === "custom" ? <label className="field"><span>Custom RPC URL</span><div className="rpc-input-row"><input id="rpc-endpoint-url" type="url" value={draft.customURL} onChange={event => edit({ ...draft, customURL: event.currentTarget.value })} /><span className="rpc-check" role="status">{check}</span></div></label> : null}
+      {draft.choice === "custom" ? <div className="rpc-input-row"><input id="rpc-endpoint-url" type="url" aria-label="Custom RPC URL" aria-describedby={currentAttempt?.status === "failed" ? "rpc-connection-feedback" : undefined} value={draft.customURL} onChange={event => edit({ ...draft, customURL: event.currentTarget.value })} /><span className="rpc-check" role="status">{check}</span></div> : null}
       {mode === "setup" ? <button id="app-open" className="button-quiet" type="submit" disabled={busy || currentAttempt?.status === "checking"}>Open app</button> : null}
-      {currentAttempt?.status === "failed" ? <Feedback report={currentAttempt.failure} kind="error" /> : null}
+      {currentAttempt?.status === "failed" ? <div id="rpc-connection-feedback"><Feedback report={currentAttempt.failure} kind="error" /></div> : null}
     </form>
   </ControlRow>
 }
