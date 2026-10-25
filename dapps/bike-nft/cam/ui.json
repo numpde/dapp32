@@ -673,40 +673,6 @@
               }
             }
           ]
-        },
-        {
-          "element": "Screen",
-          "props": {
-            "title": "Find another component"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "Enter the exact serial to load another component. Case and spaces matter."
-              }
-            },
-            {
-              "element": "TextField",
-              "props": {
-                "label": "Serial number to look up"
-              },
-              "state": {
-                "key": "serialNumber",
-                "defaultValue": "$view.serialNumber"
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "lookupComponent",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            }
-          ]
         }
       ]
     },

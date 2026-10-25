@@ -254,22 +254,34 @@ test("bike availability keeps entry account editing visible and matches the proj
   }
 })
 
-test("bike availability keeps the loaded write target visible when the lookup draft changes", async () => {
-  const session = createSession(sessionFixtureOptions({}))
+test("bike component actions keep the loaded target and use app navigation for another lookup", async () => {
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const session = createSession(sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })) }))
   await session.load()
   await session.navigate("component", { serialNumber: BIKE_SERIAL_NUMBER })
-  const snapshot = session.updateState({ serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER, tokenURI: BIKE_REGISTRATION_TOKEN_URI })
+  assert.throws(() => session.updateState({ serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER }), error => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_INERT_VALUE")
+  const snapshot = session.updateState({ tokenURI: BIKE_REGISTRATION_TOKEN_URI })
   let loadedSerialVisible = false
   forEachResolvedUiNode(snapshot.resolvedUi, node => {
     if (node.element === "Status" && node.props.value === BIKE_SERIAL_NUMBER) loadedSerialVisible = true
   })
-  assert.equal(loadedSerialVisible, true, "the loaded component serial remains visible while another serial is entered for lookup")
+  assert.equal(loadedSerialVisible, true, "the loaded component serial remains visible beside its actions")
   const button = resolvedUiButtons(snapshot.resolvedUi).find(node => node.call.function === "updateComponentMetadata")
   assert.ok(button)
   const prepared = await session.dispatchAction(button)
   assert.equal(prepared.type, "contractCall")
   if (prepared.type !== "contractCall") assert.fail("Expected metadata preparation")
   assert.deepEqual(prepared.call.args, toInertValue({ serialNumber: BIKE_SERIAL_NUMBER, tokenURI_: BIKE_REGISTRATION_TOKEN_URI }))
+  const find = resolvedUiButtons(snapshot.resolvedUi).find(node => node.call.function === "entry")
+  assert.ok(find)
+  const entry = await session.dispatchAction(find)
+  assert.equal(entry.type, "navigated")
+  const lookup = resolvedUiButtons(session.updateState({ serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER }).resolvedUi).find(node => node.call.function === "component")
+  assert.ok(lookup)
+  routeResults[BIKE_VIEW_COMPONENT] = bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress, "active")
+  const found = await session.dispatchAction(lookup)
+  assert.equal(found.type, "navigated")
+  assert.deepEqual(session.snapshot().inputs, toInertValue({ serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER }))
 })
 
 test("bike fixture covers unpaused fixture projection cases", () => {

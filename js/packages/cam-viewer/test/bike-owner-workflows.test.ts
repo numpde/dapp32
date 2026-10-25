@@ -47,11 +47,13 @@ test("a thirty-minute workshop cap requires a chosen duration and rejects over-l
   ])
 })
 
-test("an unchosen workshop duration does not block metadata correction or NFT handover", async () => {
+test("a loaded component keeps lookup in app navigation without blocking metadata correction or NFT handover", async () => {
   const fixture = ownerWorkflowSessionOptions()
   const session = createCamViewerSession(fixture.options)
   const loaded = await session.load()
   assert.equal(loaded.state.duration, null)
+  assert.deepEqual(button(loaded, "entry").call.args, toInertValue({}), "app navigation keeps component lookup reachable")
+  assert.equal(resolvedUiButtons(loaded.resolvedUi).some(action => action.call.function === "component"), false, "loaded component actions do not duplicate the lookup form")
   const snapshot = session.updateState({ tokenURI: "fixture://corrected", to: BUYER })
   assert.equal((await session.dispatchAction(button(snapshot, "updateComponentMetadata"))).type, "contractCall")
   assert.equal((await session.dispatchAction(button(snapshot, "transferComponent"))).type, "contractCall")
@@ -84,7 +86,8 @@ test("published Bike handover resolves the record collection and prepares direct
   const fixture = ownerWorkflowSessionOptions()
   const session = createCamViewerSession(fixture.options)
   await session.load()
-  const snapshot = session.updateState({ to: BUYER, serialNumber: "UNLOADED-SERIAL" })
+  assert.throws(() => session.updateState({ serialNumber: "UNLOADED-SERIAL" }), error => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_INERT_VALUE")
+  const snapshot = session.updateState({ to: BUYER })
   const result = await session.dispatchAction(button(snapshot, "transferComponent"))
   assert.equal(result.type, "contractCall")
   if (result.type !== "contractCall") assert.fail("handover must prepare a wallet call")
