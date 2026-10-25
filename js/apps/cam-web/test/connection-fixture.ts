@@ -1,6 +1,6 @@
 import { createElement } from "react"
 import { createRoot } from "react-dom/client"
-import { decodeFunctionData, encodeAbiParameters, encodeFunctionResult, parseAbi, sha256, toFunctionSelector, zeroAddress } from "viem"
+import { decodeFunctionData, encodeAbiParameters, encodeFunctionResult, parseAbi, sha256, toFunctionSelector, zeroAddress, zeroHash } from "viem"
 import { App } from "../src/App.tsx"
 import "../src/styles.css"
 
@@ -51,7 +51,7 @@ window.fetch = async (input, init) => {
     const data = rpc.params[0].data
     const selector = data.slice(0, 10)
     if (selector === toFunctionSelector("supportsInterface(bytes4)")) result = encodeAbiParameters([{ type: "bool" }], [true])
-    else if (selector === toFunctionSelector("camManifest()")) result = encodeFunctionResult({ abi: rootAbi, functionName: "camManifest", result: { uri: new URL("main.json", resourceBase).href, sha256Digest: sha256(cam) } })
+    else if (selector === toFunctionSelector("camManifest()")) result = encodeFunctionResult({ abi: rootAbi, functionName: "camManifest", result: { uri: new URL("main.json", resourceBase).href, sha256Digest: scenario === "unverified" ? zeroHash : sha256(cam) } })
     else if (selector === toFunctionSelector("contractAddress(string)")) result = encodeAbiParameters([{ type: "address" }], [target])
     else if (selector === toFunctionSelector("read(address)")) {
       const decoded = decodeFunctionData({ abi, data })

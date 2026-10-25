@@ -132,7 +132,12 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
       assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `connection facts reflow at ${width}px`)
     }
-    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, lateLoadDiscarded: true, sends: 0 }
+    await open('unverified')
+    await wait(`!!document.querySelector('.ui')`)
+    assert(await evaluate(`!!document.querySelector('[aria-label="UI integrity warnings"] [role="status"][data-kind="warning"]')`), 'a zero verification hash produces a warning while the UI remains available')
+    assert(await evaluate(`document.querySelector('[aria-label="UI integrity warnings"]').textContent.includes('Unverified')`), 'the unverified condition is stated explicitly')
+    assert(await evaluate(`(()=>{const warning=document.querySelector('[aria-label="UI integrity warnings"] [role="status"]');const normal=document.createElement('div');normal.className='error-feedback';normal.dataset.kind='status';document.body.append(normal);const distinct=getComputedStyle(warning).backgroundColor!==getComputedStyle(normal).backgroundColor;normal.remove();return distinct})()`), 'unverified resources do not use the normal status treatment')
+    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, lateLoadDiscarded: true, unverifiedWarning: true, sends: 0 }
   } catch (error) { failures.push(error) }
   finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
 }

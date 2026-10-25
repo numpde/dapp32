@@ -139,6 +139,7 @@ dd,
 .nft-source, .nft-identity dd { overflow-wrap: anywhere; word-break: break-word; }
 .error-feedback { min-width: 0; overflow-wrap: anywhere; margin-block: 12px; padding: 12px 16px; border-inline-start: 3px solid var(--accent); border-radius: 4px; background: #eef6f4; }
 .error-feedback[data-kind="error"] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--panel)); }
+.error-feedback[data-kind="warning"] { border-color: #a17600; background: #fff8e1; }
 .error-feedback > .feedback-message { margin: 0; color: var(--ink); font-weight: 600; }
 .feedback-diagnostic { display: block; margin-block-start: 8px; color: var(--muted); font-size: 0.875em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .transaction-feedback a { color: var(--accent); }
