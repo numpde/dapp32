@@ -29,6 +29,28 @@ test("startup parser rejects duplicate deep-link parameters", () => {
   )
 })
 
+test("startup permits a public view without inventing a selected account", () => {
+  const url = validStartupUrl()
+  url.searchParams.delete("account")
+  const parsed = parseStartupOptions(url, POLICY)
+  assert.equal(parsed.account, undefined)
+  assert.equal(Object.hasOwn(parsed, "account"), false)
+  for (const invalid of ["", "not-an-address"]) {
+    url.searchParams.set("account", invalid)
+    assert.throws(() => parseStartupOptions(url, POLICY), /account/)
+  }
+  url.searchParams.set("account", "0x0000000000000000000000000000000000000000")
+  assert.equal(parseStartupOptions(url, POLICY).account, "0x0000000000000000000000000000000000000000", "an explicitly selected watch address remains explicit")
+  url.searchParams.append("account", "0x0000000000000000000000000000000000000001")
+  assert.throws(() => parseStartupOptions(url, POLICY), /duplicate URL parameter: account/)
+})
+
+test("public view links remove a previously selected account instead of leaking a read subject", () => {
+  const linked = urlForView(validStartupUrl(), { route: "item", inputs: {} })
+  assert.equal(linked.searchParams.has("account"), false)
+  assert.equal(parseStartupOptions(linked, POLICY).account, undefined)
+})
+
 test("startup parser rejects unknown deep-link parameters", () => {
   const url = validStartupUrl()
   url.searchParams.set("chain", "eip155:31337")

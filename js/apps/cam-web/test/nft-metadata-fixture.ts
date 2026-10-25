@@ -58,7 +58,7 @@ function render(): void {
     { element: "NftMetadataField", props: { label: "Token metadata" }, state: { key: "tokenURI" }, children: [] },
     { element: "NftMetadataField", props: { label: "Locked metadata" }, state: { key: "locked" }, disabled: true, children: [] },
   ] } }
-  root.render(createElement(UiView, { snapshot, actionKind: () => "unsupported" as const, viewRef: null, changingView: busy, sending: false,
+  root.render(createElement(UiView, { snapshot, canReviewTransaction: true, actionKind: () => "unsupported" as const, viewRef: null, changingView: busy, sending: false,
     onBack: async () => {}, onRefresh: async () => {}, onAction: async () => {},
     onInput: (name: string, value: string) => { if (name !== "tokenURI") throw new Error("Disabled input changed"); tokenURI = value; render() },
     onAmount: () => {}, onInteger: () => {}, onDuration: () => {}, onDocumentHash: async () => {}, onCancelDocumentHash: () => {},

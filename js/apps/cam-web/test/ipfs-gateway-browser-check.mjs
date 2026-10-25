@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { requireHttpURL } from '@cam/protocol'
 import { awaitFixtureSocketOpen } from '../../../tools/browser-fixture-wallet.mjs'
 import { createCdpCommands } from './escrow-browser-fixture.mjs'
+import { checkViewerConnection } from './connection-browser-check.mjs'
 
 const local = (value, label) => {
   const url = requireHttpURL(value, label)
@@ -51,6 +52,8 @@ try {
   await call('Page.enable', {})
   await call('Runtime.enable', {})
   await call('Emulation.setFocusEmulationEnabled', { enabled: true })
+  const connection = await checkViewerConnection({ call, evaluate, viewerURL: viewer.href })
+  console.log(JSON.stringify(connection))
   await call('Page.navigate', { url: new URL('/', viewer).href })
   await wait('!!document.querySelector(".error")')
   assert(await evaluate('!!document.querySelector(".ipfs-gateway select")'), 'the gateway remains visible when connection settings are missing')

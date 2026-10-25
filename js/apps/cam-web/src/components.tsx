@@ -41,7 +41,7 @@ export function ConnectionSummary({
 }: {
   readonly chainId: string
   readonly host: string
-  readonly account: string
+  readonly account: string | undefined
   readonly wallet: string
   readonly walletAction: ReactElement | null
   readonly children?: ReactNode
@@ -49,7 +49,7 @@ export function ConnectionSummary({
   return (
     <section className="connection" aria-label="Account and wallet">
       <dl className="connection-facts">
-        <div><dt>Viewing as</dt><dd><code>{account}</code></dd></div>
+        <div><dt>Viewing as</dt><dd>{account === undefined ? "Public view" : <code>{account}</code>}</dd></div>
         <div><dt>Signing wallet</dt><dd className="wallet-value"><span role="status">{wallet}</span>{walletAction}</dd></div>
         <div><dt>Chain</dt><dd>{chainId}</dd></div>
         <div><dt>CAM contract</dt><dd><code>{host}</code></dd></div>
@@ -62,6 +62,7 @@ export function ConnectionSummary({
 export function UiView({
   snapshot,
   actionKind,
+  canReviewTransaction,
   viewRef,
   changingView,
   sending,
@@ -77,6 +78,7 @@ export function UiView({
 }: {
   readonly snapshot: CamViewerLoadedSnapshot
   readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
+  readonly canReviewTransaction: boolean
   readonly viewRef: Ref<HTMLElement>
   readonly changingView: boolean
   readonly sending: boolean
@@ -106,7 +108,7 @@ export function UiView({
         </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView root={true} headingLevel={2} scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView root={true} headingLevel={2} scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -162,6 +164,7 @@ function UiNodeView({
   root,
   headingLevel,
   actionKind,
+  canReviewTransaction,
   scopeKey,
   state,
   documentHashes,
@@ -177,6 +180,7 @@ function UiNodeView({
   readonly root: boolean
   readonly headingLevel: number
   readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
+  readonly canReviewTransaction: boolean
   readonly scopeKey: string
   readonly state: Record<string, InertValue>
   readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
@@ -193,7 +197,7 @@ function UiNodeView({
     case "Fragment": {
       const titled = node.element === "Screen" && !root
       const children = node.children.map((child, index) => (
-        <UiNodeView key={index} root={false} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView key={index} root={false} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       ))
       if (!titled) return <>{children}</>
       const title = displayText(stringProp(node.props, "title"))
@@ -245,9 +249,9 @@ function UiNodeView({
           className={`action-button${kind === "navigate" ? " button-quiet" : ""}`}
           data-action-kind={kind}
           aria-label={label}
-          aria-description={effect}
+          aria-description={kind === "contractCall" && !canReviewTransaction ? "Connect a wallet to review this transaction" : effect}
           type="button"
-          disabled={node.disabled === true}
+          disabled={node.disabled === true || (kind === "contractCall" && !canReviewTransaction)}
           onClick={() => {
             void onAction(node)
           }}

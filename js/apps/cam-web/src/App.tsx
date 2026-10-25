@@ -25,6 +25,7 @@ import type {
 import {
   createPublicClient,
   http,
+  zeroAddress,
 } from "viem"
 import {
   connectInjectedWallet,
@@ -70,13 +71,14 @@ import {
 } from "./transactions.ts"
 
 type LoadState =
-  | { readonly status: "loading" }
+  | { readonly status: "loading"; readonly startup?: StartupOptions }
   | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerLoadedSnapshot }
-  | { readonly status: "failed"; readonly failure: FailureReport }
+  | { readonly status: "failed"; readonly failure: FailureReport; readonly startup?: StartupOptions }
 
 type AppPublicClient = ReturnType<typeof createPublicClient>
 
 type AppRuntime = {
+  viewingMode: "public" | "account"
   readonly startup: StartupOptions
   readonly publicClient: AppPublicClient
   readonly session: CamViewerSession
@@ -174,8 +176,12 @@ export function App(): ReactElement {
     let firstResource = true
 
     async function load(): Promise<void> {
+      let startup: StartupOptions | undefined
       try {
-        const startup = parseStartupOptions(new URL(window.location.href), readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current }))
+        startup = parseStartupOptions(new URL(window.location.href), readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current }))
+        const options = startup
+        readyRef.current = { status: "loading", startup }
+        setLoadState(readyRef.current)
         const publicClient = createPublicClient({
           transport: http(startup.rpcUrl),
         })
@@ -184,14 +190,15 @@ export function App(): ReactElement {
         const session = createCamViewerSession({
           publicClient,
           host: {
-            chainId: startup.chainId,
-            address: startup.host,
+            chainId: options.chainId,
+            address: options.host,
           },
           account: {
-            address: startup.account,
+            // The public EVM read subject is not a selected account or signer.
+            address: options.account === undefined ? zeroAddress : options.account,
           },
-          inputs: startup.inputs,
-          ...(startup.route === undefined ? {} : { route: startup.route }),
+          inputs: options.inputs,
+          ...(options.route === undefined ? {} : { route: options.route }),
           loadResource: uri => {
             if (firstResource && !controller.signal.aborted) {
               firstResource = false
@@ -208,6 +215,7 @@ export function App(): ReactElement {
           const ready = {
             status: "ready" as const,
             runtime: {
+              viewingMode: startup.account === undefined ? "public" as const : "account" as const,
               startup,
               publicClient,
               session,
@@ -221,6 +229,7 @@ export function App(): ReactElement {
           setLoadState({
             status: "failed",
             failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
+            ...(startup === undefined ? {} : { startup }),
           })
         }
       }
@@ -240,23 +249,40 @@ export function App(): ReactElement {
     }
   }, [loadAttempt])
 
-  const loadedRuntime = loadState.status === "ready" ? loadState.runtime : undefined
+  const connection = connectionOptions(loadState)
   useEffect(() => {
-    if (loadedRuntime === undefined) return
-    const ready = requireReadyState(loadState)
+    if (connection === undefined) return
     const binding = createInjectedWalletBinding({
-      chainId: loadedRuntime.startup.chainId,
-      connect: () => connectInjectedWallet(loadedRuntime.startup),
+      chainId: connection.chainId,
+      connect: () => connectInjectedWallet(connectionOptions(readyRef.current)!),
       isViewBusy: () => changingViewRef.current,
       setAccount: async address => {
+        const current = readyRef.current
+        if (current.status !== "ready") return { type: "startup" as const, address }
         setViewChanging(true)
         try {
-          const snapshot = await loadedRuntime.session.setAccount({ address })
+          const snapshot = await current.runtime.session.setAccount({ address })
           await browserHistory.settled()
-          return snapshot
+          return { type: "view" as const, session: current.runtime.session, snapshot }
         } finally { setViewChanging(false) }
       },
-      commitAccount: snapshot => commitSnapshot(ready, snapshot, "replace"),
+      commitAccount: result => {
+        if (result.type === "startup") {
+          const startup = connectionOptions(readyRef.current)
+          if (startup === undefined) return
+          const url = new URL(window.location.href)
+          url.searchParams.set("account", result.address)
+          window.history.replaceState(window.history.state, "", url)
+          // The prior load may have completed since setAccount chose startup.
+          // Its read subject must not survive this explicit account selection.
+          restartLoad({ ...startup, account: result.address })
+          return
+        }
+        const current = readyRef.current
+        if (current.status !== "ready" || current.runtime.session !== result.session) return
+        current.runtime.viewingMode = "account"
+        commitSnapshot(current, result.snapshot, "replace")
+      },
       invalidate: invalidatePreparedInteraction,
       onState: state => {
         walletRefreshingRef.current = state.refreshing
@@ -266,7 +292,7 @@ export function App(): ReactElement {
         setWalletAccountSynchronized(state.accountSynchronized)
         setWalletChainMatches(state.chainMatches)
         if (!state.chainMatches) {
-          showError({ message: `Wallet network differs from viewer chain ${loadedRuntime.startup.chainId}. Change the network in your wallet, then use Reconnect wallet. The app stays on its configured network.` }, false)
+          showError({ message: `Wallet network differs from viewer chain ${connection.chainId}. Change the network in your wallet, then use Reconnect wallet. The app stays on its configured network.` }, false)
         } else if (!state.refreshing && state.accountSynchronized) {
           showStatus(state.wallet.status === "connected" ? "Wallet connected." : "Wallet disconnected. The selected account is unchanged.", false)
         }
@@ -278,7 +304,7 @@ export function App(): ReactElement {
       binding.dispose()
       if (walletBindingRef.current === binding) walletBindingRef.current = undefined
     }
-  }, [loadedRuntime])
+  }, [connection?.chainId, connection?.host])
 
   useEffect(() => {
     async function openBrowserVisit(target: BrowserVisit): Promise<void> {
@@ -339,6 +365,10 @@ export function App(): ReactElement {
   async function dispatch(action: ResolvedButtonNode): Promise<void> {
     if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
+    if (ready.runtime.viewingMode === "public" && ready.runtime.session.actionKind(action) === "contractCall") {
+      showError({ message: "Connect a wallet before reviewing a transaction." }, true)
+      return
+    }
     const revision = nextInteractionRevision()
     setNotice(undefined)
     setPreparedCall(undefined)
@@ -376,9 +406,11 @@ export function App(): ReactElement {
 
   async function preflightPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
     const ready = requireReadyState(loadState)
+    const account = wallet.status === "connected" ? wallet.address : currentViewerAccount(ready)
+    if (account === undefined) throw new UserFacingError("Connect a wallet before reviewing a transaction.")
     await simulateCamContractCall({
       publicClient: ready.runtime.publicClient,
-      account: wallet.status === "connected" ? wallet.address : currentViewerAccount(ready),
+      account,
       call,
     })
   }
@@ -635,18 +667,22 @@ export function App(): ReactElement {
     snapshot: CamViewerLoadedSnapshot,
     mode: "push" | "replace" | BrowserVisit,
   ): void {
-    setLoadState({ ...ready, snapshot })
+    readyRef.current = { ...ready, snapshot }
+    setLoadState(readyRef.current)
     const currentUrl = new URL(window.location.href)
-    if (snapshot.account !== undefined) currentUrl.searchParams.set("account", snapshot.account.address)
+    const account = currentViewerAccount(readyRef.current)
+    if (account !== undefined) currentUrl.searchParams.set("account", account)
+    else currentUrl.searchParams.delete("account")
     try {
-      const nextUrl = urlForView(currentUrl, snapshot)
+      const nextUrl = urlForView(currentUrl, { route: snapshot.route, inputs: snapshot.inputs, ...(account === undefined ? {} : { account: { address: account } }) })
       browserHistory.commit(snapshot.visitId, nextUrl.href, mode)
       committedUrlRef.current = nextUrl.href
     } catch (error) {
       // The read succeeded. Do not misreport it as a lookup failure merely
       // because its inputs cannot be represented by the URL boundary.
       const previousUrl = new URL(committedUrlRef.current)
-      if (snapshot.account !== undefined) previousUrl.searchParams.set("account", snapshot.account.address)
+      if (account !== undefined) previousUrl.searchParams.set("account", account)
+      else previousUrl.searchParams.delete("account")
       browserHistory.commit(snapshot.visitId, previousUrl.href, mode)
       committedUrlRef.current = previousUrl.href
       setNotice({ ...failureReport(error, "View opened, but its URL could not be updated. Refresh will open the previous view."), kind: "status" })
@@ -703,9 +739,14 @@ export function App(): ReactElement {
   }
 
   function retryUnfinishedLoad(): void {
-    if (loadState.status === "ready") return
+    if (readyRef.current.status === "ready") return
+    restartLoad(connectionOptions(readyRef.current))
+  }
+
+  function restartLoad(startup: StartupOptions | undefined): void {
     resourceLoadAbortRef.current?.abort()
-    setLoadState({ status: "loading" })
+    readyRef.current = { status: "loading", ...(startup === undefined ? {} : { startup }) }
+    setLoadState(readyRef.current)
     setLoadAttempt(attempt => attempt + 1)
   }
 
@@ -745,11 +786,11 @@ export function App(): ReactElement {
       <header className="topbar">
         <h1>{headerTitle(loadState)}</h1>
       </header>
-      {loadState.status === "ready" ? (
+      {connection !== undefined ? (
         <ConnectionSummary
-          chainId={loadState.runtime.startup.chainId}
-          host={loadState.runtime.startup.host}
-          account={currentViewerAccount(loadState)}
+          chainId={connection.chainId}
+          host={connection.host}
+          account={loadState.status === "ready" ? currentViewerAccount(loadState) : connection.account}
           wallet={walletRefreshing ? "Updating account…" : walletLabel(wallet)}
           walletAction={wallet.status === "unavailable" ? null : (
             <button className="wallet-button" type="button" disabled={changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
@@ -796,6 +837,7 @@ export function App(): ReactElement {
         <UiView
           snapshot={{ ...loadState.snapshot, canGoBack: browserHistory.canGoBack() }}
           actionKind={loadState.runtime.session.actionKind}
+          canReviewTransaction={loadState.runtime.viewingMode === "account"}
           viewRef={viewRef}
           changingView={changingView || walletRefreshing || !walletAccountSynchronized}
           sending={sending}
@@ -859,7 +901,9 @@ function requireReadyState(loadState: LoadState): Extract<LoadState, { readonly 
 }
 
 function currentViewerAccount(loadState: Extract<LoadState, { readonly status: "ready" }>): StartupOptions["account"] {
-  return loadState.snapshot.account !== undefined
-    ? loadState.snapshot.account.address
-    : loadState.runtime.startup.account
+  return loadState.runtime.viewingMode === "public" ? undefined : loadState.snapshot.account?.address
+}
+
+function connectionOptions(state: LoadState): StartupOptions | undefined {
+  return state.status === "ready" ? state.runtime.startup : state.startup
 }

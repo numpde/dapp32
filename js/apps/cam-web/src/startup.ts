@@ -24,7 +24,7 @@ import type {
 export type StartupOptions = {
   readonly chainId: string
   readonly host: CamHost["address"]
-  readonly account: CamHost["address"]
+  readonly account?: CamHost["address"]
   readonly rpcUrl: string
   readonly resourceOrigin?: string
   readonly route?: string
@@ -52,10 +52,11 @@ const STARTUP_PARAM_NAMES = new Set(["chainId", "host", "account", "rpcUrl"])
 export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOptions {
   const params = url.searchParams
   rejectUnknownParams(params, STARTUP_PARAM_NAMES)
+  const account = optionalParam(params, "account")
   return {
     chainId: requireEvmChainId(requiredParam(params, "chainId")),
     host: requireEvmAddress(requiredParam(params, "host"), "host"),
-    account: requireEvmAddress(requiredParam(params, "account"), "account"),
+    ...(account === undefined ? {} : { account: requireEvmAddress(account, "account") }),
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
     ...(policy.resourceOrigin === undefined ? {} : { resourceOrigin: policy.resourceOrigin }),
     ...parseViewFragment(url.hash),
@@ -129,8 +130,15 @@ function rejectUnknownParams(params: URLSearchParams, allowedNames: ReadonlySet<
 }
 
 function requiredParam(params: URLSearchParams, name: string): string {
+  const value = optionalParam(params, name)
+  if (value === undefined) throw new Error(`missing URL parameter: ${name}`)
+  return value
+}
+
+function optionalParam(params: URLSearchParams, name: string): string | undefined {
   const values = params.getAll(name)
-  if (values.length === 0 || values[0]?.length === 0) {
+  if (values.length === 0) return undefined
+  if (values[0]?.length === 0) {
     throw new Error(`missing URL parameter: ${name}`)
   }
   if (values.length > 1) {
@@ -209,6 +217,7 @@ export function urlForView(url: URL, view: Pick<CamViewerLoadedSnapshot, "route"
   next.hash = fragment.toString()
   if (next.hash.length > VIEW_FRAGMENT_MAX_LENGTH) throw new Error("View URL fragment is too large (limit: 16,384 characters).")
   if (view.account !== undefined) next.searchParams.set("account", view.account.address)
+  else next.searchParams.delete("account")
   return next
 }
 
