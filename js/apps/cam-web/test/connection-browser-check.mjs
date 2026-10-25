@@ -22,11 +22,38 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
   const button = `document.querySelector('button[aria-label="Update record"]')`
   const failures = []
   try {
+    for (const scenario of ['choose-rpc', 'invalid-rpc']) {
+      await open(scenario)
+      await wait(`!!document.querySelector('#rpc-endpoint-choice')`)
+      if (scenario === 'invalid-rpc') assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'not a URL', 'invalid explicit RPC remains available for correction')
+      assert.equal(await evaluate('connectionFixture.state.subjects.length'), 0, 'no RPC read starts without a valid selected endpoint')
+      await evaluate(`(() => { const input=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'https://rpc.fixture.test');input.dispatchEvent(new Event('input',{bubbles:true})) })()`)
+      await evaluate(`document.querySelector('#rpc-apply').click()`)
+      await wait('!!document.querySelector("input[name=draft]")')
+      assert(await evaluate(`!new URL(location.href).searchParams.has('rpcUrl')`), 'an on-page custom endpoint is not copied into the shared URL')
+    }
     await open('public')
     await wait('!!document.querySelector("input[name=draft]")')
     assert(await evaluate(publicView), 'public EVM reads are not presented as a selected account')
     assert(await evaluate(`connectionFixture.state.subjects.every(subject=>subject==='0x0000000000000000000000000000000000000000')&&!new URL(location.href).searchParams.has('account')`), 'the public read subject stays out of the shared account URL')
     assert(await evaluate(`${button}.disabled`), 'even a manifest-exposed transaction is unavailable in public mode')
+    await evaluate(`(() => { const draft=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(draft,'keep this draft');draft.dispatchEvent(new Event('input',{bubbles:true}));const rpc=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(rpc,'https://candidate.fixture.test');rpc.dispatchEvent(new Event('input',{bubbles:true}));connectionFixture.state.holdCandidate=true })()`)
+    await evaluate(`document.querySelector('#rpc-apply').click()`)
+    await wait('connectionFixture.state.candidateStarted')
+    assert(await evaluate(`document.querySelector('#rpc-endpoint-url').disabled&&document.querySelector('#rpc-endpoint-choice').disabled`), 'pending RPC validation keeps the visible candidate associated with its result')
+    await evaluate('connectionFixture.releaseCandidate()')
+    await wait(`!document.querySelector('#rpc-apply').disabled&&!!document.querySelector('.rpc-connection [role="alert"]')`)
+    assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&document.querySelector('.rpc-connection').textContent.includes('In use: https://rpc.fixture.test')`), 'a failed candidate keeps the active endpoint and draft')
+    await evaluate('connectionFixture.state.failCandidateRead=true;document.querySelector("#rpc-apply").click()')
+    await wait(`!document.querySelector('#rpc-apply').disabled&&!!document.querySelector('.rpc-connection [role="alert"]')`)
+    assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&document.querySelector('.rpc-connection').textContent.includes('In use: https://rpc.fixture.test')`), 'a failed candidate view refresh rolls back transport without losing its draft')
+    const beforeRefresh = await evaluate('connectionFixture.state.readOrigins.length')
+    await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent==='Refresh').click()`)
+    await wait(`connectionFixture.state.readOrigins.length>${beforeRefresh}&&!document.querySelector('#rpc-apply').disabled`)
+    assert.equal(await evaluate('connectionFixture.state.readOrigins.at(-1)'), 'https://rpc.fixture.test', 'the next real read after failed candidate refresh uses the original endpoint')
+    await evaluate('connectionFixture.state.failCandidateRead=false;document.querySelector("#rpc-apply").click()')
+    await wait(`document.querySelector('.rpc-connection').textContent.includes('In use: https://candidate.fixture.test')`)
+    assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&!new URL(location.href).searchParams.has('rpcUrl')`), 'successful transport refresh preserves the draft and removes the stale endpoint from the URL')
     if (process.env.PROOF_DIR) {
       for (const width of [1280, 320]) {
         await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })

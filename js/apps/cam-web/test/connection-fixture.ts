@@ -27,8 +27,9 @@ const cam = encode({ cam: "1.3.0", protocol: { uri: "./protocol.html", integrity
   routes: { home: read("home"), detail: read("detail"), update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: {} }, then: { namespace: "routes", function: "detail", args: {} } } },
 })
 const resources = new Map([["main.json", cam], ["protocol.html", protocol], ["abi.json", abiBytes], ["ui.json", ui]])
-const state = { subjects: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held" }
+const state = { subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
 const publicReads: (() => void)[] = []
+const candidateReads: (() => void)[] = []
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url)
   if (url.origin === resourceBase.origin && url.pathname.startsWith(resourceBase.pathname)) {
@@ -36,8 +37,13 @@ window.fetch = async (input, init) => {
     if (bytes === undefined) throw new Error(`Unexpected fixture resource: ${url.href}`)
     return new Response(bytes)
   }
-  if (url.origin !== "https://rpc.fixture.test") throw new Error(`Unexpected fixture endpoint: ${url.origin}`)
+  if (!["https://rpc.fixture.test", "https://candidate.fixture.test"].includes(url.origin)) throw new Error(`Unexpected fixture endpoint: ${url.origin}`)
   const rpc = JSON.parse(String(init?.body)) as { method: string; id: number; params: [{ data: `0x${string}` }] }
+  if (url.origin === "https://candidate.fixture.test" && rpc.method === "eth_chainId" && state.holdCandidate) {
+    state.candidateStarted = true
+    await new Promise<void>(resolve => candidateReads.push(resolve))
+    return Response.json({ jsonrpc: "2.0", id: rpc.id, result: "0xa869" })
+  }
   let result: string
   if (rpc.method === "eth_chainId") result = "0x7a69"
   else if (rpc.method === "eth_getCode") result = "0x6000"
@@ -51,8 +57,9 @@ window.fetch = async (input, init) => {
       const decoded = decodeFunctionData({ abi, data })
       const subject = String(decoded.args?.[0])
       state.subjects.push(subject)
+      state.readOrigins.push(url.origin)
       if (state.holdPublicRead && subject === zeroAddress) await new Promise<void>(resolve => publicReads.push(resolve))
-      if ((scenario === "account-required" && subject === zeroAddress) || (state.failAccountRead && subject !== zeroAddress)) {
+      if ((scenario === "account-required" && subject === zeroAddress) || (state.failAccountRead && subject !== zeroAddress) || (state.failCandidateRead && url.origin === "https://candidate.fixture.test")) {
         return Response.json({ jsonrpc: "2.0", id: rpc.id, error: { code: -32000, message: "Fixture account read rejected" } })
       }
       result = encodeAbiParameters([{ type: "uint256" }], [7n])
@@ -86,10 +93,13 @@ const provider = {
 }
 Object.assign(window, { ethereum: provider, connectionFixture: { state, wallet, listeners,
   releasePublicReads() { state.holdPublicRead = false; publicReads.splice(0).forEach(release => release()) },
+  releaseCandidate() { state.holdCandidate = false; candidateReads.splice(0).forEach(release => release()) },
   emit(event: string, value: unknown) { listeners.get(event)?.forEach(listener => listener(value)) },
 } })
 const url = new URL(location.href)
 url.search = new URLSearchParams({ chainId: "eip155:31337", host, rpcUrl: "https://rpc.fixture.test" }).toString()
+if (scenario === "choose-rpc") url.searchParams.delete("rpcUrl")
+if (scenario === "invalid-rpc") url.searchParams.set("rpcUrl", "not a URL")
 if (scenario === "explicit-zero") url.searchParams.set("account", zeroAddress)
 history.replaceState(null, "", url)
 createRoot(document.getElementById("root")!).render(createElement(App))

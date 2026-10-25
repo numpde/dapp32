@@ -60,6 +60,7 @@ button:not(.timestamp-options):not(:disabled):active {
 }
 
 .connection-facts select { max-width: 100%; padding: 4px 8px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); color: inherit; font: inherit; }
+.connection-form { display: grid; gap: 8px; min-width: 0; }
 
 h1,
 h2,

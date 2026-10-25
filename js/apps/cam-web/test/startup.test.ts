@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { displayRpcEndpoint, parseStartupOptions, parseViewFragment, readStartupPolicy, resourcePolicyLabel, urlForView } from "../src/startup.ts"
+import { displayRpcEndpoint, parseStartupCoordinates, parseStartupOptions, parseViewFragment, readStartupPolicy, resourcePolicyLabel, urlForActiveConnection, urlForView } from "../src/startup.ts"
 
 const POLICY = {
   resourceOrigin: "https://resources.example.test",
@@ -49,6 +49,28 @@ test("public view links remove a previously selected account instead of leaking 
   const linked = urlForView(validStartupUrl(), { route: "item", inputs: {} })
   assert.equal(linked.searchParams.has("account"), false)
   assert.equal(parseStartupOptions(linked, POLICY).account, undefined)
+})
+
+test("connection coordinates remain available when RPC input is missing or needs correction", () => {
+  const url = validStartupUrl()
+  for (const value of [undefined, "", "not a URL"]) {
+    if (value === undefined) url.searchParams.delete("rpcUrl")
+    else url.searchParams.set("rpcUrl", value)
+    assert.equal(parseStartupCoordinates(url).chainId, "eip155:31337")
+    assert.equal(Object.hasOwn(parseStartupCoordinates(url), "rpcUrl"), false)
+  }
+})
+
+test("view links retain matching supplied RPC but never serialize a newly selected endpoint", () => {
+  const original = validStartupUrl()
+  const unchanged = original.href
+  assert.equal(urlForActiveConnection(original, "http://127.0.0.1:8545/").href, unchanged)
+  const changed = urlForActiveConnection(original, "https://rpc.example.test/private-access-token")
+  assert.equal(changed.searchParams.has("rpcUrl"), false)
+  assert(!changed.href.includes("private-access-token"))
+  assert.equal(original.href, unchanged)
+  original.searchParams.set("rpcUrl", "not a URL")
+  assert.equal(urlForActiveConnection(original, "https://rpc.example.test/").searchParams.has("rpcUrl"), false)
 })
 
 test("startup parser rejects unknown deep-link parameters", () => {

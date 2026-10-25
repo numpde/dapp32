@@ -21,11 +21,17 @@ import type {
   Hex,
 } from "viem"
 
-export type StartupOptions = {
+export type StartupCoordinates = {
   readonly chainId: string
   readonly host: CamHost["address"]
   readonly account?: CamHost["address"]
+}
+
+export type ConnectionOptions = StartupCoordinates & {
   readonly rpcUrl: string
+}
+
+export type StartupOptions = ConnectionOptions & {
   readonly resourceOrigin?: string
   readonly route?: string
   readonly inputs: InertRecord
@@ -50,6 +56,15 @@ type ChainIdClient = {
 const STARTUP_PARAM_NAMES = new Set(["chainId", "host", "account", "rpcUrl"])
 
 export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOptions {
+  return {
+    ...parseStartupCoordinates(url),
+    rpcUrl: requireHttpURL(requiredParam(url.searchParams, "rpcUrl"), "rpcUrl").href,
+    ...(policy.resourceOrigin === undefined ? {} : { resourceOrigin: policy.resourceOrigin }),
+    ...parseViewFragment(url.hash),
+  }
+}
+
+export function parseStartupCoordinates(url: URL): StartupCoordinates {
   const params = url.searchParams
   rejectUnknownParams(params, STARTUP_PARAM_NAMES)
   const account = optionalParam(params, "account")
@@ -57,9 +72,6 @@ export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOpt
     chainId: requireEvmChainId(requiredParam(params, "chainId")),
     host: requireEvmAddress(requiredParam(params, "host"), "host"),
     ...(account === undefined ? {} : { account: requireEvmAddress(account, "account") }),
-    rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
-    ...(policy.resourceOrigin === undefined ? {} : { resourceOrigin: policy.resourceOrigin }),
-    ...parseViewFragment(url.hash),
   }
 }
 
@@ -218,6 +230,23 @@ export function urlForView(url: URL, view: Pick<CamViewerLoadedSnapshot, "route"
   if (next.hash.length > VIEW_FRAGMENT_MAX_LENGTH) throw new Error("View URL fragment is too large (limit: 16,384 characters).")
   if (view.account !== undefined) next.searchParams.set("account", view.account.address)
   else next.searchParams.delete("account")
+  return next
+}
+
+export function urlForActiveConnection(url: URL, rpcUrl: string): URL {
+  const next = new URL(url.href)
+  // Retain only an already supplied, matching preselection. Newly entered RPC
+  // URLs may contain credentials and must never be added to a shared link.
+  const supplied = next.searchParams.getAll("rpcUrl")
+  if (supplied.length !== 1) next.searchParams.delete("rpcUrl")
+  else {
+    try {
+      if (requireHttpURL(supplied[0]!, "RPC URL").href !== rpcUrl) next.searchParams.delete("rpcUrl")
+    } catch {
+      // A corrected connection must not keep an invalid old preselection.
+      next.searchParams.delete("rpcUrl")
+    }
+  }
   return next
 }
 

@@ -50,12 +50,15 @@ import {
   createViewerResourceLoader,
   displayRpcEndpoint,
   resourcePolicyLabel,
-  parseStartupOptions,
+  parseStartupCoordinates,
   parseViewFragment,
   urlForView,
+  urlForActiveConnection,
   readStartupPolicy,
 } from "./startup.ts"
-import type { StartupOptions } from "./startup.ts"
+import type { ConnectionOptions, StartupCoordinates, StartupOptions } from "./startup.ts"
+import { RpcControls } from "./rpc-controls.tsx"
+import { createRpcConnection } from "./rpc-connection.ts"
 import {
   ConnectionSummary,
   PreparedCallView,
@@ -71,18 +74,19 @@ import {
 } from "./transactions.ts"
 
 type LoadState =
-  | { readonly status: "loading"; readonly startup?: StartupOptions }
+  | { readonly status: "setup" }
+  | { readonly status: "loading"; readonly startup?: ConnectionOptions }
   | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerLoadedSnapshot }
-  | { readonly status: "failed"; readonly failure: FailureReport; readonly startup?: StartupOptions }
-
-type AppPublicClient = ReturnType<typeof createPublicClient>
+  | { readonly status: "failed"; readonly failure: FailureReport; readonly startup?: ConnectionOptions }
 
 type AppRuntime = {
   viewingMode: "public" | "account"
   readonly startup: StartupOptions
-  readonly publicClient: AppPublicClient
+  readonly rpc: ReturnType<typeof createRpcConnection>
   readonly session: CamViewerSession
 }
+
+type AppPublicClient = ReturnType<typeof createPublicClient>
 
 type Notice = FailureReport & { readonly kind: "error" | "status" }
 type FeedbackArrival = {
@@ -105,6 +109,14 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 }
 
 export function App(): ReactElement {
+  const [viewerLink] = useState<
+    { readonly coordinates: StartupCoordinates; readonly rpcURLs: readonly string[] } | { readonly failure: FailureReport }
+  >(() => {
+    try {
+      const url = new URL(window.location.href)
+      return { coordinates: parseStartupCoordinates(url), rpcURLs: url.searchParams.getAll("rpcUrl") }
+    } catch (error) { return { failure: failureReport(error) } }
+  })
   const [initialResourceOrigin] = useState(() => {
     const configured = import.meta.env.VITE_CAM_WEB_RESOURCE_ORIGIN
     if (configured === undefined || configured === "") return "none"
@@ -122,8 +134,8 @@ export function App(): ReactElement {
   const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
   const gatewayRef = useRef(defaultIpfsGateway.template)
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
-  const [loadAttempt, setLoadAttempt] = useState(0)
-  const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
+  const [loadRequest, setLoadRequest] = useState<ConnectionOptions | undefined>(undefined)
+  const [loadState, setLoadState] = useState<LoadState>(() => "failure" in viewerLink ? { status: "failed", failure: viewerLink.failure } : { status: "setup" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
   const [walletChainMatches, setWalletChainMatches] = useState(true)
   const [walletRefreshing, setWalletRefreshing] = useState(false)
@@ -169,6 +181,8 @@ export function App(): ReactElement {
   }, [feedbackArrival])
 
   useEffect(() => {
+    if (loadRequest === undefined) return
+    const requestedConnection = loadRequest
     let cancelled = false
     const controller = new AbortController()
     resourceLoadAbortRef.current = controller
@@ -176,9 +190,9 @@ export function App(): ReactElement {
     let firstResource = true
 
     async function load(): Promise<void> {
-      let startup: StartupOptions | undefined
       try {
-        startup = parseStartupOptions(new URL(window.location.href), readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current }))
+        const startup: StartupOptions = { ...requestedConnection, ...parseViewFragment(new URL(window.location.href).hash) }
+        readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: resourceOriginRef.current })
         const options = startup
         readyRef.current = { status: "loading", startup }
         setLoadState(readyRef.current)
@@ -187,8 +201,9 @@ export function App(): ReactElement {
         })
         await assertRpcChain(publicClient, startup.chainId)
         await assertHostHasCode(publicClient, startup.host)
+        const rpc = createRpcConnection({ url: startup.rpcUrl, client: publicClient })
         const session = createCamViewerSession({
-          publicClient,
+          publicClient: rpc.client,
           host: {
             chainId: options.chainId,
             address: options.host,
@@ -217,7 +232,7 @@ export function App(): ReactElement {
             runtime: {
               viewingMode: startup.account === undefined ? "public" as const : "account" as const,
               startup,
-              publicClient,
+              rpc,
               session,
             },
             snapshot,
@@ -229,7 +244,7 @@ export function App(): ReactElement {
           setLoadState({
             status: "failed",
             failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
-            ...(startup === undefined ? {} : { startup }),
+            startup: requestedConnection,
           })
         }
       }
@@ -247,7 +262,7 @@ export function App(): ReactElement {
         }
       }
     }
-  }, [loadAttempt])
+  }, [loadRequest])
 
   const connection = connectionOptions(loadState)
   useEffect(() => {
@@ -409,7 +424,7 @@ export function App(): ReactElement {
     const account = wallet.status === "connected" ? wallet.address : currentViewerAccount(ready)
     if (account === undefined) throw new UserFacingError("Connect a wallet before reviewing a transaction.")
     await simulateCamContractCall({
-      publicClient: ready.runtime.publicClient,
+      publicClient: ready.runtime.rpc.active.client,
       account,
       call,
     })
@@ -485,9 +500,9 @@ export function App(): ReactElement {
       const ready = requireReadyState(loadState)
       const txHash = await submitPreparedContractCall({
         ports: PREPARED_CALL_SUBMITTER_PORTS,
-        publicClient: ready.runtime.publicClient,
+        publicClient: ready.runtime.rpc.active.client,
         walletAddress: wallet.address,
-        startup: ready.runtime.startup,
+        startup: { ...ready.runtime.startup, rpcUrl: ready.runtime.rpc.active.url },
         call,
         shouldContinue: () => ownsInteraction() && ownsSend(),
       })
@@ -497,9 +512,9 @@ export function App(): ReactElement {
       reportTransaction({ message: "Transaction submitted." }, "status", false, submittedTransaction)
 
       const nonceGap = await submittedTransactionDiagnosis({
-        client: ready.runtime.publicClient,
+        client: ready.runtime.rpc.active.client,
         txHash,
-        rpcEndpoint: displayRpcEndpoint(ready.runtime.startup.rpcUrl),
+        rpcEndpoint: displayRpcEndpoint(ready.runtime.rpc.active.url),
         includePendingAdvice: false,
       })
       if (!ownsSend()) return
@@ -669,7 +684,7 @@ export function App(): ReactElement {
   ): void {
     readyRef.current = { ...ready, snapshot }
     setLoadState(readyRef.current)
-    const currentUrl = new URL(window.location.href)
+    const currentUrl = urlForActiveConnection(new URL(window.location.href), ready.runtime.rpc.active.url)
     const account = currentViewerAccount(readyRef.current)
     if (account !== undefined) currentUrl.searchParams.set("account", account)
     else currentUrl.searchParams.delete("account")
@@ -680,7 +695,7 @@ export function App(): ReactElement {
     } catch (error) {
       // The read succeeded. Do not misreport it as a lookup failure merely
       // because its inputs cannot be represented by the URL boundary.
-      const previousUrl = new URL(committedUrlRef.current)
+      const previousUrl = urlForActiveConnection(new URL(committedUrlRef.current), ready.runtime.rpc.active.url)
       if (account !== undefined) previousUrl.searchParams.set("account", account)
       else previousUrl.searchParams.delete("account")
       browserHistory.commit(snapshot.visitId, previousUrl.href, mode)
@@ -743,11 +758,35 @@ export function App(): ReactElement {
     restartLoad(connectionOptions(readyRef.current))
   }
 
-  function restartLoad(startup: StartupOptions | undefined): void {
+  function restartLoad(startup: ConnectionOptions | undefined): void {
+    if (startup === undefined) return
     resourceLoadAbortRef.current?.abort()
-    readyRef.current = { status: "loading", ...(startup === undefined ? {} : { startup }) }
+    const request = { ...startup }
+    readyRef.current = { status: "loading", startup: request }
     setLoadState(readyRef.current)
-    setLoadAttempt(attempt => attempt + 1)
+    setLoadRequest(request)
+  }
+
+  async function applyRpc(url: string): Promise<void> {
+    if (sendingRef.current || changingViewRef.current || walletRefreshingRef.current) throw new UserFacingError("Finish the current operation before changing RPC.")
+    const current = readyRef.current
+    if (current.status !== "ready") {
+      // silent-defaults: allow-default -- Retry keeps bootstrap account changes; untouched setup uses the supplied link coordinates.
+      const coordinates = connectionOptions(current) ?? ("coordinates" in viewerLink ? viewerLink.coordinates : undefined)
+      if (coordinates === undefined) throw new UserFacingError("Provide the app's network and CAM contract address first.")
+      restartLoad({ ...coordinates, rpcUrl: url })
+      return
+    }
+    setViewChanging(true)
+    try {
+      const client = createPublicClient({ transport: http(url) })
+      await assertRpcChain(client, current.runtime.startup.chainId)
+      await assertHostHasCode(client, current.runtime.startup.host)
+      await browserHistory.settled()
+      const snapshot = await current.runtime.rpc.refresh({ url, client }, current.runtime.session)
+      invalidatePreparedInteraction()
+      commitSnapshot(current, snapshot, "replace")
+    } finally { setViewChanging(false) }
   }
 
   const pinnedOrigins = [...new Set([initialResourceOrigin, resourceOrigin, manifestOrigin]
@@ -780,24 +819,34 @@ export function App(): ReactElement {
         </dd>
       </div>
 
+  const rpcControl = "coordinates" in viewerLink ? <RpcControls
+    chainId={viewerLink.coordinates.chainId}
+    suppliedURLs={viewerLink.rpcURLs}
+    activeURL={loadState.status === "ready" ? loadState.runtime.rpc.active.url : undefined}
+    busy={changingView || walletRefreshing || sending}
+    onApply={applyRpc}
+  /> : null
+  // silent-defaults: allow-default -- Show known app coordinates before an RPC has been selected.
+  const displayedConnection = connection ?? ("coordinates" in viewerLink ? viewerLink.coordinates : undefined)
+
   return (
     <IpfsGatewayContext value={gatewayRef.current}>
     <main className="app-shell">
       <header className="topbar">
         <h1>{headerTitle(loadState)}</h1>
       </header>
-      {connection !== undefined ? (
+      {displayedConnection !== undefined ? (
         <ConnectionSummary
-          chainId={connection.chainId}
-          host={connection.host}
-          account={loadState.status === "ready" ? currentViewerAccount(loadState) : connection.account}
+          chainId={displayedConnection.chainId}
+          host={displayedConnection.host}
+          account={loadState.status === "ready" ? currentViewerAccount(loadState) : displayedConnection.account}
           wallet={walletRefreshing ? "Updating account…" : walletLabel(wallet)}
           walletAction={wallet.status === "unavailable" ? null : (
-            <button className="wallet-button" type="button" disabled={changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
+            <button className="wallet-button" type="button" disabled={connection === undefined || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
               {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
             </button>
           )}
-        >{resourcePolicy}{gatewayControl}</ConnectionSummary>
+        >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
       ) : <dl className="connection connection-facts">{resourcePolicy}{gatewayControl}</dl>}
 
       {loadState.status === "ready" ? <IntegrityWarnings warnings={loadState.snapshot.integrityWarnings} /> : null}
@@ -825,11 +874,13 @@ export function App(): ReactElement {
         <section className="panel">Loading app...</section>
       ) : null}
 
+      {loadState.status === "setup" ? <section className="panel">Choose an RPC service to open this app.</section> : null}
+
       {loadState.status === "failed" ? (
         <section className="panel error">
           <h2>Cannot load app</h2>
           <Feedback report={loadState.failure} kind="error" />
-          <button type="button" onClick={retryUnfinishedLoad}>Retry loading</button>
+          {connection === undefined ? null : <button type="button" onClick={retryUnfinishedLoad}>Retry loading</button>}
         </section>
       ) : null}
 
@@ -867,15 +918,16 @@ async function waitForReceipt(
   txHash: `0x${string}`,
 ): ReturnType<AppPublicClient["waitForTransactionReceipt"]> {
   return await waitForSubmittedTransactionReceipt({
-    client: ready.runtime.publicClient,
+    client: ready.runtime.rpc.active.client,
     txHash,
-    rpcEndpoint: displayRpcEndpoint(ready.runtime.startup.rpcUrl),
+    rpcEndpoint: displayRpcEndpoint(ready.runtime.rpc.active.url),
     pollingIntervalMs: RECEIPT_POLLING_INTERVAL_MS,
     timeoutMs: RECEIPT_WAIT_TIMEOUT_MS,
   })
 }
 
 function headerTitle(loadState: LoadState): string {
+  if (loadState.status === "setup") return "Open app"
   if (loadState.status === "loading") {
     return "Loading"
   }
@@ -904,6 +956,7 @@ function currentViewerAccount(loadState: Extract<LoadState, { readonly status: "
   return loadState.runtime.viewingMode === "public" ? undefined : loadState.snapshot.account?.address
 }
 
-function connectionOptions(state: LoadState): StartupOptions | undefined {
-  return state.status === "ready" ? state.runtime.startup : state.startup
+function connectionOptions(state: LoadState): ConnectionOptions | undefined {
+  if (state.status === "setup") return undefined
+  return state.status === "ready" ? { ...state.runtime.startup, rpcUrl: state.runtime.rpc.active.url } : state.startup
 }
