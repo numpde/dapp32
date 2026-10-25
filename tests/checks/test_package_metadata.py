@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import re
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .common import read_text, repo_path
+from .common import ROOT, read_text, repo_path
 from tools.json_policy import strict_json_loads
 
 
@@ -69,6 +73,55 @@ MODULE_SPECIFIER_RE = re.compile(
     r'import\s*\(\s*["\'](?P<dynamic>[^"\']+)["\']\s*\)|'
     r'\brequire\s*\(\s*["\'](?P<require>[^"\']+)["\']\s*\))'
 )
+
+
+class PackageInstallIdentityTest(unittest.TestCase):
+    def test_install_uses_the_selected_daemons_host_mapping(self) -> None:
+        cases = (
+            ("rootful", "docker compose", "1234:1234"),
+            ("rootless", "docker compose", "0:0"),
+            ("unavailable", "docker compose", None),
+            ("rootless", "docker --context default compose", None),
+        )
+        for engine, compose, expected_user in cases:
+            with self.subTest(engine=engine, compose=compose), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for name in ("compose", "containers", "dapps", "docs", "js/apps", "js/packages", "tests", "tools"):
+                    (root / name).mkdir(parents=True, exist_ok=True)
+                for name in ("package.json", "package-lock.json"):
+                    (root / "js" / name).write_text("{}\n", encoding="utf-8")
+                shutil.copyfile(ROOT / "tools/compose_cleanup.sh", root / "tools/compose_cleanup.sh")
+                events = root / "events"
+                events.touch()
+                bash_env = root / "bash-env"
+                bash_env.write_text(r'''
+docker() {
+  printf '%s\n' "$*" >> "$TEST_EVENTS"
+  if [[ "$1" == info ]]; then
+    if [[ "$TEST_ENGINE" == unavailable ]]; then return 42; fi
+    printf 'name=seccomp,profile=builtin\n'
+    if [[ "$TEST_ENGINE" == rootless ]]; then printf 'name=rootless\n'; fi
+  fi
+  return 0
+}
+''', encoding="utf-8")
+                env = dict(os.environ, BASH_ENV=str(bash_env), TEST_EVENTS=str(events), TEST_ENGINE=engine)
+                result = subprocess.run(
+                    ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
+                     "js/deps/install", "LOCAL_UID=1234", "LOCAL_GID=1234", f"DOCKER_COMPOSE={compose}"],
+                    cwd=root, env=env, capture_output=True, text=True, timeout=20,
+                )
+                calls = events.read_text(encoding="utf-8").splitlines()
+                stages = [call for call in calls if " run " in call]
+                if expected_user is None:
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertEqual(1, len(calls))
+                    self.assertFalse((root / "js/node_modules").exists())
+                else:
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual(2, len(stages))
+                    self.assertTrue(stages[0].endswith(f"--user {expected_user} package-stage"))
+                    self.assertTrue(stages[1].endswith(f"--user {expected_user} package-apply-locked"))
 
 
 class PackageMetadataTest(unittest.TestCase):

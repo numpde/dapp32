@@ -1030,6 +1030,9 @@ dapps/deps/verify:
 js/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
+	package_user="$$LOCAL_UID:$$LOCAL_GID"; \
+	security_options="$$(docker info --format '{{range .SecurityOptions}}{{println .}}{{end}}')"; \
+	if grep -Fxq 'name=rootless' <<< "$$security_options"; then package_user=0:0; fi; \
 	package_input_dir=""; \
 	created_package_lock_placeholder="0"; \
 	cleanup() { \
@@ -1092,7 +1095,7 @@ js/deps/install:
 	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
 	done < <(find $(JS_DIR)/packages $(JS_DIR)/apps -mindepth 2 -maxdepth 2 -name package.json | sort); \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/package-deps.yml,0); \
-	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm package-stage; \
+	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" package-stage; \
 	reject_unsafe_package_targets; \
 	mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"; \
 	test -d "$(PACKAGE_NODE_MODULES_DIR)"; \
@@ -1102,7 +1105,7 @@ js/deps/install:
 	fi; \
 	test -f "$(PACKAGE_LOCK_FILE)"; \
 	reject_unsafe_package_targets; \
-	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm "$$apply_service"
+	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" "$$apply_service"
 
 js/deps/graph/check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)

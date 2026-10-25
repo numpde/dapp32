@@ -92,6 +92,9 @@ The build uses the current checkout and already installed locked dependencies,
 offline. Install those separately with `make js/deps/install`. The build also
 requires the digest-pinned Node and Nginx base images to be available locally;
 it reports a missing prerequisite rather than pulling it. Nothing is published.
+On a rootless Docker engine, `make js/deps/install` runs its staging and apply
+containers as namespace root, which maps to the daemon owner on the host.
+On a rootful engine, those containers use the invoking user's UID and GID.
 The local `dapp32-viewer:local` image contains compiled files and Nginx, with no
 runtime Node process, source mounts or signing configuration. Rebuild explicitly
 after changing the source; starting the viewer does not rebuild or pull images.
