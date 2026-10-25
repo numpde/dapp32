@@ -91,7 +91,7 @@ class _ReleaseCommandHarness:
         if kind in ("image", "image-target"):
             self.work.mkdir()
         self.events.touch()
-        for name in ("release_approval_image_build.sh", "release_approval_images.sh", "release_rehearsal.sh", "release_process.sh"):
+        for name in ("release_approval_image_build.sh", "release_approval_images.sh", "release_rehearsal.sh", "release_process.sh", "compose_cleanup.sh"):
             destination = self.repo / "tools" / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / "tools" / name, destination)
@@ -198,6 +198,7 @@ block_child() {
 }
 docker() {
   local project= argument previous=
+  if [[ "$2" == ls && "$1" =~ ^(container|network|volume)$ ]]; then return 0; fi
   if [[ "$1 $2" == 'image ls' ]]; then return 0; fi
   if [[ "$1" == inspect ]]; then
     case "$*" in

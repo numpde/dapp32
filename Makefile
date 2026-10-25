@@ -80,8 +80,12 @@ COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_I
 export $(COMPOSE_PROJECT_NAME_VARS)
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
-DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
-PACKAGE_DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
+DEPS_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-solidity-deps
+PACKAGE_DEPS_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-js-deps
+ABI_EXPORT_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-abi-export
+DEPS_COMPOSE_ENV := $(COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(DEPS_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=$(ALLOW_UPDATE)
+PACKAGE_DEPS_COMPOSE_ENV := $(COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=$(ALLOW_UPDATE)
+ABI_EXPORT_COMPOSE_ENV := $(COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ABI_EXPORT_COMPOSE_PROJECT_NAME)
 RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
 RPC_INDEXER_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_INDEXER_COMPOSE_PROJECT_NAME)
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
@@ -161,10 +165,14 @@ CAM_RESOURCE_OUTPUT_GUARD := if [[ ! -f docs/reference/cam/1.3.0/index.html ]]; 
 CAM_URI_GUARD := uri="$${CAM_URI?missing_CAM_URI}"; if [[ -z "$$uri" ]]; then printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; exit 2; fi; if [[ ! "$$uri" =~ ^(https?|ipfs):// || "$$uri" == *'$$'* || "$$uri" == *'`'* || "$$uri" == *\"* || "$$uri" == *\'* || "$$uri" == *\;* ]]; then printf '%s\n' 'CAM_URI must be an absolute http(s) or ipfs URI without shell syntax.' >&2; exit 2; fi
 CAM_INTEGRATION_INPUT_GUARD := seed="$${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"; runs="$${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"; steps="$${CAM_INTEGRATION_STEPS:?missing_CAM_INTEGRATION_STEPS}"; if [[ ! "$$seed" =~ ^[A-Za-z0-9_.:-]{1,128}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_SEED must be 1-128 URL-safe label characters.' >&2; exit 2; fi; if [[ ! "$$runs" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_RUNS must be a positive decimal integer under 10000.' >&2; exit 2; fi; if [[ ! "$$steps" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_STEPS must be a positive decimal integer under 10000.' >&2; exit 2; fi
 VIEWER_TERMINAL_MOCK_GUARD := if [[ ! "$${VIEWER_TERMINAL_MOCK:?missing_VIEWER_TERMINAL_MOCK}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then printf '%s\n' 'VIEWER_TERMINAL_MOCK must be a mock name, not a path or shell expression.' >&2; exit 2; fi
-# Intentional default: cleanup handlers intentionally ignore Compose teardown
-# failure so the user sees the primary lane failure. Do not use this outside
-# best-effort cleanup paths where the original status is preserved separately.
-COMPOSE_DOWN_CLEANUP := down --volumes --remove-orphans >/dev/null 2>&1 || true
+# Preserve a lane's primary error and retain mounted inputs if teardown fails.
+define disposable_cleanup_command
+timeout -k 15s 60s bash tools/compose_cleanup.sh "$(1)" -- $(DOCKER_COMPOSE) $(2)
+endef
+
+define cleanup_disposable_project
+$(call disposable_cleanup_command,$(1),$(2)) || { cleanup_status="$$?"; if [[ "$(3)" != "0" ]]; then exit "$(3)"; fi; exit "$$cleanup_status"; }
+endef
 
 define release_require_clean_source
 if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then \
@@ -949,7 +957,7 @@ dapps/deps/install:
 	created_dependency_metadata_placeholders=""; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml $(COMPOSE_DOWN_CLEANUP); \
+	  $(DEPS_COMPOSE_ENV) $(call cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/deps.yml,$$status); \
 	  if [[ "$$status" != "0" && -n "$$created_dependency_metadata_placeholders" ]]; then \
 	    rm -f $$created_dependency_metadata_placeholders; \
 	  fi; \
@@ -1005,7 +1013,7 @@ dapps/deps/install:
 	mkdir -p $(DEPENDENCIES_DIR); \
 	test -d $(DEPENDENCIES_DIR); \
 	reject_unsafe_dependency_targets; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml $(COMPOSE_DOWN_CLEANUP); \
+	$(DEPS_COMPOSE_ENV) $(call cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/deps.yml,0); \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \
@@ -1025,7 +1033,7 @@ js/deps/install:
 	cleanup() { \
 	  status="$$?"; \
 	  if [[ -n "$$package_input_dir" ]]; then \
-	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml $(COMPOSE_DOWN_CLEANUP); \
+	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/package-deps.yml,$$status); \
 	    rm -rf "$$package_input_dir"; \
 	  fi; \
 	  if [[ "$$status" != "0" && "$$created_package_lock_placeholder" == "1" ]]; then \
@@ -1081,7 +1089,7 @@ js/deps/install:
 	  mkdir -p "$$package_input_dir/$$package_dir"; \
 	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
 	done < <(find $(JS_DIR)/packages $(JS_DIR)/apps -mindepth 2 -maxdepth 2 -name package.json | sort); \
-	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml $(COMPOSE_DOWN_CLEANUP); \
+	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/package-deps.yml,0); \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm package-stage; \
 	reject_unsafe_package_targets; \
 	mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"; \
@@ -1221,7 +1229,7 @@ viewer/terminal/mock/attach:
 viewer/terminal/mock/down:
 	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_MOCK_GUARD); \
-	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml $(COMPOSE_DOWN_CLEANUP)
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(call cleanup_disposable_project,$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/viewer-terminal.yml,0)
 
 tests/checks:
 	$(call compose_run,checks.yml,checks)
@@ -1232,7 +1240,7 @@ tests/live/dependency-egress:
 	@$(LANE_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) $(COMPOSE_DOWN_CLEANUP); \
+	  $(LIVE_CHECK_COMPOSE_ENV) $(call cleanup_disposable_project,$(LIVE_CHECK_COMPOSE_PROJECT_NAME),$(LIVE_DEPS_EGRESS_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1310,14 +1318,14 @@ cam/abi/export: dapps/deps/verify
 	chmod 0700 "$$abi_plan_dir"; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) $(COMPOSE_DOWN_CLEANUP); \
+	  $(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(call cleanup_disposable_project,$(ABI_EXPORT_COMPOSE_PROJECT_NAME),$(FORGE_ABI_COMPOSE_FILES),$$status); \
 	  rm -rf "$$abi_plan_dir"; \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
-	$(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi-plan; \
-	$(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi; \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
+	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi-plan; \
+	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi; \
+	$(ABI_EXPORT_COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status
 viewer/image/build:
@@ -1398,9 +1406,7 @@ bike-nft/local/integration/fuzz/run: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME),$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1414,9 +1420,7 @@ bike-nft/local/integration/fuzz/fixture-writes/run: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME),$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1427,12 +1431,10 @@ bike-nft/local/integration/fuzz/fixture-writes/run: dapps/deps/verify
 bike-nft/local/integration/fuzz/down:
 	@$(LANE_GUARD); \
 	$(CAM_INTEGRATION_INPUT_GUARD); \
-	$(TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
-	  $(COMPOSE_DOWN_CLEANUP); \
-	$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
-	  $(COMPOSE_DOWN_CLEANUP)
+	cleanup_status=0; \
+	$(TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV) env -u PRIVATE_KEY $(call disposable_cleanup_command,$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME),$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES)) || cleanup_status="$$?"; \
+	$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV) env -u PRIVATE_KEY $(call disposable_cleanup_command,$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME),$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES)) || { next_cleanup_status="$$?"; if [[ "$$cleanup_status" == 0 ]]; then cleanup_status="$$next_cleanup_status"; fi; }; \
+	exit "$$cleanup_status"
 
 dapps/tests/coverage: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-coverage)
@@ -1679,7 +1681,7 @@ cast/live/block-number/read:
 	rpc_url_file="$$tmp_dir/rpc_url"; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml $(COMPOSE_DOWN_CLEANUP); \
+	  $(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(call cleanup_disposable_project,$(RPC_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/cast.yml,$$status); \
 	  rm -rf "$$tmp_dir"; \
 	  exit "$$status"; \
 	}; \
@@ -1737,7 +1739,7 @@ bike-nft/local/deploy: dapps/deps/verify
 	$(CAM_URI_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(BIKE_NFT_LOCAL_COMPOSE_FILES) $(COMPOSE_DOWN_CLEANUP); \
+	  $(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME),$(BIKE_NFT_LOCAL_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1748,9 +1750,7 @@ bike-nft/local/demo/terminal/up: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME),$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1760,9 +1760,7 @@ bike-nft/local/demo/terminal/up: dapps/deps/verify
 
 bike-nft/local/demo/terminal/down:
 	@$(LANE_GUARD); \
-	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES) \
-	  $(COMPOSE_DOWN_CLEANUP)
+	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME),$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES),0)
 
 bike-nft/local/demo/gui/up: dapps/deps/verify
 	@$(LANE_GUARD); \
@@ -1770,9 +1768,7 @@ bike-nft/local/demo/gui/up: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME),$(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1795,18 +1791,14 @@ bike-nft/local/demo/gui/up: dapps/deps/verify
 bike-nft/local/demo/gui/down:
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_GUI_BIND_GUARD); \
-	$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
-	  $(COMPOSE_DOWN_CLEANUP)
+	$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME),$(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES),0)
 
 escrow/local/scenario/run: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(ESCROW_LOCAL_SCENARIO_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(ESCROW_LOCAL_SCENARIO_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(ESCROW_LOCAL_SCENARIO_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME),$(ESCROW_LOCAL_SCENARIO_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1819,9 +1811,7 @@ escrow/local/demo/terminal/up: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(ESCROW_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(ESCROW_VIEWER_TERMINAL_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(ESCROW_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME),$(ESCROW_VIEWER_TERMINAL_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1831,9 +1821,7 @@ escrow/local/demo/terminal/up: dapps/deps/verify
 
 escrow/local/demo/terminal/down:
 	@$(LANE_GUARD); \
-	$(ESCROW_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  $(ESCROW_VIEWER_TERMINAL_COMPOSE_FILES) \
-	  $(COMPOSE_DOWN_CLEANUP)
+	$(ESCROW_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME),$(ESCROW_VIEWER_TERMINAL_COMPOSE_FILES),0)
 
 escrow/local/demo/gui/up: dapps/deps/verify
 	@$(LANE_GUARD); \
@@ -1841,9 +1829,7 @@ escrow/local/demo/gui/up: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(ESCROW_VIEWER_GUI_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME),$(ESCROW_VIEWER_GUI_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -1866,9 +1852,7 @@ escrow/local/demo/gui/up: dapps/deps/verify
 escrow/local/demo/gui/down:
 	@$(LANE_GUARD); \
 	$(ESCROW_GUI_BIND_GUARD); \
-	$(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  $(ESCROW_VIEWER_GUI_COMPOSE_FILES) \
-	  $(COMPOSE_DOWN_CLEANUP)
+	$(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME),$(ESCROW_VIEWER_GUI_COMPOSE_FILES),0)
 
 # Explicit live browser check: host networking reaches the operator's loopback
 # CDP, GUI, and RPC endpoints and grants ordinary host-network egress. The
@@ -2068,9 +2052,7 @@ pay-to-play/local/scenario/run: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME),$(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -2084,9 +2066,7 @@ pay-to-play/local/demo/gui/up: dapps/deps/verify
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
-	    $(COMPOSE_DOWN_CLEANUP); \
+	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME),$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES),$$status); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -2109,9 +2089,7 @@ pay-to-play/local/demo/gui/up: dapps/deps/verify
 pay-to-play/local/demo/gui/down:
 	@$(LANE_GUARD); \
 	$(PAY_TO_PLAY_GUI_BIND_GUARD); \
-	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
-	  $(COMPOSE_DOWN_CLEANUP)
+	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME),$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES),0)
 
 
 .PHONY: pay-to-play/local/scenario/run pay-to-play/local/demo/gui/up pay-to-play/local/demo/gui/down pay-to-play/local/voucher/sign

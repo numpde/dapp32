@@ -18,8 +18,12 @@ Current software supports CAM 1.3.0 with UI 1.0.0: [protocol reference](https://
 To explore an app or manually test its contracts, CAM bundle and viewer together,
 use its `local/demo/gui/up` target. Each launcher starts a disposable local chain,
 deploys fresh app contracts, serves CAM resources and prints the viewer URL.
-Keep the command running while using the demo; exiting attempts cleanup of its
-temporary state. See [local demo launchers](https://numpde.github.io/dapp32/examples/#local-demos)
+Keep the command running while using the demo. On exit, cleanup removes that
+disposable project's containers, including retained one-off tasks, networks and
+volumes. Cleanup failures are reported and make an otherwise successful command
+fail; an earlier command failure keeps its original exit status. Temporary inputs
+are retained if teardown fails. Persistent viewer services use their own explicit
+down command. See [local demo launchers](https://numpde.github.io/dapp32/examples/#local-demos)
 for the three commands, wallet requirements and how they differ from release deployment.
 
 - [Pay-to-Play](dapps/pay-to-play/README.md): deposit native coins, register a

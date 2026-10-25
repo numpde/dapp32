@@ -22,8 +22,9 @@ infrastructure=(docker compose --project-name "${1}" -f compose/release/rehearsa
 cleanup() {
   status="$?"
   trap - EXIT
-  if ! "${compose[@]}" down --rmi local --volumes --remove-orphans >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1; then
+  if ! timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1; then
     printf 'Wait fixture teardown failed; inspect %s/waits-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
+    # The parent retains mounted inputs when this fixture reports exit 2.
     exit 2
   fi
   exit "$status"
@@ -75,7 +76,7 @@ for case_name in "${cases[@]}"; do
     printf 'Could not capture proxy logs for %s.\n' "$case_name" >&2
     result=1
   fi
-  "${compose[@]}" down --rmi local --volumes --remove-orphans >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1
+  timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1
   if [[ "$mode" == ipc-waits && "$case_name" == smoke && "$case_status" != 0 ]]; then
     printf '%s\n' 'Ordinary IPC release failed; later wait cases cannot qualify this transport.' >&2
     break

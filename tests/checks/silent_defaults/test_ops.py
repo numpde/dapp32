@@ -224,8 +224,6 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                     continue
                 if not SHELL_SILENT_SUCCESS_RE.search(line):
                     continue
-                if path.relative_to(ROOT).as_posix() == "Makefile" and line.startswith("COMPOSE_DOWN_CLEANUP :="):
-                    continue
                 findings.append(f"{path.relative_to(ROOT)}:{line_number}: shell silent success fallback: {line.strip()}")
         return findings
 

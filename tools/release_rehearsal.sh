@@ -66,14 +66,14 @@ cleanup() {
     cleanup_failed=1
   fi
   release_progress_phase='removing rehearsal containers and networks'
-  if [[ "$planner_started" == 1 ]] && ! release_run_owned 60 "${planner_compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
+  if [[ "$planner_started" == 1 ]] && ! release_run_owned 60 bash tools/compose_cleanup.sh "$project-planner" --rmi local -- "${planner_compose[@]}" >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
     printf 'Planner test teardown failed; inspect %s/planner-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
-    status=1
+    if (( status == 0 )); then status=1; fi
     cleanup_failed=1
   fi
-  if [[ "$infrastructure_started" == 1 ]] && ! release_run_owned 60 "${compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/cleanup.log" 2>&1; then
+  if [[ "$infrastructure_started" == 1 ]] && ! release_run_owned 60 bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >"$RELEASE_REHEARSAL_DIR/cleanup.log" 2>&1; then
     printf 'Rehearsal teardown failed; inspect %s/cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
-    status=1
+    if (( status == 0 )); then status=1; fi
     cleanup_failed=1
   fi
   if [[ -n "$RELEASE_REHEARSAL_DIR" ]]; then
@@ -303,7 +303,7 @@ for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release relea
     fi
   fi
 done
-release_run_owned 15 "${planner_compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
+release_run_owned 60 timeout -k 15s 60s bash tools/compose_cleanup.sh "$project-planner" --rmi local -- "${planner_compose[@]}" >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
 planner_started=0
 unset RELEASE_OUTPUT_DIR RELEASE_SOURCE_DIR
 

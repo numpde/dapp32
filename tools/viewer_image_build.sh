@@ -21,18 +21,10 @@ compose=(docker compose --env-file /dev/null -p "$project" -f "$repo_root/compos
 cleanup() {
   local status=$?
   trap - EXIT
-  local container
-  if ! container=$(timeout 15s docker ps -aq --filter "label=com.docker.compose.project=$project" --filter "label=com.docker.compose.service=viewer-build"); then
-    printf 'Cannot inspect viewer builder cleanup; temporary files retained at %s.\n' "$work_dir" >&2
-    exit 1
-  fi
-  if [[ -n $container ]] && ! timeout 15s docker rm --force "$container"; then
-    printf 'Cannot remove viewer builder %s; temporary files retained at %s.\n' "$container" "$work_dir" >&2
-    exit 1
-  fi
-  if ! timeout 30s "${compose[@]}" down --timeout 10 --volumes; then
+  if ! timeout -k 15s 60s bash "$repo_root/tools/compose_cleanup.sh" "$project" -- "${compose[@]}"; then
     printf 'Viewer build cleanup failed for project %s; temporary files retained at %s.\n' "$project" "$work_dir" >&2
-    exit 1
+    if (( status == 0 )); then status=1; fi
+    exit "$status"
   fi
   rm -rf -- "$work_dir"
   exit "$status"
