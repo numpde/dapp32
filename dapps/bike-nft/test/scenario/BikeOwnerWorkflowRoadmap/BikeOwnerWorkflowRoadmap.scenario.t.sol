@@ -174,6 +174,24 @@ contract BikeOwnerWorkflowRoadmapScenarioTest is BicycleComponentManagerTestSupp
         ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 30 minutes + 1);
     }
 
+    function test_delegationPauseUsesRecordedCollectionOrCurrentCollectionForUnknownSerial() external {
+        vm.prank(REGISTRAR);
+        manager.registerComponent(OWNER, SERIAL, "fixture://original");
+        BicycleComponents replacement = new BicycleComponents("New Components", "NEW", address(this), 0, "", "");
+        replacement.grantRole(replacement.MINTER_ROLE(), address(manager));
+        replacement.grantRole(replacement.TOKEN_URI_SETTER_ROLE(), address(manager));
+        manager.setComponentsAddress(address(replacement));
+        replacement.pause();
+        assertFalse(ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours).componentTokenPaused);
+        assertTrue(ui.viewDelegation("UNKNOWN", WORKSHOP, OWNER, 1 hours).componentTokenPaused);
+        manager.pause();
+        assertTrue(ui.viewDelegation("UNKNOWN", WORKSHOP, OWNER, 1 hours).paused);
+        replacement.unpause();
+        original.pause();
+        assertTrue(ui.viewDelegation(SERIAL, WORKSHOP, OWNER, 1 hours).componentTokenPaused);
+        assertFalse(ui.viewDelegation("UNKNOWN", WORKSHOP, OWNER, 1 hours).componentTokenPaused);
+    }
+
     function test_handoverUsesRecordedCollectionPauseNotCurrentRegistrationPause() external {
         vm.prank(REGISTRAR);
         (, uint256 tokenId) = manager.registerComponent(OWNER, SERIAL, "fixture://original");

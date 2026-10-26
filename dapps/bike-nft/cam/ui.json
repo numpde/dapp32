@@ -5,6 +5,7 @@
       "element": "Screen", "requires": ["view"], "props": {"title": "Deployment handovers"},
       "children": [
         {"element": "Include", "call": {"namespace": "ui", "function": "navigation", "args": {}}},
+        {"element": "Include", "call": {"namespace": "ui", "function": "contractStatus", "args": {"view": "$view"}}},
         {"element": "Text", "props": {"text": "Each authority transfers separately. Connect the nominated wallet to accept. The current owner or administrator keeps authority until acceptance succeeds. The two admin waits use chain time; refresh after the acceptance time has passed."}},
         {"element": "Button", "props": {"label": "Refresh handovers"}, "call": {"namespace": "routes", "function": "deploymentHandovers", "args": {}}},
         {"element": "Screen", "props": {"title": "CAM ownership"}, "children": [
@@ -56,33 +57,46 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "$view.viewId",
+            "function": "contractStatus",
             "args": {
               "view": "$view"
             }
           }
         },
         {
-          "element": "Screen",
-          "props": {
-            "title": "Contract status"
-          },
-          "children": [
-            {
-              "element": "Status",
-              "props": {
-                "label": "Registry paused",
-                "value": "$view.paused"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Component token paused",
-                "value": "$view.componentTokenPaused"
-              }
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "$view.viewId",
+            "args": {
+              "view": "$view"
             }
-          ]
+          }
+        }
+      ]
+    },
+    "contractStatus": {
+      "element": "Screen",
+      "requires": [
+        "view"
+      ],
+      "props": {
+        "title": "Contract status"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Registry paused",
+            "value": "$view.paused"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Component token paused",
+            "value": "$view.componentTokenPaused"
+          }
         }
       ]
     },

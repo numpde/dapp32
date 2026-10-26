@@ -24,6 +24,27 @@ contract DeploymentHandoversTest is Test {
         root.setContractAddress("BicycleComponentManager", address(manager));
     }
 
+    function test_pauseFactsFollowHostBindingsIndependentlyOfUiRegistryAndItsCollection() public {
+        BicycleComponents replacement =
+            new BicycleComponents("Other", "OTHER", address(this), 100, "", "data:application/json,{}");
+        BicycleComponentManager replacementManager =
+            new BicycleComponentManager(address(this), 200, address(components));
+        root.setContractAddress("BicycleComponents", address(replacement));
+        root.setContractAddress("BicycleComponentManager", address(replacementManager));
+        manager.pause();
+        replacement.pause();
+        BicycleComponentManagerUI.DeploymentHandovers memory view_ = ui.viewDeploymentHandovers(address(root), OTHER);
+        assertFalse(view_.paused, "the bound registry is unpaused even though the UI constructor registry is paused");
+        assertTrue(view_.componentTokenPaused, "the bound collection differs from the registry's current collection");
+        replacementManager.pause();
+        replacement.unpause();
+        manager.unpause();
+        components.pause();
+        view_ = ui.viewDeploymentHandovers(address(root), OTHER);
+        assertTrue(view_.paused);
+        assertFalse(view_.componentTokenPaused);
+    }
+
     function test_noNominationNeverOffersAcceptanceIncludingZeroAccount() public view {
         assertEq(ui.viewDeploymentHandovers(address(root), NOMINEE).actions.length, 0);
         assertEq(ui.viewDeploymentHandovers(address(root), address(0)).actions.length, 0);

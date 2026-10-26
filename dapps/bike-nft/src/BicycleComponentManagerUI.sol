@@ -133,6 +133,8 @@ contract BicycleComponentManagerUI {
         AuthorityHandover components;
         AuthorityHandover manager;
         string[] actions;
+        bool paused;
+        bool componentTokenPaused;
     }
 
     error ZeroAddress();
@@ -175,6 +177,8 @@ contract BicycleComponentManagerUI {
         returns (DeploymentHandovers memory view_)
     {
         (address rootAddress, address componentsAddress, address managerAddress) = deploymentTargets(camHost);
+        view_.paused = IBicycleComponentManagerView(managerAddress).paused();
+        view_.componentTokenPaused = IBicycleComponents(componentsAddress).paused();
         ICamRootOwnership root = ICamRootOwnership(rootAddress);
         view_.cam = _handover(camHost, root.owner(), root.pendingOwner(), 0, account, true);
         view_.components = _adminHandover(componentsAddress, account);
@@ -301,9 +305,8 @@ contract BicycleComponentManagerUI {
         IBicycleComponentManagerView.ComponentView memory component = manager.componentBySerial(serialNumber);
         view_.owner = component.owner;
         view_.isOwner = account != address(0) && component.owner == account;
-        if (component.exists) {
-            view_.componentTokenPaused = IBicycleComponents(component.tokenContract).paused();
-        }
+        view_.componentTokenPaused =
+            component.exists ? IBicycleComponents(component.tokenContract).paused() : manager.componentTokenPaused();
         (view_.delegationGrantor, view_.delegationCapabilities, view_.delegationValidUntil, view_.delegationActive) =
             manager.componentDelegation(serialNumber, delegate);
 

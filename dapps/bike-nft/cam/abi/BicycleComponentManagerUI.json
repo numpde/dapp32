@@ -508,6 +508,16 @@
             "name": "actions",
             "type": "string[]",
             "internalType": "string[]"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentTokenPaused",
+            "type": "bool",
+            "internalType": "bool"
           }
         ]
       }
