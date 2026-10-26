@@ -3,6 +3,7 @@ pragma solidity 0.8.35;
 import {Script, console2} from "forge-std-1.12.0/src/Script.sol";
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {PayToPlay} from "../src/PayToPlay.sol";
+import {PayToPlayUI} from "../src/PayToPlayUI.sol";
 
 /// @notice Deploys the pinned CAM and native-asset payment contract without fixture channels.
 contract DeployPayToPlayRelease is Script {
@@ -29,6 +30,7 @@ contract DeployPayToPlayRelease is Script {
         vm.stopBroadcast();
         console2.log("CamRoot", address(root));
         console2.log("PayToPlay", address(payments));
+        console2.log("PayToPlayUI", root.contractAddress("PayToPlayUI"));
         console2.log("IntendedCamRootOwner", plan.intendedCamRootOwner);
         console2.log("IntendedPaymentAdmin", plan.intendedPaymentAdmin);
     }
@@ -36,7 +38,9 @@ contract DeployPayToPlayRelease is Script {
     function _deploy(ReleasePlan memory plan, address deployer) internal returns (CamRoot root, PayToPlay payments) {
         root = new CamRoot(deployer, plan.camURI, plan.camHash);
         payments = new PayToPlay(deployer, plan.nullClaimPeriod);
+        PayToPlayUI ui = new PayToPlayUI(address(payments));
         root.setContractAddress("PayToPlay", address(payments));
+        root.setContractAddress("PayToPlayUI", address(ui));
         if (plan.intendedCamRootOwner != deployer) root.transferOwnership(plan.intendedCamRootOwner);
         if (plan.intendedPaymentAdmin != deployer) payments.transferOwnership(plan.intendedPaymentAdmin);
     }

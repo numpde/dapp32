@@ -522,14 +522,15 @@ mv "$RUN_DIR/fixture.json.tmp" "$RUN_DIR/fixture.json"
 
 `info` writes only JSON to stdout; operational diagnostics go to stderr. It
 checks chain ID 31337, all deployment receipts against their recorded blocks,
-successful transaction status, and that both deployed addresses contain contract
+successful transaction status, and that all three deployed addresses contain contract
 code. It does not compare that code with compiler output. The JSON contains:
 
 - `composeProject` and `dockerNetwork`: the fixture's cleanup identity and the
   existing internal network the consumer joins.
 - `rpcUrl` and `chainId`: connection details usable from that Docker network.
-- `contracts.CamRoot` and `contracts.PayToPlay`: each has `address` and the mined
-  `deploymentBlock`. Use the PayToPlay address for voucher signatures and payments.
+- `contracts.CamRoot`, `contracts.PayToPlay` and `contracts.PayToPlayUI`: each has
+  `address` and the mined `deploymentBlock`. Use PayToPlay for voucher signatures
+  and payments; PayToPlayUI only reads signing details.
 - `publicFixtureAccounts`: `admin`, `customer`, `relayer` and `payee`, each with
   `address` and `privateKey`. These are intentionally public test identities;
   their addresses are derived by the deployment from its existing fixture keys.

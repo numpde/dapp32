@@ -15,6 +15,8 @@ const SOURCE = "0123456789abcdef0123456789abcdef01234567"
 const ADMIN = "0x0000000000000000000000000000000000000011" as Address
 const OWNER = "0x0000000000000000000000000000000000000044" as Address
 const ROOT = "0x0000000000000000000000000000000000000022" as Address
+const UI = "0x0000000000000000000000000000000000000055" as Address
+const TX3 = `0x${"56".repeat(32)}` as Hex
 const PAYMENTS = "0x0000000000000000000000000000000000000033" as Address
 const HASH = `0x${"ab".repeat(32)}` as Hex
 const TX = `0x${"12".repeat(32)}` as Hex
@@ -39,6 +41,8 @@ function artifact() {
     camRoot: ROOT, payToPlay: PAYMENTS, camRootCodeHash: HASH, payToPlayCodeHash: HASH,
     camRootCreationTransaction: TX, payToPlayCreationTransaction: TX2,
     payToPlayCreationInputHash: HASH,
+    payToPlayUI: UI, payToPlayUICodeHash: HASH, payToPlayUICreationTransaction: TX3,
+    payToPlayUICreationInputHash: HASH,
   }
 }
 
@@ -63,13 +67,24 @@ test("release plan requires explicit nonzero authorities and bounded claim perio
 })
 
 test("deployment parsing preserves constructor evidence and rejects ambiguous identities", () => {
-  assert.equal(parseDeploymentArtifact(bytes(artifact())).payToPlayCreationInputHash, HASH)
+  assert.deepEqual(parseDeploymentArtifact(bytes(artifact())), artifact())
   assert.equal(parseDeploymentArtifact(bytes(artifact())).intendedCamRootOwner, OWNER)
   assert.equal(parseDeploymentArtifact(bytes(artifact())).intendedPaymentAdmin, ADMIN)
   for (const change of [
     { payToPlayCreationTransaction: TX }, { payToPlay: ROOT },
     { payToPlayCreationInputHash: `0x${"00".repeat(32)}` }, { extra: true },
+    { payToPlayUI: ROOT }, { payToPlayUICreationTransaction: TX2 },
+    { payToPlayUICreationInputHash: `0x${"00".repeat(32)}` },
   ]) assert.throws(() => parseDeploymentArtifact(bytes({ ...artifact(), ...change })))
+})
+
+test("fresh deployment evidence requires the signing projection instead of accepting older incomplete releases", () => {
+  for (const field of ["payToPlayUI", "payToPlayUICodeHash", "payToPlayUICreationTransaction", "payToPlayUICreationInputHash"]) {
+    const incomplete: Record<string, unknown> = { ...artifact() }
+    delete incomplete[field]
+    assert.throws(() => parseDeploymentArtifact(bytes(incomplete)))
+  }
+  assert.throws(() => parseDeploymentArtifact(bytes({ ...artifact(), schema: "pay-to-play.deployment.v1" })))
 })
 
 test("creation input evidence is bound to the receipt transaction, deployer, and CREATE operation", () => {

@@ -7,6 +7,7 @@ import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import { requiredEnv } from "../input.ts"
 import { assertAddress, assertEqual, parseJsonRecord, runReleaseTool } from "../release-values.ts"
 
+const UI_ABI = parseAbi(["function payments() view returns (address)"])
 const OWNABLE_ABI = parseAbi(["function owner() view returns (address)", "function pendingOwner() view returns (address)"])
 const ROOT_ABI = parseAbi([
   "function camManifest() view returns ((string uri, bytes32 sha256Digest))",
@@ -20,25 +21,34 @@ async function main(): Promise<void> {
   if (!Array.isArray(broadcast.transactions)) throw new Error("Forge broadcast must contain a transactions array")
   const root = createdContract(broadcast.transactions, "CamRoot")
   const payments = createdContract(broadcast.transactions, "PayToPlay")
+  const ui = createdContract(broadcast.transactions, "PayToPlayUI")
   const client = createPublicClient({ transport: http(requiredEnv(process.env, "PAY_TO_PLAY_RELEASE_RPC_URL")) })
   const { chainId, deployer } = await observeReleaseCreations({
     client, expectedChainId: plan.expectedChainId,
-    contracts: [{ label: "CamRoot", ...root }, { label: "PayToPlay", ...payments }],
+    contracts: [{ label: "CamRoot", ...root }, { label: "PayToPlay", ...payments }, { label: "PayToPlayUI", ...ui }],
   })
   const transaction = await client.getTransaction({ hash: payments.transactionHash })
   const creationInputHash = creationTransactionInputHash(payments, transaction, deployer, "PayToPlay")
+  const uiTransaction = await client.getTransaction({ hash: ui.transactionHash })
+  const uiCreationInputHash = creationTransactionInputHash(ui, uiTransaction, deployer, "PayToPlayUI")
   const blockNumber = await client.getBlockNumber()
-  const [rootCode, paymentCode, manifest, binding] = await Promise.all([
+  const [rootCode, paymentCode, uiCode, manifest, binding, uiBinding, uiPayment] = await Promise.all([
     client.getCode({ address: root.address, blockNumber }),
     client.getCode({ address: payments.address, blockNumber }),
+    client.getCode({ address: ui.address, blockNumber }),
     client.readContract({ address: root.address, abi: ROOT_ABI, functionName: "camManifest", blockNumber }),
     client.readContract({ address: root.address, abi: ROOT_ABI, functionName: "contractAddress", args: ["PayToPlay"], blockNumber }),
+    client.readContract({ address: root.address, abi: ROOT_ABI, functionName: "contractAddress", args: ["PayToPlayUI"], blockNumber }),
+    client.readContract({ address: ui.address, abi: UI_ABI, functionName: "payments", blockNumber }),
   ])
   if (rootCode === undefined || rootCode === "0x") throw new Error("CamRoot has no deployed code")
   if (paymentCode === undefined || paymentCode === "0x") throw new Error("PayToPlay has no deployed code")
+  if (uiCode === undefined || uiCode === "0x") throw new Error("PayToPlayUI has no deployed code")
   assertEqual(manifest.uri, plan.camURI, "CamRoot CAM URI")
   assertEqual(manifest.sha256Digest.toLowerCase(), plan.camHash.toLowerCase(), "CamRoot CAM hash")
   assertAddress(binding, payments.address, "CamRoot PayToPlay binding")
+  assertAddress(uiBinding, ui.address, "CamRoot PayToPlayUI binding")
+  assertAddress(uiPayment, payments.address, "PayToPlayUI payment contract")
   const ownership = await Promise.all([
     observeOwnership(root.address, plan.intendedCamRootOwner, "CamRoot"),
     observeOwnership(payments.address, plan.intendedPaymentAdmin, "PayToPlay"),
@@ -46,14 +56,15 @@ async function main(): Promise<void> {
   const { expectedChainId: _expectedChainId, schema: _planSchema, ...settings } = plan
   const artifact: DeploymentArtifact = {
     ...settings, schema: DEPLOYMENT_SCHEMA, chainId, deployer,
-    camRoot: root.address, payToPlay: payments.address,
-    camRootCodeHash: keccak256(rootCode), payToPlayCodeHash: keccak256(paymentCode),
+    camRoot: root.address, payToPlay: payments.address, payToPlayUI: ui.address,
+    camRootCodeHash: keccak256(rootCode), payToPlayCodeHash: keccak256(paymentCode), payToPlayUICodeHash: keccak256(uiCode),
     camRootCreationTransaction: root.transactionHash, payToPlayCreationTransaction: payments.transactionHash,
     payToPlayCreationInputHash: creationInputHash,
+    payToPlayUICreationTransaction: ui.transactionHash, payToPlayUICreationInputHash: uiCreationInputHash,
   }
   const artifactPath = requiredEnv(process.env, "PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_PATH")
   await writeNewJson(artifactPath, artifact, "deployment artifact")
-  process.stdout.write(`${JSON.stringify({ event: "pay_to_play_deployment_artifact", artifactPath, chainId, camRoot: root.address, payToPlay: payments.address, rootOwnershipAccepted: ownership[0]!.ownershipAccepted, paymentAdminAccepted: ownership[1]!.ownershipAccepted })}\n`)
+  process.stdout.write(`${JSON.stringify({ event: "pay_to_play_deployment_artifact", artifactPath, chainId, camRoot: root.address, payToPlay: payments.address, payToPlayUI: ui.address, rootOwnershipAccepted: ownership[0]!.ownershipAccepted, paymentAdminAccepted: ownership[1]!.ownershipAccepted })}\n`)
 
   async function observeOwnership(address: typeof root.address, intendedOwner: typeof root.address, label: string) {
     const [owner, pendingOwner] = await Promise.all([

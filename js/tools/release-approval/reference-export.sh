@@ -14,7 +14,7 @@ case "$app" in
     ;;
   pay-to-play)
     script=pay-to-play/script/DeployPayToPlayRelease.s.sol
-    contracts='CamRoot PayToPlay'
+    contracts='CamRoot PayToPlay PayToPlayUI'
     ;;
   *) printf '%s\n' "unknown release app: $app" >&2; exit 2 ;;
 esac

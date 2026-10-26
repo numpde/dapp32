@@ -3,6 +3,7 @@ pragma solidity 0.8.35;
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {PayToPlay} from "../../src/PayToPlay.sol";
+import {PayToPlayUI} from "../../src/PayToPlayUI.sol";
 import {DeployPayToPlayRelease} from "../../script/DeployPayToPlayRelease.s.sol";
 import {PayToPlayReleaseVerifier} from "../../script/PayToPlayReleaseVerifier.sol";
 
@@ -49,9 +50,39 @@ contract PayToPlayReleaseTest is Test {
         assertEq(payments.owner(), address(harness));
         assertEq(payments.pendingOwner(), ADMIN);
         assertEq(root.contractAddress("PayToPlay"), address(payments));
+        address ui = root.contractAddress("PayToPlayUI");
+        assertTrue(ui != address(0), "a fresh deployment must bind its read-only signing projection");
+        assertEq(address(PayToPlayUI(ui).payments()), address(payments));
         assertEq(payments.channelCount(), 1);
         assertEq(payments.channel(0).claimPeriod, 60);
         assertEq(payments.channel(0).payee, address(0));
+    }
+
+    function testVerifierRejectsSubstitutedSigningProjectionEvidence() external {
+        (CamRoot root, PayToPlay payments) = harness.deploy(_plan(60));
+        vm.prank(ROOT_OWNER);
+        root.acceptOwnership();
+        vm.prank(ADMIN);
+        payments.acceptOwnership();
+        PayToPlayReleaseVerifier.Artifact memory artifact = _artifact(root, payments, 60);
+        harness.verify(artifact, SOURCE);
+        artifact.payToPlayUICreationInputHash ^= bytes32(uint256(1));
+        _expectVerification("PayToPlayUI creation source");
+        harness.verify(artifact, SOURCE);
+        artifact = _artifact(root, payments, 60);
+        artifact.payToPlayUICodeHash ^= bytes32(uint256(1));
+        _expectVerification("PayToPlayUI runtime hash");
+        harness.verify(artifact, SOURCE);
+        artifact = _artifact(root, payments, 60);
+        PayToPlay otherPayments = new PayToPlay(address(this), 60);
+        PayToPlayUI otherUI = new PayToPlayUI(address(otherPayments));
+        vm.prank(ROOT_OWNER);
+        root.setContractAddress("PayToPlayUI", address(otherUI));
+        _expectVerification("PayToPlayUI binding");
+        harness.verify(artifact, SOURCE);
+        artifact = _artifact(root, payments, 60);
+        _expectVerification("PayToPlayUI payment contract");
+        harness.verify(artifact, SOURCE);
     }
 
     function testAcceptsZeroAndMaximumWait() external {
@@ -298,6 +329,11 @@ contract PayToPlayReleaseTest is Test {
             deployer: address(harness),
             camRoot: address(root),
             payToPlay: address(payments),
+            payToPlayUI: root.contractAddress("PayToPlayUI"),
+            payToPlayUICodeHash: root.contractAddress("PayToPlayUI").codehash,
+            payToPlayUICreationInputHash: keccak256(
+                abi.encodePacked(type(PayToPlayUI).creationCode, abi.encode(address(payments)))
+            ),
             camRootCodeHash: address(root).codehash,
             payToPlayCodeHash: address(payments).codehash,
             payToPlayCreationInputHash: keccak256(

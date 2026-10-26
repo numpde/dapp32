@@ -49,12 +49,14 @@ test("Pay-to-Play reference covers independent conditional handoffs", () => {
   const normal = payToPlayReference(parse(plan), deployer)
   assertPresentation(normal)
   assert.deepEqual(normal.steps.map((step) => `${step.kind}:${step.role}:${step.name}`), [
-    "create:camRoot:CamRoot", "create:payments:PayToPlay",
-    "call:camRoot:setContractAddress", "call:camRoot:transferOwnership",
+    "create:camRoot:CamRoot", "create:payments:PayToPlay", "create:ui:PayToPlayUI",
+    "call:camRoot:setContractAddress", "call:camRoot:setContractAddress", "call:camRoot:transferOwnership",
     "call:payments:transferOwnership",
   ])
   assert.deepEqual(normal.steps[1]?.args, [deployer, "3600"])
-  assert.deepEqual(normal.steps[2]?.args, ["PayToPlay", { createdContract: "payments" }])
+  assert.deepEqual(normal.steps[2]?.args, [{ createdContract: "payments" }])
+  assert.deepEqual(normal.steps[3]?.args, ["PayToPlay", { createdContract: "payments" }])
+  assert.deepEqual(normal.steps[4]?.args, ["PayToPlayUI", { createdContract: "ui" }])
   const noRootHandoff = payToPlayReference(parse({ ...plan, intendedCamRootOwner: deployer }), deployer)
   assert.deepEqual(noRootHandoff.steps.filter((step) => step.name === "transferOwnership").map((step) => step.role), ["payments"])
   const noPaymentHandoff = payToPlayReference(parse({ ...plan, intendedPaymentAdmin: deployer }), deployer)

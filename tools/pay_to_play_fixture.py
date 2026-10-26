@@ -39,6 +39,7 @@ def describe_fixture(broadcast: object, accounts: object, project: str, network:
                 or re.fullmatch(r"0x[0-9a-fA-F]{64}", account["privateKey"]) is None):
             raise ValueError(f"Cannot export fixture: {role} needs a valid public fixture address and key")
 
+    expected_contracts = {"CamRoot", "PayToPlay", "PayToPlayUI"}
     contracts: dict[str, object] = {}
     for tx in broadcast["transactions"]:
         if not isinstance(tx, dict) or not isinstance(tx.get("hash"), str) or re.fullmatch(r"0x[0-9a-fA-F]{64}", tx["hash"]) is None:
@@ -57,8 +58,8 @@ def describe_fixture(broadcast: object, accounts: object, project: str, network:
             continue
         name = tx.get("contractName")
         address = tx.get("contractAddress")
-        if name not in {"CamRoot", "PayToPlay"} or name in contracts:
-            raise ValueError("Cannot export fixture: expected one CamRoot and one PayToPlay creation")
+        if name not in expected_contracts or name in contracts:
+            raise ValueError("Cannot export fixture: expected one CamRoot, one PayToPlay and one PayToPlayUI creation")
         if (not isinstance(address, str) or re.fullmatch(r"0x[0-9a-fA-F]{40}", address) is None
                 or str(receipt.get("contractAddress")).lower() != address.lower()):
             raise ValueError(f"Cannot export fixture: {name} deployment address does not match its receipt")
@@ -66,8 +67,8 @@ def describe_fixture(broadcast: object, accounts: object, project: str, network:
         if not isinstance(code, str) or re.fullmatch(r"0x(?:[0-9a-fA-F]{2})+", code) is None:
             raise ValueError(f"Cannot export fixture: {name} has no deployed code at {address}")
         contracts[name] = {"address": address, "deploymentBlock": int(receipt["blockNumber"], 16)}
-    if set(contracts) != {"CamRoot", "PayToPlay"}:
-        raise ValueError("Cannot export fixture: expected one CamRoot and one PayToPlay creation")
+    if set(contracts) != expected_contracts:
+        raise ValueError("Cannot export fixture: expected one CamRoot, one PayToPlay and one PayToPlayUI creation")
     return {"composeProject": project, "dockerNetwork": network, "rpcUrl": rpc_url, "chainId": 31337,
             "contracts": contracts, "publicFixtureAccounts": accounts}
 

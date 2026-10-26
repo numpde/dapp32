@@ -17,9 +17,9 @@ class PayToPlayFixtureTest(unittest.TestCase):
         self.transactions = [
             {"transactionType": "CREATE", "contractName": name,
              "contractAddress": "0x" + byte * 40, "hash": "0x" + byte * 64}
-            for name, byte in (("CamRoot", "1"), ("PayToPlay", "2"))
+            for name, byte in (("CamRoot", "1"), ("PayToPlay", "2"), ("PayToPlayUI", "3"))
         ]
-        self.transactions.append({"transactionType": "CALL", "hash": "0x" + "3" * 64})
+        self.transactions.append({"transactionType": "CALL", "hash": "0x" + "4" * 64})
         self.receipts = {
             tx["hash"]: {"transactionHash": tx["hash"], "status": "0x1",
                          "contractAddress": tx.get("contractAddress"),
@@ -56,10 +56,11 @@ class PayToPlayFixtureTest(unittest.TestCase):
         self.assertEqual({
             "CamRoot": {"address": self.transactions[0]["contractAddress"], "deploymentBlock": 1},
             "PayToPlay": {"address": self.transactions[1]["contractAddress"], "deploymentBlock": 2},
+            "PayToPlayUI": {"address": self.transactions[2]["contractAddress"], "deploymentBlock": 3},
         }, result["contracts"])
 
     def test_missing_failed_or_reorganized_receipts_prevent_export(self) -> None:
-        for index in range(3):
+        for index in range(len(self.transactions)):
             tx_hash = self.transactions[index]["hash"]
             original = deepcopy(self.receipts[tx_hash])
             for replacement in (None, {**original, "status": "0x0"}, {**original, "blockHash": "0x" + "f" * 64}):

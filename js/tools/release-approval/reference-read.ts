@@ -22,6 +22,7 @@ export const ARTIFACTS: Record<ReleaseApp, Record<string, ContractLocation>> = {
   "pay-to-play": {
     camRoot: { source: "cam/src/CamRoot.sol", contract: "CamRoot" },
     payments: { source: "pay-to-play/src/PayToPlay.sol", contract: "PayToPlay" },
+    ui: { source: "pay-to-play/src/PayToPlayUI.sol", contract: "PayToPlayUI" },
   },
 }
 

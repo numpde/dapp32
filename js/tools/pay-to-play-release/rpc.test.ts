@@ -16,6 +16,8 @@ const ADMIN = "0x0000000000000000000000000000000000000011"
 const OWNER = "0x0000000000000000000000000000000000000044"
 const ROOT = "0x0000000000000000000000000000000000000022"
 const PAYMENTS = "0x0000000000000000000000000000000000000033"
+const UI = "0x0000000000000000000000000000000000000055"
+const UI_TX = `0x${"56".repeat(32)}`
 const ZERO = "0x0000000000000000000000000000000000000000"
 const ROOT_TX = `0x${"12".repeat(32)}`
 const PAYMENT_TX = `0x${"34".repeat(32)}`
@@ -24,6 +26,7 @@ const INPUT = "0x60006000"
 const ABI = parseAbi([
   "function camManifest() view returns ((string uri, bytes32 sha256Digest))",
   "function contractAddress(string name) view returns (address)",
+  "function payments() view returns (address)",
   "function owner() view returns (address)",
   "function pendingOwner() view returns (address)",
 ])
@@ -41,12 +44,12 @@ test("release CLIs materialize RPC observations and reject substituted creation 
       switch (call.method) {
         case "eth_chainId": result = "0xaa36a7"; break
         case "eth_blockNumber": result = "0x2"; break
-        case "eth_getCode": result = "0x6000"; break
+        case "eth_getCode": result = altered === "uiCode" && call.params[0] === UI ? "0x" : "0x6000"; break
         case "eth_getTransactionReceipt": {
           const hash = call.params[0]
           result = {
             transactionHash: hash, blockHash: HASH, blockNumber: "0x1", transactionIndex: "0x0",
-            from: ADMIN, to: null, contractAddress: hash === ROOT_TX ? ROOT : PAYMENTS,
+            from: ADMIN, to: null, contractAddress: hash === ROOT_TX ? ROOT : hash === PAYMENT_TX ? PAYMENTS : UI,
             status: altered === "receipt" ? "0x0" : "0x1", type: "0x2", logs: [],
             cumulativeGasUsed: "0x5208", gasUsed: "0x5208", effectiveGasPrice: "0x1",
             logsBloom: `0x${"00".repeat(256)}`,
@@ -55,11 +58,11 @@ test("release CLIs materialize RPC observations and reject substituted creation 
         }
         case "eth_getTransactionByHash":
           result = {
-            hash: altered === "hash" ? ROOT_TX : PAYMENT_TX,
+            hash: altered === "hash" ? ROOT_TX : call.params[0],
             blockHash: HASH, blockNumber: "0x1", transactionIndex: "0x0", type: "0x2",
             from: altered === "sender" ? OWNER : ADMIN,
             to: altered === "destination" ? ROOT : null,
-            input: altered === "input" ? "0x6001" : INPUT,
+            input: altered === "input" || (altered === "uiInput" && call.params[0] === UI_TX) ? "0x6001" : INPUT,
             nonce: "0x1", value: "0x0", gas: "0x100000", maxFeePerGas: "0x2", maxPriorityFeePerGas: "0x1",
             r: HASH, s: HASH, v: "0x1", chainId: "0xaa36a7", accessList: [],
           }
@@ -72,7 +75,10 @@ test("release CLIs materialize RPC observations and reject substituted creation 
               result = encodeFunctionResult({ abi: ABI, functionName: "camManifest", result: { uri: camURI, sha256Digest: HASH } })
               break
             case "contractAddress":
-              result = encodeFunctionResult({ abi: ABI, functionName: "contractAddress", result: PAYMENTS })
+              result = encodeFunctionResult({ abi: ABI, functionName: "contractAddress", result: decoded.args[0] === "PayToPlayUI" ? (altered === "uiBinding" ? PAYMENTS : UI) : PAYMENTS })
+              break
+            case "payments":
+              result = encodeFunctionResult({ abi: ABI, functionName: "payments", result: altered === "uiPin" ? ROOT : PAYMENTS })
               break
             case "owner":
               result = encodeFunctionResult({ abi: ABI, functionName: "owner", result: ADMIN })
@@ -101,6 +107,7 @@ test("release CLIs materialize RPC observations and reject substituted creation 
     await writeFile(join(broadcast, "run-latest.json"), JSON.stringify({ transactions: [
       { transactionType: "CREATE", contractName: "CamRoot", contractAddress: ROOT, hash: ROOT_TX },
       { transactionType: "CREATE", contractName: "PayToPlay", contractAddress: PAYMENTS, hash: PAYMENT_TX },
+      { transactionType: "CREATE", contractName: "PayToPlayUI", contractAddress: UI, hash: UI_TX },
     ] }))
     const planPath = join(dir, "plan.json")
     await writeFile(planPath, JSON.stringify({
@@ -122,14 +129,20 @@ test("release CLIs materialize RPC observations and reject substituted creation 
     assert.equal(artifact.intendedCamRootOwner, OWNER)
     assert.equal(artifact.intendedPaymentAdmin, ADMIN)
     assert.equal(artifact.payToPlayCreationInputHash, keccak256(INPUT))
+    assert.equal(artifact.payToPlayUI, UI)
+    assert.equal(artifact.payToPlayUICreationInputHash, keccak256(INPUT))
     await run("verify-provenance.ts")
     for (const [change, diagnostic] of [
       ["receipt", /did not succeed/], ["hash", /transaction hash mismatch/],
       ["sender", /sender mismatch/], ["destination", /destination address/],
-      ["input", /creation input hash mismatch/],
+      ["input", /creation input hash mismatch/], ["uiInput", /PayToPlayUI creation input hash mismatch/],
     ] as const) {
       altered = change
       await assert.rejects(run("verify-provenance.ts"), diagnostic)
+    }
+    for (const [change, diagnostic] of [["uiBinding", /PayToPlayUI binding/], ["uiPin", /PayToPlayUI payment contract/], ["uiCode", /PayToPlayUI has no deployed code/]] as const) {
+      altered = change
+      await assert.rejects(run("artifact.ts"), diagnostic)
     }
   } finally {
     server.closeAllConnections()

@@ -2,7 +2,7 @@ import type { Address, Hex } from "viem"
 import { checkedReleaseChainId, parseJsonRecord, requireDistinctHexValues, requireExactKeys, requiredBytes32, requiredNonemptyString, requiredNonzeroAddress, requiredNonzeroBytes32, requiredSafeInteger, requiredSourceCommit, requiredTransactionHash } from "../release-values.ts"
 
 export const RELEASE_PLAN_SCHEMA = "pay-to-play.release-plan.v1"
-export const DEPLOYMENT_SCHEMA = "pay-to-play.deployment.v1"
+export const DEPLOYMENT_SCHEMA = "pay-to-play.deployment.v2"
 
 type ReleaseSettings = {
   readonly sourceCommit: string
@@ -24,11 +24,15 @@ export type DeploymentArtifact = ReleaseSettings & {
   readonly deployer: Address
   readonly camRoot: Address
   readonly payToPlay: Address
+  readonly payToPlayUI: Address
   readonly camRootCodeHash: Hex
   readonly payToPlayCodeHash: Hex
+  readonly payToPlayUICodeHash: Hex
   readonly camRootCreationTransaction: Hex
   readonly payToPlayCreationTransaction: Hex
   readonly payToPlayCreationInputHash: Hex
+  readonly payToPlayUICreationTransaction: Hex
+  readonly payToPlayUICreationInputHash: Hex
 }
 
 const SETTINGS_KEYS = ["sourceCommit", "camURI", "camHash", "intendedCamRootOwner", "intendedPaymentAdmin", "nullClaimPeriod"] as const
@@ -63,9 +67,10 @@ export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
 export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   const value = parseJsonRecord(bytes, "PayToPlay deployment artifact")
   requireExactKeys(value, [
-    "schema", "chainId", ...SETTINGS_KEYS, "deployer", "camRoot", "payToPlay",
+    "schema", "chainId", ...SETTINGS_KEYS, "deployer", "camRoot", "payToPlay", "payToPlayUI",
     "camRootCodeHash", "payToPlayCodeHash", "camRootCreationTransaction",
     "payToPlayCreationTransaction", "payToPlayCreationInputHash",
+    "payToPlayUICodeHash", "payToPlayUICreationTransaction", "payToPlayUICreationInputHash",
   ], "PayToPlay deployment artifact")
   if (value.schema !== DEPLOYMENT_SCHEMA) throw new Error(`unsupported deployment artifact schema: ${String(value.schema)}`)
   const artifact: DeploymentArtifact = {
@@ -74,13 +79,17 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
     deployer: requiredNonzeroAddress(value.deployer, "deployment deployer"),
     camRoot: requiredNonzeroAddress(value.camRoot, "CamRoot address"),
     payToPlay: requiredNonzeroAddress(value.payToPlay, "PayToPlay address"),
+    payToPlayUI: requiredNonzeroAddress(value.payToPlayUI, "PayToPlayUI address"),
     camRootCodeHash: requiredNonzeroBytes32(value.camRootCodeHash, "CamRoot code hash"),
     payToPlayCodeHash: requiredNonzeroBytes32(value.payToPlayCodeHash, "PayToPlay code hash"),
+    payToPlayUICodeHash: requiredNonzeroBytes32(value.payToPlayUICodeHash, "PayToPlayUI code hash"),
     camRootCreationTransaction: requiredTransactionHash(value.camRootCreationTransaction, "CamRoot creation transaction"),
     payToPlayCreationTransaction: requiredTransactionHash(value.payToPlayCreationTransaction, "PayToPlay creation transaction"),
     payToPlayCreationInputHash: requiredNonzeroBytes32(value.payToPlayCreationInputHash, "PayToPlay creation input hash"),
+    payToPlayUICreationTransaction: requiredTransactionHash(value.payToPlayUICreationTransaction, "PayToPlayUI creation transaction"),
+    payToPlayUICreationInputHash: requiredNonzeroBytes32(value.payToPlayUICreationInputHash, "PayToPlayUI creation input hash"),
   }
-  requireDistinctHexValues([artifact.camRoot, artifact.payToPlay], "deployment contract addresses")
-  requireDistinctHexValues([artifact.camRootCreationTransaction, artifact.payToPlayCreationTransaction], "deployment creation transactions")
+  requireDistinctHexValues([artifact.camRoot, artifact.payToPlay, artifact.payToPlayUI], "deployment contract addresses")
+  requireDistinctHexValues([artifact.camRootCreationTransaction, artifact.payToPlayCreationTransaction, artifact.payToPlayUICreationTransaction], "deployment creation transactions")
   return artifact
 }

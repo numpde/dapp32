@@ -4,6 +4,7 @@ import {IERC165} from "@openzeppelin-contracts-5.6.1/utils/introspection/IERC165
 import {ICamApp} from "cam/src/ICamApp.sol";
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {PayToPlay} from "../src/PayToPlay.sol";
+import {PayToPlayUI} from "../src/PayToPlayUI.sol";
 
 /// @notice Read-only acceptance checks against the selected compiler source and live deployment.
 abstract contract PayToPlayReleaseVerifier {
@@ -18,9 +19,12 @@ abstract contract PayToPlayReleaseVerifier {
         address deployer;
         address camRoot;
         address payToPlay;
+        address payToPlayUI;
         bytes32 camRootCodeHash;
         bytes32 payToPlayCodeHash;
         bytes32 payToPlayCreationInputHash;
+        bytes32 payToPlayUICodeHash;
+        bytes32 payToPlayUICreationInputHash;
     }
 
     error ReleaseVerificationFailed(string field);
@@ -33,8 +37,9 @@ abstract contract PayToPlayReleaseVerifier {
             "chainId"
         );
         _require(
-            artifact.camRoot != address(0) && artifact.payToPlay != address(0)
-                && artifact.camRoot != artifact.payToPlay,
+            artifact.camRoot != address(0) && artifact.payToPlay != address(0) && artifact.payToPlayUI != address(0)
+                && artifact.camRoot != artifact.payToPlay && artifact.payToPlayUI != artifact.camRoot
+                && artifact.payToPlayUI != artifact.payToPlay,
             "contract addresses"
         );
         _require(
@@ -47,6 +52,7 @@ abstract contract PayToPlayReleaseVerifier {
         _require(artifact.payToPlay.codehash == artifact.payToPlayCodeHash, "PayToPlay runtime hash");
         _verifyRoot(artifact);
         _verifyPayments(artifact);
+        _verifyUI(artifact);
     }
 
     function _verifyRoot(Artifact memory artifact) private {
@@ -61,6 +67,7 @@ abstract contract PayToPlayReleaseVerifier {
         );
         _require(manifest.sha256Digest == artifact.camHash, "CAM digest");
         _require(root.contractAddress("PayToPlay") == artifact.payToPlay, "PayToPlay binding");
+        _require(root.contractAddress("PayToPlayUI") == artifact.payToPlayUI, "PayToPlayUI binding");
         _require(
             root.supportsInterface(type(ICamApp).interfaceId) && root.supportsInterface(type(IERC165).interfaceId),
             "CamRoot interfaces"
@@ -102,6 +109,21 @@ abstract contract PayToPlayReleaseVerifier {
                 && extensions.length == 0,
             "EIP712 deployment"
         );
+    }
+
+    function _verifyUI(Artifact memory artifact) private {
+        _require(artifact.payToPlayUI.code.length != 0, "PayToPlayUI deployed code");
+        _require(artifact.payToPlayUI.codehash == artifact.payToPlayUICodeHash, "PayToPlayUI runtime hash");
+        _require(
+            address(PayToPlayUI(artifact.payToPlayUI).payments()) == artifact.payToPlay, "PayToPlayUI payment contract"
+        );
+        _require(
+            artifact.payToPlayUICreationInputHash
+                == keccak256(abi.encodePacked(type(PayToPlayUI).creationCode, abi.encode(artifact.payToPlay))),
+            "PayToPlayUI creation source"
+        );
+        PayToPlayUI referenceUI = new PayToPlayUI(artifact.payToPlay);
+        _require(address(referenceUI).codehash == artifact.payToPlayUI.codehash, "PayToPlayUI source");
     }
 
     function _require(bool condition, string memory field) private pure {

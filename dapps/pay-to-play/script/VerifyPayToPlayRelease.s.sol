@@ -11,6 +11,7 @@ contract VerifyPayToPlayRelease is Script, PayToPlayReleaseVerifier {
         console2.log("PayToPlayReleaseVerified", true);
         console2.log("CamRoot", artifact.camRoot);
         console2.log("PayToPlay", artifact.payToPlay);
+        console2.log("PayToPlayUI", artifact.payToPlayUI);
     }
 
     function _readArtifact(string memory path) internal view returns (Artifact memory artifact) {
@@ -27,8 +28,11 @@ contract VerifyPayToPlayRelease is Script, PayToPlayReleaseVerifier {
         artifact.deployer = vm.parseJsonAddress(json, ".deployer");
         artifact.camRoot = vm.parseJsonAddress(json, ".camRoot");
         artifact.payToPlay = vm.parseJsonAddress(json, ".payToPlay");
+        artifact.payToPlayUI = vm.parseJsonAddress(json, ".payToPlayUI");
         artifact.camRootCodeHash = vm.parseJsonBytes32(json, ".camRootCodeHash");
         artifact.payToPlayCodeHash = vm.parseJsonBytes32(json, ".payToPlayCodeHash");
         artifact.payToPlayCreationInputHash = vm.parseJsonBytes32(json, ".payToPlayCreationInputHash");
+        artifact.payToPlayUICodeHash = vm.parseJsonBytes32(json, ".payToPlayUICodeHash");
+        artifact.payToPlayUICreationInputHash = vm.parseJsonBytes32(json, ".payToPlayUICreationInputHash");
     }
 }

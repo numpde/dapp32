@@ -3,6 +3,7 @@ pragma solidity 0.8.35;
 import {Script, console2} from "forge-std-1.12.0/src/Script.sol";
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {PayToPlay} from "../src/PayToPlay.sol";
+import {PayToPlayUI} from "../src/PayToPlayUI.sol";
 
 /// @notice Deploys only the disposable local-chain CAM fixture; purchases are created through CAM routes.
 contract DeployPayToPlayLocal is Script {
@@ -13,9 +14,12 @@ contract DeployPayToPlayLocal is Script {
         vm.startBroadcast(deployerKey);
         root = new CamRoot(admin, vm.envString("CAM_URI"), camHash);
         payments = new PayToPlay(admin, 60);
+        PayToPlayUI ui = new PayToPlayUI(address(payments));
         root.setContractAddress("PayToPlay", address(payments));
+        root.setContractAddress("PayToPlayUI", address(ui));
         vm.stopBroadcast();
         console2.log("CamRoot", address(root));
         console2.log("PayToPlay", address(payments));
+        console2.log("PayToPlayUI", root.contractAddress("PayToPlayUI"));
     }
 }
