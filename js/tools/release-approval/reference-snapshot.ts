@@ -5,6 +5,8 @@ import { keccak256, toHex, type Hex } from "viem"
 import { bikeReference } from "../bike-nft-release/reference.ts"
 import { escrowReference } from "../escrow-release/reference.ts"
 import { payToPlayReference } from "../pay-to-play-release/reference.ts"
+import { parseUIReleasePlan, uiDeploymentReference, type UIDeploymentReference } from "../ui-release/shared.ts"
+import { parseJsonRecord } from "../release-values.ts"
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import type { ReleaseReference, ExpectedStep } from "./reference.ts"
 import {
@@ -94,7 +96,12 @@ async function compiledContract(
   }
 }
 
-export function releaseReferenceFromPlan(app: ReleaseApp, planBytes: Uint8Array, deployer: string): ReleaseReference {
+export function releaseReferenceFromPlan(app: ReleaseApp, planBytes: Uint8Array, deployer: string): ReleaseReference | UIDeploymentReference {
+  if (parseJsonRecord(planBytes, "release plan").schema === "cam.ui-release-plan.v1") {
+    const plan = parseUIReleasePlan(planBytes)
+    if (plan.app !== app) throw new Error("UI release plan names a different app")
+    return uiDeploymentReference(plan, deployer)
+  }
   if (app === "escrow") return escrowReference(planBytes, deployer)
   if (app === "bike-nft") return bikeReference(planBytes, deployer)
   return payToPlayReference(planBytes, deployer)
@@ -111,16 +118,19 @@ export async function prepareReferenceSnapshot(
   const fromPlan = releaseReferenceFromPlan(app, planBytes, expected.expectedDeployer)
   if (JSON.stringify(fromPlan) !== JSON.stringify(expected)) throw new Error("reference steps or identity differ from the validated release plan")
   const creates = expected.steps.filter((step) => step.kind === "create")
-  if (creates.length !== Object.keys(ARTIFACTS[app]).length) throw new Error(`${app} reference has an incomplete creation inventory`)
+  const uiOnly = "backing" in fromPlan
+  if (creates.length !== (uiOnly ? 1 : Object.keys(ARTIFACTS[app]).length)) throw new Error(`${app} reference has an incomplete creation inventory`)
   const contracts: CompiledContractReference[] = []
   for (const step of creates) contracts.push(await compiledContract(app, step, expected.steps, artifactsRoot, sourcesRoot))
   // The launcher must bind the mounted source archive to this plan's commit.
-  const base = {
-    schema: "release-approval.reference.v2" as const,
+  const identity = {
     app, sourceCommit: expected.sourceCommit, expectedChainId: expected.expectedChainId,
     expectedDeployer: expected.expectedDeployer, planSha256: sha256(planBytes),
     steps: expected.steps, contracts,
   }
+  const base = uiOnly
+    ? { schema: "release-approval.ui-reference.v1" as const, ...identity, backing: fromPlan.backing }
+    : { schema: "release-approval.reference.v2" as const, ...identity }
   return { ...base, snapshotSha256: sha256(JSON.stringify(base)) }
 }
 

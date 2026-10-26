@@ -8,6 +8,7 @@ import { keccak256, toHex } from "viem"
 
 import { escrowReference } from "../escrow-release/reference.ts"
 import { prepareReferenceSnapshot, parseReferenceSnapshot } from "./reference-snapshot.ts"
+import { uiDeploymentReference, type UIReleasePlan } from "../ui-release/shared.ts"
 
 const deployer = "0x0000000000000000000000000000000000000011"
 const owner = "0x0000000000000000000000000000000000000022"
@@ -17,6 +18,33 @@ const plan = new TextEncoder().encode(JSON.stringify({
   camURI: "https://example.test/cam/main.json", camHash: `0x${"ab".repeat(32)}`,
   intendedCamRootOwner: owner,
 }))
+
+test("standalone UI approval compiles only the UI and retains independent backing provenance", async () => {
+  await fixture(async ({ artifacts, sources }) => {
+    const uiPlan: UIReleasePlan = {
+      schema: "cam.ui-release-plan.v1", app: "escrow", sourceCommit, expectedChainId: 8453,
+      backing: { sourceCommit: "b".repeat(40), chainId: 8453, creator: owner,
+        artifactSha256: `0x${"ab".repeat(32)}`, address: owner, codeHash: `0x${"cd".repeat(32)}`,
+        creationTransaction: `0x${"12".repeat(32)}`, creationInputHash: `0x${"34".repeat(32)}` },
+    }
+    const bytes = new TextEncoder().encode(JSON.stringify(uiPlan))
+    const snapshot = await prepareReferenceSnapshot("escrow", uiDeploymentReference(uiPlan, deployer), bytes, artifacts, sources)
+    assert.equal(snapshot.schema, "release-approval.ui-reference.v1")
+    assert.deepEqual(snapshot.contracts.map(contract => contract.role), ["ui"])
+    assert.equal(snapshot.steps.length, 1)
+    assert.equal(snapshot.expectedDeployer, deployer)
+    assert("backing" in snapshot)
+    assert.deepEqual(snapshot.backing, uiPlan.backing)
+    assert.deepEqual(parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(snapshot))), snapshot)
+    const { snapshotSha256: ignored, ...base } = snapshot
+    void ignored
+    const substituted = { ...base, steps: base.steps.map(step => ({ ...step, args: [deployer] })) }
+    const substitutedBytes = new TextEncoder().encode(JSON.stringify({ ...substituted,
+      snapshotSha256: `0x${createHash("sha256").update(JSON.stringify(substituted)).digest("hex")}`,
+    }))
+    assert.throws(() => parseReferenceSnapshot(substitutedBytes), /UI.*backing|backing.*UI/i)
+  })
+})
 
 async function fixture(work: (input: { artifacts: string; sources: string }) => Promise<void>): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), "cam-reference-snapshot-"))

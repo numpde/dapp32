@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { getAddress, zeroAddress, type Abi, type Hex } from "viem"
 import type { ReleaseReference, ExpectedStep } from "./reference.ts"
 import { parseStrictJson } from "./strict-json.ts"
+import type { UIBackingReference } from "../ui-release/shared.ts"
 
 export type ReleaseApp = "escrow" | "bike-nft" | "pay-to-play"
 
@@ -37,13 +38,17 @@ export type CompiledContractReference = {
   readonly abi: Abi
 }
 
-export type ReferenceSnapshot = ReleaseReference & {
-  readonly schema: "release-approval.reference.v2"
+type ReferenceSnapshotBase = ReleaseReference & {
   readonly app: ReleaseApp
   readonly planSha256: Hex
   readonly contracts: readonly CompiledContractReference[]
   readonly snapshotSha256: Hex
 }
+
+export type ReferenceSnapshot = ReferenceSnapshotBase & (
+  { readonly schema: "release-approval.reference.v2" }
+  | { readonly schema: "release-approval.ui-reference.v1"; readonly backing: UIBackingReference }
+)
 
 export const COMPILER_VERSION = "0.8.35+commit.47b9dedd"
 export function sha256(bytes: Uint8Array | string): Hex {
@@ -145,8 +150,8 @@ function snapshotAbi(value: unknown, role: string): Abi {
   return abi
 }
 
-function snapshotContracts(value: unknown, app: ReleaseApp): readonly CompiledContractReference[] {
-  if (!Array.isArray(value) || value.length !== Object.keys(ARTIFACTS[app]).length) throw new Error("reference compiler contract inventory is incomplete")
+function snapshotContracts(value: unknown, app: ReleaseApp, inventory = Object.keys(ARTIFACTS[app])): readonly CompiledContractReference[] {
+  if (!Array.isArray(value) || value.length !== inventory.length) throw new Error("reference compiler contract inventory is incomplete")
   const roles = new Set<string>()
   for (const item of value) {
     const contract = record(item, "compiler contract")
@@ -155,7 +160,7 @@ function snapshotContracts(value: unknown, app: ReleaseApp): readonly CompiledCo
     if (roles.has(contract.role)) throw new Error(`duplicate compiler contract role: ${contract.role}`)
     roles.add(contract.role)
     const location = ARTIFACTS[app][contract.role]
-    if (!location || contract.name !== location.contract || contract.source !== location.source) throw new Error(`compiler contract ${contract.role} differs from ${app} release inventory`)
+    if (!inventory.includes(contract.role) || !location || contract.name !== location.contract || contract.source !== location.source) throw new Error(`compiler contract ${contract.role} differs from ${app} release inventory`)
     if (contract.compilerVersion !== COMPILER_VERSION) throw new Error(`${contract.role} compiler version differs from pinned release build`)
     bytes32(contract.compilerMetadataSha256, `${contract.role} metadata digest`)
     bytes32(contract.artifactSha256, `${contract.role} artifact digest`)
@@ -228,8 +233,9 @@ function snapshotSteps(value: unknown, contracts: readonly CompiledContractRefer
 export function parseReferenceSnapshot(bytes: Uint8Array): ReferenceSnapshot {
   if (bytes.byteLength > 1024 * 1024) throw new Error("release approval reference exceeds 1048576 bytes")
   const value = parseJsonRecord(bytes, "release approval reference")
-  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "expectedDeployer", "planSha256", "steps", "contracts", "snapshotSha256"], "release approval reference")
-  if (value.schema !== "release-approval.reference.v2") throw new Error("unsupported release approval reference schema")
+  const uiOnly = value.schema === "release-approval.ui-reference.v1"
+  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "expectedDeployer", "planSha256", "steps", "contracts", "snapshotSha256", ...(uiOnly ? ["backing"] : [])], "release approval reference")
+  if (!uiOnly && value.schema !== "release-approval.reference.v2") throw new Error("unsupported release approval reference schema")
   if (value.app !== "escrow" && value.app !== "bike-nft" && value.app !== "pay-to-play") throw new Error("unknown release approval app")
   if (typeof value.snapshotSha256 !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value.snapshotSha256)) throw new Error("invalid reference snapshot digest")
   const { snapshotSha256, ...base } = value
@@ -238,7 +244,22 @@ export function parseReferenceSnapshot(bytes: Uint8Array): ReferenceSnapshot {
   requiredNonzeroAddress(value.expectedDeployer, "reference expected deployer")
   if (!Number.isSafeInteger(value.expectedChainId) || Number(value.expectedChainId) <= 0) throw new Error("invalid reference chain ID")
   bytes32(value.planSha256, "reference plan digest")
-  const contracts = snapshotContracts(value.contracts, value.app)
-  snapshotSteps(value.steps, contracts)
+  const contracts = snapshotContracts(value.contracts, value.app, uiOnly ? ["ui"] : undefined)
+  const steps = snapshotSteps(value.steps, contracts)
+  if (uiOnly) {
+    const backing = record(value.backing, "UI backing deployment")
+    requireExactKeys(backing, ["sourceCommit", "chainId", "creator", "artifactSha256", "address", "codeHash", "creationTransaction", "creationInputHash"], "UI backing deployment")
+    requiredSourceCommit(backing.sourceCommit)
+    requiredNonzeroAddress(backing.address, "UI backing address")
+    requiredNonzeroAddress(backing.creator, "UI backing creator")
+    for (const field of ["artifactSha256", "codeHash", "creationTransaction", "creationInputHash"] as const) bytes32(backing[field], `UI backing ${field}`)
+    if (backing.chainId !== value.expectedChainId) throw new Error("UI backing chain differs from the selected UI chain")
+    if (steps.length !== 1 || steps[0]!.kind !== "create" || steps[0]!.role !== "ui"
+        || JSON.stringify(steps[0]!.constructorTypes) !== '["address"]'
+        || typeof steps[0]!.args[0] !== "string" || steps[0]!.args.length !== 1
+        || getAddress(steps[0]!.args[0]) !== getAddress(backing.address as string)) {
+      throw new Error("UI approval must create only the selected UI with its declared backing contract")
+    }
+  }
   return value as ReferenceSnapshot
 }

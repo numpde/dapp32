@@ -10,7 +10,11 @@ import { creationReceiptDeployer, creationTransactionInputHash, type CreationRec
 import { expectedDeployer, type ReleaseReference } from "../release-approval/reference.ts"
 import type { ReleaseApp } from "../release-approval/reference-read.ts"
 import { parseContractDeployment } from "../contract-release/shared.ts"
-import { parseJsonRecord } from "../release-values.ts"
+import {
+  checkedReleaseChainId, parseJsonRecord, requireExactKeys, requiredBytes32, requiredJsonRecord,
+  requiredNonzeroAddress, requiredNonzeroBytes32, requiredSafeInteger, requiredSourceCommit,
+  requiredTransactionHash,
+} from "../release-values.ts"
 
 export type UIBackingReference = {
   readonly sourceCommit: string
@@ -32,6 +36,47 @@ export type UIReleasePlan = {
 }
 
 export type UIDeploymentReference = ReleaseReference & { readonly backing: UIBackingReference }
+
+export const UI_SCRIPTS: Record<ReleaseApp, string> = {
+  "bike-nft": "bike-nft/script/DeployBikeNftUI.s.sol",
+  escrow: "escrow/script/DeployEscrowUI.s.sol",
+  "pay-to-play": "pay-to-play/script/DeployPayToPlayUI.s.sol",
+}
+
+export const UI_GETTERS: Record<ReleaseApp, string> = {
+  "bike-nft": "manager", escrow: "escrow", "pay-to-play": "payments",
+}
+
+export function parseUIReleasePlan(bytes: Uint8Array): UIReleasePlan {
+  const value = parseJsonRecord(bytes, "UI release plan")
+  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "backing"], "UI release plan")
+  if (value.schema !== "cam.ui-release-plan.v1" || (value.app !== "bike-nft" && value.app !== "escrow" && value.app !== "pay-to-play")) {
+    throw new Error("Cannot prepare UI deployment: the plan must identify a maintained app and the UI plan format")
+  }
+  const backing = requiredJsonRecord(value.backing, "UI backing deployment")
+  requireExactKeys(backing, ["sourceCommit", "chainId", "creator", "artifactSha256", "address", "codeHash", "creationTransaction", "creationInputHash"], "UI backing deployment")
+  const plan: UIReleasePlan = {
+    schema: "cam.ui-release-plan.v1", app: value.app,
+    sourceCommit: requiredSourceCommit(value.sourceCommit),
+    expectedChainId: checkedReleaseChainId(requiredSafeInteger(value.expectedChainId, "UI chain ID")),
+    backing: {
+      sourceCommit: requiredSourceCommit(backing.sourceCommit),
+      chainId: checkedReleaseChainId(requiredSafeInteger(backing.chainId, "backing chain ID")),
+      creator: requiredNonzeroAddress(backing.creator, "backing creator"),
+      artifactSha256: requiredBytes32(backing.artifactSha256, "backing artifact SHA-256"),
+      address: requiredNonzeroAddress(backing.address, "backing contract"),
+      codeHash: requiredNonzeroBytes32(backing.codeHash, "backing runtime hash"),
+      creationTransaction: requiredTransactionHash(backing.creationTransaction, "backing creation transaction"),
+      creationInputHash: requiredNonzeroBytes32(backing.creationInputHash, "backing creation input hash"),
+    },
+  }
+  requireUIChain(plan)
+  return plan
+}
+
+function requireUIChain(plan: UIReleasePlan): void {
+  if (plan.expectedChainId !== plan.backing.chainId) throw new Error("Cannot deploy UI: its selected chain differs from the backing deployment")
+}
 
 export function backingFromDeployment(app: ReleaseApp, bytes: Uint8Array): UIBackingReference {
   const artifactSha256 = `0x${createHash("sha256").update(bytes).digest("hex")}` as Hex
@@ -61,7 +106,7 @@ export function backingFromDeployment(app: ReleaseApp, bytes: Uint8Array): UIBac
 }
 
 export function uiDeploymentReference(plan: UIReleasePlan, independentCreator: string): UIDeploymentReference {
-  if (plan.expectedChainId !== plan.backing.chainId) throw new Error("Cannot deploy UI: its selected chain differs from the backing deployment")
+  requireUIChain(plan)
   const create = plan.app === "bike-nft" ? bikeUICreation : plan.app === "escrow" ? escrowUICreation : payToPlayUICreation
   return { sourceCommit: plan.sourceCommit, expectedChainId: plan.expectedChainId,
     expectedDeployer: expectedDeployer(independentCreator), backing: plan.backing, steps: [create(plan.backing.address)] }
