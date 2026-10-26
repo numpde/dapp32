@@ -1,0 +1,94 @@
+# Keyless source selection and coherent bundle preparation; hosting and signing are separate.
+services:
+  release-cam-inputs:
+    extends: {file: ../fragments/node-workspace.yml, service: offline-node-workspace}
+    working_dir: /work
+    environment:
+      CAM_RELEASE_APP: "${CAM_RELEASE_APP:?missing_CAM_RELEASE_APP}"
+      CAM_RELEASE_SOURCE_COMMIT: "${CAM_RELEASE_SOURCE_COMMIT:?missing_CAM_RELEASE_SOURCE_COMMIT}"
+      CAM_RELEASE_ROOT: "${CAM_RELEASE_ROOT:?missing_CAM_RELEASE_ROOT}"
+    volumes:
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${CAM_RELEASE_BUSINESS_ARTIFACT_FILE:?missing_CAM_RELEASE_BUSINESS_ARTIFACT_FILE}"
+        target: /selected/business.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_UI_ARTIFACT_FILE:?missing_CAM_RELEASE_UI_ARTIFACT_FILE}"
+        target: /selected/ui.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_ROOT_ARTIFACT_FILE:?missing_CAM_RELEASE_ROOT_ARTIFACT_FILE}"
+        target: /selected/root.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/inputs"
+        target: /inputs
+        bind: {create_host_path: false}
+    command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/inputs.ts']
+
+  release-artifact-rpc-proxy:
+    extends: {file: artifact.yml, service: release-artifact-rpc-proxy}
+    depends_on: !reset []
+    environment:
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getTransactionReceipt eth_getTransactionByHash eth_getCode eth_call
+
+  release-cam-bundle:
+    extends: {file: ../fragments/node-workspace.yml, service: hardened-node-workspace}
+    working_dir: /work
+    networks: [release_artifact_internal]
+    depends_on:
+      release-artifact-rpc-proxy: {condition: service_healthy}
+    environment:
+      CAM_RELEASE_APP: "${CAM_RELEASE_APP:?missing_CAM_RELEASE_APP}"
+      CAM_RELEASE_SOURCE_COMMIT: "${CAM_RELEASE_SOURCE_COMMIT:?missing_CAM_RELEASE_SOURCE_COMMIT}"
+      CAM_RELEASE_EXPECTED_CHAIN_ID: "${CAM_RELEASE_EXPECTED_CHAIN_ID:?missing_CAM_RELEASE_EXPECTED_CHAIN_ID}"
+      CAM_RELEASE_ROOT_SOURCE_COMMIT: "${CAM_ROOT_SOURCE_COMMIT-}"
+      CAM_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
+      CAM_RELEASE_BUSINESS_ARTIFACT_PATH: /inputs/business.json
+      CAM_RELEASE_UI_ARTIFACT_PATH: /inputs/ui.json
+      CAM_RELEASE_BUSINESS_ARTIFACTS_ROOT: /compiler/business
+      CAM_RELEASE_BUSINESS_SOURCES_ROOT: /sources/business/dapps
+      CAM_RELEASE_UI_ARTIFACTS_ROOT: /compiler/ui
+      CAM_RELEASE_UI_SOURCES_ROOT: /sources/ui/dapps
+      CAM_RELEASE_ROOT_ARTIFACTS_ROOT: /compiler/root
+      CAM_RELEASE_ROOT_SOURCES_ROOT: /sources/root/dapps
+      CAM_RELEASE_AUTHORING_DAPPS_ROOT: /sources/authoring/dapps
+      CAM_RELEASE_BUNDLE_DIR: /bundle
+      CAM_RELEASE_BUNDLE_ARTIFACT_PATH: /artifact/cam-bundle.json
+    volumes:
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/inputs"
+        target: /inputs
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/sources"
+        target: /sources
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/compiler"
+        target: /compiler
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/bundle"
+        target: /bundle
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/artifact"
+        target: /artifact
+        bind: {create_host_path: false}
+    command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/bundle-prepare.ts']
+
+networks:
+  release_artifact_internal: {internal: true}
+  release_artifact_egress: {}

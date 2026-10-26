@@ -59,6 +59,16 @@ release_tool_images_prepare() {
     "verify-input $node" "verify-rpc-proxy $rpc" "verify-provenance $node" "verify-release $foundry"
 }
 
+release_tool_images_prepare_cam_bundle() {
+  local repository="$1" commit="$2" output="$3" checks node rpc
+  checks=$(release_tool_image "$repository" "$commit" checks) || return
+  node=$(release_tool_image "$repository" "$commit" node-deps) || return
+  rpc=$(release_tool_image "$repository" "$commit" rpc-proxy) || return
+  release_tool_image_overlay "$output/images-dependencies.yml" "soldeer-verify $checks"
+  release_tool_image_overlay "$output/images-cam-bundle.yml" \
+    "release-cam-inputs $node" "release-cam-bundle $node" "release-artifact-rpc-proxy $rpc"
+}
+
 release_tool_images_prepare_network() {
   local repository="$1" commit="$2" output="$3" rpc
   rpc=$(release_tool_image "$repository" "$commit" rpc-proxy) || return
@@ -94,6 +104,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh release|ui|network REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
   case "$1" in
     release) release_tool_images_prepare "$2" "$3" "$4" ;;
+    cam-bundle) release_tool_images_prepare_cam_bundle "$2" "$3" "$4" ;;
     contracts) release_tool_images_prepare "$2" "$3" "$4" contracts ;;
     ui) release_tool_images_prepare "$2" "$3" "$4" ui ;;
     network) release_tool_images_prepare_network "$2" "$3" "$4" ;;

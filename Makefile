@@ -79,6 +79,26 @@ ifneq ($(origin CONTRACT_ARTIFACT),undefined)
 override CONTRACT_ARTIFACT := $(value CONTRACT_ARTIFACT)
 export CONTRACT_ARTIFACT
 endif
+ifneq ($(origin UI_ARTIFACT),undefined)
+override UI_ARTIFACT := $(value UI_ARTIFACT)
+export UI_ARTIFACT
+endif
+ifneq ($(origin ROOT),undefined)
+override ROOT := $(value ROOT)
+export ROOT
+endif
+ifneq ($(origin ROOT_ARTIFACT),undefined)
+override ROOT_ARTIFACT := $(value ROOT_ARTIFACT)
+export ROOT_ARTIFACT
+endif
+ifneq ($(origin CAM_BUNDLE),undefined)
+override CAM_BUNDLE := $(value CAM_BUNDLE)
+export CAM_BUNDLE
+endif
+ifneq ($(origin CAM_RECORDS),undefined)
+override CAM_RECORDS := $(value CAM_RECORDS)
+export CAM_RECORDS
+endif
 ifneq ($(origin OUTPUT_DIR),undefined)
 override OUTPUT_DIR := $(value OUTPUT_DIR)
 export OUTPUT_DIR
@@ -365,6 +385,7 @@ if ! release_process_cleanup_begin; then \
   cleanup_failed=1; \
 fi; \
 set +e; \
+if declare -F release_cam_sources_cleanup >/dev/null && ! release_cam_sources_cleanup; then cleanup_failed=1; fi; \
 if declare -F release_approval_cleanup >/dev/null && ! release_approval_cleanup; then \
   printf '%s\n' 'Approval process or terminal cleanup failed; retaining mounted inputs.' >&2; \
   cleanup_failed=1; \
@@ -453,7 +474,9 @@ release_image_args=(-f "$$ceremony_root/images-$$release_phase.yml"); \
 release_transport_args=(); \
 if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == 1 ]]; then \
   require_release_local_network; \
-  release_transport_args=(-f "$$ceremony_source/compose/release/rehearsal-$$release_phase.yml"); \
+  release_transport_phase="$$release_phase"; \
+  if [[ "$$release_phase" == cam-bundle ]]; then release_transport_phase=artifact; fi; \
+  release_transport_args=(-f "$$ceremony_source/compose/release/rehearsal-$$release_transport_phase.yml"); \
 fi; \
 $(release_resolve_rpc); \
 release_dependencies_started=1; \
@@ -549,6 +572,47 @@ compose_release_check() { \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(UI_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; \
 }; \
 $(call release_deploy_execution,UI_RELEASE_OUTPUT_DIR,$(patsubst %/release/ui/deploy,%,$@),UI_RELEASE_CREATOR_ADDRESS,ui)
+endef
+
+define release_cam_bundle
+$(LANE_GUARD); \
+$(SOLDEER_DEPS_GUARD); \
+$(PACKAGE_DEPS_GUARD); \
+$(release_host_guard_functions); \
+$(release_config_compose); \
+source_commit="$$(git rev-parse HEAD)"; \
+if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM bundle preparation requires read-only CONFIG.' >&2; exit 2; fi; \
+load_release_config $(patsubst %/release/cam/bundle,%,$@) cam-bundle "$${OUTPUT_DIR-}"; \
+require_release_file "$${CONTRACT_ARTIFACT:?Set CONTRACT_ARTIFACT}" CONTRACT_ARTIFACT; \
+require_release_file "$${UI_ARTIFACT:?Set UI_ARTIFACT}" UI_ARTIFACT; \
+if [[ "$${ROOT-}" == new && -z "$${ROOT_ARTIFACT-}" ]]; then export CAM_RELEASE_ROOT=new; \
+elif [[ -n "$${ROOT_ARTIFACT-}" && -z "$${ROOT-}" ]]; then require_release_file "$$ROOT_ARTIFACT" ROOT_ARTIFACT; export CAM_RELEASE_ROOT=existing; \
+else printf '%s\n' 'Choose ROOT=new or ROOT_ARTIFACT identifying an existing root.' >&2; exit 2; fi; \
+export CAM_RELEASE_BUSINESS_ARTIFACT_FILE="$$CONTRACT_ARTIFACT" CAM_RELEASE_UI_ARTIFACT_FILE="$$UI_ARTIFACT"; \
+output_dir="$$CAM_RELEASE_OUTPUT_DIR"; validate_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
+require_release_rpc_input; \
+release_operation=cam-bundle; release_phase=cam-bundle; release_rpc_expected_chain="$$CAM_RELEASE_EXPECTED_CHAIN_ID"; \
+compose_release() { \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+    RELEASE_SOURCE_DIR="$$ceremony_source" \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
+    -f "$$ceremony_source/compose/release/cam-bundle.yml" "$${release_transport_args[@]}" -f "$$ceremony_root/images-cam-bundle.yml" "$$@"; \
+}; \
+$(release_prepare_snapshot); \
+recheck_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
+mkdir --mode=0700 -- "$$output_dir"; \
+mkdir --mode=0700 -- "$$output_dir/inputs" "$$output_dir/sources" "$$output_dir/compiler" "$$output_dir/bundle" "$$output_dir/artifact"; \
+mkdir --mode=0700 -- "$$output_dir/compiler/business" "$$output_dir/compiler/ui" "$$output_dir/compiler/root"; \
+export CAM_RELEASE_PREPARED_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source"; \
+if [[ "$$CAM_RELEASE_ROOT" == new ]]; then printf '{}\n' > "$$ceremony_root/new-root.json"; export CAM_RELEASE_ROOT_ARTIFACT_FILE="$$ceremony_root/new-root.json"; \
+else export CAM_RELEASE_ROOT_ARTIFACT_FILE="$$ROOT_ARTIFACT"; fi; \
+export RPC_URL_FILE; \
+release_repository="$(CURDIR)"; source "$$ceremony_source/tools/release_tool_images.sh"; source "$$ceremony_source/tools/release_cam.sh"; \
+release_run_started=1; \
+release_cam_prepare_sources; \
+compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy; \
+compose_release run --rm --no-deps -T release-cam-bundle; \
+printf 'Prepared CAM bundle: %s/bundle\nBundle artifact: %s/artifact/cam-bundle.json\nHost or pin the bundle before selecting its publication URI. No transaction was sent.\n' "$$output_dir" "$$output_dir"
 endef
 
 define release_independent_artifact
@@ -1002,6 +1066,11 @@ help:
 	  '  make bike-nft/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
 	  '  make escrow/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
 	  '  make pay-to-play/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
+	  '  make bike-nft/release/cam/bundle CONFIG=/absolute/readonly.json CONTRACT_ARTIFACT=/absolute/core.json UI_ARTIFACT=/absolute/ui.json ROOT=new [OUTPUT_DIR=/absolute/new-directory]' \
+	  '  make escrow/release/cam/bundle CONFIG=... CONTRACT_ARTIFACT=... UI_ARTIFACT=... ROOT=new' \
+	  '  make pay-to-play/release/cam/bundle CONFIG=... CONTRACT_ARTIFACT=... UI_ARTIFACT=... ROOT=new' \
+	  '    Export a coherent bundle and original source/compiler evidence before hosting chooses a URI or CID; sends no transactions.' \
+	  '    Use ROOT_ARTIFACT=/absolute/latest-publication.json instead of ROOT=new for an existing root.' \
 	  '  make bike-nft/release/contracts/artifact CONFIG=/absolute/private/read-only.json CONTRACT_RECORDS=/absolute/records' \
 	  '  make escrow/release/contracts/artifact CONFIG=/absolute/private/read-only.json CONTRACT_RECORDS=/absolute/records' \
 	  '  make pay-to-play/release/contracts/artifact CONFIG=/absolute/private/read-only.json CONTRACT_RECORDS=/absolute/records' \
@@ -2417,3 +2486,7 @@ pay-to-play/refunds/run:
 RECOVERY_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/scenario.yml -f $(COMPOSE_DIR)/pay-to-play/local/recovery-scenario.yml
 pay-to-play/local/recovery/run:
 	@$(MAKE) pay-to-play/local/scenario/run PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES="$(RECOVERY_SCENARIO_COMPOSE_FILES)"
+
+.PHONY: bike-nft/release/cam/bundle escrow/release/cam/bundle pay-to-play/release/cam/bundle
+bike-nft/release/cam/bundle escrow/release/cam/bundle pay-to-play/release/cam/bundle:
+	@$(release_cam_bundle)
