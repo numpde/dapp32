@@ -49,17 +49,21 @@ const CONTEXT: UiRuntimeContext = {
 test("escrow tasks own their screen titles and place ID lookup after the task", async () => {
   const ui = await escrowUi()
   for (const [view, title, primaryField] of [
-    [createView(), "Create and fund an escrow agreement", "agreementRef"],
-    [agreementView({ viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [] }), "View and manage an escrow agreement", "submissionUri"],
-    [agreementView({ viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [] }), "View a closed escrow agreement", "submissionUri"],
-    [{ viewId: "escrow.credit.empty", account: ACCOUNT, amount: "0", actions: [] }, "Withdraw account credit", "recipient"],
-    [{ viewId: "escrow.credit.available", account: ACCOUNT, amount: "1", actions: ["withdrawTo"] }, "Withdraw account credit", "recipient"],
+    [agreementView({ viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [] }), ["View and manage an escrow agreement"], "submissionUri"],
+    [agreementView({ viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [] }), ["View a closed escrow agreement"], "submissionUri"],
+    [{ viewId: "escrow.credit.empty", account: ACCOUNT, amount: "0", actions: [] }, ["Withdraw account credit"], "recipient"],
+    [{ viewId: "escrow.credit.available", account: ACCOUNT, amount: "1", actions: ["withdrawTo"] }, ["Withdraw account credit"], "recipient"],
   ] as const) {
     const { resolvedUi } = resolveInitialUiNode(ui, "app", args(view), CONTEXT)
     assert.equal(resolvedUi.element, "Screen")
     assert.equal(resolvedUi.props.title, "Escrow")
-    assert.equal(resolvedUi.children[0]?.element, "Screen")
-    assert.equal(resolvedUi.children[0]?.props.title, title)
+    const body = resolvedUi.children[0]
+    assert(body)
+    const tasks = body.element === "Fragment" ? body.children : [body]
+    assert.deepEqual(tasks.map(task => {
+      assert.equal(task.element, "Screen")
+      return task.props.title
+    }), title)
     const fields: string[] = []
     forEachResolvedUiNode(resolvedUi, (node) => {
       if ("state" in node) fields.push(node.state.key)
@@ -68,7 +72,45 @@ test("escrow tasks own their screen titles and place ID lookup after the task", 
   }
 })
 
-test("creation distinguishes client-reference lookup from independent ID lookup and preparing funding", async () => {
+test("creation separates shared account context, funding terms, lookup and credit navigation", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
+  assert.equal(resolvedUi.element, "Screen")
+  const tasks = resolvedUi.children[0]
+  assert.equal(tasks?.element, "Fragment")
+  assert.deepEqual(tasks.children.map(node => node.element === "Screen" ? node.props.title : node.element), [
+    "Account and agreement reference", "Create and fund an escrow agreement", "Find an existing agreement", "Account credit",
+  ])
+  const fields: Record<string, string | undefined> = {}
+  const actions: Record<string, string | undefined> = {}
+  const limits: Record<string, string | undefined> = {}
+  function visit(node: ResolvedUiNode, title: string | undefined): void {
+    if (node.element === "Screen") title = String(node.props.title)
+    if ("state" in node) fields[node.state.key] = title
+    if (node.element === "Button") actions[node.call.function] = title
+    if (node.element === "Status") limits[String(node.props.label)] = title
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, title))
+  }
+  visit(resolvedUi, undefined)
+  assert.equal(resolvedUiInputNames(resolvedUi).filter(name => name === "agreementRef").length, 1, "creation and reference lookup share one field owner")
+  for (const [field, group] of Object.entries({
+    agreementRef: "Account and agreement reference", contractor: "Parties", arbitrator: "Parties", amount: "Funding",
+    acceptanceDuration: "Deadlines", workDuration: "Deadlines", reviewDuration: "Deadlines", arbitrationDuration: "Deadlines",
+    arbitrationTimeoutBeneficiary: "Deadlines", termsUri: "Terms document", termsDigest: "Terms document", agreementId: "Find an existing agreement",
+  })) assert.equal(fields[field], group, field)
+  assert.equal(actions.createAgreementForm, undefined)
+  assert.equal(actions.createAgreement, "Create and fund an escrow agreement")
+  assert.equal(actions.lookupAgreement, "Find an existing agreement")
+  assert.equal(actions.agreement, "Find an existing agreement")
+  assert.equal(actions.accountCredit, "Account credit")
+  assert.deepEqual(limits, {
+    "Reference limit": "Account and agreement reference",
+    "Maximum phase duration": "Deadlines",
+    "Allowed arbitration timeout recipients": "Deadlines",
+    "Document URI limit": "Terms document",
+  })
+})
+
+test("creation distinguishes client-reference lookup from independent ID lookup and the sending client", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
   const labels: string[] = []
   const texts: string[] = []
@@ -80,7 +122,7 @@ test("creation distinguishes client-reference lookup from independent ID lookup 
   assert.match(String(requiredButton(resolvedUi, "lookupAgreement").props.label), /client and reference/i)
   assert.deepEqual(plain(requiredButton(resolvedUi, "lookupAgreement").call.args), { client: ACCOUNT, agreementRef: "" })
   assert.match(String(requiredButton(resolvedUi, "agreement").props.label), /by ID/)
-  assert.ok(texts.some((text) => text.includes("submit it separately") && text.includes("confirmed transaction")))
+  assert.ok(texts.some((text) => text.includes("account that sends the successful creation transaction becomes the client")))
 })
 
 test("creation explains required party, reference and document inputs beside their fields", async () => {
@@ -94,8 +136,12 @@ test("creation explains required party, reference and document inputs beside the
   assert.match(parties, /40 hexadecimal/)
   assert.match(parties, /all-zero placeholders/)
   assert.match(parties, /must differ/)
+  assert.match(precedingHelp(resolvedUi, "arbitrator"), /does not confirm they have agreed to arbitrate/)
+  const timeoutRecipient = precedingHelp(resolvedUi, "arbitrationTimeoutBeneficiary")
+  assert.match(timeoutRecipient, /cannot be changed later/)
+  assert.match(timeoutRecipient, /Withdrawal is separate/)
   assert.match(precedingHelp(resolvedUi, "amount"), /positive amount/)
-  assert.match(precedingHelp(resolvedUi, "amount"), /1,000,000,000,000,000,000 wei/)
+  assert.match(precedingHelp(resolvedUi, "amount"), /Creation locks this amount; transaction fees are separate/)
   const terms = precedingHelp(resolvedUi, "termsUri")
   assert.match(terms, /both fields are required/i)
   assert.match(terms, /exact document bytes/)
@@ -108,10 +154,15 @@ test("creation explains required party, reference and document inputs beside the
 
 test("each creation duration explains its start and timeout beneficiary beside the field", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
-  assert.match(precedingHelp(resolvedUi, "acceptanceDuration"), /required whole seconds/)
-  assert.match(precedingHelp(resolvedUi, "acceptanceDuration"), /do not execute automatically/)
   const nodes: ResolvedUiNode[] = []
   forEachResolvedUiNode(resolvedUi, (node) => nodes.push(node))
+  const general = nodes.findIndex(node => node.element === "Text" && String(node.props.text).includes("All four durations are required"))
+  const firstDuration = nodes.findIndex(node => "state" in node && node.state.key === "acceptanceDuration")
+  assert(general >= 0 && general < firstDuration)
+  const generalHelp = nodes[general]
+  assert.ok(generalHelp?.element === "Text")
+  assert.match(String(generalHelp.props.text), /do not execute automatically/)
+  assert.match(String(generalHelp.props.text), /requires a transaction/)
   for (const [field, start, recipient] of [
     ["acceptanceDuration", "creation", "client"],
     ["workDuration", "acceptance", "client"],
@@ -119,7 +170,7 @@ test("each creation duration explains its start and timeout beneficiary beside t
     ["arbitrationDuration", "dispute", "chosen timeout recipient"],
   ]) {
     const index = nodes.findIndex((node) => "state" in node && node.state.key === field)
-    const help = nodes[index + 1]
+    const help = nodes[index - 1]
     assert.ok(help?.element === "Text", `${field} has adjacent phase help`)
     const text = String(help.props.text)
     assert.ok(text.includes(`Starts at ${start}.`))
@@ -143,7 +194,7 @@ test("agreement evidence fields explain explicit calculation and required pairs 
   forEachResolvedUiNode(resolvedUi, (node) => {
     if (node.element === "Text") texts.push(String(node.props.text))
   })
-  assert.ok(texts.some((text) => /0 means closed, with no timeout/.test(text)))
+  assert.ok(texts.some((text) => /ordinary phase actions stop at or after this deadline; finalizing its timeout still needs a transaction/.test(text)))
   assert.ok(texts.some((text) => /claimed SHA-256 fingerprint/.test(text) && /do not fetch or verify/.test(text)))
   assert.ok(texts.some((text) => /empty evidence URI and all-zero digest/.test(text)))
 })
@@ -173,15 +224,9 @@ test("credit distinguishes the credit owner, full amount and withdrawal destinat
     assert.ok(texts.some((text) => /When an agreement ends, this escrow assigns its funds to one party as withdrawable credit\./.test(text)))
     assert.ok(texts.some((text) => /This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals\./.test(text)))
     assert.ok(texts.some((text) => /It excludes funds still locked in open agreements\./.test(text)))
-    assert.ok(texts.some((text) => /1 native asset = 1,000,000,000,000,000,000 wei/.test(text)))
     assert.ok(texts.some((text) => /When credit is available, send the withdrawal transaction from the account shown/.test(text)))
     assert.ok(texts.some((text) => /full balance; partial withdrawals are unavailable/.test(text)))
-    if (amount === "0") {
-      assert.ok(texts.includes("No credit is available to withdraw."))
-      assert.ok(!texts.some((text) => /Review the prepared transaction/.test(text)))
-    } else {
-      assert.ok(texts.some((text) => /Review the prepared transaction, then submit it separately with your wallet./.test(text)))
-    }
+    if (amount === "0") assert.ok(texts.includes("No credit is available to withdraw."))
   }
 })
 
@@ -198,21 +243,17 @@ test("agreement copy describes the viewed role and arbitrator non-consent withou
   assert.ok(labels.includes("Role of the address being viewed"))
   assert.ok(!labels.some((label) => /acknowledgement/i.test(label)))
   assert.ok(texts.some((text) => /arbitrator.*does not confirm.*consent/.test(text)))
-  assert.ok(texts.some((text) => text.startsWith("Agreement-changing actions") && text.includes("Submit it separately")))
   assert.ok(texts.some((text) => text.includes("closed") && text.includes("no further agreement-changing actions")))
 })
 
 test("escrow limits declare exact readable units without changing contract values", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
   const displayed = new Map<string, string>()
-  const texts: string[] = []
   forEachResolvedUiNode(resolvedUi, (node) => {
-    if (node.element === "Text") texts.push(String(node.props.text))
     if (node.element === "Status" && "formattedValue" in node) {
       displayed.set(String(node.props.label), String(node.formattedValue))
     }
   })
-  assert.ok(texts.includes("Contract limits"))
   assert.equal(displayed.get("Reference limit"), "128 bytes")
   assert.equal(displayed.get("Document URI limit"), "512 bytes")
   assert.equal(displayed.get("Maximum phase duration"), "365 days (31,536,000 seconds)")
