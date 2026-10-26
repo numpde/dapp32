@@ -50,7 +50,7 @@ export async function stageCamBundle({ dappsRootPath, rootPath, outputDir, contr
       throw new Error(`Cannot stage CAM bundle: ${namespace} must declare a local ABI resource`)
     }
     const abi = contractABIs.get(namespace.slice("contracts.".length))!
-    const bytes = jsonBytes(abi, true)
+    const bytes = serializeCamABI(abi)
     const previous = replaced.get(declaration.abiURI)
     if (previous !== undefined && !Buffer.from(previous).equals(bytes)) {
       throw new Error(`Cannot stage CAM bundle: contract namespaces select different ABIs for ${declaration.abiURI}`)
@@ -125,3 +125,5 @@ function jsonBytes(value: unknown, sortKeys = false): Uint8Array {
     isRecordObject(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item
     : undefined, 2)}\n`)
 }
+
+export function serializeCamABI(abi: Abi): Uint8Array { return jsonBytes(abi, true) }

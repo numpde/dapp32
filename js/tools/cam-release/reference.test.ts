@@ -36,7 +36,7 @@ function plan(root: unknown = { kind: "new" }, overrides: Record<string, unknown
   })))
 }
 function existing(overrides: Record<string, unknown> = {}) {
-  return { kind: "existing", creator, sourceCommit: "b".repeat(40), publicationSha256: digest,
+  return { kind: "existing", creator, sourceCommit: "b".repeat(40), origin: { kind: "publication", artifactSha256: digest },
     contract: { address: rootAddress, codeHash: digest, creationTransaction: digest, creationInputHash: digest },
     owner, pendingOwner: zeroAddress, bindings: { PayToPlay: core, PayToPlayUI: creator },
     manifest: { uri: "ipfs://previous/main.json", hash: digest }, ...overrides }

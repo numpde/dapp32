@@ -13,7 +13,7 @@ export type CamRootBaseline = {
   readonly contract: ContractIdentity
   readonly creator: Address
   readonly sourceCommit: string
-  readonly publicationSha256: Hex
+  readonly origin: { readonly kind: "publication" | "legacy-origin"; readonly artifactSha256: Hex }
   readonly bindings: Readonly<Record<string, Address>>
   readonly manifest: CamManifest
 }
@@ -73,12 +73,15 @@ export function parseCamReleasePlan(bytes: Uint8Array): CamReleasePlan {
     requireExactKeys(root, ["kind"], "new CAM root")
     selection = { kind: "new" }
   } else if (root.kind === "existing") {
-    requireExactKeys(root, ["kind", "contract", "creator", "sourceCommit", "publicationSha256", "owner", "pendingOwner", "bindings", "manifest"], "existing CAM root")
+    requireExactKeys(root, ["kind", "contract", "creator", "sourceCommit", "origin", "owner", "pendingOwner", "bindings", "manifest"], "existing CAM root")
     const bindings = requiredJsonRecord(root.bindings, "existing CAM bindings")
     requireExactKeys(bindings, recipe.map(step => step.args[0] as string), "existing CAM bindings")
+    const origin = requiredJsonRecord(root.origin, "CAM root origin")
+    requireExactKeys(origin, ["kind", "artifactSha256"], "CAM root origin")
+    if (origin.kind !== "publication" && origin.kind !== "legacy-origin") throw new Error("CAM root origin must select publication or legacy-origin")
     selection = { kind: "existing", contract: parseContractIdentity(root.contract, "existing CAM root identity"),
       creator: requiredNonzeroAddress(root.creator, "original CAM root creator"), sourceCommit: requiredSourceCommit(root.sourceCommit),
-      publicationSha256: requiredBytes32(root.publicationSha256, "preceding CAM publication SHA-256"),
+      origin: { kind: origin.kind, artifactSha256: requiredBytes32(origin.artifactSha256, "CAM root origin artifact SHA-256") },
       owner: requiredNonzeroAddress(root.owner, "current CAM owner"), pendingOwner: address(root.pendingOwner, "pending CAM owner"),
       bindings: Object.fromEntries(Object.entries(bindings).map(([name, target]) => [name, address(target, `CAM binding ${name}`)])),
       manifest: manifest(root.manifest, "existing CAM manifest"),

@@ -48,6 +48,22 @@ release_approval_snapshot_digest() {
   printf '%s\n' "$found"
 }
 
+release_approval_cam_remaining() {
+  local identity line count=""
+  identity="$(release_approval_service_id release-reference-prepare)" || return
+  while IFS= read -r line; do
+    if [[ "$line" == *'"event":"release_approval_reference_prepared"'* ]]; then
+      if [[ -n "$count" || ! "$line" =~ \"remainingTransactions\":([0-9]+) ]]; then
+        printf '%s\n' 'CAM reference preparation did not report one remaining transaction count.' >&2
+        return 1
+      fi
+      count="${BASH_REMATCH[1]}"
+    fi
+  done < <(docker logs "$identity" 2>&1)
+  if [[ ! "$count" =~ ^[0-9]+$ || "$count" -gt 64 ]]; then printf '%s\n' 'CAM reference transaction count is missing or out of bounds.' >&2; return 1; fi
+  printf '%s\n' "$count"
+}
+
 release_approval_show_startup() {
   local identity="$1" started="$SECONDS" output
   while (( SECONDS - started < 30 )); do
@@ -58,7 +74,7 @@ release_approval_show_startup() {
     if [[ "$output" == *'Type start and press Enter to open the approval socket.'* ]]; then
       if (( ${#output} > 8192 )) || [[ "$output" != *'Release approval'* ||
             "$output" != *'  App:'* || "$output" != *'  Chain ID:'* ||
-            "$output" != *'  Deployer:'* || "$output" != *'  Source commit:'* ||
+            "$output" != *'  Signer:'* || "$output" != *'  Source commit:'* ||
             "$output" != *'  Reference SHA-256:'* ]]; then
         printf '%s\n' 'Approval service startup display is incomplete or too large.' >&2
         return 1
@@ -108,6 +124,10 @@ release_approval_prepare() {
   fi
   RELEASE_APPROVAL_PLAN_SHA256="0x$(sha256sum "$output/plan/release-plan.json" | cut -d ' ' -f 1)"
   RELEASE_APPROVAL_REFERENCE_SHA256="$(release_approval_snapshot_digest)"
+  if [[ "${release_operation-deployment}" == cam ]]; then
+    CAM_RELEASE_REMAINING_TRANSACTIONS="$(release_approval_cam_remaining)" || return
+    export CAM_RELEASE_REMAINING_TRANSACTIONS
+  fi
   export RELEASE_APPROVAL_PLAN_SHA256 RELEASE_APPROVAL_REFERENCE_SHA256
   chmod 0400 -- "$RELEASE_APPROVAL_REFERENCE_FILE"
   chmod 0500 -- "$RELEASE_APPROVAL_REFERENCE_DIR"
@@ -304,10 +324,36 @@ release_materialize_ui() {
   release_materialize_independent "$1" ui UI ui UI
 }
 
+release_materialize_cam() {
+  local output="$1" log
+  CAM_RELEASE_CANDIDATE_DIR=$(mktemp -d -- "$output/cam-verification-XXXXXXXX")
+  export CAM_RELEASE_CANDIDATE_DIR
+  log="$CAM_RELEASE_CANDIDATE_DIR/verification.log"
+  printf 'Verifying CAM publication without a signing key. Diagnostics: %s\n' "$log"
+  if compose_release run --rm --no-deps -T release-artifact-dependencies > "$log" 2>&1 &&
+      compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T release-artifact >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T -e CAM_RELEASE_PHASE=verify-block release-artifact >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T release-cam-publish >> "$log" 2>&1; then
+    printf 'Verified CAM publication: %s/artifact/cam-publication.json\n' "$output"
+    return 0
+  fi
+  printf 'CAM publication records are incomplete. No transaction was sent by verification. Diagnostics: %s\n' "$log" >&2
+  printf 'Complete records keylessly: make %q CONFIG=%q CAM_RECORDS=%q CAM_BUNDLE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$CONFIG" "$output" "$CAM_RELEASE_PREPARED_DIR" >&2
+  return 1
+}
+
 release_approval_run() {
   local output="$1" gate_id forge_id started state attach_status=0 forge_status="" gate_status=""
   export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never
   release_approval_output="$output"
+  if [[ "${release_operation-deployment}" == cam && "$CAM_RELEASE_REMAINING_TRANSACTIONS" == 0 ]]; then
+    printf '%s\n' 'CAM root already has the desired composition. No signing session or transaction is needed.'
+    release_materialize_cam "$output"
+    return
+  fi
+
+  if [[ "${release_operation-deployment}" == cam ]]; then release_approval_require_terminal || return; fi
   # Both proxies cover the signing and artifact networks. Reserve them before
   # transactions so local address-pool exhaustion cannot first appear afterward.
   compose_release up --no-start --no-build --no-deps release-rpc-proxy release-artifact-rpc-proxy
@@ -394,6 +440,7 @@ release_approval_run() {
     release_materialize_contracts "$output"
     return
   fi
+  if [[ "${release_operation-deployment}" == cam ]]; then release_materialize_cam "$output"; return; fi
   if [[ "${release_operation-deployment}" == ui ]]; then
     release_materialize_ui "$output"
     return "$?"

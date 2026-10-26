@@ -1,0 +1,98 @@
+# Keyless signed receipt/source observation and exclusive CAM publication records.
+services:
+  release-artifact-rpc-proxy:
+    depends_on: !reset []
+    environment:
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_call eth_getCode
+        eth_getTransactionReceipt eth_getTransactionByHash
+
+  release-artifact:
+    environment:
+      RELEASE_TOOL_DIR: tools/cam-release
+      CAM_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      CAM_RELEASE_REFERENCE_PATH: /reference/reference.json
+      CAM_RELEASE_BROADCAST_DIR: /release-broadcast
+      CAM_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
+      CAM_RELEASE_PREPARED_DIR: /prepared
+      CAM_RELEASE_APPROVAL_ARTIFACTS_ROOT: /reference-artifacts
+      CAM_RELEASE_EXECUTION_SOURCES_ROOT: /work/dapps
+      CAM_RELEASE_CANDIDATE_PATH: /cam-candidate/cam-publication.json
+      CAM_RELEASE_ARTIFACT_PATH: /cam-artifact/cam-publication.json
+    volumes: !override
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/dapps:/work/dapps:ro"
+      - type: bind
+        source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}"
+        target: /prepared
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/approval-artifacts"
+        target: /reference-artifacts
+        read_only: true
+        bind: {create_host_path: false}
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/broadcast"
+        target: /release-broadcast
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/approval-reference"
+        target: /reference
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_CANDIDATE_DIR:?missing_CAM_RELEASE_CANDIDATE_DIR}"
+        target: /cam-candidate
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/artifact"
+        target: /cam-artifact
+        read_only: true
+        bind: {create_host_path: false}
+
+  release-cam-publish:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work
+    init: true
+    cpus: 1
+    memswap_limit: 1g
+    environment:
+      CAM_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      CAM_RELEASE_CANDIDATE_PATH: /cam-candidate/cam-publication.json
+      CAM_RELEASE_ARTIFACT_PATH: /cam-artifact/cam-publication.json
+    volumes:
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_RELEASE_CANDIDATE_DIR:?missing_CAM_RELEASE_CANDIDATE_DIR}"
+        target: /cam-candidate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/artifact"
+        target: /cam-artifact
+        bind: {create_host_path: false}
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:packages
+        ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json
+        node --experimental-strip-types tools/cam-release/publish.ts

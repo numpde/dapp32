@@ -16,6 +16,10 @@ export async function prepareCamReferenceSnapshot({ planBytes, components, signe
   readonly sourcesRoot: string
 }): Promise<ReferenceSnapshot> {
   const plan = parseCamReleasePlan(planBytes)
+  if (components.observationBlock.number !== BigInt(plan.observationBlock.number)
+      || components.observationBlock.hash.toLowerCase() !== plan.observationBlock.hash.toLowerCase()) {
+    throw new Error("Cannot prepare CAM approval: its fresh component/root observation differs from the retained plan anchor")
+  }
   if (plan.root.kind === "existing") {
     if (admittedRoot === undefined) throw new Error("Cannot prepare CAM approval: existing root admission is required")
     const selected = plan.root
@@ -25,7 +29,8 @@ export async function prepareCamReferenceSnapshot({ planBytes, components, signe
       ["sourceCommit", selected.sourceCommit, admittedRoot.sourceCommit],
       ["creator", selected.creator, admittedRoot.creator], ["owner", selected.owner, admittedRoot.owner],
       ["pendingOwner", selected.pendingOwner, admittedRoot.pendingOwner],
-      ["publicationSha256", selected.publicationSha256, admittedRoot.publicationSha256],
+      ["origin kind", selected.origin.kind, admittedRoot.origin.kind],
+      ["origin artifact SHA-256", selected.origin.artifactSha256, admittedRoot.origin.artifactSha256],
       ["manifest hash", selected.manifest.hash, admittedRoot.manifest.hash],
       ...Object.entries(selected.bindings).map(([name, target]) => [`binding ${name}`, target, admittedRoot.bindings[name]] as const),
     ]
@@ -33,7 +38,7 @@ export async function prepareCamReferenceSnapshot({ planBytes, components, signe
       ?? (selected.manifest.uri === admittedRoot.manifest.uri ? undefined
         : ["manifest URI", selected.manifest.uri, admittedRoot.manifest.uri] as const)
     if (mismatch !== undefined) {
-      throw new Error(`Cannot prepare CAM approval: root ${selected.contract.address} ${mismatch[0]} ${mismatch[1]} differs from the admitted root ${admittedRoot.contract.address} value ${mismatch[2]}`)
+      throw new Error(`Cannot prepare CAM approval: root ${selected.contract.address} ${mismatch[0]} ${JSON.stringify(mismatch[1])} differs from the admitted root ${admittedRoot.contract.address} value ${JSON.stringify(mismatch[2])}`)
     }
   }
   const expected = camPublicationReference(plan, signer, components, originalRootCompilation?.abi)

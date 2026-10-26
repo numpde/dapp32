@@ -7,13 +7,14 @@ import { parseUIDeploymentArtifact, uiCreationStep } from "../ui-release/shared.
 export type OriginalContractCompilation = { readonly abi: Abi; readonly creationBytecode: Hex }
 type ComponentReader = ContractIdentityReader & { getChainId(): Promise<number>; getBlockNumber(): Promise<bigint> }
 
-export async function admitCamComponents({ app, businessBytes, uiBytes, businessCompilations, uiCompilation, client }: {
+export async function admitCamComponents({ app, businessBytes, uiBytes, businessCompilations, uiCompilation, client, observationBlock }: {
   readonly app: ReleaseApp
   readonly businessBytes: Uint8Array
   readonly uiBytes: Uint8Array
   readonly businessCompilations: Readonly<Record<string, OriginalContractCompilation>>
   readonly uiCompilation: OriginalContractCompilation
   readonly client: ComponentReader
+  readonly observationBlock?: { readonly number: bigint; readonly hash: Hex }
 }) {
   const business = businessFromDeployment(app, businessBytes)
   const ui = parseUIDeploymentArtifact(uiBytes, app)
@@ -26,8 +27,9 @@ export async function admitCamComponents({ app, businessBytes, uiBytes, business
     throw new Error("Cannot compose CAM: the selected UI artifact names a different business deployment")
   }
   if (await client.getChainId() !== business.chainId) throw new Error("Cannot compose CAM: RPC chain differs from the selected component artifacts")
-  const blockNumber = await client.getBlockNumber()
+  const blockNumber = observationBlock?.number ?? await client.getBlockNumber()
   const block = await client.getBlock({ blockNumber })
+  if (observationBlock !== undefined && block.hash !== observationBlock.hash) throw new Error("Cannot compose CAM: its selected observation block is no longer canonical")
   const contracts: Record<string, ContractIdentity> = {}
   for (const [role, identity] of Object.entries(business.contracts)) {
     const observed = await observeContractIdentity(client, identity, business.creator, blockNumber, `${app} ${role}`)

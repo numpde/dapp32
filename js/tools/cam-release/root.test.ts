@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { keccak256, parseAbi, zeroAddress, type Address, type Hex } from "viem"
 import { admitExistingCamRoot } from "./root.ts"
-import type { CamRootBaseline } from "./shared.ts"
+import type { CamRootSelection } from "./publication.ts"
 
 const root = `0x${"11".repeat(20)}` as Address
 const creator = `0x${"22".repeat(20)}` as Address
@@ -12,10 +12,11 @@ const blockHash = `0x${"55".repeat(32)}` as Hex
 const creationHash = `0x${"66".repeat(32)}` as Hex
 const code = "0x6000" as Hex
 const input = "0x60011234" as Hex
-const baseline: CamRootBaseline = {
-  creator, sourceCommit: "a".repeat(40), publicationSha256: blockHash,
+const baseline: CamRootSelection & { kind: "publication" } = {
+  kind: "publication", app: "pay-to-play", chainId: 31338,
+  creator, sourceCommit: "a".repeat(40), artifactSha256: blockHash,
   contract: { address: root, creationTransaction: creationHash, creationInputHash: keccak256(input), codeHash: keccak256(code) },
-  bindings: { PayToPlay: target }, manifest: { uri: "ipfs://previous/main.json", hash: blockHash },
+  bindings: { PayToPlay: target, PayToPlayUI: target }, manifest: { uri: "ipfs://previous/main.json", hash: blockHash },
 }
 function fixture() {
   const state = { hash: blockHash, binding: target, uri: baseline.manifest.uri, readBlocks: [] as bigint[] }
@@ -34,7 +35,7 @@ function fixture() {
       throw new Error("unexpected getter")
     },
   }
-  const options = { baseline, compilation: { abi: parseAbi(["function owner() view returns (address)"]), creationBytecode: "0x6001" as Hex },
+  const options = { selection: baseline, compilation: { abi: parseAbi(["function owner() view returns (address)"]), creationBytecode: "0x6001" as Hex },
     observationBlock: { number: 10n, hash: blockHash }, client }
   return { state, client, options }
 }
@@ -44,7 +45,7 @@ test("existing root admission observes current owner separately from original cr
   const admitted = await admitExistingCamRoot(options)
   assert.equal(admitted.owner, currentOwner)
   assert.equal(admitted.creator, creator)
-  assert.deepEqual(state.readBlocks, [10n, 10n, 10n, 10n])
+  assert.deepEqual(state.readBlocks, [10n, 10n, 10n, 10n, 10n])
 })
 
 test("existing root admission rejects a stale publication baseline before call approval", async () => {

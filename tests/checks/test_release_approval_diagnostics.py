@@ -121,7 +121,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 transcript = self.rehearsal.Transcript(path)
                 transcript.extend((
                     f"Release container project: {owner}\nRelease approval\n"
-                    f"  App: {shown}\n  Chain ID: 31338\n  Deployer: {deployer}\n"
+                    f"  App: {shown}\n  Chain ID: 31338\n  Signer: {deployer}\n"
                     f"  Source commit: {source}\n  Reference SHA-256: 0x{'f' * 64}\n"
                     + self.rehearsal.PROMPT + "\nReview transaction 1\n"
                     "  Press a to approve and send, r to reject and stop. No Enter for any key.\n"

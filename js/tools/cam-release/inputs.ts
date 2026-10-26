@@ -1,8 +1,9 @@
+import { rootFromArtifact } from "./publication.ts"
 import { requiredEnv } from "../input.ts"
 import { businessFromDeployment } from "../contract-release/shared.ts"
 import { parseUIDeploymentArtifact } from "../ui-release/shared.ts"
 import { readBoundedRegularFile, writeNewBytes } from "../release-files.ts"
-import { parseJsonRecord, requiredJsonRecord, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
+import { requiredSourceCommit, runReleaseTool } from "../release-values.ts"
 
 async function main(): Promise<void> {
   const env = process.env
@@ -18,12 +19,7 @@ async function main(): Promise<void> {
   let rootBytes: Uint8Array | undefined
   if (rootMode === "existing") {
     rootBytes = await readBoundedRegularFile("/selected/root.json", "selected root origin", 1024 * 1024)
-    const origin = parseJsonRecord(rootBytes, "selected root origin")
-    if (origin.schema === "cam.publication.v1" && origin.app === app) {
-      rootSourceCommit = requiredSourceCommit(requiredJsonRecord(origin.root, "CAM root provenance").sourceCommit)
-    } else if (origin.schema === `${app}.deployment.v1` || origin.schema === `${app}.deployment.v2`) {
-      rootSourceCommit = requiredSourceCommit(origin.sourceCommit)
-    } else throw new Error("CAM root source selection requires a known publication or original full deployment artifact")
+    rootSourceCommit = rootFromArtifact(app, rootBytes).sourceCommit
   } else if (rootMode !== "new") throw new Error("CAM root selection must explicitly choose new or existing")
   // This phase selects immutable source archives; chain and program admission follow compilation.
   const sources = { CAM_BUSINESS_SOURCE_COMMIT: business.sourceCommit, CAM_UI_SOURCE_COMMIT: ui.sourceCommit,

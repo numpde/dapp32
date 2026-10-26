@@ -33,6 +33,7 @@ case "${RELEASE_OPERATION:-deployment}" in
     ;;
   source-ui) script=""; contracts="$ui_contract"; set -- "$app/src/$ui_contract.sol" ;;
   source-root) script=""; contracts=CamRoot; set -- cam/src/CamRoot.sol ;;
+  cam) script="cam/script/PublishCam.s.sol"; contracts=CamRoot ;;
   contracts) script="$app/script/DeployContracts.s.sol"; contracts="$business_contracts" ;;
   ui) script="$app/script/DeployUI.s.sol"; contracts="$ui_contract" ;;
   *) printf '%s\n' 'Compiler export must select deployment, contracts, ui or an explicit source component.' >&2; exit 2 ;;

@@ -10,10 +10,8 @@ export type CamPublicationReference = ReleaseReference & { readonly root: CamRel
 export function camPublicationReference(plan: CamReleasePlan, independentSigner: string, components: AdmittedCamComponents, originalRootABI?: Abi): CamPublicationReference {
   if (components.app !== plan.app || components.chainId !== plan.expectedChainId
       || components.business.artifactSha256.toLowerCase() !== plan.businessArtifactSha256.toLowerCase()
-      || components.ui.artifactSha256.toLowerCase() !== plan.uiArtifactSha256.toLowerCase()
-      || components.observationBlock.number !== BigInt(plan.observationBlock.number)
-      || components.observationBlock.hash.toLowerCase() !== plan.observationBlock.hash.toLowerCase()) {
-    throw new Error("Cannot publish CAM: selected component admission differs from the plan's app, chain, artifact hashes or observation block")
+      || components.ui.artifactSha256.toLowerCase() !== plan.uiArtifactSha256.toLowerCase()) {
+    throw new Error("Cannot publish CAM: selected component admission differs from the plan's app, chain, artifact hashes")
   }
   const signer = expectedDeployer(independentSigner)
   const root = plan.root

@@ -158,7 +158,7 @@ class Transcript(bytearray):
         if line == PROMPT:
             self.start_seen = True
         if line == "Release approval" or line.startswith((
-            "  App:", "  Chain ID:", "  Deployer:", "  Source commit:", "  Reference SHA-256:",
+            "  App:", "  Chain ID:", "  Signer:", "  Source commit:", "  Reference SHA-256:",
         )) or line == PROMPT:
             if sum(map(len, self.identity_lines)) + len(line) <= 8192:
                 self.identity_lines.append(line)
@@ -803,7 +803,7 @@ def main(app: str, scenario: str) -> None:
         display = "\n".join(transcript.identity_lines) + "\n"
         required_display = (
             "Release approval", f"  App: {app}", "  Chain ID: 31338",
-            f"  Deployer: {deployer}", f"  Source commit: {source_commit}", PROMPT,
+            f"  Signer: {deployer}", f"  Source commit: {source_commit}", PROMPT,
         )
         if any(value not in transcript.identity_lines for value in required_display):
             raise RuntimeError(f"Approval terminal did not display the selected {app} release identity")

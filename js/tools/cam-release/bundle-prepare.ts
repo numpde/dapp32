@@ -5,11 +5,8 @@ import { businessFromDeployment } from "../contract-release/shared.ts"
 import { parseUIDeploymentArtifact } from "../ui-release/shared.ts"
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import { requiredReleaseChainId, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
-import type { CompiledContractSource } from "../release-compiled-contract.ts"
-import type { ReleaseApp } from "../release-approval/reference-read.ts"
 import { admitCamComponents } from "./components.ts"
-import { readBusinessCompilations, readRootCompilation, readUICompilation } from "./compilations.ts"
-import { camBindingRecipe } from "./bindings.ts"
+import { bundleCompilationSources, selectBundleCompilations, readBusinessCompilations, readRootCompilation, readUICompilation } from "./compilations.ts"
 import { stageCamBundle } from "./bundle.ts"
 
 async function main(): Promise<void> {
@@ -36,12 +33,7 @@ async function main(): Promise<void> {
   const dappsRootPath = requiredEnv(env, "CAM_RELEASE_AUTHORING_DAPPS_ROOT")
   const outputDir = requiredEnv(env, "CAM_RELEASE_BUNDLE_DIR")
   const staged = await stageCamBundle({ dappsRootPath, rootPath: resolve(dappsRootPath, app, "cam/main.json"), outputDir, contractABIs })
-  const abiSources = Object.fromEntries([...selected].map(([name, original]) => {
-    const sourceCommit = original.role === "ui" ? ui.sourceCommit : original.role === "camRoot"
-      ? rootSourceCommit! : business.sourceCommit
-    const { abi: _abi, creationBytecode: _program, compilerSettings: _settings, ...compilation } = original.compilation
-    return [name, { role: original.role, sourceCommit, ...compilation }]
-  }))
+  const abiSources = bundleCompilationSources(selected, business.sourceCommit, ui.sourceCommit, rootSourceCommit ?? authoringSourceCommit)
   const artifact = { schema: "cam.bundle.v1", app, authoringSourceCommit, chainId: admitted.chainId,
     authoredRootSha256: staged.authoredRootSha256, rootSha256: staged.rootSha256,
     businessArtifactSha256: admitted.business.artifactSha256, uiArtifactSha256: admitted.ui.artifactSha256, abiSources,
@@ -49,20 +41,6 @@ async function main(): Promise<void> {
   await writeNewJson(artifactPath, artifact, "prepared CAM bundle artifact")
   process.stdout.write(`${JSON.stringify({ event: "cam_bundle_prepared", app, rootSha256: staged.rootSha256,
     bundleDir: outputDir, artifactPath })}\n`)
-}
-
-function selectBundleCompilations(app: ReleaseApp, business: Readonly<Record<string, CompiledContractSource>>,
-  ui: CompiledContractSource, root: CompiledContractSource | undefined) {
-  const selected = new Map<string, { role: string; compilation: CompiledContractSource }>()
-  for (const binding of camBindingRecipe(app)) {
-    const name = binding.args[0] as string
-    const role = (binding.args[1] as { readonly createdContract: string }).createdContract
-    const compilation = role === "camRoot" ? root : role === "ui" ? ui : business[role]
-    if (compilation === undefined) throw new Error(`Cannot prepare CAM bundle: no selected original compilation for ${name} (${role})`)
-    // ICamRootOwnership is a logical alias of the actual root, so it uses that root's ABI.
-    selected.set(name, { role, compilation })
-  }
-  return selected
 }
 
 runReleaseTool(main)

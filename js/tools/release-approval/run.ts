@@ -105,7 +105,7 @@ function waitForOperatorStart(reference: ReferenceSnapshot, io: RuntimeIO): Prom
       "Release approval",
       `  App: ${reference.app}`,
       `  Chain ID: ${reference.expectedChainId}`,
-      `  Deployer: ${reference.expectedDeployer}`,
+      `  Signer: ${reference.expectedDeployer}`,
       `  Source commit: ${reference.sourceCommit}`,
       `  Reference SHA-256: ${reference.snapshotSha256}`,
       "Type start and press Enter to open the approval socket.",

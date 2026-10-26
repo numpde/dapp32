@@ -177,6 +177,8 @@ PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml
 CONTRACT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml
 CONTRACT_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/release/contracts-artifact.yml
 CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml $(CONTRACT_RELEASE_ARTIFACT_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/contracts.yml
+CAM_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/release/cam-artifact.yml
+CAM_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml $(CAM_RELEASE_ARTIFACT_COMPOSE_FILES)
 UI_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/release/ui-artifact.yml
 UI_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml $(UI_RELEASE_ARTIFACT_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/ui.yml
 UI_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/release/ui-check.yml
@@ -488,12 +490,14 @@ release_operation="$(if $(4),$(4),deployment)"; export RELEASE_OPERATION="$$rele
 release_phase=deploy; \
 release_rpc_expected_chain="$$chain_id"; \
 $(release_prepare_snapshot); \
+if [[ "$$release_operation" == cam && "$$CAM_RELEASE_ROOT" == new ]]; then printf "{}\n" > "$$ceremony_root/new-root.json"; export CAM_RELEASE_ROOT_ARTIFACT_FILE="$$ceremony_root/new-root.json"; fi; \
 release_check_started=1; \
 compose_release_check run --rm release-check; \
 source "$$ceremony_source/tools/release_approval_deploy.sh"; \
-release_approval_require_terminal; \
+if [[ "$$release_operation" != cam ]]; then release_approval_require_terminal; fi; \
 release_approval_require_image; \
 release_phase_overlays=(-f "$$ceremony_source/compose/release/reference.yml"); \
+if [[ "$$release_operation" == cam ]]; then release_phase_overlays+=(-f "$$ceremony_source/compose/release/cam.yml"); fi; \
 approval_prefix="$(1)"; approval_prefix="$${approval_prefix%_RELEASE_OUTPUT_DIR}"; \
 expected_deployer_name="$${approval_prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"; \
 approval_app="$${approval_prefix,,}"; approval_app="$${approval_app//_/-}"; \
@@ -507,11 +511,14 @@ mkdir --mode=0700 -- "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
 if [[ "$$release_operation" == ui ]]; then export UI_RELEASE_CANDIDATE_DIR="$$output_dir/ui-candidate"; fi; \
 if [[ "$$release_operation" == contracts ]]; then export CONTRACT_RELEASE_CANDIDATE_DIR="$$output_dir/contract-candidate"; fi; \
+if [[ "$$release_operation" == cam ]]; then export CAM_RELEASE_CANDIDATE_DIR="$$output_dir/cam-candidate"; fi; \
 release_run_started=1; \
 release_approval_prepare "$$approval_app" "$$expected_deployer" "$$source_commit" "$$chain_id" "$$output_dir"; \
 release_approval_run "$$output_dir"; \
 if [[ "$$release_operation" == ui ]]; then \
   printf 'Verified UI artifact: %s/artifact/ui-deployment.json\n' "$$output_dir"; \
+elif [[ "$$release_operation" == cam ]]; then printf 'Verified CAM artifact: %s/artifact/cam-publication.json\n' "$$output_dir"; \
+elif [[ "$$release_operation" == contracts ]]; then printf 'Verified business artifact: %s/artifact/contract-deployment.json\n' "$$output_dir"; \
 else printf 'Release artifact: %s/artifact/deployment.json\n' "$$output_dir"; fi
 endef
 
@@ -615,10 +622,43 @@ compose_release run --rm --no-deps -T release-cam-bundle; \
 printf 'Prepared CAM bundle: %s/bundle\nBundle artifact: %s/artifact/cam-bundle.json\nHost or pin the bundle before selecting its publication URI. No transaction was sent.\n' "$$output_dir" "$$output_dir"
 endef
 
+define release_cam_publish
+$(LANE_GUARD); \
+$(SOLDEER_DEPS_GUARD); \
+$(PACKAGE_DEPS_GUARD); \
+$(call release_require_clean_source,CAM publication); \
+$(release_host_guard_functions); \
+$(release_config_compose); \
+if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM publication requires CONFIG identifying its chain, current root signer, URI and output.' >&2; exit 2; fi; \
+load_release_config $(patsubst %/release/cam/publish,%,$@) cam-publish "$${OUTPUT_DIR-}"; \
+if [[ ! -v CAM_BUNDLE || -z "$$CAM_BUNDLE" ]]; then printf '%s\n' 'Set CAM_BUNDLE to a prepared CAM bundle record directory.' >&2; exit 2; fi; \
+reject_release_path_symlinks "$$CAM_BUNDLE" CAM_BUNDLE; \
+require_release_file "$$CAM_BUNDLE/artifact/cam-bundle.json" 'Prepared CAM bundle artifact'; \
+export CAM_RELEASE_PREPARED_DIR="$$CAM_BUNDLE"; \
+if [[ "$${ROOT-}" == new && -z "$${ROOT_ARTIFACT-}" ]]; then export CAM_RELEASE_ROOT=new; \
+elif [[ -n "$${ROOT_ARTIFACT-}" && -z "$${ROOT-}" ]]; then require_release_file "$$ROOT_ARTIFACT" ROOT_ARTIFACT; export CAM_RELEASE_ROOT=existing CAM_RELEASE_ROOT_ARTIFACT_FILE="$$ROOT_ARTIFACT"; \
+else printf '%s\n' 'Choose ROOT=new or ROOT_ARTIFACT identifying an existing root.' >&2; exit 2; fi; \
+chain_id="$$CAM_RELEASE_EXPECTED_CHAIN_ID"; require_release_rpc_input; \
+require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$$DEPLOYER_PRIVATE_KEY_FILE"; \
+output_dir="$$CAM_RELEASE_OUTPUT_DIR"; validate_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
+compose_release() { $(call release_deploy_compose,$(CAM_RELEASE_DEPLOY_COMPOSE_FILES)); }; \
+compose_release_check() { \
+  if [[ "$$1" == run ]]; then set -- run -e RELEASE_TOOL_DIR=tools/cam-release "$${@:2}"; fi; \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
+    -f "$$ceremony_source/compose/release/check.yml" -f "$$ceremony_root/images-check.yml" "$$@"; \
+}; \
+$(call release_deploy_execution,CAM_RELEASE_OUTPUT_DIR,$(patsubst %/release/cam/publish,%,$@),CAM_RELEASE_SIGNER_ADDRESS,cam)
+endef
+
 define release_independent_artifact
 $(LANE_GUARD); \
 $(SOLDEER_DEPS_GUARD); \
 $(release_host_guard_functions); \
+if [[ "$(2)" == cam ]]; then \
+  require_release_file "$${CAM_BUNDLE:?Set CAM_BUNDLE}/artifact/cam-bundle.json" 'Prepared CAM bundle artifact'; \
+  export CAM_RELEASE_PREPARED_DIR="$$CAM_BUNDLE"; \
+fi; \
 tool_source_commit="$$(git rev-parse HEAD)"; source_commit="$$tool_source_commit"; \
 $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' '$(3) artifact completion requires CONFIG for read-only RPC access; no signing key is used.' >&2; exit 2; fi; \
@@ -1069,6 +1109,14 @@ help:
 	  '  make bike-nft/release/cam/bundle CONFIG=/absolute/readonly.json CONTRACT_ARTIFACT=/absolute/core.json UI_ARTIFACT=/absolute/ui.json ROOT=new [OUTPUT_DIR=/absolute/new-directory]' \
 	  '  make escrow/release/cam/bundle CONFIG=... CONTRACT_ARTIFACT=... UI_ARTIFACT=... ROOT=new' \
 	  '  make pay-to-play/release/cam/bundle CONFIG=... CONTRACT_ARTIFACT=... UI_ARTIFACT=... ROOT=new' \
+	  '  make bike-nft/release/cam/publish CONFIG=... CAM_BUNDLE=/absolute/prepared ROOT=new [OUTPUT_DIR=/absolute/new-records]' \
+	  '  make escrow/release/cam/publish CONFIG=... CAM_BUNDLE=... ROOT=new' \
+	  '  make pay-to-play/release/cam/publish CONFIG=... CAM_BUNDLE=... ROOT=new' \
+	  '    Publish verified component bindings and the chosen hosted URI/hash; existing roots use ROOT_ARTIFACT=latest-evidence instead of ROOT=new.' \
+	  '  make bike-nft/release/cam/artifact CONFIG=readonly.json CAM_RECORDS=/absolute/records CAM_BUNDLE=/absolute/prepared' \
+	  '  make escrow/release/cam/artifact CONFIG=... CAM_RECORDS=... CAM_BUNDLE=...' \
+	  '  make pay-to-play/release/cam/artifact CONFIG=... CAM_RECORDS=... CAM_BUNDLE=...' \
+	  '    Complete retained CAM records without a signing key or repeated root/component creation.' \
 	  '    Export a coherent bundle and original source/compiler evidence before hosting chooses a URI or CID; sends no transactions.' \
 	  '    Use ROOT_ARTIFACT=/absolute/latest-publication.json instead of ROOT=new for an existing root.' \
 	  '  make bike-nft/release/contracts/artifact CONFIG=/absolute/private/read-only.json CONTRACT_RECORDS=/absolute/records' \
@@ -2490,3 +2538,10 @@ pay-to-play/local/recovery/run:
 .PHONY: bike-nft/release/cam/bundle escrow/release/cam/bundle pay-to-play/release/cam/bundle
 bike-nft/release/cam/bundle escrow/release/cam/bundle pay-to-play/release/cam/bundle:
 	@$(release_cam_bundle)
+
+.PHONY: bike-nft/release/cam/publish escrow/release/cam/publish pay-to-play/release/cam/publish
+bike-nft/release/cam/publish escrow/release/cam/publish pay-to-play/release/cam/publish:
+	@$(release_cam_publish)
+.PHONY: bike-nft/release/cam/artifact escrow/release/cam/artifact pay-to-play/release/cam/artifact
+bike-nft/release/cam/artifact escrow/release/cam/artifact pay-to-play/release/cam/artifact:
+	@$(call release_independent_artifact,CAM_RECORDS,cam,CAM,cam,$(CAM_RELEASE_ARTIFACT_COMPOSE_FILES))
