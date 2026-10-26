@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+import { assertStableLayout } from './layout-stability.mjs'
 
 export async function checkViewerConnection({ call, evaluate, viewerURL }) {
   async function wait(expression) {
@@ -80,7 +81,21 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     assert(await evaluate(`${button}.disabled`), 'even a manifest-exposed transaction is unavailable in public mode')
     await wait(`!!document.querySelector('[aria-label="RPC connection checked"]')`)
     assert(await evaluate(`!document.querySelector('#rpc-apply')&&!document.querySelector('#rpc-help')&&!document.querySelector('.rpc-connection').textContent.includes('In use:')`), 'live RPC controls have no apply button or redundant status prose')
-    await evaluate(`(() => { const draft=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(draft,'keep this draft');draft.dispatchEvent(new Event('input',{bubbles:true}));connectionFixture.state.holdCandidate=true })()`)
+    await evaluate(`(() => { const draft=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(draft,'keep this draft');draft.dispatchEvent(new Event('input',{bubbles:true})) })()`)
+    for (const width of [1280, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      await evaluate('connectionFixture.state.holdPublicRead=true')
+      const beforeRefresh = await evaluate('connectionFixture.state.subjects.length')
+      await assertStableLayout(evaluate, { connection: '.connection', view: '.ui', draft: 'input[name=draft]' }, async () => {
+        await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent==='Refresh').click()`)
+        await wait(`connectionFixture.state.subjects.length>${beforeRefresh}&&document.querySelector('input[name=draft]').disabled`)
+      }, `${width}px view refresh pending`)
+      await evaluate('connectionFixture.releasePublicReads()')
+      await wait(`!document.querySelector('input[name=draft]').disabled`)
+      assert.equal(await evaluate(`document.querySelector('input[name=draft]').value`), 'keep this draft', 'refresh preserves the current draft')
+    }
+    await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+    await evaluate('connectionFixture.state.holdCandidate=true')
     await editRPC('https://candidate.fixture.test')
     await wait('connectionFixture.state.candidateStarted')
     assert(await evaluate(`!document.querySelector('#rpc-endpoint-url').disabled&&!document.querySelector('#rpc-endpoint-choice').disabled&&!document.querySelector('[aria-label="RPC connection checked"]')`), 'checking keeps controls editable and never acknowledges an unchecked endpoint')
