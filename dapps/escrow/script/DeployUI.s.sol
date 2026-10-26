@@ -1,23 +1,23 @@
 pragma solidity 0.8.35;
 
 import {UIReleaseScript} from "cam/script/UIReleaseScript.sol";
-import {BicycleComponentManagerUI} from "../src/BicycleComponentManagerUI.sol";
-import {BikeNftUIDeployment} from "./BikeNftUIDeployment.sol";
+import {CamEscrowUI} from "../src/CamEscrowUI.sol";
+import {EscrowDeployment} from "./EscrowDeployment.sol";
 
-contract DeployBikeNftUI is UIReleaseScript, BikeNftUIDeployment {
+contract DeployUI is UIReleaseScript, EscrowDeployment {
     function _uiApp() internal pure override returns (string memory) {
-        return "bike-nft";
+        return "escrow";
     }
 
     function _deployUI(address backing) internal override returns (address) {
-        return address(deployBikeNftUI(backing));
+        return address(deployEscrowUI(backing));
     }
 
     function _uiSourceCodeHash(address backing) internal override returns (bytes32) {
-        return bikeNftUISourceCodeHash(backing);
+        return escrowUISourceCodeHash(backing);
     }
 
     function _uiBacking(address ui) internal view override returns (address) {
-        return address(BicycleComponentManagerUI(payable(ui)).manager());
+        return address(CamEscrowUI(payable(ui)).escrow());
     }
 }

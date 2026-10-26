@@ -27,7 +27,7 @@ release_config_teardown() {
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
     rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" \
-      "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" || return "$?"
+      "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" "$release_config_dir/ui-source" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
   fi
@@ -120,16 +120,17 @@ release_config_prepare_approval_images() {
 }
 
 load_release_config() {
-  local app="$1" mode="$2" status=0 updated=0 original_digest
+  local app="$1" mode="$2" status=0 updated=0 original_digest update_mode=update ui_output_override="${3-}"
   local -a inputs
   if [[ ! -v CONFIG || -z "$CONFIG" ]]; then return; fi
   require_release_config "$CONFIG"
   release_config_stage "$(dirname -- "$CONFIG")"
   original_digest=$(sha256sum -- "$CONFIG")
   compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit" || status=$?
-  if [[ "$status" == 3 && "$mode" == deploy && -t 0 && -t 1 ]]; then
+  if [[ "$mode" == ui-deploy ]]; then update_mode=update-ui; fi
+  if [[ "$status" == 3 && ( "$mode" == deploy || "$mode" == ui-deploy ) && -t 0 && -t 1 ]]; then
     release_config_prepare_approval_images
-    compose_release_config run --rm --no-deps -it release-config update "$app" "$source_commit"
+    compose_release_config run --rm --no-deps -it release-config "$update_mode" "$app" "$source_commit"
     release_config_input="$release_config_dir/release.json"
     require_release_config "$release_config_input"
     compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit"
@@ -139,10 +140,12 @@ load_release_config() {
   fi
   mapfile -d '' -t inputs < "$release_config_dir/inputs"
   unset RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE RELEASE_REHEARSAL RELEASE_REHEARSAL_NETWORK RELEASE_APPROVAL_IMAGE
+  unset UI_RELEASE_APP UI_RELEASE_SOURCE_COMMIT UI_RELEASE_EXPECTED_CHAIN_ID UI_RELEASE_CREATOR_ADDRESS UI_RELEASE_OUTPUT_DIR
   export "${inputs[@]}"
+  if [[ "$mode" == ui-deploy && -n "$ui_output_override" ]]; then export UI_RELEASE_OUTPUT_DIR="$ui_output_override"; fi
   RPC_URL_FILE="$release_config_dir/rpc-url"
   export RPC_URL_FILE
-  if [[ "$mode" == deploy ]]; then
+  if [[ "$mode" == deploy || "$mode" == ui-deploy ]]; then
     source tools/release_approval_preflight.sh
     release_approval_require_image
     DEPLOYER_PRIVATE_KEY_FILE="$release_config_dir/deployer-key"
@@ -152,6 +155,7 @@ load_release_config() {
     local prefix="${app^^}" output_name
     prefix="${prefix//-/_}"
     output_name="${prefix}_RELEASE_OUTPUT_DIR"
+    if [[ "$mode" == ui-deploy ]]; then output_name=UI_RELEASE_OUTPUT_DIR; fi
     validate_new_release_output "${!output_name}" "$output_name"
     require_release_config "$CONFIG"
     if [[ "$(sha256sum -- "$CONFIG")" != "$original_digest" ]]; then

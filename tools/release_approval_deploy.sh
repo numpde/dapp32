@@ -273,6 +273,27 @@ release_approval_attachment_running() {
   fi
 }
 
+release_materialize_ui() {
+  local output="$1" log
+  UI_RELEASE_CANDIDATE_DIR=$(mktemp -d -- "$output/ui-verification-XXXXXXXX")
+  export UI_RELEASE_CANDIDATE_DIR
+  log="$UI_RELEASE_CANDIDATE_DIR/verification.log"
+  printf 'Verifying the UI deployment without a signing key. Diagnostics: %s\n' "$log"
+  if compose_release run --rm --no-deps -T release-artifact-dependencies > "$log" 2>&1 &&
+      compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T release-artifact >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T release-ui-verify >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T -e UI_RELEASE_PHASE=verify-block release-artifact >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T release-ui-publish >> "$log" 2>&1; then
+    printf 'UI deployment source and backing verified. Artifact: %s/artifact/ui-deployment.json\n' "$output"
+    return 0
+  fi
+  printf 'UI verification did not complete. No transaction was sent by verification. Diagnostics: %s\n' "$log" >&2
+  printf '%s\n' 'Do not repeat deployment to complete this record. Use the keyless artifact command:' >&2
+  printf '  make %q UI_RECORDS=%q CONFIG=%q\n' "$UI_RELEASE_APP/release/ui/artifact" "$output" "$CONFIG" >&2
+  return 1
+}
+
 release_approval_run() {
   local output="$1" gate_id forge_id started state attach_status=0 forge_status="" gate_status=""
   export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never
@@ -358,6 +379,10 @@ release_approval_run() {
   if [[ "$attach_status" != 0 || "$forge_status" != 0 || "$gate_status" != 0 ]]; then
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2
     return 1
+  fi
+  if [[ "${release_operation-deployment}" == ui ]]; then
+    release_materialize_ui "$output"
+    return "$?"
   fi
   if ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy ||
      ! compose_release run --rm --no-deps -T release-artifact; then

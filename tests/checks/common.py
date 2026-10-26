@@ -22,6 +22,12 @@ DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", 
 # prove that omitted operator inputs fail closed. Negative render checks should
 # own that invariant instead of relying on this fixture map.
 RENDERED_COMPOSE_FIXTURE_ENV = {
+    "UI_RELEASE_APP": "escrow",
+    "UI_RELEASE_SOURCE_COMMIT": "a" * 40,
+    "UI_RELEASE_EXPECTED_CHAIN_ID": "31338",
+    "UI_RELEASE_CONTRACT_ARTIFACT_FILE": "/tmp/ui-backing.json",
+    "UI_RELEASE_CANDIDATE_DIR": "/tmp/ui-candidate",
+
     "VIEWER_IMAGE": "sha256:" + "a" * 64,
     "VIEWER_PORT": "8080",
     "VIEWER_BIND_HOST": "127.0.0.1",

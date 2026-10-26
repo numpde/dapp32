@@ -82,3 +82,27 @@ test("backing admission checks creation and current code without consulting wall
     await assert.rejects(verifyUIBacking({ ...client, getChainId: async () => 1 }, selected.backing), /chain/i)
   }
 })
+
+
+test("backing verification rejects a reorg between runtime and observation reads", async () => {
+  const replacementHash = `0x${"77".repeat(32)}` as Hex
+  let reorganized = false
+  const client = {
+    async getChainId() { return 43113 },
+    async getBlockNumber() { return 20n },
+    async getBlock({ blockNumber }: { blockNumber: bigint }) {
+      const hash = reorganized ? replacementHash : blockHash
+      if (blockNumber === 10n) reorganized = true
+      return { hash }
+    },
+    async getCode() { return code },
+    async getTransactionReceipt() {
+      return { status: "success" as const, transactionHash, contractAddress: backing,
+        from: coreCreator, to: null, blockNumber: 10n, blockHash }
+    },
+    async getTransaction() {
+      return { hash: transactionHash, from: coreCreator, to: null, input: "0x6000" as const }
+    },
+  }
+  await assert.rejects(verifyUIBacking(client, plan("escrow").backing), /observation block.*changed/i)
+})

@@ -4,7 +4,7 @@ import {UIReleaseScript} from "cam/script/UIReleaseScript.sol";
 import {PayToPlayUI} from "../src/PayToPlayUI.sol";
 import {PayToPlayUIDeployment} from "./PayToPlayUIDeployment.sol";
 
-contract DeployPayToPlayUI is UIReleaseScript, PayToPlayUIDeployment {
+contract DeployUI is UIReleaseScript, PayToPlayUIDeployment {
     function _uiApp() internal pure override returns (string memory) {
         return "pay-to-play";
     }

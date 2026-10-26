@@ -1,0 +1,28 @@
+# UI creation is independent of CAM publication and business administration.
+services:
+  release-plan:
+    network_mode: !reset null
+    networks: [release_artifact_internal]
+    depends_on:
+      release-artifact-rpc-proxy:
+        condition: service_healthy
+    environment:
+      RELEASE_TOOL_DIR: tools/ui-release
+      UI_RELEASE_APP: "${UI_RELEASE_APP:?missing_UI_RELEASE_APP}"
+      UI_RELEASE_SOURCE_COMMIT: "${UI_RELEASE_SOURCE_COMMIT:?missing_UI_RELEASE_SOURCE_COMMIT}"
+      UI_RELEASE_EXPECTED_CHAIN_ID: "${UI_RELEASE_EXPECTED_CHAIN_ID:?missing_UI_RELEASE_EXPECTED_CHAIN_ID}"
+      UI_RELEASE_CONTRACT_ARTIFACT_PATH: /backing/deployment.json
+      UI_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
+      UI_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+    volumes:
+      - type: bind
+        source: "${UI_RELEASE_CONTRACT_ARTIFACT_FILE:?missing_UI_RELEASE_CONTRACT_ARTIFACT_FILE}"
+        target: /backing/deployment.json
+        read_only: true
+        bind: {create_host_path: false}
+
+  deploy-release:
+    environment:
+      RELEASE_SCRIPT: "${UI_RELEASE_APP:?missing_UI_RELEASE_APP}/script/DeployUI.s.sol"
+      UI_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+

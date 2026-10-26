@@ -37,15 +37,7 @@ export type UIReleasePlan = {
 
 export type UIDeploymentReference = ReleaseReference & { readonly backing: UIBackingReference }
 
-export const UI_SCRIPTS: Record<ReleaseApp, string> = {
-  "bike-nft": "bike-nft/script/DeployBikeNftUI.s.sol",
-  escrow: "escrow/script/DeployEscrowUI.s.sol",
-  "pay-to-play": "pay-to-play/script/DeployPayToPlayUI.s.sol",
-}
-
-export const UI_GETTERS: Record<ReleaseApp, string> = {
-  "bike-nft": "manager", escrow: "escrow", "pay-to-play": "payments",
-}
+export const UI_SCRIPT_NAME = "DeployUI.s.sol"
 
 export function parseUIReleasePlan(bytes: Uint8Array): UIReleasePlan {
   const value = parseJsonRecord(bytes, "UI release plan")
@@ -125,7 +117,7 @@ export async function verifyUIBacking(client: BackingReader, backing: UIBackingR
   creationInputHash: Hex; blockNumber: string; blockHash: Hex
 }> {
   const chainId = await client.getChainId()
-  if (chainId !== backing.chainId) throw new Error(`Cannot deploy UI: RPC chain ${chainId} differs from backing chain ${backing.chainId}`)
+  if (chainId !== backing.chainId) throw new Error(`Cannot verify UI backing ${backing.address}: RPC chain ${chainId} differs from backing chain ${backing.chainId}`)
   const [receipt, transaction, blockNumber] = await Promise.all([
     client.getTransactionReceipt({ hash: backing.creationTransaction }),
     client.getTransaction({ hash: backing.creationTransaction }),
@@ -133,22 +125,26 @@ export async function verifyUIBacking(client: BackingReader, backing: UIBackingR
   ])
   const creation = { address: backing.address, transactionHash: backing.creationTransaction }
   const creator = creationReceiptDeployer(creation, receipt, "UI backing")
-  if (getAddress(creator) !== getAddress(backing.creator)) throw new Error("Cannot deploy UI: the backing creation receipt names a different creator")
+  if (getAddress(creator) !== getAddress(backing.creator)) throw new Error(`Cannot verify UI backing ${backing.address}: creation sender ${creator} differs from recorded creator ${backing.creator}`)
   const creationInputHash = creationTransactionInputHash(creation, transaction, creator, "UI backing")
   if (backing.creationInputHash !== undefined && creationInputHash.toLowerCase() !== backing.creationInputHash.toLowerCase()) {
-    throw new Error("Cannot deploy UI: the backing creation input differs from the selected artifact")
+    throw new Error(`Cannot verify UI backing ${backing.address}: creation input hash ${creationInputHash} differs from recorded hash ${backing.creationInputHash}`)
   }
-  const [code, creationBlock, observedBlock] = await Promise.all([
+  const observedBlock = await client.getBlock({ blockNumber })
+  const [code, creationBlock] = await Promise.all([
     client.getCode({ address: backing.address, blockNumber }),
     client.getBlock({ blockNumber: receipt.blockNumber }),
-    client.getBlock({ blockNumber }),
   ])
-  if (creationBlock.hash !== receipt.blockHash) throw new Error("Cannot deploy UI: the backing creation receipt is no longer in its recorded block")
-  if (code === undefined || code === "0x" || keccak256(code).toLowerCase() !== backing.codeHash.toLowerCase()) {
-    throw new Error("Cannot deploy UI: current backing runtime differs from the selected deployment artifact")
+  if (creationBlock.hash !== receipt.blockHash) throw new Error(`Cannot verify UI backing ${backing.address}: creation receipt block ${receipt.blockHash} differs from canonical block ${creationBlock.hash}`)
+  if (code === undefined || code === "0x") {
+    throw new Error(`Cannot verify UI backing ${backing.address}: no runtime code at block ${blockNumber}`)
+  }
+  const codeHash = keccak256(code)
+  if (codeHash.toLowerCase() !== backing.codeHash.toLowerCase()) {
+    throw new Error(`Cannot verify UI backing ${backing.address}: runtime hash ${codeHash} differs from recorded hash ${backing.codeHash}`)
   }
   if (observedBlock.hash === null || (await client.getBlock({ blockNumber })).hash !== observedBlock.hash) {
-    throw new Error("Cannot deploy UI: the observation block changed during backing verification")
+    throw new Error(`Cannot verify UI backing ${backing.address}: observation block ${blockNumber} changed during verification`)
   }
   return { creationInputHash, blockNumber: blockNumber.toString(), blockHash: observedBlock.hash }
 }

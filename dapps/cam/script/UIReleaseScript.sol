@@ -26,10 +26,6 @@ abstract contract UIReleaseScript is Script {
         string memory blockTag = vm.parseJsonString(candidate, ".verificationBlock.number");
         vm.createSelectFork(vm.envString("UI_RELEASE_RPC_URL"), vm.parseUint(blockTag));
         _requireChain(plan);
-        bytes memory header = vm.rpc("eth_getBlockByNumber", string.concat('["', blockTag, '",false]'));
-        if (vm.parseJsonBytes32(string(header), ".hash") != vm.parseJsonBytes32(candidate, ".verificationBlock.hash")) {
-            revert UIReleaseMismatch("verification block hash");
-        }
         address backing = vm.parseJsonAddress(plan, ".backing.address");
         if (backing.codehash != vm.parseJsonBytes32(plan, ".backing.codeHash")) {
             revert UIReleaseMismatch("backing runtime");

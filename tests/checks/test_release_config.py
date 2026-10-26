@@ -52,6 +52,59 @@ def complete_setup(app, source_commit, output):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_ui_artifact_completion_uses_recorded_source_without_staging_any_signing_inputs(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / "config.json"
+                source.write_text(json.dumps({"schemaVersion": 3, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC}))
+                output = root / "stage"
+                output.mkdir()
+                release_config.unpack(app, "f" * 40, "ui-artifact", source, output)
+                self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
+                plan = root / "plan.json"
+                plan.write_text(json.dumps({"schema": "cam.ui-release-plan.v1", "app": app, "sourceCommit": "b" * 40}))
+                release_config.ui_plan_source(app, plan, output)
+                self.assertEqual("b" * 40, (output / "ui-source").read_text().strip())
+
+    def test_ui_deployment_uses_only_its_own_inputs_and_preserves_business_records(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config = configuration(app)
+                original_output = config["settings"]["OUTPUT_DIR"]
+                config["settings"] = {name: config["settings"][name] for name in
+                                      ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR")}
+                source = root / "config.json"
+                source.write_text(json.dumps(config))
+                output = root / "stage"
+                output.mkdir()
+                with patch.dict("os.environ", {"RELEASE_CONFIG_FILE": str(source)}):
+                    release_config.unpack(app, COMMIT, "ui-deploy", source, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                self.assertEqual(app, inputs["UI_RELEASE_APP"])
+                self.assertEqual(COMMIT, inputs["UI_RELEASE_SOURCE_COMMIT"])
+                self.assertEqual(FIXTURE_DEPLOYER_ADDRESS, inputs["UI_RELEASE_CREATOR_ADDRESS"])
+                self.assertEqual(original_output, inputs["UI_RELEASE_OUTPUT_DIR"])
+                self.assertEqual(FIXTURE_KEY + "\n", (output / "deployer-key").read_text())
+                self.assertEqual(config, json.loads(source.read_text()))
+                self.assertFalse(any("CAM_" in name or "ADMIN" in name for name in inputs))
+
+    def test_ui_deployment_ignores_unrelated_full_release_values(self):
+        config = configuration("bike-nft")
+        config["settings"].update(CAM_URI=None, INTENDED_CAM_ROOT_OWNER=None, REGISTRARS=None)
+        release_config.validate(config, "bike-nft", COMMIT, purpose="ui")
+        with self.assertRaises(ValueError):
+            release_config.validate(config, "bike-nft", COMMIT)
+
+    def test_ui_deployment_local_creator_can_differ_from_the_business_fixture_creator(self):
+        config = configuration("pay-to-play")
+        config["localNetwork"] = "fixture-private-network"
+        config["rpcUrl"] = release_config.LOCAL_RPC_URL
+        config["settings"] = {"EXPECTED_CHAIN_ID": "31338", "EXPECTED_DEPLOYER_ADDRESS": FIXTURE_DEPLOYER_ADDRESS,
+                              "OUTPUT_DIR": "/tmp/new-ui-deployment"}
+        release_config.validate(config, "pay-to-play", COMMIT, purpose="ui")
+
     def test_artifact_completion_uses_the_saved_source_and_never_stages_signing_inputs(self):
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:

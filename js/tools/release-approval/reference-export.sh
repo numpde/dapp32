@@ -6,17 +6,25 @@ output=${2:?pass an existing empty artifact output directory}
 case "$app" in
   escrow)
     script=escrow/script/DeployEscrowRelease.s.sol
-    contracts='CamRoot CamEscrow CamEscrowUI'
+    ui_contract=CamEscrowUI
+    contracts="CamRoot CamEscrow $ui_contract"
     ;;
   bike-nft)
     script=bike-nft/script/DeployBikeNftRelease.s.sol
-    contracts='CamRoot BicycleComponents BicycleComponentManager BicycleComponentManagerUI'
+    ui_contract=BicycleComponentManagerUI
+    contracts="CamRoot BicycleComponents BicycleComponentManager $ui_contract"
     ;;
   pay-to-play)
     script=pay-to-play/script/DeployPayToPlayRelease.s.sol
-    contracts='CamRoot PayToPlay PayToPlayUI'
+    ui_contract=PayToPlayUI
+    contracts="CamRoot PayToPlay $ui_contract"
     ;;
   *) printf '%s\n' "unknown release app: $app" >&2; exit 2 ;;
+esac
+case "${RELEASE_OPERATION:-deployment}" in
+  deployment) ;;
+  ui) script="$app/script/DeployUI.s.sol"; contracts="$ui_contract" ;;
+  *) printf '%s\n' 'Compiler export must select deployment or ui.' >&2; exit 2 ;;
 esac
 
 if [ ! -d "$output" ] || [ -L "$output" ] || [ -n "$(find "$output" -mindepth 1 -maxdepth 1 -print -quit)" ]; then

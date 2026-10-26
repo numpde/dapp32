@@ -75,6 +75,18 @@ export CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS
 export LOCAL_UID LOCAL_GID ALLOW_UPDATE
 export RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 export CONFIG
+ifneq ($(origin CONTRACT_ARTIFACT),undefined)
+override CONTRACT_ARTIFACT := $(value CONTRACT_ARTIFACT)
+export CONTRACT_ARTIFACT
+endif
+ifneq ($(origin OUTPUT_DIR),undefined)
+override OUTPUT_DIR := $(value OUTPUT_DIR)
+export OUTPUT_DIR
+endif
+ifneq ($(origin UI_RECORDS),undefined)
+override UI_RECORDS := $(value UI_RECORDS)
+export UI_RECORDS
+endif
 export CAM_URI
 export VIEWER_TERMINAL_MOCK
 COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
@@ -138,6 +150,9 @@ PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml
 PAY_TO_PLAY_RELEASE_REFERENCE_COMPOSE_FILES := $(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml
 PAY_TO_PLAY_RELEASE_APPROVAL_COMPOSE_FILES := $(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
 PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/pay-to-play/release/verify.yml
+UI_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/release/ui-artifact.yml
+UI_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml $(UI_RELEASE_ARTIFACT_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/ui.yml
+UI_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/release/ui-check.yml
 export PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD PAY_TO_PLAY_RELEASE_OUTPUT_DIR PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY
 LOCAL_RELEASE_PROJECT := $(COMPOSE_PROJECT_NAME)-release-local
 LOCAL_RELEASE_NETWORK := $(LOCAL_RELEASE_PROJECT)_anvil_internal
@@ -424,7 +439,9 @@ cleanup() { $(release_snapshot_cleanup); }; \
 trap cleanup EXIT; \
 $(release_snapshot_allocate); \
 $(release_snapshot_populate); \
-release_run_owned "$$release_command_grace" bash "$$ceremony_source/tools/release_tool_images.sh" release "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
+release_tool_mode=release; \
+if [[ "$${release_operation-deployment}" == ui ]]; then release_tool_mode=ui; fi; \
+release_run_owned "$$release_command_grace" bash "$$ceremony_source/tools/release_tool_images.sh" "$$release_tool_mode" "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
 release_image_args=(-f "$$ceremony_root/images-$$release_phase.yml"); \
 release_transport_args=(); \
 if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == 1 ]]; then \
@@ -437,6 +454,7 @@ compose_release_dependencies run --rm soldeer-verify
 endef
 
 define release_deploy_execution
+release_operation="$(if $(4),$(4),deployment)"; export RELEASE_OPERATION="$$release_operation"; \
 release_phase=deploy; \
 release_rpc_expected_chain="$$chain_id"; \
 $(release_prepare_snapshot); \
@@ -449,24 +467,104 @@ release_phase_overlays=(-f "$$ceremony_source/compose/release/reference.yml"); \
 approval_prefix="$(1)"; approval_prefix="$${approval_prefix%_RELEASE_OUTPUT_DIR}"; \
 expected_deployer_name="$${approval_prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"; \
 approval_app="$${approval_prefix,,}"; approval_app="$${approval_app//_/-}"; \
+if [[ -n "$(2)" ]]; then approval_app="$(2)"; fi; \
+if [[ -n "$(3)" ]]; then expected_deployer_name="$(3)"; fi; \
 if [[ ! -v $$expected_deployer_name ]]; then printf 'Missing required release input: %s\n' "$$expected_deployer_name" >&2; exit 2; fi; \
 expected_deployer="$${!expected_deployer_name}"; \
 release_approval_require_deployer "$$expected_deployer_name" "$$expected_deployer"; \
 recheck_new_release_output "$$output_dir" "$(1)"; \
 mkdir --mode=0700 -- "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
+if [[ "$$release_operation" == ui ]]; then export UI_RELEASE_CANDIDATE_DIR="$$output_dir/ui-candidate"; fi; \
 release_run_started=1; \
 release_approval_prepare "$$approval_app" "$$expected_deployer" "$$source_commit" "$$chain_id" "$$output_dir"; \
 release_approval_run "$$output_dir"; \
-printf 'Release artifact: %s/artifact/deployment.json\n' "$$output_dir"
+if [[ "$$release_operation" == ui ]]; then \
+  printf 'Verified UI artifact: %s/artifact/ui-deployment.json\n' "$$output_dir"; \
+else printf 'Release artifact: %s/artifact/deployment.json\n' "$$output_dir"; fi
 endef
 
 define release_verify_execution
+release_operation=deployment; \
 release_phase=verify; \
 release_rpc_expected_chain=""; \
 $(release_prepare_snapshot); \
 release_run_started=1; \
 compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release
+endef
+
+define release_ui_deploy
+$(LANE_GUARD); \
+$(SOLDEER_DEPS_GUARD); \
+$(PACKAGE_DEPS_GUARD); \
+$(call release_require_clean_source,independent UI deployment); \
+$(release_host_guard_functions); \
+$(release_config_compose); \
+if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'UI deployment requires CONFIG with its chain, creator, RPC, signing key and output directory.' >&2; exit 2; fi; \
+if [[ ! -v CONTRACT_ARTIFACT || -z "$$CONTRACT_ARTIFACT" ]]; then printf '%s\n' 'Set CONTRACT_ARTIFACT to the backing business deployment artifact.' >&2; exit 2; fi; \
+require_release_file "$$CONTRACT_ARTIFACT" CONTRACT_ARTIFACT; \
+ui_output_override="$${OUTPUT_DIR-}"; \
+load_release_config $(patsubst %/release/ui/deploy,%,$@) ui-deploy "$$ui_output_override"; \
+export UI_RELEASE_CONTRACT_ARTIFACT_FILE="$$CONTRACT_ARTIFACT"; \
+chain_id="$$UI_RELEASE_EXPECTED_CHAIN_ID"; \
+require_release_rpc_input; \
+require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$$DEPLOYER_PRIVATE_KEY_FILE"; \
+output_dir="$$UI_RELEASE_OUTPUT_DIR"; \
+validate_new_release_output "$$output_dir" UI_RELEASE_OUTPUT_DIR; \
+compose_release() { $(call release_deploy_compose,$(UI_RELEASE_DEPLOY_COMPOSE_FILES)); }; \
+compose_release_check() { \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(UI_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; \
+}; \
+$(call release_deploy_execution,UI_RELEASE_OUTPUT_DIR,$(patsubst %/release/ui/deploy,%,$@),UI_RELEASE_CREATOR_ADDRESS,ui)
+endef
+
+define release_ui_artifact
+$(LANE_GUARD); \
+$(SOLDEER_DEPS_GUARD); \
+$(release_host_guard_functions); \
+tool_source_commit="$$(git rev-parse HEAD)"; source_commit="$$tool_source_commit"; \
+$(release_config_compose); \
+if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'UI artifact completion requires CONFIG for read-only RPC access; no signing key is used.' >&2; exit 2; fi; \
+if [[ ! -v UI_RECORDS || -z "$$UI_RECORDS" ]]; then printf '%s\n' 'Set UI_RECORDS to the retained UI deployment directory.' >&2; exit 2; fi; \
+output_dir="$$UI_RECORDS"; \
+if [[ "$$output_dir" != /* || "$$(realpath -ms -- "$$output_dir")" != "$$output_dir" ]]; then printf '%s\n' 'UI_RECORDS must be a normalized absolute directory path.' >&2; exit 2; fi; \
+reject_release_path_symlinks "$$output_dir" UI_RECORDS; \
+case "$$output_dir" in "$(CURDIR)"|"$(CURDIR)"/*) printf '%s\n' 'UI_RECORDS must be outside the checkout.' >&2; exit 2 ;; esac; \
+for path in "$$output_dir" "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; do \
+  reject_release_path_symlinks "$$path" 'UI deployment records'; \
+  if [[ ! -d "$$path" ]]; then printf 'Missing UI deployment records directory: %s\n' "$$path" >&2; exit 2; fi; \
+done; \
+load_release_config $(patsubst %/release/ui/artifact,%,$@) ui-artifact; \
+release_config_input="$$output_dir/plan/release-plan.json"; \
+require_release_file "$$release_config_input" 'Saved UI plan'; \
+compose_release_config run --rm --no-deps -T release-config ui-plan-source $(patsubst %/release/ui/artifact,%,$@) "$$tool_source_commit"; \
+unset release_config_input; \
+source_commit="$$(< "$$release_config_dir/ui-source")"; \
+artifact_node_modules="$$RELEASE_ARTIFACT_NODE_MODULES_DIR"; \
+if [[ "$$artifact_node_modules" != /* || "$$(realpath -ms -- "$$artifact_node_modules")" != "$$artifact_node_modules" ]]; then printf '%s\n' 'RELEASE_ARTIFACT_NODE_MODULES_DIR must be a normalized absolute directory path.' >&2; exit 2; fi; \
+reject_release_path_symlinks "$$artifact_node_modules" RELEASE_ARTIFACT_NODE_MODULES_DIR; \
+if [[ ! -d "$$artifact_node_modules" ]]; then printf '%s\n' 'RELEASE_ARTIFACT_NODE_MODULES_DIR must be an installed dependency directory matching the saved UI source.' >&2; exit 2; fi; \
+$(release_snapshot_dependency_compose); \
+ceremony_root=""; release_rpc_started=0; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
+cleanup() { $(release_snapshot_cleanup); }; trap cleanup EXIT; \
+$(release_snapshot_allocate); \
+$(release_snapshot_archive); \
+cp -a -- "$(DEPENDENCIES_DIR)" "$$ceremony_source/$(DEPENDENCIES_DIR)"; \
+cp -a -- "$$artifact_node_modules" "$$ceremony_source/js/node_modules"; \
+release_run_owned 15 bash tools/release_tool_images.sh ui-artifact "$(CURDIR)" "$$source_commit" "$$tool_source_commit" "$$ceremony_root"; \
+release_dependencies_started=1; \
+compose_release_dependencies run --rm soldeer-verify; \
+release_transport_args=(); \
+if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then require_release_local_network; release_transport_args=(-f "$(COMPOSE_DIR)/release/rehearsal-artifact.yml"); fi; \
+compose_release() { \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+    RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" RPC_URL_FILE="$$RPC_URL_FILE" \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(UI_RELEASE_ARTIFACT_COMPOSE_FILES) "$${release_transport_args[@]}" -f "$$ceremony_root/images-artifact.yml" "$$@"; \
+}; \
+source "$$ceremony_source/tools/release_approval_deploy.sh"; \
+release_run_started=1; \
+release_materialize_ui "$$output_dir"
 endef
 
 define release_deploy_admission
@@ -861,6 +959,20 @@ help:
 	  '    Uses current js/node_modules by default; its installed dependencies must match the saved source commit.' \
 	  '    For older records, run make js/deps/install in a separate checkout at that commit, then set' \
 	  '    RELEASE_ARTIFACT_NODE_MODULES_DIR=/absolute/matching-checkout/js/node_modules on the artifact command.' \
+	  '  make bike-nft/release/ui/deploy CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/contracts.json' \
+	  '  make escrow/release/ui/deploy CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/contracts.json' \
+	  '  make pay-to-play/release/ui/deploy CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/contracts.json' \
+	  '    Deploy and verify only the read-only UI for an existing business deployment. CAM publication is separate.' \
+	  '    Accepts a native business artifact or the original complete deployment.json; the original stays unchanged.' \
+	  '    UI CONFIG needs source, RPC, key, approval image, chain, creator and OUTPUT_DIR; business/root settings are unused.' \
+	  '    OUTPUT_DIR=/absolute/new-directory overrides the saved destination. Keep the chosen directory after failure.' \
+	  '    Repeating deployment with the same output is refused. Complete a created UI record with the keyless commands:' \
+	  '  make bike-nft/release/ui/artifact CONFIG=/absolute/private/ui.json UI_RECORDS=/absolute/ui-deployment' \
+	  '  make escrow/release/ui/artifact CONFIG=/absolute/private/ui.json UI_RECORDS=/absolute/ui-deployment' \
+	  '  make pay-to-play/release/ui/artifact CONFIG=/absolute/private/ui.json UI_RECORDS=/absolute/ui-deployment' \
+	  '    Uses the saved UI plan and creation transaction; verifies source/runtime/backing without sending transactions.' \
+	  '    Read-only CONFIG may omit the signing key and approval image. Existing final records are never overwritten.' \
+	  '  make release/ui/check            Typecheck and test the shared UI deployment tools for all three apps.' \
 	  '    Walk through every input and save one ready-to-deploy configuration for bike-nft, escrow or pay-to-play.' \
 	  '    Choose public for an HTTPS RPC, or local for the running network/local/up infrastructure.' \
 	  '    Local setup saves its Docker network, exact RPC/CAM URLs and a funded public test key.' \
@@ -1120,7 +1232,7 @@ js/compiler/qualify:
 js/tests:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/release/check pay-to-play/refunds/check
+js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/release/check release/ui/check pay-to-play/refunds/check
 
 cam/conformance/check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
@@ -1209,6 +1321,13 @@ bike-nft/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T release-check
+
+.PHONY: release/ui/check
+release/ui/check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)-ui-release-check" \
+	  $(DOCKER_COMPOSE) $(UI_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T release-check
 
 viewer/terminal/mock/up:
 	@$(LANE_GUARD); \
@@ -1994,6 +2113,14 @@ bike-nft/release/verify:
 	@$(call release_verify,BIKE_NFT,bike-nft,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES),Bike NFT)
 
 .PHONY: pay-to-play/release/check pay-to-play/release/deploy pay-to-play/release/verify
+.PHONY: bike-nft/release/ui/deploy escrow/release/ui/deploy pay-to-play/release/ui/deploy
+.PHONY: bike-nft/release/ui/artifact escrow/release/ui/artifact pay-to-play/release/ui/artifact
+bike-nft/release/ui/deploy escrow/release/ui/deploy pay-to-play/release/ui/deploy:
+	@$(release_ui_deploy)
+
+bike-nft/release/ui/artifact escrow/release/ui/artifact pay-to-play/release/ui/artifact:
+	@$(release_ui_artifact)
+
 pay-to-play/release/deploy:
 	@$(call release_deploy_admission,pay-to-play,Pay-to-Play); \
 	if [[ ! -v CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY || "$$CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY" != "YES" ]]; then \

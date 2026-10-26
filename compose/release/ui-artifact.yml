@@ -1,0 +1,106 @@
+# Keyless observation, source verification and exclusive UI artifact publication.
+services:
+  release-artifact-rpc-proxy:
+    depends_on: !reset []
+    environment:
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBlockByHash
+        eth_getBalance eth_gasPrice eth_getTransactionCount eth_getStorageAt
+        eth_call eth_getCode eth_getTransactionReceipt eth_getTransactionByHash
+
+  release-artifact:
+    environment:
+      RELEASE_TOOL_DIR: tools/ui-release
+      UI_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      UI_RELEASE_REFERENCE_PATH: /reference/reference.json
+      UI_RELEASE_BROADCAST_DIR: /release-broadcast
+      UI_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
+      UI_RELEASE_CANDIDATE_PATH: /ui-candidate/ui-deployment.json
+    volumes: !override
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/broadcast"
+        target: /release-broadcast
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/approval-reference"
+        target: /reference
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${UI_RELEASE_CANDIDATE_DIR:?missing_UI_RELEASE_CANDIDATE_DIR}"
+        target: /ui-candidate
+        bind: {create_host_path: false}
+
+  release-ui-verify:
+    extends:
+      file: ../forge.yml
+      service: forge-test
+    cpus: 1
+    memswap_limit: 1g
+    network_mode: !reset null
+    networks: [release_artifact_internal]
+    environment:
+      UI_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      UI_RELEASE_CANDIDATE_PATH: /ui-candidate/ui-deployment.json
+      UI_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
+      RELEASE_SCRIPT: "${UI_RELEASE_APP:?missing_UI_RELEASE_APP}/script/DeployUI.s.sol"
+    volumes: !override
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/dapps:/work/dapps:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${UI_RELEASE_CANDIDATE_DIR:?missing_UI_RELEASE_CANDIDATE_DIR}"
+        target: /ui-candidate
+        read_only: true
+        bind: {create_host_path: false}
+    command: [bash, -lc, 'exec forge script --offline "$${RELEASE_SCRIPT}" --sig "verify()" --skip test -vvv']
+
+  release-ui-publish:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work
+    init: true
+    cpus: 1
+    memswap_limit: 1g
+    environment:
+      UI_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      UI_RELEASE_CANDIDATE_PATH: /ui-candidate/ui-deployment.json
+      UI_RELEASE_ARTIFACT_PATH: /ui-artifact/ui-deployment.json
+    volumes:
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${UI_RELEASE_CANDIDATE_DIR:?missing_UI_RELEASE_CANDIDATE_DIR}"
+        target: /ui-candidate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/artifact"
+        target: /ui-artifact
+        bind: {create_host_path: false}
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:packages
+        ./node_modules/.bin/tsc -p tools/ui-release/tsconfig.json
+        node --experimental-strip-types tools/ui-release/publish.ts

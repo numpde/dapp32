@@ -989,12 +989,13 @@ printf 'fixture input\\n' > "$release_config_dir/rpc-url"
                     self.assertIn("retained mounted inputs", stderr)
 
     def test_config_update_is_interactive_and_published_only_after_host_admission(self) -> None:
-        for outcome in ("update", "cancel", "bad-image", "bad-output", "changed", "noninteractive", "verify"):
+        for outcome in ("update", "cancel", "bad-image", "bad-output", "changed", "noninteractive", "verify", "ui-override"):
             with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 config = root / "config.json"
                 config.write_text("original")
                 config.chmod(0o600)
+                (root / "old-output").mkdir()
                 env = self.environment(root, root)
                 env.update(CONFIG=str(config), OUTCOME=outcome)
                 script = f'source {shlex.quote(str(CONFIG))}\n' + r'''
@@ -1006,17 +1007,24 @@ validate_new_release_output() { [[ "$OUTCOME" != bad-output && "$1" == "$CASE_RO
 docker() { [[ "$OUTCOME" != bad-image ]] || return 1; printf '%s\n' "$5"; }
 compose_release_config() {
   printf '%s\n' "$*" >> "$CASE_ROOT/events"
-  if [[ " $* " == *" release-config update "* ]]; then
+  if [[ " $* " == *" release-config update "* || " $* " == *" release-config update-ui "* ]]; then
     [[ "$OUTCOME" != cancel ]] || return 2
     printf updated > "$release_config_dir/release.json"
     if [[ "$OUTCOME" == changed ]]; then printf concurrent-edit > "$CONFIG"; fi
   elif [[ -v release_config_input ]]; then
-    printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0ESCROW_RELEASE_OUTPUT_DIR=%s/new-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
+    if [[ "$OUTCOME" == ui-override ]]; then
+      printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0UI_RELEASE_OUTPUT_DIR=%s/old-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
+    else
+      printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0ESCROW_RELEASE_OUTPUT_DIR=%s/new-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
+    fi
   else return 3; fi
 }
 mode=deploy
 if [[ "$OUTCOME" == verify ]]; then mode=verify; fi
-load_release_config escrow "$mode"
+if [[ "$OUTCOME" == ui-override ]]; then
+  load_release_config escrow ui-deploy "$CASE_ROOT/new-output"
+  [[ "$UI_RELEASE_OUTPUT_DIR" == "$CASE_ROOT/new-output" ]]
+else load_release_config escrow "$mode"; fi
 '''
                 master, slave = pty.openpty()
                 try:
@@ -1027,8 +1035,8 @@ load_release_config escrow "$mode"
                         stdout=slave, stderr=slave,
                     )
                     process.wait(timeout=10)
-                    self.assertEqual(outcome == "update", process.returncode == 0)
-                    expected = "updated" if outcome == "update" else "concurrent-edit" if outcome == "changed" else "original"
+                    self.assertEqual(outcome in ("update", "ui-override"), process.returncode == 0)
+                    expected = "updated" if outcome in ("update", "ui-override") else "concurrent-edit" if outcome == "changed" else "original"
                     self.assertEqual(expected, config.read_text())
                     events = (root / "events").read_text()
                     self.assertEqual(outcome not in ("verify", "noninteractive"), "release-config update" in events)
