@@ -20,6 +20,37 @@ class CamManifestResourceTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_published_read_routes_share_one_stable_application_frame(self) -> None:
+        failures = self.validator.collect_manifest_failures(self.validator.validate_application_frame)
+        self.assertEqual(failures, [])
+
+    def test_application_frame_is_one_owner_not_matching_captions(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "main.json"
+            ui_path = manifest_path.parent / "views.json"
+            frame = {"element": "Screen", "props": {"title": "Fixture app"}, "children": [
+                {"element": "Include", "call": {"namespace": "ui", "function": "$screen", "args": {}}}
+            ]}
+            document = {"nodes": {"first": frame, "second": frame}}
+            ui_path.write_text(json.dumps(document), encoding="utf-8")
+            manifest = {"namespaces": {"ui": {"type": "ui", "uri": "./views.json"}}, "routes": {
+                "entry": {"kind": "read", "then": {"namespace": "ui", "function": "first"}},
+                "task": {"kind": "read", "then": {"namespace": "ui", "function": "first"}},
+            }}
+            self.assertEqual(self.validator.validate_application_frame(manifest_path, manifest), [])
+            manifest["routes"]["task"]["then"]["function"] = "second"
+            self.assertTrue(self.validator.validate_application_frame(manifest_path, manifest))
+            manifest["routes"]["task"]["then"]["function"] = "first"
+            for title in ("", "  ", "$view.title"):
+                with self.subTest(title=title):
+                    frame["props"]["title"] = title
+                    ui_path.write_text(json.dumps(document), encoding="utf-8")
+                    self.assertTrue(self.validator.validate_application_frame(manifest_path, manifest))
+            frame["props"]["title"] = "Fixture app"
+            frame["element"] = "Include"
+            ui_path.write_text(json.dumps(document), encoding="utf-8")
+            self.assertTrue(self.validator.validate_application_frame(manifest_path, manifest))
+
     def test_contract_namespace_extraction_rejects_unsupported_namespaces(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"

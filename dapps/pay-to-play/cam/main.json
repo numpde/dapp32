@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x39d1054cd3ad03f168b233de3deb2349fbb790c7d6bb9f7d3ec16128cfa9af52"
+      "integrity": "sha256:0x9b8f596a6564711a4ce7c02383ef9df235b8c9b0646c2d076ac9e31e59355be6"
     }
   },
   "routes": {
@@ -35,13 +35,16 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "chooseBalance",
+        "function": "app",
         "args": {
           "view": {
-            "customer": "$outputs.0.customer",
-            "channelId": "0",
-            "channelCount": "$outputs.0.channelCount",
-            "actions": "$outputs.0.actions"
+            "screen": "chooseBalance",
+            "task": {
+              "customer": "$outputs.0.customer",
+              "channelId": "0",
+              "channelCount": "$outputs.0.channelCount",
+              "actions": "$outputs.0.actions"
+            }
           }
         }
       }
@@ -63,9 +66,12 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "position",
+        "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "position",
+            "task": "$outputs.0"
+          }
         }
       }
     },
@@ -305,15 +311,18 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "voucher",
+        "function": "app",
         "args": {
           "view": {
-            "digest": "$outputs.0",
-            "customer": "$inputs.customer",
-            "channelId": "$inputs.channelId",
-            "cumulativeTotal": "$inputs.cumulativeTotal",
-            "invoiceHash": "$inputs.invoiceHash",
-            "chainId": "$host.chainId"
+            "screen": "voucher",
+            "task": {
+              "digest": "$outputs.0",
+              "customer": "$inputs.customer",
+              "channelId": "$inputs.channelId",
+              "cumulativeTotal": "$inputs.cumulativeTotal",
+              "invoiceHash": "$inputs.invoiceHash",
+              "chainId": "$host.chainId"
+            }
           }
         }
       }
@@ -332,13 +341,16 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "channelLookup",
+        "function": "app",
         "args": {
           "view": {
-            "customer": "$outputs.0.customer",
-            "channelId": "",
-            "channelCount": "$outputs.0.channelCount",
-            "actions": "$outputs.0.actions"
+            "screen": "channelLookup",
+            "task": {
+              "customer": "$outputs.0.customer",
+              "channelId": "",
+              "channelCount": "$outputs.0.channelCount",
+              "actions": "$outputs.0.actions"
+            }
           }
         }
       }
@@ -360,13 +372,16 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "chooseBalance",
+        "function": "app",
         "args": {
           "view": {
-            "customer": "$outputs.0.customer",
-            "channelId": "$inputs.channelId",
-            "channelCount": "$outputs.0.channelCount",
-            "actions": "$outputs.0.actions"
+            "screen": "chooseBalance",
+            "task": {
+              "customer": "$outputs.0.customer",
+              "channelId": "$inputs.channelId",
+              "channelCount": "$outputs.0.channelCount",
+              "actions": "$outputs.0.actions"
+            }
           }
         }
       }
@@ -388,9 +403,12 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "recovery",
+        "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "recovery",
+            "task": "$outputs.0"
+          }
         }
       }
     },

@@ -224,7 +224,7 @@ async function feedback(kind) {
 async function waitFor(predicate, label, failOnViewerError) {
   let lastState
   for (let count = 0; count < 80 && !timeout.aborted; count++) {
-    const state = await evaluate(`(()=>{const body=document.body;const root=document.documentElement;if(body===null||root===null)return null;return {heading:document.querySelector('h1')?.textContent,text:body.innerText,width:root.scrollWidth,viewport:innerWidth};})()`)
+    const state = await evaluate(`(()=>{const body=document.body;const root=document.documentElement;if(body===null||root===null)return null;return {heading:document.querySelector('h1')?.textContent,task:document.querySelector('.elements .ui-section > h2')?.textContent,text:body.innerText,width:root.scrollWidth,viewport:innerWidth};})()`)
     lastState = state
     if (state !== null) {
       if (await predicate(state)) return state
@@ -321,7 +321,7 @@ async function browserCase(name, run) {
 async function freshForm() {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId)
   await openViewer(viewer.href)
-  await waitFor(async state => state.heading === 'Create and fund an escrow agreement' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
+  await waitFor(async state => state.heading === 'Escrow' && state.task === 'Create and fund an escrow agreement' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
 }
 async function openViewer(location) {
   await call('Page.navigate', { url: 'about:blank' }, sessionId)
@@ -337,7 +337,7 @@ try {
   await call('Runtime.enable', {}, sessionId)
   await call('Network.enable', {}, sessionId)
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const ready = await waitFor(state => state.heading === 'Create and fund an escrow agreement', 'Escrow root view', true)
+  const ready = await waitFor(state => state.heading === 'Escrow' && state.task === 'Create and fund an escrow agreement', 'Escrow root view', true)
   assert(ready.text.includes('Agreement reference'), 'Escrow form did not render')
   assert(ready.text.indexOf('Agreement reference') < ready.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'creation task precedes ID navigation')
   const resources = [cam.href, new URL('./ui.json', cam).href, new URL('./abi/CamEscrow.json', cam).href, new URL('./abi/CamEscrowUI.json', cam).href]
@@ -375,7 +375,8 @@ try {
   })
   await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View account credit'))?.click()`)
   const creditView = await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'account credit view', false)
-  assert.equal(creditView.heading, 'Withdraw account credit')
+  assert.equal(creditView.heading, 'Escrow')
+  assert.equal(creditView.task, 'Withdraw account credit')
   assert(creditView.text.indexOf('Withdrawal recipient') < creditView.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'withdrawal task precedes ID navigation')
   await browserCase('empty-credit controls share input boundaries and narrow reflow', async () => {
     for (const width of [1280, 320, 375]) {
@@ -962,7 +963,7 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: cam.href, requestStage: 'Request' }] }, sessionId)
   intercept = 'tamper'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const tampered = await waitFor(state => /File hash mismatch/i.test(state.text) && state.heading === 'Create and fund an escrow agreement', 'CAM hash warning with rendered UI', false)
+  const tampered = await waitFor(state => /File hash mismatch/i.test(state.text) && state.heading === 'Escrow' && state.task === 'Create and fund an escrow agreement', 'CAM hash warning with rendered UI', false)
   assert(/File hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
 
   // A failed fetch must leave Loading and identify the URL and cause.
