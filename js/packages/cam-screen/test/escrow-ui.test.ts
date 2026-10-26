@@ -57,7 +57,9 @@ test("escrow tasks own their screen titles and place ID lookup after the task", 
   ] as const) {
     const { resolvedUi } = resolveInitialUiNode(ui, "app", args(view), CONTEXT)
     assert.equal(resolvedUi.element, "Screen")
-    assert.equal(resolvedUi.props.title, title)
+    assert.equal(resolvedUi.props.title, "Escrow")
+    assert.equal(resolvedUi.children[0]?.element, "Screen")
+    assert.equal(resolvedUi.children[0]?.props.title, title)
     const fields: string[] = []
     forEachResolvedUiNode(resolvedUi, (node) => {
       if ("state" in node) fields.push(node.state.key)

@@ -121,11 +121,36 @@ test("opened balance identity precedes explanatory text and controls", async () 
     else content.push(node)
   }
   visit(opened.resolvedUi)
-  assert.equal(content[0]?.element, "Text", "the balance view label comes first")
-  assert.deepEqual(content.slice(1, 3).map(node => node.element === "Status" ? [node.element, node.props.label, node.props.value] : [node.element]), [
+  assert.equal(opened.resolvedUi.element, "Screen")
+  assert.equal(opened.resolvedUi.props.title, "Pay-to-Play")
+  assert.equal(opened.resolvedUi.children[0]?.element, "Screen")
+  assert.equal(opened.resolvedUi.children[0]?.props.title, "Account balance")
+  assert.deepEqual(content.slice(0, 2).map(node => node.element === "Status" ? [node.element, node.props.label, node.props.value] : [node.element]), [
     ["Status", "Balance owner", customer],
     ["Status", "Channel ID", "1"],
   ], "identify the opened resource before help text or operations")
+})
+
+test("every read destination retains the application heading above its task", async () => {
+  const { session, cam } = await fixture()
+  await session.load()
+  const inputs = { customer, channelId: "1", cumulativeTotal: "20", invoiceHash }
+  const titles: Record<string, string> = {
+    home: "Choose an account and channel",
+    position: "Account balance",
+    voucherDigest: "Voucher signing details",
+    channelLookup: "Find a channel ID",
+    choosePosition: "Choose an account and channel",
+    recovery: "Recovery for this account and channel",
+  }
+  for (const [route, declaration] of Object.entries(cam.routes)) {
+    if (declaration.kind !== "read") continue
+    const opened = await session.navigate(route, Object.fromEntries(declaration.inputs.map(name => [name, inputs[name as keyof typeof inputs]])))
+    assert.equal(opened.resolvedUi.element, "Screen", route)
+    assert.equal(opened.resolvedUi.props.title, "Pay-to-Play", route)
+    assert.equal(opened.resolvedUi.children[0]?.element, "Screen", route)
+    assert.equal(opened.resolvedUi.children[0]?.props.title, titles[route], route)
+  }
 })
 
 test("entry chooses an explicit balance before displaying money or business writes", async () => {
