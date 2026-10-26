@@ -1,0 +1,15 @@
+# Business deployment is independent of CAM publication and UI creation.
+services:
+  release-plan:
+    environment:
+      RELEASE_TOOL_DIR: tools/contract-release
+      CONTRACT_RELEASE_APP: "${CONTRACT_RELEASE_APP:?missing_CONTRACT_RELEASE_APP}"
+      CONTRACT_RELEASE_SOURCE_COMMIT: "${CONTRACT_RELEASE_SOURCE_COMMIT:?missing_CONTRACT_RELEASE_SOURCE_COMMIT}"
+      CONTRACT_RELEASE_EXPECTED_CHAIN_ID: "${CONTRACT_RELEASE_EXPECTED_CHAIN_ID:?missing_CONTRACT_RELEASE_EXPECTED_CHAIN_ID}"
+      CONTRACT_RELEASE_SETTINGS_JSON: "${CONTRACT_RELEASE_SETTINGS_JSON:?missing_CONTRACT_RELEASE_SETTINGS_JSON}"
+      CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+
+  deploy-release:
+    environment:
+      RELEASE_SCRIPT: "${CONTRACT_RELEASE_APP:?missing_CONTRACT_RELEASE_APP}/script/DeployContracts.s.sol"
+      CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json

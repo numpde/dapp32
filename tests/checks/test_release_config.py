@@ -64,7 +64,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
                 plan = root / "plan.json"
                 plan.write_text(json.dumps({"schema": "cam.ui-release-plan.v1", "app": app, "sourceCommit": "b" * 40}))
-                release_config.ui_plan_source(app, plan, output)
+                release_config.independent_plan_source(app, plan, output, "ui")
                 self.assertEqual("b" * 40, (output / "ui-source").read_text().strip())
 
     def test_business_deployment_translates_only_its_own_settings_without_cam_or_ui(self):

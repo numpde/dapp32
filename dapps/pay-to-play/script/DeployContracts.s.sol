@@ -15,14 +15,11 @@ contract DeployContracts is Script, PayToPlayContractDeployment {
         if (keccak256(bytes(vm.parseJsonString(json, ".app"))) != keccak256("pay-to-play")) {
             revert InvalidBusinessPlan("app");
         }
-        uint256 chainId = vm.parseJsonUint(json, ".expectedChainId");
-        if (chainId != block.chainid) {
-            revert InvalidBusinessPlan("expectedChainId");
-        }
     }
 
     function run() external returns (PayToPlay payments) {
         string memory json = _readPlan();
+        if (vm.parseJsonUint(json, ".expectedChainId") != block.chainid) revert InvalidBusinessPlan("expectedChainId");
         address intendedAdmin = vm.parseJsonAddress(json, ".settings.intendedPaymentAdmin");
         uint256 period = vm.parseJsonUint(json, ".settings.nullClaimPeriod");
         if (period > type(uint64).max) revert InvalidBusinessPlan("nullClaimPeriod");
@@ -33,5 +30,28 @@ contract DeployContracts is Script, PayToPlayContractDeployment {
         payments = deployPayToPlayContract(deployer, nullClaimPeriod);
         nominatePayToPlayAdmin(payments, intendedAdmin, deployer);
         vm.stopBroadcast();
+    }
+
+    function verify() external view {
+        string memory json = _readPlan();
+        string memory candidate = vm.readFile(vm.envString("CONTRACT_RELEASE_CANDIDATE_PATH"));
+        if (sha256(bytes(json)) != vm.parseJsonBytes32(candidate, ".planSha256")) {
+            revert InvalidBusinessPlan("plan SHA-256");
+        }
+        address creator = vm.parseJsonAddress(candidate, ".creator");
+        uint256 period = vm.parseJsonUint(json, ".settings.nullClaimPeriod");
+        if (period > type(uint64).max) revert InvalidBusinessPlan("nullClaimPeriod");
+        _verifySource(
+            candidate, "payments", abi.encodePacked(type(PayToPlay).creationCode, abi.encode(creator, uint64(period)))
+        );
+    }
+
+    function _verifySource(string memory candidate, string memory role, bytes memory creation) private pure {
+        if (
+            keccak256(creation)
+                != vm.parseJsonBytes32(candidate, string.concat(".contracts.", role, ".creationInputHash"))
+        ) {
+            revert InvalidBusinessPlan(string.concat(role, " original creation source"));
+        }
     }
 }

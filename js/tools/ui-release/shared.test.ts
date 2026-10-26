@@ -26,7 +26,12 @@ test("native business artifacts supply UI backing without any root or previous U
       address: `0x${"77".repeat(20)}`, creationTransaction: `0x${"88".repeat(32)}` } }
       : app === "escrow" ? { escrow: identity } : { payments: identity }
     const artifact = { schema: "cam.contract-deployment.v1", app, sourceCommit: "b".repeat(40),
-      chainId: 43113, creator: coreCreator, planSha256: `0x${"99".repeat(32)}`, contracts, initializationTransactions: [] }
+      chainId: 43113, creator: coreCreator, planSha256: `0x${"99".repeat(32)}`, contracts, initializationTransactions: [],
+      verificationBlock: { number: "0x10", hash: blockHash },
+      administration: app === "escrow" ? {} : app === "pay-to-play" ? { payments: { owner: coreCreator, pendingOwner: `0x${"00".repeat(20)}` } }
+        : { components: { admin: coreCreator, pendingAdmin: `0x${"00".repeat(20)}`, pendingSchedule: 0 },
+            manager: { admin: coreCreator, pendingAdmin: `0x${"00".repeat(20)}`, pendingSchedule: 0 } },
+    }
     const bytes = new TextEncoder().encode(JSON.stringify(artifact))
     const selected = backingFromDeployment(app, bytes)
     assert.equal(selected.address, backing)

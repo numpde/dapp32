@@ -15,18 +15,32 @@ contract DeployContracts is Script, EscrowContractDeployment {
         if (keccak256(bytes(vm.parseJsonString(json, ".app"))) != keccak256("escrow")) {
             revert InvalidBusinessPlan("app");
         }
-        uint256 chainId = vm.parseJsonUint(json, ".expectedChainId");
-        if (chainId != block.chainid) {
-            revert InvalidBusinessPlan("expectedChainId");
-        }
     }
 
     function run() external returns (CamEscrow escrow) {
         string memory json = _readPlan();
-        if (vm.parseJsonKeys(json, ".settings").length != 0) revert InvalidBusinessPlan("settings");
+        if (vm.parseJsonUint(json, ".expectedChainId") != block.chainid) revert InvalidBusinessPlan("expectedChainId");
         uint256 key = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(key);
         escrow = deployEscrowContract();
         vm.stopBroadcast();
+    }
+
+    function verify() external view {
+        string memory json = _readPlan();
+        string memory candidate = vm.readFile(vm.envString("CONTRACT_RELEASE_CANDIDATE_PATH"));
+        if (sha256(bytes(json)) != vm.parseJsonBytes32(candidate, ".planSha256")) {
+            revert InvalidBusinessPlan("plan SHA-256");
+        }
+        _verifySource(candidate, "escrow", type(CamEscrow).creationCode);
+    }
+
+    function _verifySource(string memory candidate, string memory role, bytes memory creation) private pure {
+        if (
+            keccak256(creation)
+                != vm.parseJsonBytes32(candidate, string.concat(".contracts.", role, ".creationInputHash"))
+        ) {
+            revert InvalidBusinessPlan(string.concat(role, " original creation source"));
+        }
     }
 }

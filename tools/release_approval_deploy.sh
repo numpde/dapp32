@@ -273,25 +273,35 @@ release_approval_attachment_running() {
   fi
 }
 
-release_materialize_ui() {
-  local output="$1" log
-  UI_RELEASE_CANDIDATE_DIR=$(mktemp -d -- "$output/ui-verification-XXXXXXXX")
-  export UI_RELEASE_CANDIDATE_DIR
-  log="$UI_RELEASE_CANDIDATE_DIR/verification.log"
-  printf 'Verifying the UI deployment without a signing key. Diagnostics: %s\n' "$log"
+release_materialize_independent() {
+  local output="$1" operation="$2" prefix="$3" native="$4" label="$5" candidate_dir log
+  local candidate_name="${prefix}_RELEASE_CANDIDATE_DIR" app_name="${prefix}_RELEASE_APP" records_name="${prefix}_RECORDS"
+  candidate_dir=$(mktemp -d -- "$output/$native-verification-XXXXXXXX")
+  printf -v "$candidate_name" '%s' "$candidate_dir"
+  export "$candidate_name"
+  log="$candidate_dir/verification.log"
+  printf 'Verifying the %s deployment without a signing key. Diagnostics: %s\n' "$label" "$log"
   if compose_release run --rm --no-deps -T release-artifact-dependencies > "$log" 2>&1 &&
       compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy >> "$log" 2>&1 &&
       compose_release run --rm --no-deps -T release-artifact >> "$log" 2>&1 &&
-      compose_release run --rm --no-deps -T release-ui-verify >> "$log" 2>&1 &&
-      compose_release run --rm --no-deps -T -e UI_RELEASE_PHASE=verify-block release-artifact >> "$log" 2>&1 &&
-      compose_release run --rm --no-deps -T release-ui-publish >> "$log" 2>&1; then
-    printf 'UI deployment source and backing verified. Artifact: %s/artifact/ui-deployment.json\n' "$output"
+      compose_release run --rm --no-deps -T "release-$native-verify" >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T -e "${prefix}_RELEASE_PHASE=verify-block" release-artifact >> "$log" 2>&1 &&
+      compose_release run --rm --no-deps -T "release-$native-publish" >> "$log" 2>&1; then
+    printf '%s deployment verified. Artifact: %s/artifact/%s-deployment.json\n' "$label" "$output" "$native"
     return 0
   fi
-  printf 'UI verification did not complete. No transaction was sent by verification. Diagnostics: %s\n' "$log" >&2
+  printf '%s verification did not complete. No transaction was sent by verification. Diagnostics: %s\n' "$label" "$log" >&2
   printf '%s\n' 'Do not repeat deployment to complete this record. Use the keyless artifact command:' >&2
-  printf '  make %q UI_RECORDS=%q CONFIG=%q\n' "$UI_RELEASE_APP/release/ui/artifact" "$output" "$CONFIG" >&2
+  printf '  make %q %q=%q CONFIG=%q\n' "${!app_name}/release/$operation/artifact" "$records_name" "$output" "$CONFIG" >&2
   return 1
+}
+
+release_materialize_contracts() {
+  release_materialize_independent "$1" contracts CONTRACT contract Business
+}
+
+release_materialize_ui() {
+  release_materialize_independent "$1" ui UI ui UI
 }
 
 release_approval_run() {
@@ -379,6 +389,10 @@ release_approval_run() {
   if [[ "$attach_status" != 0 || "$forge_status" != 0 || "$gate_status" != 0 ]]; then
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2
     return 1
+  fi
+  if [[ "${release_operation-deployment}" == contracts ]]; then
+    release_materialize_contracts "$output"
+    return
   fi
   if [[ "${release_operation-deployment}" == ui ]]; then
     release_materialize_ui "$output"

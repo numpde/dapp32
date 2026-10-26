@@ -534,18 +534,18 @@ def check_artifact_plan_source(source_commit, source):
         raise ValueError("The deployment plan and configuration pin different source commits; use the original release configuration.")
 
 
-def ui_plan_source(app, source, output):
-    plan = read_json_file(source, "UI deployment plan")
-    if (not isinstance(plan, dict) or plan.get("schema") != "cam.ui-release-plan.v1"
+def independent_plan_source(app, source, output, operation):
+    plan = read_json_file(source, "independent deployment plan")
+    if (not isinstance(plan, dict) or plan.get("schema") != f"cam.{operation}-release-plan.v1"
             or plan.get("app") != app or not isinstance(plan.get("sourceCommit"), str)
             or not re.fullmatch(r"[0-9a-f]{40}", plan["sourceCommit"])):
-        raise ValueError("UI artifact completion requires that app's saved UI deployment plan and source commit.")
-    write_private(output / "ui-source", (plan["sourceCommit"] + "\n").encode())
+        raise ValueError("Artifact completion requires that app's saved deployment plan and exact source commit.")
+    write_private(output / f"{operation}-source", (plan["sourceCommit"] + "\n").encode())
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "update", "update-ui", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan"))
+    parser.add_argument("mode", choices=("network", "setup", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
@@ -556,13 +556,14 @@ def main():
             prepare_network(args.app, args.source_commit, Path("/out"))
         elif args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))
-        elif args.mode in ("update", "update-ui"):
+        elif args.mode in ("update", "update-ui", "update-contracts"):
             update_source(args.app, args.source_commit, Path("/run/release.json"), Path("/out"),
-                          purpose="ui" if args.mode == "update-ui" else "deployment")
+                          purpose="ui" if args.mode == "update-ui" else "contracts" if args.mode == "update-contracts" else "deployment")
         elif args.mode == "artifact-plan":
             check_artifact_plan_source(args.source_commit, Path("/run/release.json"))
-        elif args.mode == "ui-plan-source":
-            ui_plan_source(args.app, Path("/run/release.json"), Path("/out"))
+        elif args.mode in ("ui-plan-source", "contracts-plan-source"):
+            independent_plan_source(args.app, Path("/run/release.json"), Path("/out"),
+                                    "ui" if args.mode == "ui-plan-source" else "contract")
         else:
             unpack(args.app, args.source_commit, args.mode, Path("/run/release.json"), Path("/out"))
     except SourceCommitMismatch as error:

@@ -1,0 +1,108 @@
+# Keyless observation, offline original-source verification and exclusive business artifact publication.
+services:
+  release-artifact-rpc-proxy:
+    depends_on: !reset []
+    environment:
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_call eth_getCode
+        eth_getTransactionReceipt eth_getTransactionByHash
+
+  release-artifact:
+    environment:
+      RELEASE_TOOL_DIR: tools/contract-release
+      CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      CONTRACT_RELEASE_REFERENCE_PATH: /reference/reference.json
+      CONTRACT_RELEASE_BROADCAST_DIR: /release-broadcast
+      CONTRACT_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
+      CONTRACT_RELEASE_CANDIDATE_PATH: /contract-candidate/contract-deployment.json
+      CONTRACT_RELEASE_ARTIFACT_PATH: /contract-artifact/contract-deployment.json
+    volumes: !override
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/broadcast"
+        target: /release-broadcast
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/approval-reference"
+        target: /reference
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CONTRACT_RELEASE_CANDIDATE_DIR:?missing_CONTRACT_RELEASE_CANDIDATE_DIR}"
+        target: /contract-candidate
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/artifact"
+        target: /contract-artifact
+        read_only: true
+        bind: {create_host_path: false}
+
+  release-contract-verify:
+    extends:
+      file: ../forge.yml
+      service: forge-test
+    cpus: 1
+    memswap_limit: 1g
+    environment:
+      CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      CONTRACT_RELEASE_CANDIDATE_PATH: /contract-candidate/contract-deployment.json
+      RELEASE_SCRIPT: "${CONTRACT_RELEASE_APP:?missing_CONTRACT_RELEASE_APP}/script/DeployContracts.s.sol"
+    volumes: !override
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/dapps:/work/dapps:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CONTRACT_RELEASE_CANDIDATE_DIR:?missing_CONTRACT_RELEASE_CANDIDATE_DIR}"
+        target: /contract-candidate
+        read_only: true
+        bind: {create_host_path: false}
+    command: [bash, -lc, 'exec forge script --offline "$${RELEASE_SCRIPT}" --sig "verify()" --skip test -vvv']
+
+  release-contract-publish:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work
+    init: true
+    cpus: 1
+    memswap_limit: 1g
+    environment:
+      CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      CONTRACT_RELEASE_CANDIDATE_PATH: /contract-candidate/contract-deployment.json
+      CONTRACT_RELEASE_ARTIFACT_PATH: /contract-artifact/contract-deployment.json
+    volumes:
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/plan"
+        target: /release-plan
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CONTRACT_RELEASE_CANDIDATE_DIR:?missing_CONTRACT_RELEASE_CANDIDATE_DIR}"
+        target: /contract-candidate
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/artifact"
+        target: /contract-artifact
+        bind: {create_host_path: false}
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:packages
+        ./node_modules/.bin/tsc -p tools/contract-release/tsconfig.json
+        node --experimental-strip-types tools/contract-release/publish.ts
