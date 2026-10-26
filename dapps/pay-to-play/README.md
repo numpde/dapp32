@@ -348,6 +348,16 @@ or calls. The CAM host is not the payment contract: use the bound PayToPlay
 address as the EIP-712 verifying contract. The worker separately requires a
 verified runtime-bytecode hash for that deployment.
 
+Complete CAM contract-binding updates and verify that the host's payment binding
+matches the signing helper's payment contract. Then reload the viewer before
+preparing signatures or transactions; an open viewer may retain earlier addresses.
+Reloading alone cannot fix a mismatched deployment. The read-only signing projection rejects a host whose current payment
+binding differs from the payment contract it was deployed for. This guard does
+not prove that every cached address in an open viewer matches it. Compare the
+signing domain's `verifyingContract` with the payment target shown in transaction
+review. Adding or replacing the read-only helper does not move deposits or change
+issued vouchers.
+
 ### Sign a voucher outside the viewer
 
 Read the confirmed, nonzero `viewPosition(...).voucherKey`. K signs this typed
