@@ -66,7 +66,7 @@ async function main(): Promise<void> {
     const overlay = { services: { "release-cam": {
       user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}",
       volumes: [{ type: "bind", source: `${directory}/deployment/cam-bundle/bundle`,
-        target: `/tmp/${app}`, read_only: true, bind: { create_host_path: false } }],
+        target: `/srv/${app}`, read_only: true, bind: { create_host_path: false } }],
       healthcheck: { test: ["CMD", "python3", "-c", `import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/${app}/main.json', timeout=2).close()`] },
     } } }
     await writeFile("/rehearsal-control/cam-host.json", JSON.stringify(overlay) + "\n", { flag: "wx", mode: 0o600 })
