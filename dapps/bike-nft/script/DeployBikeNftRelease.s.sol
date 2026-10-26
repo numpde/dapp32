@@ -6,12 +6,13 @@ import {CamRoot} from "cam/src/CamRoot.sol";
 import {BicycleComponentManager} from "../src/BicycleComponentManager.sol";
 import {BicycleComponentManagerUI} from "../src/BicycleComponentManagerUI.sol";
 import {BicycleComponents} from "../src/BicycleComponents.sol";
+import {BikeNftContractDeployment} from "./BikeNftContractDeployment.sol";
 import {BikeNftUIDeployment} from "./BikeNftUIDeployment.sol";
 
 /// @notice Deploys an unseeded, pinned Bike NFT release and starts every authority handoff.
 /// @dev The broadcaster is only a bootstrap authority. Verification remains incomplete until
 /// CamRoot ownership and both delayed default-admin transfers are accepted independently.
-contract DeployBikeNftRelease is Script, BikeNftUIDeployment {
+contract DeployBikeNftRelease is Script, BikeNftUIDeployment, BikeNftContractDeployment {
     string private constant RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v2";
     string private constant CAM_ROOT_PATH = "bike-nft/cam/main.json";
     string private constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
@@ -101,45 +102,36 @@ contract DeployBikeNftRelease is Script, BikeNftUIDeployment {
 
     function _deployRelease(ReleasePlan memory plan, address deployer) internal returns (Deployment memory deployment) {
         deployment.camRoot = new CamRoot(deployer, plan.camURI, plan.camHash);
-        deployment.components = new BicycleComponents(
-            plan.tokenName, plan.tokenSymbol, deployer, plan.componentsAdminDelay, plan.baseTokenURI, plan.collectionURI
-        );
-        deployment.manager =
-            new BicycleComponentManager(deployer, plan.managerAdminDelay, address(deployment.components));
+        ContractSettings memory settings = _contractSettings(plan);
+        Contracts memory contracts = deployBikeNftContracts(settings, deployer);
+        deployment.components = contracts.components;
+        deployment.manager = contracts.manager;
         deployment.ui = deployBikeNftUI(address(deployment.manager));
 
-        deployment.components.grantRole(deployment.components.MINTER_ROLE(), address(deployment.manager));
-        deployment.components.grantRole(deployment.components.TOKEN_URI_SETTER_ROLE(), address(deployment.manager));
-        deployment.components.grantRole(deployment.components.PAUSER_ROLE(), plan.componentsPauser);
-        deployment.components.grantRole(deployment.components.CONFIGURER_ROLE(), plan.componentsConfigurer);
-        deployment.manager.grantRole(deployment.manager.PAUSER_ROLE(), plan.managerPauser);
-        deployment.manager.grantRole(deployment.manager.CONFIGURER_ROLE(), plan.managerConfigurer);
-        for (uint256 i = 0; i < plan.registrars.length; i++) {
-            deployment.manager.grantRole(deployment.manager.REGISTRAR_ROLE(), plan.registrars[i]);
-        }
-
-        if (plan.componentsPauser != deployer) {
-            deployment.components.revokeRole(deployment.components.PAUSER_ROLE(), deployer);
-        }
-        if (plan.componentsConfigurer != deployer) {
-            deployment.components.revokeRole(deployment.components.CONFIGURER_ROLE(), deployer);
-        }
-        if (plan.managerPauser != deployer) deployment.manager.revokeRole(deployment.manager.PAUSER_ROLE(), deployer);
-        if (plan.managerConfigurer != deployer) {
-            deployment.manager.revokeRole(deployment.manager.CONFIGURER_ROLE(), deployer);
-        }
+        configureBikeNftContracts(contracts, settings, deployer);
 
         deployment.camRoot.setContractAddress("ICamRootOwnership", address(deployment.camRoot));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
         bindBikeNftUI(deployment.camRoot, deployment.ui);
         deployment.camRoot.setContractAddress(CAM_CONTRACT_COMPONENTS, address(deployment.components));
         if (plan.intendedCamRootOwner != deployer) deployment.camRoot.transferOwnership(plan.intendedCamRootOwner);
-        if (plan.intendedComponentsAdmin != deployer) {
-            deployment.components.beginDefaultAdminTransfer(plan.intendedComponentsAdmin);
-        }
-        if (plan.intendedManagerAdmin != deployer) {
-            deployment.manager.beginDefaultAdminTransfer(plan.intendedManagerAdmin);
-        }
+        nominateBikeNftAdmins(contracts, settings, deployer);
+    }
+
+    function _contractSettings(ReleasePlan memory plan) private pure returns (ContractSettings memory settings) {
+        settings.tokenName = plan.tokenName;
+        settings.tokenSymbol = plan.tokenSymbol;
+        settings.baseTokenURI = plan.baseTokenURI;
+        settings.collectionURI = plan.collectionURI;
+        settings.intendedComponentsAdmin = plan.intendedComponentsAdmin;
+        settings.componentsAdminDelay = plan.componentsAdminDelay;
+        settings.componentsPauser = plan.componentsPauser;
+        settings.componentsConfigurer = plan.componentsConfigurer;
+        settings.intendedManagerAdmin = plan.intendedManagerAdmin;
+        settings.managerAdminDelay = plan.managerAdminDelay;
+        settings.managerPauser = plan.managerPauser;
+        settings.managerConfigurer = plan.managerConfigurer;
+        settings.registrars = plan.registrars;
     }
 
     function _readPlan(string memory path) internal view returns (ReleasePlan memory plan) {

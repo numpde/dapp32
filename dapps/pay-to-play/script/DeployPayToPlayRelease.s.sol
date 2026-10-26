@@ -4,10 +4,11 @@ import {Script, console2} from "forge-std-1.12.0/src/Script.sol";
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {PayToPlay} from "../src/PayToPlay.sol";
 import {PayToPlayUI} from "../src/PayToPlayUI.sol";
+import {PayToPlayContractDeployment} from "./PayToPlayContractDeployment.sol";
 import {PayToPlayUIDeployment} from "./PayToPlayUIDeployment.sol";
 
 /// @notice Deploys the pinned CAM and native-asset payment contract without fixture channels.
-contract DeployPayToPlayRelease is Script, PayToPlayUIDeployment {
+contract DeployPayToPlayRelease is Script, PayToPlayUIDeployment, PayToPlayContractDeployment {
     struct ReleasePlan {
         string sourceCommit;
         uint256 expectedChainId;
@@ -38,12 +39,12 @@ contract DeployPayToPlayRelease is Script, PayToPlayUIDeployment {
 
     function _deploy(ReleasePlan memory plan, address deployer) internal returns (CamRoot root, PayToPlay payments) {
         root = new CamRoot(deployer, plan.camURI, plan.camHash);
-        payments = new PayToPlay(deployer, plan.nullClaimPeriod);
+        payments = deployPayToPlayContract(deployer, plan.nullClaimPeriod);
         PayToPlayUI ui = deployPayToPlayUI(address(payments));
         root.setContractAddress("PayToPlay", address(payments));
         bindPayToPlayUI(root, ui);
         if (plan.intendedCamRootOwner != deployer) root.transferOwnership(plan.intendedCamRootOwner);
-        if (plan.intendedPaymentAdmin != deployer) payments.transferOwnership(plan.intendedPaymentAdmin);
+        nominatePayToPlayAdmin(payments, plan.intendedPaymentAdmin, deployer);
     }
 
     function _parsePlan(string memory json) internal view returns (ReleasePlan memory plan) {
