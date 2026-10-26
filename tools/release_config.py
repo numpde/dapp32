@@ -143,8 +143,8 @@ def validate_identity(config, app):
 def validate(config, app, source_commit, *, purpose="deployment"):
     """Validate all saved inputs; None leaves source selection with the saved pin."""
     validate_identity(config, app)
-    if purpose not in ("deployment", "ui", "contracts"):
-        raise ValueError("Release configuration purpose must be deployment, contracts or ui.")
+    if purpose not in ("deployment", "ui", "contracts", "cam"):
+        raise ValueError("Release configuration purpose must be deployment, contracts, ui or cam.")
     expected = {"schemaVersion", "app", "sourceCommit", "rpcUrl", "deployerPrivateKey", "settings", "confirmDeploy", "approvalImageId"}
     if isinstance(config, dict) and "localNetwork" in config:
         expected.add("localNetwork")
@@ -157,10 +157,12 @@ def validate(config, app, source_commit, *, purpose="deployment"):
     settings = config["settings"]
     names = {name for name, _, _ in fields(app)}
     required = names - {"CAM_HASH"}
-    if purpose in ("ui", "contracts"):
+    if purpose in ("ui", "contracts", "cam"):
         required = {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR"}
         if purpose == "contracts":
             required |= {name for name, _, _ in APP_FIELDS[app]}
+        elif purpose == "cam":
+            required.add("CAM_URI")
     if not isinstance(settings, dict) or not required <= settings.keys() <= names:
         raise ValueError("The release configuration settings are incomplete or unknown; run the release setup again.")
     local = "localNetwork" in config
@@ -175,8 +177,9 @@ def validate(config, app, source_commit, *, purpose="deployment"):
             raise ValueError("Local releases require the fixture chain, RPC and funded deployer account.")
     else:
         check_value(config["rpcUrl"], "rpc")
+    checked = required | ({"INTENDED_CAM_ROOT_OWNER"} & settings.keys() if purpose == "cam" else set())
     for name, _, kind in fields(app):
-        if purpose != "deployment" and name not in required:
+        if purpose != "deployment" and name not in checked:
             continue
         if name == "CAM_HASH" and name not in settings:
             continue
@@ -441,6 +444,8 @@ def update_source(app, source_commit, source, output, *, purpose="deployment"):
     for name, value in config["settings"].items():
         if purpose == "ui" and name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"):
             continue
+        if purpose == "cam" and name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR", "CAM_URI", "INTENDED_CAM_ROOT_OWNER"):
+            continue
         print(f"{name}: {value}")
     print("This replaces the saved configuration after validation, then continues deployment. Transactions still require operator approval.")
     if input("Update configuration and continue? [update/cancel; default cancel]: ").strip().lower() != "update":
@@ -450,24 +455,48 @@ def update_source(app, source_commit, source, output, *, purpose="deployment"):
 
 def unpack(app, source_commit, mode, source, output):
     config = read_json_file(source, "configuration")
-    if mode in ("artifact", "ui-artifact", "contracts-artifact"):
-        # The saved plan owns expected contract state; retired signing settings
-        # and the current checkout do not govern this read-only operation.
+    if mode in ("artifact", "ui-artifact", "contracts-artifact", "cam-artifact", "cam-bundle"):
+        # These keyless operations use the saved identity and RPC. Retired
+        # signing settings and the current checkout do not govern their inputs.
         validate_identity(config, app)
         if mode == "artifact":
             if not isinstance(config.get("settings"), dict) or "OUTPUT_DIR" not in config["settings"]:
                 raise ValueError("Artifact completion requires the saved deployment output directory.")
             check_value(config["settings"]["OUTPUT_DIR"], "path")
+        if mode == "cam-bundle":
+            settings = config.get("settings")
+            if not isinstance(settings, dict) or not {"EXPECTED_CHAIN_ID", "OUTPUT_DIR"} <= settings.keys():
+                raise ValueError("CAM bundle preparation requires the target chain and output directory.")
+            check_value(settings["EXPECTED_CHAIN_ID"], "chain")
+            check_value(settings["OUTPUT_DIR"], "path")
         if "localNetwork" in config:
             check_value(config["localNetwork"], "docker-network")
             if config.get("rpcUrl") != LOCAL_RPC_URL:
-                raise ValueError("Local artifact completion requires the fixture RPC.")
+                raise ValueError("Local artifact completion and CAM bundle preparation require the fixture RPC.")
+            if mode == "cam-bundle" and config["settings"]["EXPECTED_CHAIN_ID"] != "31338":
+                raise ValueError("Local CAM bundle preparation requires the fixture chain.")
         else:
             check_value(config.get("rpcUrl"), "rpc")
     else:
-        validate(config, app, source_commit, purpose="ui" if mode == "ui-deploy" else "contracts" if mode == "contracts-deploy" else "deployment")
+        validate(config, app, source_commit, purpose="ui" if mode == "ui-deploy" else "contracts" if mode == "contracts-deploy" else "cam" if mode == "cam-publish" else "deployment")
     prefix = app.upper().replace("-", "_")
-    if mode == "ui-deploy":
+    if mode in ("cam-bundle", "cam-publish"):
+        supplied = config["settings"]
+        settings = {
+            "CAM_RELEASE_APP": app, "CAM_RELEASE_SOURCE_COMMIT": config["sourceCommit"],
+            "CAM_RELEASE_EXPECTED_CHAIN_ID": supplied["EXPECTED_CHAIN_ID"],
+            "CAM_RELEASE_OUTPUT_DIR": supplied["OUTPUT_DIR"],
+        }
+        if mode == "cam-publish":
+            settings.update({
+                "CAM_RELEASE_SIGNER_ADDRESS": supplied["EXPECTED_DEPLOYER_ADDRESS"],
+                "CAM_RELEASE_URI": supplied["CAM_URI"],
+                "CAM_RELEASE_INTENDED_OWNER": supplied.get("INTENDED_CAM_ROOT_OWNER", "0x" + "00" * 20),
+                "RELEASE_APPROVAL_IMAGE": config["approvalImageId"],
+            })
+    elif mode == "cam-artifact":
+        settings = {"CAM_RELEASE_APP": app}
+    elif mode == "ui-deploy":
         settings = {
             "UI_RELEASE_APP": app, "UI_RELEASE_SOURCE_COMMIT": config["sourceCommit"],
             "UI_RELEASE_EXPECTED_CHAIN_ID": config["settings"]["EXPECTED_CHAIN_ID"],
@@ -523,7 +552,7 @@ def unpack(app, source_commit, mode, source, output):
     encoded = b"".join(f"{name}={value}\0".encode() for name, value in settings.items())
     write_private(output / "inputs", encoded)
     write_private(output / "rpc-url", (config["rpcUrl"] + "\n").encode())
-    if mode in ("deploy", "ui-deploy", "contracts-deploy"):
+    if mode in ("deploy", "ui-deploy", "contracts-deploy", "cam-publish"):
         write_private(output / "deployer-key", (config["deployerPrivateKey"] + "\n").encode())
 
 
@@ -536,7 +565,8 @@ def check_artifact_plan_source(source_commit, source):
 
 def independent_plan_source(app, source, output, operation):
     plan = read_json_file(source, "independent deployment plan")
-    if (not isinstance(plan, dict) or plan.get("schema") != f"cam.{operation}-release-plan.v1"
+    schema = "cam.publication-plan.v1" if operation == "cam" else f"cam.{operation}-release-plan.v1"
+    if (not isinstance(plan, dict) or plan.get("schema") != schema
             or plan.get("app") != app or not isinstance(plan.get("sourceCommit"), str)
             or not re.fullmatch(r"[0-9a-f]{40}", plan["sourceCommit"])):
         raise ValueError("Artifact completion requires that app's saved deployment plan and exact source commit.")
@@ -545,7 +575,7 @@ def independent_plan_source(app, source, output, operation):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan"))
+    parser.add_argument("mode", choices=("network", "setup", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
@@ -556,14 +586,14 @@ def main():
             prepare_network(args.app, args.source_commit, Path("/out"))
         elif args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))
-        elif args.mode in ("update", "update-ui", "update-contracts"):
+        elif args.mode in ("update", "update-ui", "update-contracts", "update-cam"):
             update_source(args.app, args.source_commit, Path("/run/release.json"), Path("/out"),
-                          purpose="ui" if args.mode == "update-ui" else "contracts" if args.mode == "update-contracts" else "deployment")
+                          purpose="ui" if args.mode == "update-ui" else "contracts" if args.mode == "update-contracts" else "cam" if args.mode == "update-cam" else "deployment")
         elif args.mode == "artifact-plan":
             check_artifact_plan_source(args.source_commit, Path("/run/release.json"))
-        elif args.mode in ("ui-plan-source", "contracts-plan-source"):
+        elif args.mode in ("ui-plan-source", "contracts-plan-source", "cam-plan-source"):
             independent_plan_source(args.app, Path("/run/release.json"), Path("/out"),
-                                    "ui" if args.mode == "ui-plan-source" else "contract")
+                                    {"ui-plan-source": "ui", "contracts-plan-source": "contract", "cam-plan-source": "cam"}[args.mode])
         else:
             unpack(args.app, args.source_commit, args.mode, Path("/run/release.json"), Path("/out"))
     except SourceCommitMismatch as error:

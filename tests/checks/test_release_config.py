@@ -3,15 +3,18 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
+import pty
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import unquote
 
 from tools import release_config
-from .common import compose_sequence_or_empty, rendered_compose_config
+from .common import ROOT, compose_sequence_or_empty, rendered_compose_config
 from .text.test_rendered_compose_posture import makefile_compose_unit
 
 
@@ -52,6 +55,228 @@ def complete_setup(app, source_commit, output):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_cam_loader_clears_ambient_values_and_admits_override_before_an_interactive_update(self):
+        script = r'''
+source tools/release-config.sh
+source_commit=current
+CONFIG="$CASE_ROOT/config.json"
+require_release_config() { [[ -f "$1" ]]; }
+release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
+release_config_prepare_approval_images() { :; }
+validate_new_release_output() {
+  [[ "$1" == "$CASE_ROOT/selected-output" && "$2" == CAM_RELEASE_OUTPUT_DIR ]]
+  printf checked > "$CASE_ROOT/output-checked"
+}
+docker() {
+  [[ "$1 $2 $3" == 'image inspect --format' ]]
+  printf image-checked > "$CASE_ROOT/image-checked"
+  printf '%s\n' "$5"
+}
+compose_release_config() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/events"
+  if [[ " $* " == *' release-config update-cam '* ]]; then
+    printf '{"settings":{"OUTPUT_DIR":"/tmp/saved-cam"}}' > "$release_config_dir/release.json"
+    return
+  fi
+  if [[ ( "$MODE" == update || "$MODE" == noninteractive ) && ! -v release_config_input ]]; then return 3; fi
+  printf 'rpc fixture\n' > "$release_config_dir/rpc-url"
+  printf 'CAM_RELEASE_APP=escrow\0' > "$release_config_dir/inputs"
+  if [[ "$MODE" != cam-artifact ]]; then
+    printf 'CAM_RELEASE_SOURCE_COMMIT=current\0CAM_RELEASE_EXPECTED_CHAIN_ID=84532\0CAM_RELEASE_OUTPUT_DIR=/tmp/saved-cam\0' >> "$release_config_dir/inputs"
+  fi
+  if [[ "$MODE" == cam-publish || "$MODE" == update ]]; then
+    printf 'CAM_RELEASE_SIGNER_ADDRESS=selected-signer\0CAM_RELEASE_URI=selected-uri\0CAM_RELEASE_INTENDED_OWNER=selected-owner\0RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0' >> "$release_config_dir/inputs"
+    printf 'key fixture\n' > "$release_config_dir/deployer-key"
+  fi
+}
+CAM_RELEASE_SIGNER_ADDRESS=stale
+CAM_RELEASE_URI=stale
+CAM_RELEASE_INTENDED_OWNER=stale
+CAM_RELEASE_OUTPUT_DIR=stale
+RELEASE_APPROVAL_IMAGE=stale
+DEPLOYER_PRIVATE_KEY_FILE=stale
+operation="$MODE"
+if [[ "$MODE" == update || "$MODE" == noninteractive ]]; then operation=cam-publish; fi
+load_release_config escrow "$operation" "$CASE_ROOT/selected-output"
+[[ "$CAM_RELEASE_APP" == escrow && "$RPC_URL_FILE" == "$release_config_dir/rpc-url" ]]
+if [[ "$MODE" == cam-publish || "$MODE" == update ]]; then
+  [[ "$CAM_RELEASE_SIGNER_ADDRESS" == selected-signer && "$CAM_RELEASE_URI" == selected-uri && "$CAM_RELEASE_INTENDED_OWNER" == selected-owner ]]
+  [[ "$DEPLOYER_PRIVATE_KEY_FILE" == "$release_config_dir/deployer-key" ]]
+else
+  [[ ! -v CAM_RELEASE_SIGNER_ADDRESS && ! -v CAM_RELEASE_URI && ! -v CAM_RELEASE_INTENDED_OWNER ]]
+  [[ ! -v RELEASE_APPROVAL_IMAGE && ! -v DEPLOYER_PRIVATE_KEY_FILE ]]
+fi
+if [[ "$MODE" == cam-artifact ]]; then [[ ! -v CAM_RELEASE_OUTPUT_DIR ]];
+else [[ "$CAM_RELEASE_OUTPUT_DIR" == "$CASE_ROOT/selected-output" ]]; fi
+printf continued > "$CASE_ROOT/continued"
+'''
+        for mode in ("cam-bundle", "cam-artifact", "cam-publish", "update", "noninteractive"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config = root / "config.json"
+                config.write_text("original")
+                master, slave = pty.openpty()
+                try:
+                    result = subprocess.run(
+                        ["bash", "-eu", "-o", "pipefail", "-c", script], cwd=ROOT,
+                        env={**os.environ, "CASE_ROOT": str(root), "MODE": mode},
+                        stdin=slave if mode == "update" else subprocess.DEVNULL,
+                        stdout=slave, stderr=subprocess.PIPE, text=True, timeout=10, check=False,
+                    )
+                finally:
+                    os.close(master)
+                    os.close(slave)
+                self.assertEqual(3 if mode == "noninteractive" else 0, result.returncode, result.stderr)
+                self.assertEqual(mode != "noninteractive", (root / "continued").exists())
+                self.assertEqual(mode in ("cam-publish", "update"), (root / "image-checked").exists())
+                self.assertEqual(mode == "update", (root / "output-checked").exists())
+                if mode == "update":
+                    self.assertIn(" release-config update-cam ", (root / "events").read_text())
+                    self.assertEqual({"settings": {"OUTPUT_DIR": "/tmp/saved-cam"}}, json.loads(config.read_text()))
+                else:
+                    self.assertEqual("original", config.read_text())
+
+    def test_cam_bundle_preparation_uses_only_readonly_settings_before_a_uri_exists(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config = {"schemaVersion": 3, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
+                          "settings": {"EXPECTED_CHAIN_ID": "84532", "OUTPUT_DIR": "/tmp/cam-bundle",
+                                       "CAM_URI": None, "INTENDED_CAM_ROOT_OWNER": None, "REGISTRARS": None},
+                          "approvalImageId": None, "deployerPrivateKey": None, "confirmDeploy": False}
+                source = root / "config.json"
+                source.write_text(json.dumps(config))
+                before = source.read_bytes()
+                output = root / "stage"
+                output.mkdir()
+                release_config.unpack(app, "f" * 40, "cam-bundle", source, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                self.assertEqual({"CAM_RELEASE_APP": app, "CAM_RELEASE_SOURCE_COMMIT": COMMIT,
+                                  "CAM_RELEASE_EXPECTED_CHAIN_ID": "84532", "CAM_RELEASE_OUTPUT_DIR": "/tmp/cam-bundle",
+                                  "RELEASE_REHEARSAL": "0"}, inputs)
+                self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
+                self.assertEqual(FIXTURE_RPC + "\n", (output / "rpc-url").read_text())
+                self.assertEqual(before, source.read_bytes())
+
+    def test_cam_bundle_requires_identity_rpc_chain_and_output_before_writes(self):
+        valid = {"schemaVersion": 3, "app": "escrow", "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
+                 "settings": {"EXPECTED_CHAIN_ID": "84532", "OUTPUT_DIR": "/tmp/cam-bundle"}}
+        invalid = [dict(valid, app="bike-nft"), dict(valid, sourceCommit="main"), dict(valid, rpcUrl="http://untrusted"),
+                   dict(valid, settings={"EXPECTED_CHAIN_ID": "84532"}),
+                   dict(valid, settings={"EXPECTED_CHAIN_ID": "31337", "OUTPUT_DIR": "/tmp/cam-bundle"}),
+                   dict(valid, settings={"EXPECTED_CHAIN_ID": "84532", "OUTPUT_DIR": "relative"}),
+                   dict(valid, localNetwork="fixture-network", rpcUrl=release_config.LOCAL_RPC_URL)]
+        for config in invalid:
+            with self.subTest(config=config), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / "config.json"
+                source.write_text(json.dumps(config))
+                output = root / "stage"
+                output.mkdir()
+                with self.assertRaises(ValueError):
+                    release_config.unpack("escrow", COMMIT, "cam-bundle", source, output)
+                self.assertEqual([], list(output.iterdir()))
+
+    def test_cam_publication_stages_only_root_inputs_and_optional_owner_nomination(self):
+        for app in release_config.APP_FIELDS:
+            for owner in (None, FIXTURE_ADDRESS):
+                with self.subTest(app=app, owner=owner), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    config = configuration(app)
+                    config["settings"] = {"EXPECTED_CHAIN_ID": "84532", "EXPECTED_DEPLOYER_ADDRESS": FIXTURE_DEPLOYER_ADDRESS,
+                                          "OUTPUT_DIR": "/tmp/cam-publication", "CAM_URI": "ipfs://fixture/main.json"}
+                    # Retired business and hash settings are irrelevant to root publication.
+                    config["settings"].update({name: None for name, _, _ in release_config.APP_FIELDS[app]})
+                    config["settings"]["CAM_HASH"] = None
+                    if owner is not None:
+                        config["settings"]["INTENDED_CAM_ROOT_OWNER"] = owner
+                    source = root / "config.json"
+                    source.write_text(json.dumps(config))
+                    before = source.read_bytes()
+                    output = root / "stage"
+                    output.mkdir()
+                    release_config.unpack(app, COMMIT, "cam-publish", source, output)
+                    inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                    self.assertEqual({"CAM_RELEASE_APP": app, "CAM_RELEASE_SOURCE_COMMIT": COMMIT,
+                                      "CAM_RELEASE_EXPECTED_CHAIN_ID": "84532", "CAM_RELEASE_SIGNER_ADDRESS": FIXTURE_DEPLOYER_ADDRESS,
+                                      "CAM_RELEASE_OUTPUT_DIR": "/tmp/cam-publication", "CAM_RELEASE_URI": "ipfs://fixture/main.json",
+                                      "CAM_RELEASE_INTENDED_OWNER": owner or "0x" + "00" * 20,
+                                      "RELEASE_APPROVAL_IMAGE": APPROVAL_IMAGE, "RELEASE_REHEARSAL": "0"}, inputs)
+                    self.assertEqual({"inputs", "rpc-url", "deployer-key"}, {path.name for path in output.iterdir()})
+                    self.assertEqual(FIXTURE_KEY + "\n", (output / "deployer-key").read_text())
+                    self.assertEqual(before, source.read_bytes())
+
+    def test_cam_paid_publication_retains_strict_source_and_supplied_owner_policy(self):
+        for changes, source_commit, error_type in (
+            ({}, "f" * 40, release_config.SourceCommitMismatch),
+            ({"INTENDED_CAM_ROOT_OWNER": "0x" + "00" * 20}, COMMIT, ValueError),
+            ({"INTENDED_CAM_ROOT_OWNER": None}, COMMIT, ValueError),
+            ({"CAM_URI": "http://untrusted/main.json"}, COMMIT, ValueError),
+        ):
+            with self.subTest(changes=changes), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config = configuration("escrow")
+                config["settings"].update(changes)
+                source = root / "config.json"
+                source.write_text(json.dumps(config))
+                output = root / "stage"
+                output.mkdir()
+                with self.assertRaises(error_type):
+                    release_config.unpack("escrow", source_commit, "cam-publish", source, output)
+                self.assertEqual([], list(output.iterdir()))
+
+    def test_local_cam_publication_accepts_an_independent_signer_but_keeps_fixture_transport(self):
+        for app in release_config.APP_FIELDS:
+            config = configuration(app)
+            config["localNetwork"] = "fixture-private-network"
+            config["rpcUrl"] = release_config.LOCAL_RPC_URL
+            config["settings"] = {"EXPECTED_CHAIN_ID": "31338", "EXPECTED_DEPLOYER_ADDRESS": FIXTURE_DEPLOYER_ADDRESS,
+                                  "OUTPUT_DIR": "/tmp/cam-publication", "CAM_URI": f"http://release-cam:8080/{app}/main.json"}
+            release_config.validate(config, app, COMMIT, purpose="cam")
+            for name, value in (("EXPECTED_CHAIN_ID", "84532"), ("CAM_URI", "http://release-cam:8080/other/main.json")):
+                changed = dict(config, settings=dict(config["settings"], **{name: value}))
+                with self.subTest(app=app, name=name), self.assertRaises(ValueError):
+                    release_config.validate(changed, app, COMMIT, purpose="cam")
+
+    def test_cam_artifact_and_plan_source_need_no_retired_signing_settings(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / "config.json"
+                source.write_text(json.dumps({"schemaVersion": 3, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC}))
+                output = root / "stage"
+                output.mkdir()
+                release_config.unpack(app, "f" * 40, "cam-artifact", source, output)
+                self.assertEqual(f"CAM_RELEASE_APP={app}\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
+                self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
+                plan = root / "plan.json"
+                for saved in ({"schema": "cam.ui-release-plan.v1", "app": app, "sourceCommit": COMMIT},
+                              {"schema": "cam.publication-plan.v1", "app": app, "sourceCommit": "main"},
+                              {"schema": "cam.publication-plan.v1", "app": "other", "sourceCommit": COMMIT}):
+                    plan.write_text(json.dumps(saved))
+                    with self.assertRaises(ValueError):
+                        release_config.independent_plan_source(app, plan, output, "cam")
+                    self.assertFalse((output / "cam-source").exists())
+                plan.write_text(json.dumps({"schema": "cam.publication-plan.v1", "app": app, "sourceCommit": "b" * 40}))
+                release_config.independent_plan_source(app, plan, output, "cam")
+                self.assertEqual("b" * 40 + "\n", (output / "cam-source").read_text())
+
+    def test_cam_source_update_preserves_configured_output_and_unrelated_settings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            original = configuration("bike-nft")
+            original["settings"].update(REGISTRARS=None, CAM_HASH=None)
+            source = root / "config.json"
+            source.write_text(json.dumps(original))
+            before = source.read_bytes()
+            output = root / "stage"
+            output.mkdir()
+            (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+            with patch.object(release_config, "input", return_value="update", create=True), contextlib.redirect_stdout(io.StringIO()):
+                release_config.update_source("bike-nft", "f" * 40, source, output, purpose="cam")
+            self.assertEqual(dict(original, sourceCommit="f" * 40), json.loads((output / "release.json").read_text()))
+            self.assertEqual(before, source.read_bytes())
+
     def test_ui_artifact_completion_uses_recorded_source_without_staging_any_signing_inputs(self):
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:

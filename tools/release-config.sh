@@ -27,7 +27,7 @@ release_config_teardown() {
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
     rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" \
-      "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" "$release_config_dir/ui-source" "$release_config_dir/contract-source" || return "$?"
+      "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" "$release_config_dir/ui-source" "$release_config_dir/contract-source" "$release_config_dir/cam-source" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
   fi
@@ -129,7 +129,8 @@ load_release_config() {
   compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit" || status=$?
   if [[ "$mode" == ui-deploy ]]; then update_mode=update-ui; fi
   if [[ "$mode" == contracts-deploy ]]; then update_mode=update-contracts; fi
-  if [[ "$status" == 3 && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy ) && -t 0 && -t 1 ]]; then
+  if [[ "$mode" == cam-publish ]]; then update_mode=update-cam; fi
+  if [[ "$status" == 3 && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) && -t 0 && -t 1 ]]; then
     release_config_prepare_approval_images
     compose_release_config run --rm --no-deps -it release-config "$update_mode" "$app" "$source_commit"
     release_config_input="$release_config_dir/release.json"
@@ -143,12 +144,14 @@ load_release_config() {
   unset RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE RELEASE_REHEARSAL RELEASE_REHEARSAL_NETWORK RELEASE_APPROVAL_IMAGE
   unset UI_RELEASE_APP UI_RELEASE_SOURCE_COMMIT UI_RELEASE_EXPECTED_CHAIN_ID UI_RELEASE_CREATOR_ADDRESS UI_RELEASE_OUTPUT_DIR
   unset CONTRACT_RELEASE_APP CONTRACT_RELEASE_SOURCE_COMMIT CONTRACT_RELEASE_EXPECTED_CHAIN_ID CONTRACT_RELEASE_CREATOR_ADDRESS CONTRACT_RELEASE_OUTPUT_DIR CONTRACT_RELEASE_SETTINGS_JSON
+  unset CAM_RELEASE_APP CAM_RELEASE_SOURCE_COMMIT CAM_RELEASE_EXPECTED_CHAIN_ID CAM_RELEASE_OUTPUT_DIR CAM_RELEASE_SIGNER_ADDRESS CAM_RELEASE_URI CAM_RELEASE_INTENDED_OWNER
   export "${inputs[@]}"
   if [[ "$mode" == ui-deploy && -n "$output_override" ]]; then export UI_RELEASE_OUTPUT_DIR="$output_override"; fi
   if [[ "$mode" == contracts-deploy && -n "$output_override" ]]; then export CONTRACT_RELEASE_OUTPUT_DIR="$output_override"; fi
+  if [[ ( "$mode" == cam-bundle || "$mode" == cam-publish ) && -n "$output_override" ]]; then export CAM_RELEASE_OUTPUT_DIR="$output_override"; fi
   RPC_URL_FILE="$release_config_dir/rpc-url"
   export RPC_URL_FILE
-  if [[ "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy ]]; then
+  if [[ "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ]]; then
     source tools/release_approval_preflight.sh
     release_approval_require_image
     DEPLOYER_PRIVATE_KEY_FILE="$release_config_dir/deployer-key"
@@ -160,6 +163,7 @@ load_release_config() {
     output_name="${prefix}_RELEASE_OUTPUT_DIR"
     if [[ "$mode" == ui-deploy ]]; then output_name=UI_RELEASE_OUTPUT_DIR; fi
     if [[ "$mode" == contracts-deploy ]]; then output_name=CONTRACT_RELEASE_OUTPUT_DIR; fi
+    if [[ "$mode" == cam-publish ]]; then output_name=CAM_RELEASE_OUTPUT_DIR; fi
     validate_new_release_output "${!output_name}" "$output_name"
     require_release_config "$CONFIG"
     if [[ "$(sha256sum -- "$CONFIG")" != "$original_digest" ]]; then
