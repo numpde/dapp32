@@ -17,7 +17,12 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x2b3d974f0bb65a0ecdc5874440699f2122c0d2defc715e308156da076a9fe5d6"
+      "integrity": "sha256:0xc6ebcb8ec247447c3c77c69f8f72729532e561321e032ade37e5edecf04549a9"
+    },
+    "contracts.PayToPlayUI": {
+      "type": "contract",
+      "abiURI": "./abi/PayToPlayUI.json",
+      "integrity": "sha256:0x9cef3d0e89c8b2bde58e096dad569a4d8ff65a9baaf14aed41cdded957298903"
     }
   },
   "routes": {
@@ -300,9 +305,10 @@
         "invoiceHash"
       ],
       "call": {
-        "namespace": "contracts.PayToPlay",
-        "function": "voucherDigest",
+        "namespace": "contracts.PayToPlayUI",
+        "function": "viewVoucherSigningDetails",
         "args": {
+          "camHost": "$host.address",
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId",
           "cumulativeTotal": "$inputs.cumulativeTotal",
@@ -316,12 +322,16 @@
           "view": {
             "screen": "voucher",
             "task": {
-              "digest": "$outputs.0",
+              "digest": "$outputs.0.digest",
               "customer": "$inputs.customer",
               "channelId": "$inputs.channelId",
               "cumulativeTotal": "$inputs.cumulativeTotal",
               "invoiceHash": "$inputs.invoiceHash",
-              "chainId": "$host.chainId"
+              "chainId": "$outputs.0.chainId",
+              "domainName": "$outputs.0.domainName",
+              "domainVersion": "$outputs.0.domainVersion",
+              "verifyingContract": "$outputs.0.verifyingContract",
+              "voucherKey": "$outputs.0.voucherKey"
             }
           }
         }

@@ -143,7 +143,9 @@ async function main(): Promise<void> {
     session.updateState(inert({ cumulativeTotal: total.toString(), invoiceHash }))
     const read = await session.dispatchAction(action("voucherDigest", false))
     assert.equal(read.type, "navigated")
-    assert.equal(loaded().values[0], hashTypedData(typed), "CAM digest and standard typed-data hashing must agree")
+    assert.equal(view().digest, hashTypedData(typed), "CAM digest and standard typed-data hashing must agree")
+    assert.equal(String(view().verifyingContract).toLowerCase(), payments.toLowerCase(), "the signing target is the payment contract")
+    assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase(), "the registered key signs the voucher")
     assert.equal(loaded().inputs.invoiceHash, invoiceHash)
     await position("customer", "1")
     return { invoice, cumulativeTotal: total.toString(), invoiceHash, signature }

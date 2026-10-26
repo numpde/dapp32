@@ -14,6 +14,7 @@ const customer: Address = "0x0000000000000000000000000000000000000011"
 const other: Address = "0x0000000000000000000000000000000000000022"
 const contract: Address = "0x0000000000000000000000000000000000000033"
 const host = { chainId: "eip155:31337", address: "0x0000000000000000000000000000000000000044" as Address }
+const uiContract: Address = "0x0000000000000000000000000000000000000066"
 const voucherKey: Address = "0x0000000000000000000000000000000000000055"
 const invoiceHash: Hex = `0x${"ab".repeat(32)}`
 const zero: Address = "0x0000000000000000000000000000000000000000"
@@ -38,12 +39,18 @@ async function fixture() {
     readContract: async request => {
       if (request.functionName === "supportsInterface") return true
       if (request.functionName === "camManifest") return { uri, sha256Digest: `0x${createHash("sha256").update(root).digest("hex")}` as Hex }
-      if (request.functionName === "contractAddress") return contract
+      if (request.functionName === "contractAddress") return request.args?.[0] === "PayToPlayUI" ? uiContract : contract
       if (request.functionName === "channelCount") return chainState.channelCount
-      if (request.functionName === "voucherDigest") {
-        assert.equal(request.args?.length, 4, "digest read includes the invoice reference")
-        assert.match(String(request.args?.[3]), /^0x[0-9a-fA-F]{64}$/)
-        return `0x${"12".repeat(32)}`
+      if (request.functionName === "viewVoucherSigningDetails") {
+        assert.equal(request.address, uiContract)
+        assert.equal(request.args?.[0], host.address, "the selected CAM host is checked by the projection")
+        assert.equal(request.args?.length, 5)
+        assert.match(String(request.args?.[4]), /^0x[0-9a-fA-F]{64}$/)
+        return {
+          domainName: "PayToPlay", domainVersion: "2", chainId: 31337n,
+          verifyingContract: contract, voucherKey: chainState.voucherKey,
+          digest: `0x${"12".repeat(32)}`,
+        }
       }
       if (request.functionName === "viewPosition") {
         const [viewedCustomer, channelId, actor] = request.args!
@@ -524,4 +531,28 @@ test("signing details display the supplied invoice hash and reject an invoice-le
   visit(loaded.resolvedUi)
   assert.equal(statuses["Invoice hash (bytes32)"], invoiceHash)
   assert.equal(statuses["Balance owner"], customer)
+})
+
+test("signing details show the payment domain and registered key, distinct from host, projection and wallet", async () => {
+  const { session, chainState } = await fixture()
+  await session.load()
+  chainState.voucherKey = zero
+  await session.navigate("voucherDigest", { customer, channelId: "1", cumulativeTotal: "20", invoiceHash })
+  function values(node: ResolvedUiNode, found: Record<string, unknown> = {}): Record<string, unknown> {
+    if (node.element === "Status") found[String(node.props.label)] = node.props.value
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => values(child, found))
+    return found
+  }
+  let shown = values(session.snapshot().resolvedUi!)
+  assert.equal(shown["Domain name"], "PayToPlay")
+  assert.equal(shown["Domain version"], "2")
+  assert.equal(shown["Chain ID"], "31337")
+  assert.equal(shown["Payment contract (verifyingContract)"], contract)
+  assert.equal(shown["Registered voucher key"], zero)
+  chainState.voucherKey = voucherKey
+  shown = values((await session.refresh()).resolvedUi)
+  assert.equal(shown["Registered voucher key"], voucherKey)
+  assert.notEqual(shown["Payment contract (verifyingContract)"], host.address)
+  assert.notEqual(shown["Payment contract (verifyingContract)"], uiContract)
+  assert.notEqual(shown["Registered voucher key"], customer)
 })

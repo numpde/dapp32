@@ -1,0 +1,113 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [
+      {
+        "name": "paymentContract",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "payments",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract PayToPlay"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "viewVoucherSigningDetails",
+    "inputs": [
+      {
+        "name": "camHost",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "customer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "cumulativeTotal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "invoiceHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "details",
+        "type": "tuple",
+        "internalType": "struct PayToPlayUI.VoucherSigningDetails",
+        "components": [
+          {
+            "name": "domainName",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "domainVersion",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "chainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "verifyingContract",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "voucherKey",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "digest",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "error",
+    "name": "PaymentBindingMismatch",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "actual",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  }
+]

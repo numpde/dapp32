@@ -658,37 +658,87 @@
           ]
         },
         {
-          "element": "Status",
+          "element": "Screen",
           "props": {
-            "label": "Authorized total so far (wei)",
-            "value": "$view.cumulativeTotal"
-          }
+            "title": "Signing domain"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Domain name",
+                "value": "$view.domainName"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Domain version",
+                "value": "$view.domainVersion"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Chain ID",
+                "value": "$view.chainId"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Payment contract (verifyingContract)",
+                "value": "$view.verifyingContract"
+              }
+            }
+          ]
         },
         {
-          "element": "Status",
+          "element": "Screen",
           "props": {
-            "label": "Invoice hash (bytes32)",
-            "value": "$view.invoiceHash"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Chain ID",
-            "value": "$view.chainId"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Signing hash (EIP-712 digest)",
-            "value": "$view.digest"
-          }
+            "title": "Signing key and message"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Registered voucher key",
+                "value": "$view.voucherKey"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "A zero address means no voucher key is registered for this account and channel."
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Authorized total so far (wei)",
+                "value": "$view.cumulativeTotal"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Invoice hash (bytes32)",
+                "value": "$view.invoiceHash"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Signing hash (EIP-712 digest)",
+                "value": "$view.digest"
+              }
+            }
+          ]
         },
         {
           "element": "Text",
           "props": {
-            "text": "This hash is for comparison, not a signature. Sign the full EIP-712 Voucher in another tool, not a personal message. Domain: name PayToPlay, version 2, this chain ID, and the deployed PayToPlay contract address as verifyingContract. The CAM host address is not the payment contract. The guide contains the full schema and local signing command. Use the permanent voucher key shown on the balance page, not the owner’s current wallet signature policy. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee onchain or allocate a collection among invoices."
+            "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain’s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
           }
         },
         {

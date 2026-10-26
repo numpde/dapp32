@@ -10,8 +10,8 @@ type AbiEntry = { type: string; name?: string; inputs?: Field[] }
 type Declaration = { type?: string; uri?: string; abiURI?: string; integrity: string }
 type Route = {
   inputs: string[]
-  call: { function: string; args: Record<string, string> }
-  then: { args: { view: Record<string, string> } }
+  call: { namespace: string; function: string; args: Record<string, string> }
+  then: { args: { view: { screen: string; task: Record<string, string> } } }
 }
 type Manifest = { protocol: Declaration; namespaces: Record<string, Declaration>; routes: Record<string, Route> }
 const voucherFields: Field[] = [
@@ -70,10 +70,12 @@ test("CAM routes require and preserve the invoice reference and declare exact re
     assert.deepEqual(route.inputs, name === "collect"
       ? [...voucherFields.map(field => field.name), "maxAmount", "signature"]
       : voucherFields.map(field => field.name))
-    assert.equal(route.call.function, name)
+    assert.equal(route.call.function, name === "collect" ? "collect" : "viewVoucherSigningDetails")
     assert.equal(route.call.args.invoiceHash, "$inputs.invoiceHash")
   }
-  assert.equal(manifest.routes.voucherDigest!.then.args.view.invoiceHash, "$inputs.invoiceHash")
+  assert.equal(manifest.routes.voucherDigest!.then.args.view.task.invoiceHash, "$inputs.invoiceHash")
+  assert.equal(manifest.routes.voucherDigest!.call.namespace, "contracts.PayToPlayUI")
+  assert.equal(manifest.routes.voucherDigest!.call.args.camHost, "$host.address")
   for (const declaration of [manifest.protocol, manifest.namespaces["contracts.PayToPlay"]!, manifest.namespaces.ui!]) {
     const uri = declaration.type === "contract" ? declaration.abiURI : declaration.uri
     assert.equal(typeof uri, "string")
