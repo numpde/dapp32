@@ -477,7 +477,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Anyone can submit a voucher signed by the registered key for this balance owner and channel. Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
+            "text": "Only this channel’s collector can submit a voucher signed by the registered key for this balance owner and channel. Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
           }
         },
         {
@@ -687,7 +687,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner\u2019s account. Any account can submit a valid voucher (except in channel 0) or a ready withdrawal back to the owner. Connecting or changing wallet accounts clears form entries."
+            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner\u2019s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
           }
         },
         {
