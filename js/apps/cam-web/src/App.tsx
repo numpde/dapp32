@@ -832,9 +832,8 @@ export function App(): ReactElement {
         {bootPrefix === undefined ? null : <option value="boot">Only {bootPrefix.length <= 64 ? bootPrefix : `${bootPrefix.slice(0, 61)}…`}</option>}
         <option value="custom">Custom URL prefix</option>
       </select>
-      {scopeDraft.choice === "boot" && bootPrefix !== undefined ? <label className="field"><span>Configured URL prefix</span><input readOnly value={bootPrefix} /></label> : null}
+      {scopeDraft.choice === "boot" && bootPrefix !== undefined ? <label className="field"><span className="visually-hidden">Configured URL prefix</span><input readOnly value={bootPrefix} /></label> : null}
       {scopeDraft.choice === "custom" ? <label className="field"><span>URL prefix</span><input id="download-prefix" type="url" value={scopeDraft.prefix} placeholder="https://example.org/app/" onChange={event => editScope({ ...scopeDraft, prefix: event.currentTarget.value })} /></label> : null}
-      {scopeDraft.choice === "http-only" || (scopeDraft.choice === "custom" && /^http:/i.test(scopeDraft.prefix)) || (scopeDraft.choice === "boot" && bootPrefix !== undefined && /^http:/i.test(bootPrefix)) ? <p className="field-hint">HTTP is unencrypted. Your browser may block HTTP downloads.</p> : null}
       {scopeError === undefined ? null : <Feedback report={scopeError} kind="error" />}
     </div>
   </ControlRow>
