@@ -14,50 +14,18 @@
         <span class="theme-sun" aria-hidden="true">☀</span>
         <span class="theme-moon" aria-hidden="true">☾</span>
       </button></div></div><header class="shell document-header"><h1>Deploy Escrow</h1><p class="lede">Instance settings, contract authority and acceptance checks for the Escrow example app.</p></header><main id="main" class="shell document"><p><a href="../../escrow/">Example app guide</a> · <a href="../#deploy-to-the-selected-chain">Shared setup, deployment and verification</a></p><p>This page defines the app-specific inputs and checks. Use the shared guide for source snapshots, protected configuration, approval, records and cleanup. Example addresses and paths below are placeholders; your saved configuration selects the actual instance.</p><p>The <a href="../#independent-components">shared component workflow</a> provides <code>escrow/release/contracts/deploy</code>, <code>escrow/release/ui/deploy</code> and keyless <code>escrow/release/cam/bundle</code>. Business deployment, UI deployment and CAM publication have separate records and may use different actors and source commits. A UI replacement can reuse the verified business artifact without redeploying its contracts.</p><article class="narrow deployment-guide"><h2 id="release-deployment">Release deployment</h2>
-<p>For guided setup, run <code>make escrow/release/setup CONFIG=/absolute/private/escrow.json</code>, then <code>make escrow/release/deploy CONFIG=/absolute/private/escrow.json</code>. The <a href="https://numpde.github.io/dapp32/deployment/#deploy-to-the-selected-chain">shared walkthrough</a> saves every app input, concrete RPC URL, signing key, selected approval image and deployment confirmation in one protected off-repo file. Use the same <code>CONFIG</code> for release verification.</p>
-<p>Public setup checks the selected RPC chain. Explicit local setup selects the shared chain-31338 fixture; local fixture keys must never be used for public deployments. The offline planning step validates the complete checked-in CAM bundle. By default, <code>CamRoot</code> stores the manifest's exact-byte SHA-256; selecting a zero CAM hash stores zero instead.</p>
-<p>Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in <a href="https://numpde.github.io/dapp32/deployment/">the release ceremony guide</a>.</p>
-<p>For the first public rehearsal, prepare Ethereum Sepolia (<code>11155111</code>) but do not conflate it with the local Anvil workflow. Anvil is a disposable process on the operator's machine; Sepolia is a persistent public test network with externally funded accounts, provider RPC, public CAM hosting, wallet interaction, explorer records, and an explicit finality decision.</p>
-<p>Publish the checked-in CAM bundle and its declared protocol/ABI/UI resources at the chosen URI before deployment. By default, the release planner records the manifest's exact-byte SHA-256; it does not fetch the remote publication. You can <a href="../#deploy-to-the-selected-chain">choose a zero CAM hash</a> instead. The viewer displays a mild warning for zero and a prominent warning for a hash mismatch, while continuing to display the UI.</p>
-<p>Prepare the RPC and deployer-key files:</p>
-<pre><code>umask 077
-printf '%s\n' 'https://rpc.example.invalid' &gt; /secure/escrow-rpc-url
-printf '%s\n' '0x&lt;32-byte-deployer-private-key&gt;' &gt; /secure/escrow-deployer-key</code></pre>
-<p>Run the release only from the exact clean commit intended for publication:</p>
-<pre><code>CONFIRM_ESCROW_RELEASE_DEPLOY=YES \
-ESCROW_RELEASE_EXPECTED_CHAIN_ID=&lt;chain-id&gt; \
-ESCROW_RELEASE_CAM_URI=https://published.example/escrow/cam/main.json \
-ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER=0x&lt;intended-root-owner&gt; \
-RPC_URL_FILE=/secure/escrow-rpc-url \
-DEPLOYER_PRIVATE_KEY_FILE=/secure/escrow-deployer-key \
-ESCROW_RELEASE_OUTPUT_DIR=/secure/releases/escrow-&lt;chain&gt;-&lt;version&gt; \
-make escrow/release/deploy</code></pre>
-<p>The target writes:</p>
-<pre><code>plan/release-plan.json
-broadcast/DeployEscrowRelease.s.sol/&lt;chain-id&gt;/run-latest.json
-artifact/deployment.json</code></pre>
-<p>The <code>escrow.release-plan.v2</code> and <code>escrow.deployment.v2</code> schemas identify SHA-256 manifest commitments; older v1 artifacts retain their Keccak meaning and are rejected by these lanes.</p>
-<p><code>plan/release-plan.json</code> binds the source commit, expected chain, published CAM URI, selected CAM hash, and intended <code>CamRoot</code> owner. <code>artifact/deployment.json</code> records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, and intended <code>CamRoot</code> owner. It also records whether an ownership transfer was required and whether that account owned <code>CamRoot</code> with no transfer pending when the artifact was created.</p>
-<p>The deployed <code>CamEscrow</code> and <code>CamEscrowUI</code> are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. <code>CamRoot</code> remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, the deployment script submits <code>transferOwnership(newOwner)</code> to nominate it. The script does not sign or submit acceptance for the nominee. After reviewing the addresses and artifact, the nominee must send a separate <code>acceptOwnership()</code> transaction to the saved <code>camRoot</code> address. There is no built-in wait; the deployer remains owner until acceptance. When the intended owner is the deployer, no handover is needed. Do not treat the release as accepted while <code>pendingOwner()</code> is nonzero.</p>
+<p>Use the shared setup and full deployment commands:</p>
+<pre><code>make escrow/release/setup CONFIG=/absolute/private/escrow.json
+make escrow/release/deploy CONFIG=/absolute/private/escrow.json</code></pre>
+<p>Public setup checks the selected RPC chain. Explicit local setup selects chain 31338 and public fixture credentials. The full command composes business creation, UI creation, bundle preparation and CAM publication. <code>UI_CONFIG</code> and <code>CAM_CONFIG</code> can select separate phase creators; otherwise they use CONFIG.</p>
+<p>Follow the <a href="../#host-the-prepared-bundle">hosting pause</a> to publish the exact prepared bundle before binding its URI. Host only <code>cam-bundle/bundle/</code>, preserving relative paths and browser CORS. <code>CAM_HASH=auto</code> in the saved settings commits its manifest SHA-256; zero leaves the root unverified. Publication validates retained local bytes; check the hosted bytes and browser access separately.</p>
+<p>Retain the complete output directory. Its component records are <code>contracts/artifact/contract-deployment.json</code> and <code>ui/artifact/ui-deployment.json</code>; the root record is <code>cam/artifact/cam-publication.json</code>, or the final continuation's publication after a partial attempt. Each phase retains its original plan and transaction evidence. Shared source, configuration, failure and recovery rules are in the <a href="../">deployment guide</a>.</p>
+<p><code>CamEscrow</code> and <code>CamEscrowUI</code> are immutable and have no owner, pause, upgrade, fee, sweep or recovery authority. <code>CamRoot</code> remains mutable under its owner, which controls the CAM URI, hash and contract bindings. If CAM publication nominates a different owner, that nominee separately sends <code>acceptOwnership()</code> to <code>root.contract.address</code> in the CAM publication record. There is no acceptance delay; the current owner retains authority until acceptance.</p>
 <h2 id="release-verification">Release verification</h2>
-<p>Run verification from the same exact clean source commit recorded in <code>deployment.json</code>:</p>
-<pre><code>RPC_URL_FILE=/secure/escrow-rpc-url \
-ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-&lt;chain&gt;-&lt;version&gt;/artifact/deployment.json \
-make escrow/release/verify</code></pre>
-<p>The verifier checks:</p>
-<ul>
-<li>current chain ID and source commit;</li>
-<li>nonzero deployed code at all three addresses;</li>
-<li>exact runtime bytecode against contracts compiled from the current source tree;</li>
-<li>artifact code hashes;</li>
-<li>CAM URI and digest equal to the saved artifact, including zero;</li>
-<li>final <code>CamRoot</code> ownership with no pending owner;</li>
-<li>exact <code>CamEscrow</code> and <code>CamEscrowUI</code> root bindings;</li>
-<li>the projection's immutable escrow address;</li>
-<li>ERC-165 interfaces;</li>
-<li><code>totalLiabilities() &lt;= address(CamEscrow).balance</code>.</li>
-</ul>
-<p>A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original <code>deployment.json</code> remains an immutable record of the post-deployment observation; it is not rewritten after ownership acceptance.</p>
+<p>Use a protected read-only configuration for the retained output directory:</p>
+<pre><code>make escrow/release/verify CONFIG=/absolute/private/readonly.json</code></pre>
+<p>This completes or checks the ordinary phase records without a key or transaction. Saved plans select the original program sources; original creation and runtime identity, UI backing, and the recorded CAM publication are checked against retained evidence. Existing final records stay unchanged. See the <a href="../#complete-deployment-records">read-only configuration and recovery requirements</a>.</p>
+<p>Verification accepts recorded pending ownership and proves historical observations. It does not establish today's CAM owner, bindings, agreement status or solvency. Check those current facts separately before operating the instance. <code>pendingOwner()</code> must be zero and <code>owner()</code> must identify the intended account before treating its ownership handover as accepted.</p>
 <h2 id="operational-monitoring">Operational monitoring</h2>
 <p>Protect the final <code>CamRoot</code> owner as release authority; operationally, use an appropriately controlled account rather than the deployer hot key. Monitor:</p>
 <ul>

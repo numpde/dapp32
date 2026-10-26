@@ -29,7 +29,7 @@
 <li><code>BicycleComponentManager.acceptDefaultAdminTransfer()</code> by the final manager admin after its delay.</li>
 </ol>
 <p>The deployment script submits only the nominations for these handoffs; it does not sign or submit acceptance for any nominee. In the Bike viewer, open <strong>Deployment handovers</strong> from the registry's opening screen and connect the nominated wallet. Each section shows its target contract, current authority, nominee and acceptance status. Admin sections also show the acceptance time. Unavailable acceptance buttons remain visible but disabled. Choose <strong>Refresh handovers</strong> after chain time has passed the deadline, then choose the applicable acceptance action, review the transaction and send it with the wallet. Each successful receipt refreshes the screen. CAM ownership has no acceptance delay.</p>
-<p>Each nominee can also call the method above directly on its respective contract address saved in <code>artifact/deployment.json</code>. Each admin's delay runs from that contract's nomination. Until acceptance, the deployer retains that contract's ownership or default-admin authority, and <code>make bike-nft/release/verify</code> fails while a required handoff remains pending. When the deployer is also the intended owner or admin, no handoff is needed. Older deployments need the updated read-only UI projection, CAM resources and <code>ICamRootOwnership</code> binding to expose this screen; updating the browser alone does not add it.</p>
+<p>Each nominee can also call the method above directly. Business addresses are in <code>contracts/artifact/contract-deployment.json</code> under <code>contracts.components.address</code> and <code>contracts.manager.address</code>; the CAM address is <code>root.contract.address</code> in the final CAM publication. Each admin's delay runs from its contract's nomination. Until acceptance, the current owner or admin retains that authority. Historical <code>release/verify</code> accepts recorded pending nominations; check the live handover screen or contract state for current acceptance. When the deployer is also the intended owner or admin, no handoff is needed. Older deployments need the updated read-only UI projection, CAM resources and <code>ICamRootOwnership</code> binding to expose this screen; updating the browser alone does not add it.</p>
 <p>Choose the authority addresses and delays before creating a release plan. A production-like Sepolia rehearsal should normally use a disposable funded deployer, a testnet Safe or separate owner for final administration, a separate registrar, and explicitly controlled pauser/configurer accounts.</p>
 <p>Public setup suggests <strong>3 days (259200 seconds)</strong> for each administrator-transfer delay. Press Enter to accept the displayed value or enter another positive number of seconds. Revisiting settings preserves your earlier choice. These delays apply to administrator transfers, including the initial handover; they do not delay ordinary role grants, configuration changes or pausing.</p>
 <p>To change either default admin later, that contract's current default admin calls <code>beginDefaultAdminTransfer(newAdmin)</code>. After the contract's current transfer delay, the nominee calls <code>acceptDefaultAdminTransfer()</code> on that same contract. The current admin retains authority until acceptance. The setup fields <code>COMPONENTS_ADMIN_DELAY</code> and <code>MANAGER_ADMIN_DELAY</code> set the initial delays. These transfers are separate from <a href="../#deploy-to-the-selected-chain">CAM ownership</a> and do not change operational role holders.</p>
@@ -39,76 +39,31 @@
 <p>Collection metadata describes the whole collection through <code>contractURI()</code>; it is separate from each token's metadata and from the CAM manifest. Setup proposes <code>inline</code>: it generates a JSON document containing the chosen collection name and stores that document in a data URI, so no hosted collection file is needed. You can instead enter your own collection metadata URI.</p>
 <p>A nonempty base is an advanced option for clients that supply relative metadata suffixes. The contract concatenates that prefix with every stored token URI, including full URLs and data URIs; it does not recognize them as exceptions. Use the empty base for the generic viewer's full-URI and embedded-JSON workflow. Changing the base changes the resolved metadata URIs of existing tokens.</p>
 <h2 id="cam-publication">CAM publication</h2>
-<p>Publish the manifest and every declared resource without reformatting or newline normalization:</p>
-<pre><code>cam/
-  main.json
-  ui.json
-  protocol.html
-  abi/
-    BicycleComponentManager.json
-    BicycleComponentManagerUI.json
-    BicycleComponents.json</code></pre>
-<p>Use an immutable or versioned HTTPS origin with JSON content types and browser-readable CORS. Before any release ceremony, run:</p>
-<pre><code>make bike-nft/format
-git diff --check
-git diff --exit-code
-make bike-nft/cam/publication/preflight CAM_URI=https://published.example/bike-nft/v1/main.json
-make bike-nft/release/check
-make tests/checks
-make dapps/format/check
-make dapps/build
-make dapps/scripts/build
-make dapps/tests/unit-scenario
-make js/tests</code></pre>
-<p>The publication preflight prints the manifest's exact-byte SHA-256. Deployment stores that digest by default; <a href="../#deploy-to-the-selected-chain">the shared CAM hash settings</a> also allow zero. Any nonzero digest must match the local manifest in both the planner and Solidity signer.</p>
+<p>Prepare a bundle from the selected business and UI artifacts with the <a href="../#independent-components">ordinary component workflow</a>. The bundle exports their original ABIs and refreshes resource hashes. Host only the prepared <code>bundle/</code> contents, including every declared protocol, ABI and UI resource, preserving relative paths and browser CORS.</p>
+<p><code>settings.CAM_HASH=auto</code> commits the prepared manifest's SHA-256. An explicit nonzero digest must match those exact bytes; zero selects an unverified root commitment. Publication validates the retained local bundle for the selected URI. Check its served bytes and browser access separately.</p>
 <h2 id="release-deployment">Release deployment</h2>
-<p>For guided setup, run <code>make bike-nft/release/setup CONFIG=/absolute/private/bike-nft.json</code>, then <code>make bike-nft/release/deploy CONFIG=/absolute/private/bike-nft.json</code>. The <a href="https://numpde.github.io/dapp32/deployment/#deploy-to-the-selected-chain">shared walkthrough</a> saves every app input, concrete RPC URL, signing key, selected approval image and deployment confirmation in one protected off-repo file. Use the same <code>CONFIG</code> for release verification.</p>
-<p>The <code>bike-nft.release-plan.v2</code> and <code>bike-nft.deployment.v2</code> schemas identify SHA-256 manifest commitments. Older v1 artifacts retain their Keccak meaning and are rejected by these lanes. Publish the manifest together with every declared protocol/ABI/UI resource.</p>
-<p>Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in <a href="https://numpde.github.io/dapp32/deployment/">the release ceremony guide</a>.</p>
-<p>No RPC or key is needed for <code>make bike-nft/release/check</code>. A real deployment additionally requires these app inputs:</p>
-<pre><code>umask 077
-printf '%s\n' 'https://&lt;provider-sepolia-rpc&gt;' &gt; /secure/bike-nft-sepolia-rpc
-printf '%s\n' '0x&lt;32-byte-disposable-deployer-key&gt;' &gt; /secure/bike-nft-sepolia-deployer</code></pre>
-<p>Example Sepolia input shape (chain ID <code>11155111</code>):</p>
-<pre><code>CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES \
-BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID=11155111 \
-BIKE_NFT_RELEASE_CAM_URI=https://published.example/bike-nft/v1/main.json \
-BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER=0x&lt;intended-root-owner&gt; \
-BIKE_NFT_RELEASE_TOKEN_NAME='Bicycle Components' \
-BIKE_NFT_RELEASE_TOKEN_SYMBOL=BIKE \
-BIKE_NFT_RELEASE_BASE_TOKEN_URI='' \
-BIKE_NFT_RELEASE_COLLECTION_URI=https://published.example/bike-nft/v1/collection.json \
-BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN=0x&lt;intended-components-admin&gt; \
-BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY=86400 \
-BIKE_NFT_RELEASE_COMPONENTS_PAUSER=0x&lt;components-pauser&gt; \
-BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER=0x&lt;components-configurer&gt; \
-BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN=0x&lt;intended-manager-admin&gt; \
-BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY=86400 \
-BIKE_NFT_RELEASE_MANAGER_PAUSER=0x&lt;manager-pauser&gt; \
-BIKE_NFT_RELEASE_MANAGER_CONFIGURER=0x&lt;manager-configurer&gt; \
-BIKE_NFT_RELEASE_REGISTRARS=0x&lt;registrar-one&gt;,0x&lt;registrar-two&gt; \
-RPC_URL_FILE=/secure/bike-nft-sepolia-rpc \
-DEPLOYER_PRIVATE_KEY_FILE=/secure/bike-nft-sepolia-deployer \
-BIKE_NFT_RELEASE_OUTPUT_DIR=/secure/releases/bike-nft-sepolia-v1 \
-make bike-nft/release/deploy</code></pre>
-<p>This command is documentation for a future ceremony, not a command to run while preparing the repository. The Bike output contains:</p>
-<pre><code>plan/release-plan.json
-broadcast/DeployBikeNftRelease.s.sol/&lt;chain-id&gt;/run-latest.json
-artifact/deployment.json</code></pre>
-<p>After independently accepting any required handoffs, verify from the same exact clean commit:</p>
-<pre><code>RPC_URL_FILE=/secure/bike-nft-sepolia-rpc \
-BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/bike-nft-sepolia-v1/artifact/deployment.json \
-make bike-nft/release/verify</code></pre>
-<p>Verification rechecks all four creation receipts, exact source/runtime and artifact code hashes, CAM identity and bindings, UI and manager backing, intended ownership/admin state with no pending handoffs, absence of pending admin-delay changes, exact delays and metadata, current unpaused state, the manager's default delegation duration, declared operational roles, removal of undeclared deployer roles, and interface support.</p>
+<pre><code>make bike-nft/release/setup CONFIG=/absolute/private/bike-nft.json
+make bike-nft/release/deploy CONFIG=/absolute/private/bike-nft.json</code></pre>
+<p>Setup collects the collection metadata, intended authorities, transfer delays and operational roles described above. The full command uses the ordinary business, UI, bundle and CAM operations. Optional <code>UI_CONFIG</code> and <code>CAM_CONFIG</code> select their independent signers. Follow the <a href="../#host-the-prepared-bundle">hosting pause</a> to publish exact prepared bytes before root publication.</p>
+<p>Keep the complete output directory:</p>
+<pre><code>contracts/artifact/contract-deployment.json
+ui/artifact/ui-deployment.json
+cam-bundle/bundle/
+cam/artifact/cam-publication.json</code></pre>
+<p>Each signed phase retains its own plan, broadcast and approval evidence. A partial CAM operation retains its original attempt; approved continuation records have their own directories and final publication. Use the latest final publication to open or update that root.</p>
+<h3 id="release-verification">Verify saved evidence</h3>
+<pre><code>make bike-nft/release/verify CONFIG=/absolute/private/readonly.json</code></pre>
+<p>Use the <a href="../#complete-deployment-records">protected read-only configuration</a> for the retained output. Each saved plan selects its original program source. Verification checks or completes historical phase evidence without signing; it preserves existing records and accepts recorded pending nominations. It does not assert today's admins, operational roles, metadata, pause state or readiness. Inspect the live handover and app state separately.</p>
+<p><a href="../#update-an-existing-ui">UI update</a> creates a compatible replacement projection, prepares its bundle and publishes updated root bindings without redeploying Components or Manager. Business contracts may come from an older source; choose interfaces supported by the selected UI and authored CAM workflows.</p>
 <h2 id="public-rehearsal">Public rehearsal</h2>
 <p>Configure the generic CAM web viewer with the public chain ID, a public read RPC, the deployed <code>CamRoot</code> address, the published CAM resource origin, and wallet/network switching. Hosting and wallet injection are deployment-provider concerns; this repository does not yet own a public hosting target.</p>
 <p>The viewer URL supplies <code>chainId</code> (for example <code>eip155:11155111</code>), <code>host</code>, <code>account</code>, and <code>rpcUrl</code>. The hosting configuration supplies <code>VITE_CAM_WEB_RESOURCE_ORIGIN</code>; links cannot override that resource origin. Use a credential-free public read RPC because its URL is included in shareable read links. Such links reopen a route against current state and do not carry wallet authority, unsent form edits, or prepared transactions.</p>
-<p>Exercise registrar creation, token receipt, metadata update, missing/report resolution, delegation grant/revoke, transfer with permission changes, pause/unpause, and unauthorized failures. Verify explorer metadata and rerun <code>make bike-nft/release/verify</code> after activity. Explorer source publication is advisable but remains separate from the repository's bytecode verifier.</p>
+<p>Exercise registrar creation, token receipt, metadata update, missing/report resolution, delegation grant/revoke, transfer with permission changes, pause/unpause, and unauthorized failures. Check current explorer metadata and role state after activity; <code>release/verify</code> continues to verify the retained historical operations. Explorer source publication is advisable but remains separate from the repository's bytecode verifier.</p>
 <h2 id="explicit-uncertainties-and-limits">Explicit uncertainties and limits</h2>
 <ul>
-<li><code>AccessControlDefaultAdminRules</code> is not enumerable. Verification proves every declared holder is present and checks the deployer's roles against the declared selections; it cannot enumerate the universe of undisclosed third-party role holders from current state alone. The clean pinned script and preserved broadcast remain part of the audit evidence.</li>
+<li><code>AccessControlDefaultAdminRules</code> is not enumerable. The recorded business operation proves the selected initialization transactions; it does not enumerate every current role holder. Current-state checks cannot enumerate undisclosed third-party holders through this interface alone. The clean pinned script and preserved broadcast remain part of the audit evidence.</li>
 <li>The repository does not choose the actual Safe/EOA addresses, the final nonzero delay, RPC provider, CAM host, browser host, block explorer, or operator finality threshold.</li>
-<li>The release artifact records operator intent and immutable deployment provenance, not a mutable snapshot of every later handoff state. Live verification is the authority for accepted ownership and administration.</li>
+<li>The release artifact records operator intent and immutable deployment provenance, not a mutable snapshot of every later handoff state. Current contract reads and the handover screen establish whether ownership and administration have since been accepted.</li>
 </ul>
 <p>No upgrade, recovery, hidden registrar, generic CAM machine resource, or production monitoring authority is introduced by this lane.</p></article></main><script>
     (function () {
