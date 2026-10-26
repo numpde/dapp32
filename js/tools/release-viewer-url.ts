@@ -1,28 +1,33 @@
 import { pathToFileURL } from "node:url"
 import { createInterface } from "node:readline/promises"
 import { assertPublishedCamRootURI, downloadScopeForPrefix, isRecordObject, parseJsonBytes, requireHttpOrigin, requireHttpURL } from "../packages/cam-protocol/dist/index.js"
-import { DEPLOYMENT_SCHEMA as BIKE_SCHEMA, parseDeploymentArtifact as parseBike } from "./bike-nft-release/shared.ts"
-import { DEPLOYMENT_SCHEMA as ESCROW_SCHEMA, parseDeploymentArtifact as parseEscrow } from "./escrow-release/shared.ts"
-import { DEPLOYMENT_SCHEMA as PAYMENTS_SCHEMA, parseDeploymentArtifact as parsePayments } from "./pay-to-play-release/shared.ts"
 import { readBoundedRegularFile } from "./release-files.ts"
-import { runReleaseTool } from "./release-values.ts"
+import { checkedReleaseChainId, requiredNonemptyString, requiredNonzeroAddress, requiredSafeInteger, runReleaseTool } from "./release-values.ts"
 import { requiredEnv } from "./input.ts"
 
-const artifactReaders = [
-  { app: "bike-nft", schema: BIKE_SCHEMA, parse: parseBike },
-  { app: "escrow", schema: ESCROW_SCHEMA, parse: parseEscrow },
-  { app: "pay-to-play", schema: PAYMENTS_SCHEMA, parse: parsePayments },
+const artifactSchemas = [
+  { app: "bike-nft", schema: "bike-nft.deployment.v2" },
+  { app: "escrow", schema: "escrow.deployment.v2" },
+  { app: "pay-to-play", schema: "pay-to-play.deployment.v1" },
+  { app: "pay-to-play", schema: "pay-to-play.deployment.v2" },
 ] as const
 
 function readDeployment(bytes: Uint8Array, app?: string) {
-  if (app !== undefined && !artifactReaders.some(reader => reader.app === app)) {
+  if (app !== undefined && !artifactSchemas.some(reader => reader.app === app)) {
     throw new Error("Release viewer app must be bike-nft, escrow or pay-to-play")
   }
   const document = parseJsonBytes(bytes)
-  const reader = artifactReaders.find(candidate => isRecordObject(document) && candidate.schema === document.schema)
+  if (!isRecordObject(document)) throw new Error("Deployment coordinates must be a JSON object")
+  const reader = artifactSchemas.find(candidate => candidate.schema === document.schema)
   if (reader === undefined) throw new Error("Select a deployment.json artifact with a supported deployment schema, not a signing configuration")
   if (app !== undefined && reader.app !== app) throw new Error("APP does not match the selected deployment artifact")
-  return { app: reader.app, deployment: reader.parse(bytes) }
+  // Viewer links need discovery coordinates; release verification owns construction evidence.
+  return { app: reader.app, deployment: {
+    chainId: checkedReleaseChainId(requiredSafeInteger(document.chainId, "deployment chain ID")),
+    camRoot: requiredNonzeroAddress(document.camRoot, "CAM root address"),
+    deployer: requiredNonzeroAddress(document.deployer, "deployment deployer"),
+    camURI: requiredNonemptyString(document.camURI, "deployment CAM URI"),
+  } }
 }
 
 function resourceDownloadSetting(camURI: string, supplied?: string): string | undefined {

@@ -122,3 +122,16 @@ test("release operator may select HTTPS/IPFS or IPFS-only without adding policy 
     assert.deepEqual([...new URL(settings.url).searchParams.keys()], ["chainId", "host", "account", "rpcUrl"])
   }
 })
+
+test("viewer coordinates accept existing and new deployment evidence without owning release verification", () => {
+  for (const schema of ["pay-to-play.deployment.v1", "pay-to-play.deployment.v2", "bike-nft.deployment.v2", "escrow.deployment.v2"]) {
+    const app = schema.split(".deployment.")[0]!
+    const url = new URL(releaseViewerURL(app, bytes({ schema, chainId: common.chainId, camRoot: common.camRoot, deployer: common.deployer, camURI: common.camURI }), "http://127.0.0.1:5174", undefined, "https://rpc.example.test"))
+    assert.equal(url.searchParams.get("host"), common.camRoot)
+    assert.equal(url.searchParams.get("account"), common.deployer)
+  }
+  for (const change of [
+    { schema: "pay-to-play.deployment.future" }, { schema: "pay-to-play.release-plan.v1" },
+    { chainId: 0 }, { camRoot: address(0) }, { deployer: "not an address" }, { camURI: "" },
+  ]) assert.throws(() => releaseViewerURL("pay-to-play", bytes({ schema: "pay-to-play.deployment.v2", chainId: common.chainId, camRoot: common.camRoot, deployer: common.deployer, camURI: common.camURI, ...change }), "http://127.0.0.1:5174", undefined, "https://rpc.example.test"))
+})
