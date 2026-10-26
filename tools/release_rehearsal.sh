@@ -185,8 +185,6 @@ run_logged() {
 }
 
 verify_handoffs() {
-  # Artifact completion proves the recorded operation, including pending nominations.
-  run_logged pending-verification.log make "$app/release/verify" "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json"
   run_logged handoffs.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-accept
   run_logged verification.log make "$app/release/verify" "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json"
   printf 'Release rehearsal passed: %s\n' "$app"
@@ -219,7 +217,8 @@ config = {"schemaVersion": 3, "app": sys.argv[1], "sourceCommit": sys.argv[2],
           "settings": {"EXPECTED_CHAIN_ID": "31338", "OUTPUT_DIR": str(root / "deployment")}}
 (root / "artifact-recovery.json").write_text(json.dumps(config) + "\n")
 ' "$app" "$(git rev-parse HEAD)"
-  run_logged artifact-completion.log make "$app/release/verify" \
+  # Keyless recovery also verifies the recorded pending nominations before acceptance.
+  run_logged pending-verification.log make "$app/release/verify" \
     "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json" DEPLOYER_PRIVATE_KEY_FILE= PRIVATE_KEY=
   for phase in contracts ui cam; do
     case "$phase" in contracts) artifact=contract-deployment ;; ui) artifact=ui-deployment ;; cam) artifact=cam-publication ;; esac
