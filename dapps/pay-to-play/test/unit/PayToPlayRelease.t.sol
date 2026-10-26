@@ -16,6 +16,10 @@ contract PayToPlayReleaseHarness is DeployPayToPlayRelease, PayToPlayReleaseVeri
         bindPayToPlayUI(root, ui);
     }
 
+    function sourceUICodeHash(address payments) external returns (bytes32) {
+        return payToPlayUISourceCodeHash(payments);
+    }
+
     function parse(string memory json) external view returns (ReleasePlan memory) {
         return _parsePlan(json);
     }
@@ -72,12 +76,15 @@ contract PayToPlayReleaseTest is Test {
         PayToPlayUI replacement = harness.prepareUI(address(payments));
         assertEq(root.contractAddress("PayToPlayUI"), previousUI);
         assertEq(address(replacement.payments()), address(payments));
+        assertEq(harness.sourceUICodeHash(address(payments)), address(replacement).codehash);
         harness.activateUI(root, replacement);
         assertEq(root.contractAddress("PayToPlayUI"), address(replacement));
         assertEq(root.contractAddress("PayToPlay"), address(payments));
         assertEq(root.owner(), address(harness));
         assertEq(root.pendingOwner(), ROOT_OWNER);
         assertEq(payments.channelCount(), 1);
+        vm.etch(address(replacement), hex"00");
+        assertNotEq(harness.sourceUICodeHash(address(payments)), address(replacement).codehash);
     }
 
     function testVerifierRejectsSubstitutedSigningProjectionEvidence() external {

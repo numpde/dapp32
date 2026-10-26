@@ -15,6 +15,10 @@ contract DeployEscrowReleaseHarness is DeployEscrowRelease {
         bindEscrowUI(root, ui);
     }
 
+    function sourceUICodeHash(address escrow) external returns (bytes32) {
+        return escrowUISourceCodeHash(escrow);
+    }
+
     function deployForUpdate() external returns (Deployment memory) {
         return deployEscrow(address(this), "https://example.test/escrow/cam/main.json", bytes32(0));
     }
@@ -70,10 +74,13 @@ contract DeployEscrowReleaseTest is Test {
         CamEscrowUI replacement = harness.prepareUI(address(deployment.escrow));
         assertEq(deployment.camRoot.contractAddress("CamEscrowUI"), address(deployment.ui));
         assertEq(address(replacement.escrow()), address(deployment.escrow));
+        assertEq(harness.sourceUICodeHash(address(deployment.escrow)), address(replacement).codehash);
         harness.activateUI(deployment.camRoot, replacement);
         assertEq(deployment.camRoot.contractAddress("CamEscrowUI"), address(replacement));
         assertEq(deployment.camRoot.contractAddress("CamEscrow"), address(deployment.escrow));
         assertEq(deployment.camRoot.owner(), address(harness));
+        vm.etch(address(replacement), hex"00");
+        assertNotEq(harness.sourceUICodeHash(address(deployment.escrow)), address(replacement).codehash);
     }
 
     function testParsesCanonicalReleasePlan() external view {

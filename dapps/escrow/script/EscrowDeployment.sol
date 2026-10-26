@@ -37,4 +37,8 @@ abstract contract EscrowDeployment {
     function bindEscrowUI(CamRoot root, CamEscrowUI ui) internal {
         root.setContractAddress(CAM_CONTRACT_ESCROW_UI, address(ui));
     }
+
+    function escrowUISourceCodeHash(address escrow) internal returns (bytes32) {
+        return address(deployEscrowUI(escrow)).codehash;
+    }
 }

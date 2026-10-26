@@ -5,9 +5,10 @@ import {ICamApp} from "cam/src/ICamApp.sol";
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {PayToPlay} from "../src/PayToPlay.sol";
 import {PayToPlayUI} from "../src/PayToPlayUI.sol";
+import {PayToPlayUIDeployment} from "./PayToPlayUIDeployment.sol";
 
 /// @notice Read-only acceptance checks against the selected compiler source and live deployment.
-abstract contract PayToPlayReleaseVerifier {
+abstract contract PayToPlayReleaseVerifier is PayToPlayUIDeployment {
     struct Artifact {
         string sourceCommit;
         uint256 chainId;
@@ -122,8 +123,7 @@ abstract contract PayToPlayReleaseVerifier {
                 == keccak256(abi.encodePacked(type(PayToPlayUI).creationCode, abi.encode(artifact.payToPlay))),
             "PayToPlayUI creation source"
         );
-        PayToPlayUI referenceUI = new PayToPlayUI(artifact.payToPlay);
-        _require(address(referenceUI).codehash == artifact.payToPlayUI.codehash, "PayToPlayUI source");
+        _require(payToPlayUISourceCodeHash(artifact.payToPlay) == artifact.payToPlayUI.codehash, "PayToPlayUI source");
     }
 
     function _require(bool condition, string memory field) private pure {

@@ -7,16 +7,14 @@ import {ICamApp} from "cam/src/ICamApp.sol";
 
 import {CamEscrow} from "../src/CamEscrow.sol";
 import {CamEscrowUI} from "../src/CamEscrowUI.sol";
+import {EscrowDeployment} from "./EscrowDeployment.sol";
 import {ICamEscrowView} from "../src/ICamEscrowView.sol";
 
 /// @notice Exact, read-only acceptance checks for a published escrow release.
 /// @dev Reference deployments occur only inside Forge's simulation and are never
 /// broadcast by the verification lane. They bind bytecode checks to this source
 /// tree, including CamEscrowUI's immutable escrow address.
-abstract contract EscrowReleaseVerifier {
-    string internal constant CAM_CONTRACT_ESCROW = "CamEscrow";
-    string internal constant CAM_CONTRACT_ESCROW_UI = "CamEscrowUI";
-
+abstract contract EscrowReleaseVerifier is EscrowDeployment {
     struct Artifact {
         string sourceCommit;
         uint256 chainId;
@@ -127,8 +125,9 @@ abstract contract EscrowReleaseVerifier {
         CamEscrow referenceEscrow = new CamEscrow();
         _requireCodeHash("source CamEscrow", address(referenceEscrow).codehash, artifact.camEscrow.codehash);
 
-        CamEscrowUI referenceUI = new CamEscrowUI(artifact.camEscrow);
-        _requireCodeHash("source CamEscrowUI", address(referenceUI).codehash, artifact.camEscrowUI.codehash);
+        _requireCodeHash(
+            "source CamEscrowUI", escrowUISourceCodeHash(artifact.camEscrow), artifact.camEscrowUI.codehash
+        );
     }
 
     function _verifySolvency(address escrowAddress) private view {

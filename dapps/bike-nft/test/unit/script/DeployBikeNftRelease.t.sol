@@ -16,6 +16,10 @@ contract DeployBikeNftReleaseHarness is DeployBikeNftRelease {
         bindBikeNftUI(root, ui);
     }
 
+    function sourceUICodeHash(address manager) external returns (bytes32) {
+        return bikeNftUISourceCodeHash(manager);
+    }
+
     function parsePlan(string memory json) external view returns (ReleasePlan memory) {
         return _parsePlan(json);
     }
@@ -84,12 +88,15 @@ contract DeployBikeNftReleaseTest is Test {
         BicycleComponentManagerUI replacement = harness.prepareUI(address(deployment.manager));
         assertEq(deployment.camRoot.contractAddress("BicycleComponentManagerUI"), address(deployment.ui));
         assertEq(address(replacement.manager()), address(deployment.manager));
+        assertEq(harness.sourceUICodeHash(address(deployment.manager)), address(replacement).codehash);
         harness.activateUI(deployment.camRoot, replacement);
         assertEq(deployment.camRoot.contractAddress("BicycleComponentManagerUI"), address(replacement));
         assertEq(deployment.camRoot.contractAddress("BicycleComponentManager"), address(deployment.manager));
         assertEq(deployment.camRoot.contractAddress("BicycleComponents"), address(deployment.components));
         assertEq(deployment.camRoot.owner(), address(harness));
         assertEq(deployment.camRoot.pendingOwner(), CAM_ROOT_OWNER);
+        vm.etch(address(replacement), hex"00");
+        assertNotEq(harness.sourceUICodeHash(address(deployment.manager)), address(replacement).codehash);
     }
 
     function testReleaseWithEmptyBasePreservesIndependentTokenMetadataAndOwnerGating() external {

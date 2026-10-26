@@ -12,4 +12,8 @@ abstract contract PayToPlayUIDeployment {
     function bindPayToPlayUI(CamRoot root, PayToPlayUI ui) internal {
         root.setContractAddress("PayToPlayUI", address(ui));
     }
+
+    function payToPlayUISourceCodeHash(address payments) internal returns (bytes32) {
+        return address(deployPayToPlayUI(payments)).codehash;
+    }
 }

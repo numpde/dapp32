@@ -12,4 +12,8 @@ abstract contract BikeNftUIDeployment {
     function bindBikeNftUI(CamRoot root, BicycleComponentManagerUI ui) internal {
         root.setContractAddress("BicycleComponentManagerUI", address(ui));
     }
+
+    function bikeNftUISourceCodeHash(address manager) internal returns (bytes32) {
+        return address(deployBikeNftUI(manager)).codehash;
+    }
 }

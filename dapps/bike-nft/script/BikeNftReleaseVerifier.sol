@@ -13,10 +13,11 @@ import {BicycleComponentManagerUI} from "../src/BicycleComponentManagerUI.sol";
 import {BicycleComponents} from "../src/BicycleComponents.sol";
 import {IBicycleComponentManagerView} from "../src/IBicycleComponentManagerView.sol";
 import {IBicycleComponents} from "../src/IBicycleComponents.sol";
+import {BikeNftUIDeployment} from "./BikeNftUIDeployment.sol";
 
 /// @notice Read-only acceptance checks for one Bike NFT release.
 /// @dev Reference contracts are created only inside Forge simulation. The verification lane never broadcasts.
-abstract contract BikeNftReleaseVerifier {
+abstract contract BikeNftReleaseVerifier is BikeNftUIDeployment {
     string private constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
     string private constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
     string private constant CAM_CONTRACT_COMPONENTS = "BicycleComponents";
@@ -236,8 +237,9 @@ abstract contract BikeNftReleaseVerifier {
         BicycleComponentManager manager =
             new BicycleComponentManager(artifact.intendedManagerAdmin, artifact.managerAdminDelay, address(components));
         _requireHash("source BicycleComponentManager", address(manager).codehash, artifact.manager.codehash);
-        BicycleComponentManagerUI ui = new BicycleComponentManagerUI(artifact.manager);
-        _requireHash("source BicycleComponentManagerUI", address(ui).codehash, artifact.ui.codehash);
+        _requireHash(
+            "source BicycleComponentManagerUI", bikeNftUISourceCodeHash(artifact.manager), artifact.ui.codehash
+        );
     }
 
     function _requireRole(string memory field, BicycleComponents target, bytes32 role, address account, bool expected)
