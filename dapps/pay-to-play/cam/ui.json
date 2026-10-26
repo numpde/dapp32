@@ -926,7 +926,7 @@
         }
       ],
       "props": {
-        "title": "Create a channel"
+        "title": "Create a channel (admin only)"
       }
     },
     "balanceChooserFields": {

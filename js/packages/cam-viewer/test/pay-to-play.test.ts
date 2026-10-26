@@ -143,11 +143,11 @@ test("every read destination retains the application heading above its task", as
   await session.load()
   const inputs = { customer, channelId: "1", cumulativeTotal: "20", invoiceHash }
   const titles: Record<string, readonly string[]> = {
-    home: ["Open a balance", "Create a channel"],
+    home: ["Open a balance", "Create a channel (admin only)"],
     position: ["Account balance"],
     voucherDigest: ["Voucher signing details"],
     channelLookup: ["Find a channel ID"],
-    choosePosition: ["Open a balance", "Create a channel"],
+    choosePosition: ["Open a balance", "Create a channel (admin only)"],
     recovery: ["Recovery for this account and channel"],
   }
   for (const [route, declaration] of Object.entries(cam.routes)) {
@@ -181,7 +181,7 @@ test("payment tasks keep their controls together and separate channel administra
     ["Withdraw or move funds", ["requestWithdrawal", "setWithdrawal", "withdraw", "move"]],
     ["Voucher signing key", ["registerVoucherKey"]],
     ["Voucher payments", ["voucherDigest", "collect"]],
-    ["Create a channel", ["createChannel"]],
+    ["Create a channel (admin only)", ["createChannel"]],
     ["Channel administration", ["setPayee", "setCollector"]],
   ] as const) for (const route of routes) assert.equal(groups[route], group, route)
 })
@@ -235,7 +235,7 @@ test("opening a balance and creating a channel are peer tasks with separate cont
     assert.equal(lookup.props.title, "Open a balance")
     assert.deepEqual(resolvedUiButtons(lookup).map(button => button.call.function), ["position"])
     assert.equal(creation?.element, "Screen")
-    assert.equal(creation.props.title, "Create a channel")
+    assert.equal(creation.props.title, "Create a channel (admin only)")
     const buttons = resolvedUiButtons(creation)
     assert.deepEqual(buttons.map(button => button.call.function), ["createChannel"])
     assert.equal(buttons[0]?.disabled === true, account !== other, "admin controls remain visible with contract-projected availability")
