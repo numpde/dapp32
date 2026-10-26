@@ -144,6 +144,13 @@ try {
   await wait('!!document.querySelector(".panel.error")')
   assert(await evaluate(`document.querySelector('.panel.error').textContent.includes('download scope')&&gatewayFixture.aborted===0&&gatewayFixture.requests.length===1`), 'later nested resources use the new scope without cancelling the admitted root')
   await evaluate(`(()=>{const select=document.querySelector('#download-scope-choice');select.value='custom';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
+  assert(await evaluate(`(()=>{
+    const input=document.querySelector('#download-prefix'),caption=input.labels[0].querySelector('span');
+    const bounds=caption.getBoundingClientRect(),style=getComputedStyle(caption);
+    return input.labels.length===1&&caption.textContent==='URL prefix'&&bounds.width<=1&&bounds.height<=1&&style.overflow==='hidden';
+  })()`), 'the custom prefix keeps its native label without a visible repeated caption')
+  const customScopeTree = await call('Accessibility.getFullAXTree', {})
+  assert(customScopeTree.nodes.some(node=>node.role?.value==='textbox'&&node.name?.value==='URL prefix'), 'the custom prefix textbox retains its accessible name')
   await evaluate(`(()=>{const input=document.querySelector('#download-prefix');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'https://raw.githubusercontent.com/bundle/');input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
   await wait('!!document.querySelector("input[name=draft]")')
   assert(await evaluate(`document.querySelector('#download-prefix').value==='https://raw.githubusercontent.com/bundle/'`), 'a custom folder prefix recovers blocked requests after editing settles')

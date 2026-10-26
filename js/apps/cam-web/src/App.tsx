@@ -833,7 +833,7 @@ export function App(): ReactElement {
         <option value="custom">Custom URL prefix</option>
       </select>
       {scopeDraft.choice === "boot" && bootPrefix !== undefined ? <label className="field"><span className="visually-hidden">Configured URL prefix</span><input readOnly value={bootPrefix} /></label> : null}
-      {scopeDraft.choice === "custom" ? <label className="field"><span>URL prefix</span><input id="download-prefix" type="url" value={scopeDraft.prefix} placeholder="https://example.org/app/" onChange={event => editScope({ ...scopeDraft, prefix: event.currentTarget.value })} /></label> : null}
+      {scopeDraft.choice === "custom" ? <label className="field"><span className="visually-hidden">URL prefix</span><input id="download-prefix" type="url" value={scopeDraft.prefix} placeholder="https://example.org/app/" onChange={event => editScope({ ...scopeDraft, prefix: event.currentTarget.value })} /></label> : null}
       {scopeError === undefined ? null : <Feedback report={scopeError} kind="error" />}
     </div>
   </ControlRow>
