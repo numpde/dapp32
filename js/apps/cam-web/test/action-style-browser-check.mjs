@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { assertStableLayout } from './layout-stability.mjs'
 import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
-import { assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery } from './display-contracts.mjs'
+import { assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery, assertNumericValidationPresentation } from './display-contracts.mjs'
 
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/action-style-fixture.html', viewerURL)
@@ -36,6 +36,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedIdentifier=value}}})`)
     await assertDisplayedValues({ call, evaluate })
     await assertDisplayFailureWitnesses({ call, evaluate })
+    await assertNumericValidationPresentation({ evaluate, wait })
     await evaluate(`navigator.clipboard.writeText=()=>new Promise(resolve=>{window.finishOldCopy=resolve});document.querySelector('.hex-copy').click();window.actionFixture.account('0x4444444444444444444444444444444444444444')`)
     await wait(`document.querySelector('.hex-value code').textContent==='0x4444444444444444444444444444444444444444'`)
     await evaluate('window.finishOldCopy()')

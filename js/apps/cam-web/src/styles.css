@@ -276,7 +276,7 @@ textarea:disabled {
 .duration-parts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .amount-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .amount-field legend, .duration-field legend { padding: 0; margin-bottom: 8px; }
-.field-hint { margin: 8px 0 0; color: var(--muted); font-size: 0.86rem; overflow-wrap: anywhere; }
+.field-hint, .resource-status { margin: 8px 0 0; color: var(--muted); font-size: 0.86rem; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .amount-pair { grid-template-columns: minmax(0, 1fr); } .duration-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .field span {
@@ -292,6 +292,8 @@ input {
   border-radius: 6px;
   background: #fbfcfe;
 }
+
+input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
 
 input:focus-visible,
 textarea:focus-visible,
