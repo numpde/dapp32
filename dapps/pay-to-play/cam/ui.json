@@ -1,6 +1,27 @@
 {
   "ui": "1.0.0",
   "nodes": {
+    "app": {
+      "element": "Screen",
+      "requires": [
+        "view"
+      ],
+      "props": {
+        "title": "Pay-to-Play"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "$view.screen",
+            "args": {
+              "view": "$view.task"
+            }
+          }
+        }
+      ]
+    },
     "positionFields": {
       "requires": [
         "view"
@@ -646,15 +667,9 @@
       ],
       "element": "Screen",
       "props": {
-        "title": "Pay-to-Play"
+        "title": "Account balance"
       },
       "children": [
-        {
-          "element": "Text",
-          "props": {
-            "text": "Account balance"
-          }
-        },
         {
           "element": "Status",
           "props": {
@@ -672,7 +687,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner’s account. Any account can submit a valid voucher (except in channel 0) or a ready withdrawal back to the owner. Connecting or changing wallet accounts clears form entries."
+            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner\u2019s account. Any account can submit a valid voucher (except in channel 0) or a ready withdrawal back to the owner. Connecting or changing wallet accounts clears form entries."
           }
         },
         {
@@ -713,19 +728,13 @@
       ],
       "element": "Screen",
       "props": {
-        "title": "Pay-to-Play"
+        "title": "Find a channel ID"
       },
       "children": [
         {
           "element": "Text",
           "props": {
-            "text": "Find a channel ID"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Find the new channel’s exact ID in the ChannelCreated event in your transaction receipt. This viewer shows the transaction hash, but does not decode that event. The channel count alone cannot identify your new channel."
+            "text": "Find the new channel\u2019s exact ID in the ChannelCreated event in your transaction receipt. This viewer shows the transaction hash, but does not decode that event. The channel count alone cannot identify your new channel."
           }
         },
         {
@@ -830,12 +839,6 @@
         {
           "element": "Text",
           "props": {
-            "text": "Choose an account and channel"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
             "text": "Enter the balance owner and an existing channel ID, then open that balance. This only reads it; no transaction is sent. The opened owner and channel stay fixed when wallet accounts change."
           }
         },
@@ -904,7 +907,7 @@
       ],
       "element": "Screen",
       "props": {
-        "title": "Pay-to-Play"
+        "title": "Choose an account and channel"
       },
       "children": [
         {
@@ -925,15 +928,9 @@
       ],
       "element": "Screen",
       "props": {
-        "title": "Pay-to-Play recovery"
+        "title": "Recovery for this account and channel"
       },
       "children": [
-        {
-          "element": "Text",
-          "props": {
-            "text": "Recovery for this account and channel"
-          }
-        },
         {
           "element": "Status",
           "props": {
@@ -979,7 +976,7 @@
         {
           "element": "Status",
           "props": {
-            "label": "Position’s scheduled refund",
+            "label": "Position\u2019s scheduled refund",
             "value": "$view.scheduledRefundAt",
             "format": "timestampSeconds",
             "zeroText": "No active funding cycle"
@@ -1023,7 +1020,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Each funded position operates for 365 days, then enters this channel’s final claim period. At the refund deadline, voucher collection stops and anyone may return the entire remaining balance. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock."
+            "text": "Each funded position operates for 365 days, then enters this channel\u2019s final claim period. At the refund deadline, voucher collection stops and anyone may return the entire remaining balance. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock."
           }
         },
         {

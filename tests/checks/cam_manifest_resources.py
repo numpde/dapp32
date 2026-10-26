@@ -11,6 +11,7 @@ from tools.cam_resource_integrity import (
     INTEGRITY_PATTERN,
     resource_declarations,
     resource_integrity,
+    local_resource_path,
 )
 from tools.json_policy import JsonPolicyError, strict_json_loads
 
@@ -77,6 +78,46 @@ class CamManifestResourceValidator:
             )
 
         return failures
+
+    def validate_application_frame(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        """First-party UI authoring convention, not a CAM conformance requirement."""
+        resources, failures = self.manifest_resource_declarations(manifest_path, manifest)
+        if failures:
+            return failures
+        ui_paths = {
+            namespace: local_resource_path(manifest_path, declaration[uri_key], field_path)
+            for namespace, declaration, uri_key, _integrity, field_path in resources
+            if declaration.get("type") == "ui"
+        }
+        roots: set[tuple[Path, str]] = set()
+        routes = manifest.get("routes")
+        if not isinstance(routes, dict):
+            return [f"{manifest_path}: application frames require declared routes"]
+        for name, route in routes.items():
+            if not isinstance(route, dict) or route.get("kind") != "read":
+                continue
+            continuation = route.get("then")
+            if not isinstance(continuation, dict):
+                return [f"{manifest_path}: read route {name} must name its application frame"]
+            target = continuation.get("function")
+            resource = ui_paths.get(continuation.get("namespace"))
+            if resource is None or not isinstance(target, str) or not target or target.startswith("$"):
+                return [f"{manifest_path}: read route {name} must statically name its UI application frame"]
+            roots.add((resource, target))
+        if len(roots) != 1:
+            return [f"{manifest_path}: read routes must share one application frame, found {sorted(str(path) + ':' + name for path, name in roots)}"]
+        resource, name = next(iter(roots))
+        document = self.read_json_object(resource)
+        nodes = document.get("nodes")
+        frame = nodes.get(name) if isinstance(nodes, dict) else None
+        props = frame.get("props") if isinstance(frame, dict) else None
+        title = props.get("title") if isinstance(props, dict) else None
+        if not isinstance(frame, dict) or frame.get("element") != "Screen" or not isinstance(title, str) or not title.strip() or title.startswith("$"):
+            return [f"{resource}: application frame {name} must be a Screen with a stable literal title"]
+        children = frame.get("children")
+        if not isinstance(children, list) or not any(isinstance(child, dict) and child.get("element") in {"Include", "Screen"} for child in children):
+            return [f"{resource}: application frame {name} must compose its task beneath the application heading"]
+        return []
 
     def validate_no_orphan_abi_files(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts, failures = self.contract_namespaces(manifest_path, manifest)

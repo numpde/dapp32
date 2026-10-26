@@ -27,7 +27,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xb92df08258a656e2f3c673dcf81ced262b42c11cfddc7000d056a491173840f2"
+      "integrity": "sha256:0x5979036e08573a3e4d5fb2415740430effe5876470d2adac9a1389cd0cfbb59e"
     },
     "contracts.BicycleComponents": {
       "type": "contract",
@@ -49,9 +49,12 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "deploymentHandovers",
+        "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "deploymentHandovers",
+            "task": "$outputs.0"
+          }
         }
       }
     },
@@ -135,7 +138,10 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "registry",
+            "task": "$outputs.0"
+          }
         }
       }
     },
@@ -156,7 +162,10 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "registry",
+            "task": "$outputs.0"
+          }
         }
       }
     },
@@ -177,7 +186,10 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "registry",
+            "task": "$outputs.0"
+          }
         }
       }
     },
@@ -350,7 +362,10 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "registry",
+            "task": "$outputs.0"
+          }
         }
       }
     },
