@@ -1035,16 +1035,19 @@ class RenderedComposePostureTest(unittest.TestCase):
             elif "compose/release/artifact.yml" in compose_unit_files(files):
                 expected.add((files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"))
             if "compose/release/cam.yml" in compose_unit_files(files):
-                expected.add((files, "release-reference-prepare", "/tmp/release-output/plan", "/release-plan"))
+                expected.update({
+                    (files, "release-reference-prepare", "/tmp/release-output/plan", "/release-plan"),
+                    (files, "release-cam-root-source", "/tmp/release-output/root-proof", "/root-proof"),
+                })
             if "compose/release/reference.yml" in compose_unit_files(files):
                 expected.update({
-                    (files, "release-reference-export", "/tmp/release-output/approval/artifacts", "/reference-artifacts"),
-                    (files, "release-reference-prepare", "/tmp/release-output/approval/reference", "/reference-out"),
+                    (files, "release-reference-export", "/tmp/release-output/approval-artifacts", "/reference-artifacts"),
+                    (files, "release-reference-prepare", "/tmp/release-output/approval-reference", "/reference-out"),
                 })
             if "compose/release/approval.yml" in compose_unit_files(files):
                 expected.update({
                     (files, "release-approval", "/tmp/release-output/approval/socket", "/run/approval"),
-                    (files, "release-approval", "/tmp/release-output/approval/audit", "/run/audit"),
+                    (files, "release-approval", "/tmp/release-output/approval-audit", "/run/audit"),
                 })
             if "compose/release/approval-image.yml" in compose_unit_files(files):
                 expected.add((files, "release-approval-context", "/tmp/approval-image-context", "/context"))

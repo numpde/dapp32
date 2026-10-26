@@ -488,11 +488,15 @@ def unpack(app, source_commit, mode, source, output):
             "CAM_RELEASE_OUTPUT_DIR": supplied["OUTPUT_DIR"],
         }
         if mode == "cam-publish":
+            # silent-defaults: allow-default -- Omitted CAM_HASH selects the documented computed bundle commitment; explicit zero is preserved.
+            cam_hash = supplied.get("CAM_HASH", "auto")
+            # silent-defaults: allow-default -- Omitted ownership intent preserves the current nominee and emits no ownership write.
+            intended_owner = supplied.get("INTENDED_CAM_ROOT_OWNER", "0x" + "00" * 20)
             settings.update({
                 "CAM_RELEASE_SIGNER_ADDRESS": supplied["EXPECTED_DEPLOYER_ADDRESS"],
                 "CAM_RELEASE_URI": supplied["CAM_URI"],
-                "CAM_RELEASE_HASH": supplied.get("CAM_HASH", "auto"),
-                "CAM_RELEASE_INTENDED_OWNER": supplied.get("INTENDED_CAM_ROOT_OWNER", "0x" + "00" * 20),
+                "CAM_RELEASE_HASH": cam_hash,
+                "CAM_RELEASE_INTENDED_OWNER": intended_owner,
                 "RELEASE_APPROVAL_IMAGE": config["approvalImageId"],
             })
     elif mode == "cam-artifact":

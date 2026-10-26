@@ -374,7 +374,7 @@ release_run_owned() { shift; "$@"; }
                 process = self.launch(script, env)
                 stdout, stderr = process.communicate(timeout=5)
                 self.assertEqual(0, process.returncode, stdout + stderr)
-                self.assertEqual(f"{app} contracts-deploy \n", (root / "config-mode").read_text())
+                self.assertEqual(f"{app} contracts-deploy\n", (root / "config-mode").read_text())
                 self.assertEqual(["unset", "unset", str(root / "rpc-url"), str(root / "key"), str(root / "new-output"), str(root / "archived-source")], (root / "grants").read_text().splitlines())
                 self.assertEqual(settings, (root / "settings").read_text())
                 self.assertEqual([
@@ -416,7 +416,7 @@ release_make_cleanup_grace=420
                 process = self.launch(script, env)
                 stdout, stderr = process.communicate(timeout=5)
                 self.assertEqual(0, process.returncode, stdout + stderr)
-                self.assertEqual(f"{app} cam-bundle \n", (root / "config-mode").read_text())
+                self.assertEqual(f"{app} cam-bundle\n", (root / "config-mode").read_text())
                 calls = [call.split("\0") for call in (root / "calls").read_text().rstrip("\0").split("\0\0")]
                 expected = []
                 for phase, name in (("contracts", "CONTRACT_RECORDS"), ("ui", "UI_RECORDS"), ("cam", "CAM_RECORDS")):

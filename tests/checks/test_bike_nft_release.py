@@ -55,7 +55,11 @@ class BikeNftReleasePostureTest(unittest.TestCase):
                 services = compose_mapping(config, "services")
                 assert_verification_has_no_signing_authority(self, services)
                 collector = services["release-artifact"]
-                for target in ("/release-plan", "/release-broadcast", "/reference"):
+                receipt_evidence = "/approval-audit" if phase == "CAM" else "/release-broadcast"
+                targets = ("/release-plan", receipt_evidence, "/reference")
+                if phase == "CAM":
+                    targets = (*targets, "/root-proof")
+                for target in targets:
                     self.assertIs(compose_volume(collector, target)["read_only"], True)
                 publisher = services[f"release-{role}-publish"]
                 assert_offline_read_only_release_check(self, publisher)

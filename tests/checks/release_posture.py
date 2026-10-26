@@ -124,8 +124,23 @@ def assert_deployment_authority_split(
     elif operation == "ui":
         case.assertIs(compose_volume(planner, "/backing/deployment.json")["read_only"], True)
     else:
-        for target in ("/work/dapps", "/prepared", "/root-origin/root.json"):
+        for target in ("/work/dapps", "/prepared", "/root-proof"):
             case.assertIs(compose_volume(planner, target)["read_only"], True)
+        root_source = services["release-cam-root-source"]
+        assert_offline_read_only_release_check(case, root_source)
+        selected_root = compose_volume(root_source, "/selected/root.json")
+        case.assertIs(selected_root["read_only"], True)
+        root_proof = compose_volume(root_source, "/root-proof")
+        case.assertIsNot(root_proof.get("read_only"), True)
+        for consumer in (planner, materializer):
+            proof_read = compose_volume(consumer, "/root-proof")
+            case.assertEqual(root_proof["source"], proof_read["source"])
+            case.assertIs(proof_read["read_only"], True)
+            case.assertEqual([], _source_access_modes(consumer, selected_root["source"]))
+        approval_audit = compose_volume(approval, "/run/audit")
+        audit_read = compose_volume(materializer, "/approval-audit")
+        case.assertEqual(approval_audit["source"], audit_read["source"])
+        case.assertIs(audit_read["read_only"], True)
     key_holders = [
         name
         for name, service in services.items()
@@ -221,7 +236,6 @@ def assert_release_output_directions(
     materializer_plan = compose_volume(materializer, plan_target)
     publisher_plan = compose_volume(publisher, plan_target)
     signer_broadcast = compose_volume(signer, broadcast_target)
-    materializer_broadcast = compose_volume(materializer, broadcast_target)
     candidate_write = compose_volume(materializer, candidate_target)
     publisher_candidate = compose_volume(publisher, candidate_target)
     artifact_write = compose_volume(publisher, artifact_target)
@@ -235,11 +249,17 @@ def assert_release_output_directions(
         case.assertEqual([True], _source_access_modes(service, plan_write["source"]))
 
     case.assertIsNot(signer_broadcast.get("read_only"), True)
-    case.assertEqual(signer_broadcast["source"], materializer_broadcast["source"])
-    case.assertIs(materializer_broadcast["read_only"], True)
     case.assertEqual([], _source_access_modes(planner, signer_broadcast["source"]))
     case.assertEqual([False], _source_access_modes(signer, signer_broadcast["source"]))
-    case.assertEqual([True], _source_access_modes(materializer, signer_broadcast["source"]))
+    if operation == "cam":
+        case.assertEqual([], _source_access_modes(materializer, signer_broadcast["source"]))
+        audit_read = compose_volume(materializer, "/approval-audit")
+        case.assertIs(audit_read["read_only"], True)
+    else:
+        materializer_broadcast = compose_volume(materializer, broadcast_target)
+        case.assertEqual(signer_broadcast["source"], materializer_broadcast["source"])
+        case.assertIs(materializer_broadcast["read_only"], True)
+        case.assertEqual([True], _source_access_modes(materializer, signer_broadcast["source"]))
     case.assertEqual([], _source_access_modes(publisher, signer_broadcast["source"]))
 
     case.assertIsNot(candidate_write.get("read_only"), True)

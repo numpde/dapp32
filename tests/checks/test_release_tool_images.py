@@ -246,7 +246,10 @@ release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
                         after = rendered_compose_config((*files, str(overlay)), env={"RELEASE_OPERATION": operation, "CAM_RELEASE_HASH": "0x" + "c" * 64})["services"]
                         self.assertEqual(before.keys(), after.keys(), "image overrides must not introduce services")
                         if phase == "deploy":
-                            self.assertEqual(selected | {"release-approval"}, after.keys())
+                            services = selected | {"release-approval"}
+                            if operation == "cam":
+                                services.add("release-cam-root-source")
+                            self.assertEqual(services, after.keys())
                         for service in selected:
                             self.assertNotIn("build", after[service])
                             self.assertRegex(after[service]["image"], r"^sha256:[0-9a-f]{64}$")

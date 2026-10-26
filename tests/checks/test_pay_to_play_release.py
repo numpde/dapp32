@@ -49,7 +49,11 @@ class PayToPlayReleasePostureTest(unittest.TestCase):
                 config = rendered_compose_config(makefile_compose_unit(f"{phase}_RELEASE_ARTIFACT_COMPOSE_FILES"), env=RELEASE_ENV)
                 services = compose_mapping(config, "services")
                 assert_verification_has_no_signing_authority(self, services)
-                for target in ("/release-plan", "/release-broadcast", "/reference"):
+                receipt_evidence = "/approval-audit" if phase == "CAM" else "/release-broadcast"
+                targets = ("/release-plan", receipt_evidence, "/reference")
+                if phase == "CAM":
+                    targets = (*targets, "/root-proof")
+                for target in targets:
                     self.assertIs(compose_volume(services["release-artifact"], target)["read_only"], True)
                 publisher = services[f"release-{role}-publish"]
                 assert_offline_read_only_release_check(self, publisher)

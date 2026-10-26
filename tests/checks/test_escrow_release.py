@@ -38,6 +38,10 @@ RELEASE_ENV = {
     "DEPLOYER_PRIVATE_KEY_FILE": PRIVATE_KEY_FILE,
     "RPC_URL_FILE": RPC_URL_FILE,
     "RELEASE_OUTPUT_DIR": OUTPUT_DIR,
+    "RELEASE_APPROVAL_ARTIFACTS_DIR": f"{OUTPUT_DIR}/approval-artifacts",
+    "RELEASE_APPROVAL_REFERENCE_DIR": f"{OUTPUT_DIR}/approval-reference",
+    "RELEASE_APPROVAL_REFERENCE_FILE": f"{OUTPUT_DIR}/approval-reference/reference.json",
+    "RELEASE_APPROVAL_AUDIT_DIR": f"{OUTPUT_DIR}/approval-audit",
 }
 
 
@@ -213,7 +217,11 @@ class EscrowReleasePostureTest(unittest.TestCase):
                 services = compose_mapping(config, "services")
                 assert_verification_has_no_signing_authority(self, services)
                 collector = services["release-artifact"]
-                for target in ("/release-plan", "/release-broadcast", "/reference"):
+                receipt_evidence = "/approval-audit" if phase == "CAM" else "/release-broadcast"
+                targets = ("/release-plan", receipt_evidence, "/reference")
+                if phase == "CAM":
+                    targets = (*targets, "/root-proof")
+                for target in targets:
                     mount = compose_volume(collector, target)
                     self.assertIs(mount["read_only"], True)
                     self.assertIsNot(mount["bind"].get("create_host_path"), True)
