@@ -32,11 +32,22 @@ services:
     command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/inputs.ts']
 
   release-artifact-rpc-proxy:
-    extends: {file: artifact.yml, service: release-artifact-rpc-proxy}
-    depends_on: !reset []
+    extends: {file: ../fragments/release-rpc-proxy.yml, service: release-rpc-proxy-base}
     environment:
+      RPC_UPSTREAM_FILE: /run/inputs/rpc_url
+      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_blockNumber eth_getBlockByNumber eth_getTransactionReceipt eth_getTransactionByHash eth_getCode eth_call
+    volumes:
+      - type: bind
+        source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+        target: /run/inputs/rpc_url
+        read_only: true
+        bind: {create_host_path: false}
+    networks:
+      release_artifact_internal:
+        aliases: [release-artifact-rpc-proxy]
+      release_artifact_egress: {}
 
   release-cam-bundle:
     extends: {file: ../fragments/node-workspace.yml, service: hardened-node-workspace}
