@@ -132,6 +132,22 @@ export async function assertNumericValidationPresentation({ evaluate, wait }) {
   assert(names.length > 0, 'the fixture exercises numeric controls')
   for (const name of names) {
     const selector = `input[name=${JSON.stringify(name)}]`
+    async function editorPresentation() {
+      return evaluate(`(()=>{
+        const input=document.querySelector(${JSON.stringify(selector)});
+        const group=input.closest('fieldset');
+        const editor=group===null?input.closest('label.field').parentElement:group;
+        function visibleTree(element){
+          const bounds=element.getBoundingClientRect(),style=getComputedStyle(element);
+          if(bounds.width<=1||bounds.height<=1||style.display==='none'||style.visibility!=='visible')return null;
+          const text=element.matches('input,textarea,select')?'':[...element.childNodes].filter(node=>node.nodeType===Node.TEXT_NODE).map(node=>node.textContent).join('').replace(/\\s+/gu,' ').trim();
+          return {tag:element.tagName,text,children:[...element.children].map(visibleTree).filter(child=>child!==null)};
+        }
+        const bounds=editor.getBoundingClientRect();
+        return {width:bounds.width,height:bounds.height,tree:visibleTree(editor)};
+      })()`)
+    }
+    const initialEditor = await editorPresentation()
     async function enter(value) {
       await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
     }
@@ -141,6 +157,7 @@ export async function assertNumericValidationPresentation({ evaluate, wait }) {
       assert.equal(current.red, invalid, 'the rendered border follows semantic invalidity')
       for (const description of current.descriptions) assert(!description.visible && description.text, 'numeric causes remain accessible without visible commentary')
       if (invalid) assert(current.descriptions.length > 0, 'invalid numeric input has an accessible cause')
+      assert.deepEqual(await editorPresentation(), initialEditor, 'numeric editor visible content and size stay stable across draft states')
       return current
     }
     await enter('not-a-number')
