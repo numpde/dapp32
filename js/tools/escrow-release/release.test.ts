@@ -14,6 +14,9 @@ import {
   join,
 } from "node:path"
 import test from "node:test"
+import { backingFromDeployment } from "../ui-release/shared.ts"
+
+
 import { fileURLToPath } from "node:url"
 
 import { getAddress } from "viem"
@@ -421,3 +424,14 @@ function create(contractName: string, contractAddress: string, hash: string): un
     hash,
   }
 }
+
+
+test("UI deployment selects historical escrow identity without its root or old UI", () => {
+  const artifact = deploymentArtifact()
+  const backing = backingFromDeployment("escrow", new TextEncoder().encode(JSON.stringify(artifact)))
+  assert.equal(backing.address, artifact.camEscrow)
+  assert.equal(backing.creationTransaction, artifact.camEscrowCreationTransaction)
+  assert.equal(backing.codeHash, artifact.camEscrowCodeHash)
+  assert.equal(backing.creator, artifact.deployer)
+  assert.equal("camRoot" in backing, false)
+})

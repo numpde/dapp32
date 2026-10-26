@@ -5,6 +5,9 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import test from "node:test"
+import { backingFromDeployment } from "../ui-release/shared.ts"
+
+
 import { fileURLToPath } from "node:url"
 import { keccak256 } from "viem"
 import type { Address, Hex } from "viem"
@@ -126,4 +129,15 @@ test("offline planner pins actual CAM bytes and never silently supplies release 
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+
+test("UI deployment preserves historical payment creation-input evidence without its CAM root", () => {
+  const deployment = artifact()
+  const backing = backingFromDeployment("pay-to-play", bytes(deployment))
+  assert.equal(backing.address, deployment.payToPlay)
+  assert.equal(backing.creationTransaction, deployment.payToPlayCreationTransaction)
+  assert.equal(backing.creationInputHash, deployment.payToPlayCreationInputHash)
+  assert.equal(backing.codeHash, deployment.payToPlayCodeHash)
+  assert.equal("camRoot" in backing, false)
 })

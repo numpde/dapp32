@@ -9,6 +9,9 @@ import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
 import { deploymentArtifact, deploymentContractsFromBroadcast } from "./artifact-model.ts"
+import { backingFromDeployment } from "../ui-release/shared.ts"
+
+
 import { ownershipState } from "../release-ownership.ts"
 import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseReleasePlan, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
@@ -317,3 +320,16 @@ function runBikeVerifyInput(directory: string, name: string, artifact: unknown) 
   })
   return { result, snapshotPath }
 }
+
+
+test("UI deployment selects the historical manager rather than the collection, UI or CAM root", () => {
+  const artifact = deployment()
+  const bytes = new TextEncoder().encode(JSON.stringify(artifact, null, 2))
+  const backing = backingFromDeployment("bike-nft", bytes)
+  assert.equal(backing.address, artifact.manager)
+  assert.equal(backing.creationTransaction, artifact.managerCreationTransaction)
+  assert.equal(backing.codeHash, artifact.managerCodeHash)
+  assert.equal(backing.artifactSha256, `0x${createHash("sha256").update(bytes).digest("hex")}`)
+  assert.equal("camRoot" in backing, false)
+  assert.throws(() => backingFromDeployment("bike-nft", new TextEncoder().encode('{"schema":"bike-nft.deployment.v2"}')), /missing/)
+})
