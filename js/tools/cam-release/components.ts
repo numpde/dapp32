@@ -54,3 +54,5 @@ export async function admitCamComponents({ app, businessBytes, uiBytes, business
     artifactSha256: business.artifactSha256, contracts }, ui: { sourceCommit: ui.sourceCommit, creator: ui.creator,
     artifactSha256: sha256(uiBytes), contract: observedUI.identity, backing: backingRole }, observationBlock: { number: blockNumber, hash: block.hash } }
 }
+
+export type AdmittedCamComponents = Awaited<ReturnType<typeof admitCamComponents>>
