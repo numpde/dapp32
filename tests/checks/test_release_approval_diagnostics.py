@@ -5,6 +5,7 @@ import os
 from contextlib import contextmanager
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -18,6 +19,30 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
         cls.rehearsal = import_python_module_with_env(
             "approval_bounded_diagnostics", ROOT / "tools/release_approval_pty_check.py", {},
         )
+
+    def test_failed_preparation_retains_its_private_cause_before_teardown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            case = Path(directory)
+            (case / "reference").mkdir(mode=0o700)
+            script = r'''
+source tools/release_approval_deploy.sh
+ceremony_root="$CASE_ROOT"
+RELEASE_APPROVAL_REFERENCE_DIR="$CASE_ROOT/reference"
+release_command_grace=15
+release_approval_service_id() { printf fixture; }
+release_run_owned() { printf '1\n'; }
+docker() { [[ "$1" == logs ]]; printf '%s\n' 'Cannot admit CAM root: current binding differs from latest publication'; }
+timeout() { shift 2; "$@"; }
+if release_approval_wait_service release-reference-prepare 720; then exit 9; fi
+'''
+            result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
+                                    env={**os.environ, "CASE_ROOT": str(case)}, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            diagnostic = case / "reference/preparation.log"
+            self.assertIn("current binding differs", diagnostic.read_text())
+            self.assertEqual(0, stat.S_IMODE(diagnostic.stat().st_mode) & 0o077)
+            self.assertIn(str(diagnostic), result.stderr)
+            self.assertNotIn("current binding differs", result.stderr)
 
     def test_live_private_logs_and_prompts_survive_chunk_boundaries_and_tail_eviction(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

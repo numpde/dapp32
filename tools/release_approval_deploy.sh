@@ -23,7 +23,12 @@ release_approval_wait_service() {
   fi
   result="$(<"$ceremony_root/service-exit-code")"
   if [[ ! "$result" =~ ^[0-9]+$ || "$result" != 0 ]]; then
-    printf '%s exited unsuccessfully (%s).\n' "$service" "$result" >&2
+    local diagnostics="$RELEASE_APPROVAL_REFERENCE_DIR/preparation.log"
+    if (umask 077; timeout --foreground 10s docker logs --tail 80 "$identity" 2>&1 | head -c 65536 > "$diagnostics"); then
+      printf '%s exited unsuccessfully (%s). Private diagnostics: %s\n' "$service" "$result" "$diagnostics" >&2
+    else
+      printf '%s exited unsuccessfully (%s); its preparation diagnostics could not be fully retained at %s.\n' "$service" "$result" "$diagnostics" >&2
+    fi
     return 1
   fi
 }
