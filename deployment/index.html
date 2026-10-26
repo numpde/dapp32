@@ -31,6 +31,24 @@ make pay-to-play/release/cam/bundle \
   UI_ARTIFACT=/absolute/records/ui/artifact/ui-deployment.json \
   ROOT=new \
   OUTPUT_DIR=/absolute/records/cam-prepared</code></pre>
+<h3 id="ui-signing-configuration">Configure only the UI deployment</h3>
+<p>You can write <code>/absolute/private/ui.json</code> directly without running the full setup walkthrough. This minimal signed UI configuration needs no business settings or <code>CAM_URI</code>. Replace the placeholders with your actual values:</p>
+<pre><code>{
+  "schemaVersion": 3,
+  "app": "pay-to-play",
+  "sourceCommit": "&lt;40-hex-character-UI-source-commit&gt;",
+  "rpcUrl": "https://&lt;your-chain-RPC-endpoint&gt;",
+  "deployerPrivateKey": "0x&lt;64-hex-character-UI-creator-key&gt;",
+  "approvalImageId": "sha256:&lt;64-hex-character-installed-image-ID&gt;",
+  "confirmDeploy": true,
+  "settings": {
+    "EXPECTED_CHAIN_ID": "11155111",
+    "EXPECTED_DEPLOYER_ADDRESS": "0x&lt;40-hex-character-UI-creator-address&gt;",
+    "OUTPUT_DIR": "/absolute/records/ui"
+  }
+}</code></pre>
+<p>The three settings are strings. Choose the backing contract's chain and the funded UI creator's address and key. <code>sourceCommit</code> selects the UI program: run from that clean committed revision with its locked dependencies installed. <code>CONTRACT_ARTIFACT</code> separately selects the business contract and its original source, which may be an earlier compatible revision. The saved approval image must already be installed; <code>confirmDeploy: true</code> does not replace approval of each transaction.</p>
+<p>Keep this JSON outside the checkout, owned by you with mode <code>0600</code>, with no symlinks in its path and an existing parent directory. The output directory must be new; command-line <code>OUTPUT_DIR</code> overrides the saved destination. Local UI configurations additionally include top-level <code>localNetwork</code> for the existing private fixture network, use <code>rpcUrl: "http://release-anvil:8545"</code> and chain <code>"31338"</code>. A full setup-generated configuration can also be reused: UI deployment consumes only its own required settings.</p>
 <p>The business operation verifies its mined creations and required initialization before writing <code>artifact/contract-deployment.json</code>. That record includes observed administration and any pending handoffs; it does not assert that nominees have accepted. The UI operation verifies the selected backing contract's recorded creation and runtime identity, then verifies the mined UI against its original compiled source and backing dependency before writing <code>artifact/ui-deployment.json</code>. Neither operation publishes CAM resources or binds a root.</p>
 <p>A UI can use a compatible business contract deployed from an earlier source commit. Its artifact selects that original source; the UI configuration selects the UI source. UI deployment does not require the business contract to retain its original owner, pending nominations or pause state. Choose compatible contract interfaces; these identity checks do not establish compatibility for arbitrary old and new programs.</p>
 <p>Bundle preparation uses a read-only configuration with <code>schemaVersion: 3</code>, the matching <code>app</code>, an exact <code>sourceCommit</code> for the authored CAM resources, <code>rpcUrl</code>, and <code>settings.EXPECTED_CHAIN_ID</code> and <code>settings.OUTPUT_DIR</code>. These settings are strings. The configuration needs no private key, approval image or CAM URI. Local configurations also retain their <code>localNetwork</code>. The same protected-file requirements apply. <code>OUTPUT_DIR</code> on the command line overrides the saved output directory.</p>
