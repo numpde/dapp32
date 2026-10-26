@@ -21,18 +21,21 @@ class ReleaseRehearsalTest(unittest.TestCase):
         source = (ROOT / "tools/release_rehearsal.sh").read_text()
         declaration = re.search(r"(?m)^planner_compose=\(.*\)$", source).group()
         source_assignment = re.search(r"(?m)^export RELEASE_SOURCE_DIR=.*$", source).group()
+        output_assignment = re.search(r"(?m)^export RELEASE_OUTPUT_DIR=.*$", source).group()
+        candidate_assignment = re.search(r"(?m)^export CONTRACT_RELEASE_CANDIDATE_DIR=.*$", source).group()
         for app in ("bike-nft", "escrow", "pay-to-play"):
             with self.subTest(app=app):
                 recipe = shlex.split(expanded_release_target(app + "/release/rehearsal/run"))
                 invocation = recipe[recipe.index("tools/release_rehearsal.sh") + 1:]
                 arguments = subprocess.check_output(
-                    ["bash", "-c", source_assignment + "\n" + declaration + '; printf "%s\\0" "$RELEASE_SOURCE_DIR" "${planner_compose[@]}"', "rehearsal", *invocation],
+                    ["bash", "-c", "\n".join((source_assignment, output_assignment, candidate_assignment, declaration)) + '; printf "%s\\0" "$RELEASE_SOURCE_DIR" "$CONTRACT_RELEASE_CANDIDATE_DIR" "${planner_compose[@]}"', "rehearsal", *invocation],
                     env={**os.environ, "project": "fixture", "app": app, "RELEASE_REHEARSAL_DIR": "/tmp/rehearsal-fixture"}, text=True,
                 ).split("\0")[:-1]
-                supplied = {"RELEASE_SOURCE_DIR": arguments.pop(0)}
+                supplied = {"RELEASE_SOURCE_DIR": arguments.pop(0), "CONTRACT_RELEASE_CANDIDATE_DIR": arguments.pop(0)}
                 files = tuple(arguments[index + 1] for index, value in enumerate(arguments) if value == "-f")
                 self.assertEqual(makefile_compose_units()["CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES"], files[:-1])
                 self.assertEqual("/tmp/rehearsal-fixture/source", supplied["RELEASE_SOURCE_DIR"])
+                self.assertEqual("/tmp/rehearsal-fixture/planner-check/candidate", supplied["CONTRACT_RELEASE_CANDIDATE_DIR"])
                 services = rendered_compose_config(files, env=supplied)["services"]
                 for name in ("release-plan", "release-rpc-proxy", "release-artifact-rpc-proxy", "release-artifact"):
                     self.assertTrue(services[name].get("image") or services[name].get("build"), name)

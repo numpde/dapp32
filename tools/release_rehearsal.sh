@@ -271,7 +271,8 @@ fi
 # Exercise the maintained planner service without starting its networked dependants.
 export RELEASE_SOURCE_DIR="$RELEASE_REHEARSAL_DIR/source"
 export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/planner-check"
-mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact"
+export CONTRACT_RELEASE_CANDIDATE_DIR="$RELEASE_OUTPUT_DIR/candidate"
+mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact" "$CONTRACT_RELEASE_CANDIDATE_DIR"
 planner_started=1
 mkdir --mode=0700 -- "$RELEASE_REHEARSAL_DIR/control/planner-config"
 RELEASE_CONFIG_STAGE_DIR="$RELEASE_REHEARSAL_DIR/control/planner-config" \
