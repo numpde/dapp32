@@ -135,3 +135,32 @@ test("viewer coordinates accept existing and new deployment evidence without own
     { chainId: 0 }, { camRoot: address(0) }, { deployer: "not an address" }, { camURI: "" },
   ]) assert.throws(() => releaseViewerURL("pay-to-play", bytes({ schema: "pay-to-play.deployment.v2", chainId: common.chainId, camRoot: common.camRoot, deployer: common.deployer, camURI: common.camURI, ...change }), "http://127.0.0.1:5174", undefined, "https://rpc.example.test"))
 })
+
+test("CAM publications open each app at the published root with the publication signer as the viewing account", async () => {
+  for (const app of Object.keys(artifacts)) {
+    const publication = { schema: "cam.publication.v1", app, chainId: 43113, signer: address(20),
+      root: { creator: address(21), contract: { address: address(22) } },
+      manifest: { uri: common.camURI } }
+    const settings = await prepareReleaseViewer({ bytes: bytes(publication),
+      viewerOrigin: "http://127.0.0.1:5174", rpcUrl: "https://rpc.example.test" })
+    assert.equal(settings.app, app)
+    assert.equal(settings.resourceOrigin, "https://raw.githubusercontent.com")
+    assert.deepEqual(Object.fromEntries(new URL(settings.url).searchParams), {
+      chainId: "eip155:43113", host: address(22), account: address(20), rpcUrl: "https://rpc.example.test/",
+    })
+    assert.throws(() => releaseViewerURL(app === "escrow" ? "bike-nft" : "escrow", bytes(publication),
+      "http://127.0.0.1:5174", undefined, "https://rpc.example.test"), /APP.*artifact/)
+  }
+})
+
+test("CAM publication viewer coordinates reject unknown formats, apps and invalid discovery facts", () => {
+  const publication = { schema: "cam.publication.v1", app: "escrow", chainId: 31338, signer: address(20),
+    root: { contract: { address: address(22) } }, manifest: { uri: common.camURI } }
+  for (const change of [
+    { schema: "cam.publication.future" }, { schema: "cam.publication-plan.v1" }, { app: "other" },
+    { chainId: 0 }, { signer: address(0) }, { root: {} },
+    { root: { contract: { address: address(0) } } }, { manifest: {} },
+    { manifest: { uri: "not a URI" } },
+  ]) assert.throws(() => releaseViewerURL("escrow", bytes({ ...publication, ...change }),
+    "http://127.0.0.1:5174", undefined, "https://rpc.example.test"))
+})

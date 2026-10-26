@@ -2,7 +2,7 @@ import { pathToFileURL } from "node:url"
 import { createInterface } from "node:readline/promises"
 import { assertPublishedCamRootURI, downloadScopeForPrefix, isRecordObject, parseJsonBytes, requireHttpOrigin, requireHttpURL } from "../packages/cam-protocol/dist/index.js"
 import { readBoundedRegularFile } from "./release-files.ts"
-import { checkedReleaseChainId, requiredNonemptyString, requiredNonzeroAddress, requiredSafeInteger, runReleaseTool } from "./release-values.ts"
+import { checkedReleaseChainId, requiredJsonRecord, requiredNonemptyString, requiredNonzeroAddress, requiredSafeInteger, runReleaseTool } from "./release-values.ts"
 import { requiredEnv } from "./input.ts"
 
 const artifactSchemas = [
@@ -18,15 +18,20 @@ function readDeployment(bytes: Uint8Array, app?: string) {
   }
   const document = parseJsonBytes(bytes)
   if (!isRecordObject(document)) throw new Error("Deployment coordinates must be a JSON object")
-  const reader = artifactSchemas.find(candidate => candidate.schema === document.schema)
-  if (reader === undefined) throw new Error("Select a deployment.json artifact with a supported deployment schema, not a signing configuration")
+  const publication = document.schema === "cam.publication.v1"
+  const reader = artifactSchemas.find(candidate => publication ? candidate.app === document.app : candidate.schema === document.schema)
+  if (reader === undefined) throw new Error("Cannot prepare viewer coordinates: select a supported deployment or CAM publication artifact for bike-nft, escrow or pay-to-play")
   if (app !== undefined && reader.app !== app) throw new Error("APP does not match the selected deployment artifact")
+  const rootAddress = publication
+    ? requiredJsonRecord(requiredJsonRecord(document.root, "CAM publication root").contract, "CAM publication root contract").address
+    : document.camRoot
+  const camURI = publication ? requiredJsonRecord(document.manifest, "CAM publication manifest").uri : document.camURI
   // Viewer links need discovery coordinates; release verification owns construction evidence.
   return { app: reader.app, deployment: {
     chainId: checkedReleaseChainId(requiredSafeInteger(document.chainId, "deployment chain ID")),
-    camRoot: requiredNonzeroAddress(document.camRoot, "CAM root address"),
-    deployer: requiredNonzeroAddress(document.deployer, "deployment deployer"),
-    camURI: requiredNonemptyString(document.camURI, "deployment CAM URI"),
+    camRoot: requiredNonzeroAddress(rootAddress, "CAM root address"),
+    account: requiredNonzeroAddress(publication ? document.signer : document.deployer, "initial viewing account"),
+    camURI: requiredNonemptyString(camURI, "deployment CAM URI"),
   } }
 }
 
@@ -44,7 +49,7 @@ function resourceDownloadSetting(camURI: string, supplied?: string): string | un
 function viewerURL(deployment: ReturnType<typeof readDeployment>["deployment"], viewerOrigin: string, rpcUrl: string): string {
   const url = new URL(requireHttpOrigin(viewerOrigin, "release viewer origin"))
   url.search = new URLSearchParams({
-    chainId: `eip155:${deployment.chainId}`, host: deployment.camRoot, account: deployment.deployer,
+    chainId: `eip155:${deployment.chainId}`, host: deployment.camRoot, account: deployment.account,
     rpcUrl: requireHttpURL(rpcUrl, "public browser RPC URL").href,
   }).toString()
   return url.href
