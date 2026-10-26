@@ -52,8 +52,8 @@ test("acceptances use authoritative destinations after rebinding, not the sessio
 
 function assertContractStatusNearTop(snapshot: CamViewerSnapshot, paused: boolean, tokenPaused: boolean): void {
   const root = snapshot.resolvedUi
-  assert.ok(root)
-  assert.ok("children" in root)
+  assert.ok(root?.element === "Screen")
+  assert.equal(root.props.title, "Bicycle component registry", "the application heading stays stable across destinations")
   const navigation = root.children[0]
   const status = root.children[1]
   assert.ok(navigation?.element === "Screen" && navigation.props.title === "App navigation")
@@ -64,6 +64,13 @@ function assertContractStatusNearTop(snapshot: CamViewerSnapshot, paused: boolea
   let headers = 0
   forEachResolvedUiNode(root, node => { if (node.element === "Screen" && node.props.title === "Contract status") headers++ })
   assert.equal(headers, 1, "each destination shows contract status exactly once")
+  if (snapshot.route === "deploymentHandovers") {
+    const task = root.children[2]
+    assert.ok(task?.element === "Screen" && task.props.title === "Deployment handovers", "handover task heading belongs below shared context")
+    assert.deepEqual(task.children.flatMap(node => node.element === "Screen" ? [node.props.title] : []), [
+      "CAM ownership", "Components administrator", "Manager administrator",
+    ])
+  }
 }
 
 test("every Bike destination shows fresh, independent pause facts before its task", async () => {
