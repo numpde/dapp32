@@ -4,8 +4,18 @@ import {Test, Vm} from "forge-std-1.12.0/src/Test.sol";
 
 import {DeployBikeNftRelease} from "../../../script/DeployBikeNftRelease.s.sol";
 import {BicycleComponentManager} from "../../../src/BicycleComponentManager.sol";
+import {BicycleComponentManagerUI} from "../../../src/BicycleComponentManagerUI.sol";
+import {CamRoot} from "cam/src/CamRoot.sol";
 
 contract DeployBikeNftReleaseHarness is DeployBikeNftRelease {
+    function prepareUI(address manager) external returns (BicycleComponentManagerUI) {
+        return deployBikeNftUI(manager);
+    }
+
+    function activateUI(CamRoot root, BicycleComponentManagerUI ui) external {
+        bindBikeNftUI(root, ui);
+    }
+
     function parsePlan(string memory json) external view returns (ReleasePlan memory) {
         return _parsePlan(json);
     }
@@ -67,6 +77,19 @@ contract DeployBikeNftReleaseTest is Test {
         assertEq(plan.registrars[1], REGISTRAR_TWO);
         harness.requireOperatorInputs(plan, _operatorInputs(plan));
         harness.validatePlan(plan);
+    }
+
+    function testReplacementUIIsInactiveUntilExplicitBinding() external {
+        DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(harness.parsePlan(planJson));
+        BicycleComponentManagerUI replacement = harness.prepareUI(address(deployment.manager));
+        assertEq(deployment.camRoot.contractAddress("BicycleComponentManagerUI"), address(deployment.ui));
+        assertEq(address(replacement.manager()), address(deployment.manager));
+        harness.activateUI(deployment.camRoot, replacement);
+        assertEq(deployment.camRoot.contractAddress("BicycleComponentManagerUI"), address(replacement));
+        assertEq(deployment.camRoot.contractAddress("BicycleComponentManager"), address(deployment.manager));
+        assertEq(deployment.camRoot.contractAddress("BicycleComponents"), address(deployment.components));
+        assertEq(deployment.camRoot.owner(), address(harness));
+        assertEq(deployment.camRoot.pendingOwner(), CAM_ROOT_OWNER);
     }
 
     function testReleaseWithEmptyBasePreservesIndependentTokenMetadataAndOwnerGating() external {

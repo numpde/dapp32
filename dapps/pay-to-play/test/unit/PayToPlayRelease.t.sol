@@ -8,6 +8,14 @@ import {DeployPayToPlayRelease} from "../../script/DeployPayToPlayRelease.s.sol"
 import {PayToPlayReleaseVerifier} from "../../script/PayToPlayReleaseVerifier.sol";
 
 contract PayToPlayReleaseHarness is DeployPayToPlayRelease, PayToPlayReleaseVerifier {
+    function prepareUI(address payments) external returns (PayToPlayUI) {
+        return deployPayToPlayUI(payments);
+    }
+
+    function activateUI(CamRoot root, PayToPlayUI ui) external {
+        bindPayToPlayUI(root, ui);
+    }
+
     function parse(string memory json) external view returns (ReleasePlan memory) {
         return _parsePlan(json);
     }
@@ -56,6 +64,20 @@ contract PayToPlayReleaseTest is Test {
         assertEq(payments.channelCount(), 1);
         assertEq(payments.channel(0).claimPeriod, 60);
         assertEq(payments.channel(0).payee, address(0));
+    }
+
+    function testReplacementUIIsInactiveUntilExplicitBinding() external {
+        (CamRoot root, PayToPlay payments) = harness.deploy(_plan(60));
+        address previousUI = root.contractAddress("PayToPlayUI");
+        PayToPlayUI replacement = harness.prepareUI(address(payments));
+        assertEq(root.contractAddress("PayToPlayUI"), previousUI);
+        assertEq(address(replacement.payments()), address(payments));
+        harness.activateUI(root, replacement);
+        assertEq(root.contractAddress("PayToPlayUI"), address(replacement));
+        assertEq(root.contractAddress("PayToPlay"), address(payments));
+        assertEq(root.owner(), address(harness));
+        assertEq(root.pendingOwner(), ROOT_OWNER);
+        assertEq(payments.channelCount(), 1);
     }
 
     function testVerifierRejectsSubstitutedSigningProjectionEvidence() external {

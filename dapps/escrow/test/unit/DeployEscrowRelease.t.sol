@@ -3,8 +3,22 @@ pragma solidity 0.8.35;
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import {DeployEscrowRelease} from "../../script/DeployEscrowRelease.s.sol";
+import {CamRoot} from "cam/src/CamRoot.sol";
+import {CamEscrowUI} from "../../src/CamEscrowUI.sol";
 
 contract DeployEscrowReleaseHarness is DeployEscrowRelease {
+    function prepareUI(address escrow) external returns (CamEscrowUI) {
+        return deployEscrowUI(escrow);
+    }
+
+    function activateUI(CamRoot root, CamEscrowUI ui) external {
+        bindEscrowUI(root, ui);
+    }
+
+    function deployForUpdate() external returns (Deployment memory) {
+        return deployEscrow(address(this), "https://example.test/escrow/cam/main.json", bytes32(0));
+    }
+
     function parsePlan(string memory json) external view returns (ReleasePlan memory) {
         return _parsePlan(json);
     }
@@ -49,6 +63,17 @@ contract DeployEscrowReleaseTest is Test {
 
     function testAcceptsOperatorAuthorizedInputs() external {
         harness.requireOperatorInputs(harness.parsePlan(PLAN_JSON), _operatorInputs());
+    }
+
+    function testReplacementUIIsInactiveUntilExplicitBinding() external {
+        DeployEscrowRelease.Deployment memory deployment = harness.deployForUpdate();
+        CamEscrowUI replacement = harness.prepareUI(address(deployment.escrow));
+        assertEq(deployment.camRoot.contractAddress("CamEscrowUI"), address(deployment.ui));
+        assertEq(address(replacement.escrow()), address(deployment.escrow));
+        harness.activateUI(deployment.camRoot, replacement);
+        assertEq(deployment.camRoot.contractAddress("CamEscrowUI"), address(replacement));
+        assertEq(deployment.camRoot.contractAddress("CamEscrow"), address(deployment.escrow));
+        assertEq(deployment.camRoot.owner(), address(harness));
     }
 
     function testParsesCanonicalReleasePlan() external view {

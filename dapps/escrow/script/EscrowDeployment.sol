@@ -24,9 +24,17 @@ abstract contract EscrowDeployment {
     {
         deployment.camRoot = new CamRoot(camRootOwner, camURI, camHash);
         deployment.escrow = new CamEscrow();
-        deployment.ui = new CamEscrowUI(address(deployment.escrow));
+        deployment.ui = deployEscrowUI(address(deployment.escrow));
 
-        deployment.camRoot.setContractAddress(CAM_CONTRACT_ESCROW_UI, address(deployment.ui));
+        bindEscrowUI(deployment.camRoot, deployment.ui);
         deployment.camRoot.setContractAddress(CAM_CONTRACT_ESCROW, address(deployment.escrow));
+    }
+
+    function deployEscrowUI(address escrow) internal returns (CamEscrowUI) {
+        return new CamEscrowUI(escrow);
+    }
+
+    function bindEscrowUI(CamRoot root, CamEscrowUI ui) internal {
+        root.setContractAddress(CAM_CONTRACT_ESCROW_UI, address(ui));
     }
 }

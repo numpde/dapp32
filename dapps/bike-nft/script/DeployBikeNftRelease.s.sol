@@ -6,15 +6,15 @@ import {CamRoot} from "cam/src/CamRoot.sol";
 import {BicycleComponentManager} from "../src/BicycleComponentManager.sol";
 import {BicycleComponentManagerUI} from "../src/BicycleComponentManagerUI.sol";
 import {BicycleComponents} from "../src/BicycleComponents.sol";
+import {BikeNftUIDeployment} from "./BikeNftUIDeployment.sol";
 
 /// @notice Deploys an unseeded, pinned Bike NFT release and starts every authority handoff.
 /// @dev The broadcaster is only a bootstrap authority. Verification remains incomplete until
 /// CamRoot ownership and both delayed default-admin transfers are accepted independently.
-contract DeployBikeNftRelease is Script {
+contract DeployBikeNftRelease is Script, BikeNftUIDeployment {
     string private constant RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v2";
     string private constant CAM_ROOT_PATH = "bike-nft/cam/main.json";
     string private constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
-    string private constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
     string private constant CAM_CONTRACT_COMPONENTS = "BicycleComponents";
 
     struct ReleasePlan {
@@ -106,7 +106,7 @@ contract DeployBikeNftRelease is Script {
         );
         deployment.manager =
             new BicycleComponentManager(deployer, plan.managerAdminDelay, address(deployment.components));
-        deployment.ui = new BicycleComponentManagerUI(address(deployment.manager));
+        deployment.ui = deployBikeNftUI(address(deployment.manager));
 
         deployment.components.grantRole(deployment.components.MINTER_ROLE(), address(deployment.manager));
         deployment.components.grantRole(deployment.components.TOKEN_URI_SETTER_ROLE(), address(deployment.manager));
@@ -131,7 +131,7 @@ contract DeployBikeNftRelease is Script {
 
         deployment.camRoot.setContractAddress("ICamRootOwnership", address(deployment.camRoot));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
-        deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
+        bindBikeNftUI(deployment.camRoot, deployment.ui);
         deployment.camRoot.setContractAddress(CAM_CONTRACT_COMPONENTS, address(deployment.components));
         if (plan.intendedCamRootOwner != deployer) deployment.camRoot.transferOwnership(plan.intendedCamRootOwner);
         if (plan.intendedComponentsAdmin != deployer) {
