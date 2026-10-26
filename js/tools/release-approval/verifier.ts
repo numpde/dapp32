@@ -110,6 +110,9 @@ export class ReleaseVerifier {
   }
 
   private async observedAddress(role: string): Promise<Address> {
+    if (this.snapshot.schema === "release-approval.cam-reference.v1" && this.snapshot.root.kind === "existing" && role === "camRoot") {
+      return getAddress(this.snapshot.root.contract.address)
+    }
     const creation = this.creations.get(role)
     if (creation === undefined) throw new Error(`Reference role ${role} has no accepted creation`)
     const receipt = await this.receipt(creation.hash)

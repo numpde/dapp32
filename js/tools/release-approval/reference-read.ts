@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { getAddress, zeroAddress, type Abi, type Hex } from "viem"
 import type { ReleaseReference, ExpectedStep } from "./reference.ts"
 import { parseStrictJson } from "./strict-json.ts"
+import type { ContractIdentity } from "../release-provenance.ts"
 import type { UIBackingReference } from "../ui-release/shared.ts"
 
 export type ReleaseApp = "escrow" | "bike-nft" | "pay-to-play"
@@ -45,9 +46,14 @@ type ReferenceSnapshotBase = ReleaseReference & {
   readonly snapshotSha256: Hex
 }
 
+export type CamReferenceRoot = { readonly kind: "new" } | {
+  readonly kind: "existing"; readonly sourceCommit: string; readonly creator: `0x${string}`; readonly contract: ContractIdentity
+}
+
 export type ReferenceSnapshot = ReferenceSnapshotBase & (
   { readonly schema: "release-approval.reference.v2" | "release-approval.contract-reference.v1" }
   | { readonly schema: "release-approval.ui-reference.v1"; readonly backing: UIBackingReference }
+  | { readonly schema: "release-approval.cam-reference.v1"; readonly root: CamReferenceRoot }
 )
 
 export function businessContractRoles(app: ReleaseApp): readonly string[] {
@@ -154,7 +160,7 @@ function snapshotAbi(value: unknown, role: string): Abi {
   return abi
 }
 
-function snapshotContracts(value: unknown, app: ReleaseApp, inventory: readonly string[] = Object.keys(ARTIFACTS[app])): readonly CompiledContractReference[] {
+function snapshotContractInventory(value: unknown, app: ReleaseApp, inventory: readonly string[] = Object.keys(ARTIFACTS[app])): readonly CompiledContractReference[] {
   if (!Array.isArray(value) || value.length !== inventory.length) throw new Error("reference compiler contract inventory is incomplete")
   const roles = new Set<string>()
   for (const item of value) {
@@ -165,7 +171,9 @@ function snapshotContracts(value: unknown, app: ReleaseApp, inventory: readonly 
     roles.add(contract.role)
     const location = ARTIFACTS[app][contract.role]
     if (!inventory.includes(contract.role) || !location || contract.name !== location.contract || contract.source !== location.source) throw new Error(`compiler contract ${contract.role} differs from ${app} release inventory`)
-    if (contract.compilerVersion !== COMPILER_VERSION) throw new Error(`${contract.role} compiler version differs from pinned release build`)
+    if (typeof contract.compilerVersion !== "string" || contract.compilerVersion.length === 0 || contract.compilerVersion.length > 128) {
+      throw new Error(`${contract.role} compiler version must be bounded text`)
+    }
     bytes32(contract.compilerMetadataSha256, `${contract.role} metadata digest`)
     bytes32(contract.artifactSha256, `${contract.role} artifact digest`)
     if (typeof contract.creationBytecode !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(contract.creationBytecode) || contract.creationBytecode.length > 2 + 2 * 128 * 1024) {
@@ -176,10 +184,39 @@ function snapshotContracts(value: unknown, app: ReleaseApp, inventory: readonly 
   return value as readonly CompiledContractReference[]
 }
 
+function snapshotContracts(value: unknown, app: ReleaseApp, inventory?: readonly string[]): readonly CompiledContractReference[] {
+  const contracts = snapshotContractInventory(value, app, inventory)
+  for (const contract of contracts) {
+    if (contract.compilerVersion !== COMPILER_VERSION) throw new Error(`${contract.role} compiler version differs from pinned release build`)
+  }
+  return contracts
+}
+
+function snapshotExistingRootContracts(value: unknown, app: ReleaseApp): readonly CompiledContractReference[] {
+  return snapshotContractInventory(value, app, ["camRoot"])
+}
+
+function snapshotCamRoot(value: unknown): CamReferenceRoot {
+  const root = record(value, "CAM approval root")
+  if (root.kind === "new") {
+    requireExactKeys(root, ["kind"], "new CAM approval root")
+    return { kind: "new" }
+  }
+  if (root.kind !== "existing") throw new Error("CAM approval root must explicitly select new or existing")
+  requireExactKeys(root, ["kind", "sourceCommit", "creator", "contract"], "existing CAM approval root")
+  requiredSourceCommit(root.sourceCommit)
+  requiredNonzeroAddress(root.creator, "original CAM creator")
+  const identity = record(root.contract, "existing CAM root identity")
+  requireExactKeys(identity, ["address", "codeHash", "creationTransaction", "creationInputHash"], "existing CAM root identity")
+  requiredNonzeroAddress(identity.address, "existing CAM root address")
+  for (const key of ["codeHash", "creationTransaction", "creationInputHash"] as const) bytes32(identity[key], `existing CAM root ${key}`)
+  return root as CamReferenceRoot
+}
+
 const PRESENTATION_CONTROLS = /[\p{C}\p{Zl}\p{Zp}]/u
 
-function snapshotSteps(value: unknown, contracts: readonly CompiledContractReference[]): readonly ExpectedStep[] {
-  if (!Array.isArray(value) || value.length < contracts.length || value.length > 64) throw new Error("invalid reference step inventory")
+function snapshotSteps(value: unknown, contracts: readonly CompiledContractReference[], existingRoles: ReadonlySet<string> = new Set()): readonly ExpectedStep[] {
+  if (!Array.isArray(value) || value.length < contracts.length - existingRoles.size || value.length > 64) throw new Error("invalid reference step inventory")
   const byRole = new Map(contracts.map((contract) => [contract.role, contract]))
   const created = new Set<string>()
   const steps: ExpectedStep[] = []
@@ -215,21 +252,21 @@ function snapshotSteps(value: unknown, contracts: readonly CompiledContractRefer
       }
     }
     if (step.kind === "create") {
-      if (created.has(step.role)) throw new Error(`duplicate reference creation role: ${step.role}`)
+      if (created.has(step.role) || existingRoles.has(step.role)) throw new Error(`duplicate reference creation role: ${step.role}`)
       if (step.name !== byRole.get(step.role)!.name) throw new Error(`reference creation name differs from compiler contract ${step.role}`)
       if (!Array.isArray(step.constructorTypes) || step.constructorTypes.length !== step.args.length || step.constructorTypes.some((type) => typeof type !== "string" || type.length > 64)) {
         throw new Error(`reference creation step ${index + 1} has invalid constructor types`)
       }
       created.add(step.role)
     } else {
-      if (!created.has(step.role)) throw new Error(`reference call targets an uncreated role: ${step.role}`)
+      if (!created.has(step.role) && !existingRoles.has(step.role)) throw new Error(`reference call targets an uncreated role: ${step.role}`)
       if (typeof step.signature !== "string" || step.signature.length > 256 || !step.signature.startsWith(`${step.name}(`) || !step.signature.endsWith(")")) {
         throw new Error(`reference call signature is missing or invalid at step ${index + 1}`)
       }
     }
     steps.push(step as ExpectedStep)
   }
-  if (created.size !== contracts.length) throw new Error("reference omits a compiler contract creation")
+  if (created.size + existingRoles.size !== contracts.length) throw new Error("reference omits a compiler contract creation")
   for (const contract of contracts) assertAbiMatchesSteps(contract.role, contract.abi, steps)
   return steps
 }
@@ -239,8 +276,9 @@ export function parseReferenceSnapshot(bytes: Uint8Array): ReferenceSnapshot {
   const value = parseJsonRecord(bytes, "release approval reference")
   const uiOnly = value.schema === "release-approval.ui-reference.v1"
   const businessOnly = value.schema === "release-approval.contract-reference.v1"
-  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "expectedDeployer", "planSha256", "steps", "contracts", "snapshotSha256", ...(uiOnly ? ["backing"] : [])], "release approval reference")
-  if (!uiOnly && !businessOnly && value.schema !== "release-approval.reference.v2") throw new Error("unsupported release approval reference schema")
+  const camOnly = value.schema === "release-approval.cam-reference.v1"
+  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "expectedDeployer", "planSha256", "steps", "contracts", "snapshotSha256", ...(uiOnly ? ["backing"] : []), ...(camOnly ? ["root"] : [])], "release approval reference")
+  if (!uiOnly && !businessOnly && !camOnly && value.schema !== "release-approval.reference.v2") throw new Error("unsupported release approval reference schema")
   if (value.app !== "escrow" && value.app !== "bike-nft" && value.app !== "pay-to-play") throw new Error("unknown release approval app")
   if (typeof value.snapshotSha256 !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value.snapshotSha256)) throw new Error("invalid reference snapshot digest")
   const { snapshotSha256, ...base } = value
@@ -249,8 +287,10 @@ export function parseReferenceSnapshot(bytes: Uint8Array): ReferenceSnapshot {
   requiredNonzeroAddress(value.expectedDeployer, "reference expected deployer")
   if (!Number.isSafeInteger(value.expectedChainId) || Number(value.expectedChainId) <= 0) throw new Error("invalid reference chain ID")
   bytes32(value.planSha256, "reference plan digest")
-  const contracts = snapshotContracts(value.contracts, value.app, uiOnly ? ["ui"] : businessOnly ? businessContractRoles(value.app) : undefined)
-  const steps = snapshotSteps(value.steps, contracts)
+  const root = camOnly ? snapshotCamRoot(value.root) : undefined
+  const contracts = root?.kind === "existing" ? snapshotExistingRootContracts(value.contracts, value.app)
+    : snapshotContracts(value.contracts, value.app, camOnly ? ["camRoot"] : uiOnly ? ["ui"] : businessOnly ? businessContractRoles(value.app) : undefined)
+  const steps = snapshotSteps(value.steps, contracts, new Set(root?.kind === "existing" ? ["camRoot"] : []))
   if (uiOnly) {
     const backing = record(value.backing, "UI backing deployment")
     requireExactKeys(backing, ["sourceCommit", "chainId", "creator", "artifactSha256", "address", "codeHash", "creationTransaction", "creationInputHash"], "UI backing deployment")

@@ -16,7 +16,7 @@ import {
 export { parseReferenceSnapshot } from "./reference-read.ts"
 export type { ReleaseApp, CompiledContractReference, ReferenceSnapshot } from "./reference-read.ts"
 
-async function compiledContract(
+export async function readFreshCompiledContract(
   app: ReleaseApp,
   step: ExpectedStep,
   steps: readonly ExpectedStep[],
@@ -68,7 +68,7 @@ export async function prepareReferenceSnapshot(
   const businessOnly = parseJsonRecord(planBytes, "release plan").schema === "cam.contract-release-plan.v1"
   if (creates.length !== (uiOnly ? 1 : businessOnly ? businessContractRoles(app).length : Object.keys(ARTIFACTS[app]).length)) throw new Error(`${app} reference has an incomplete creation inventory`)
   const contracts: CompiledContractReference[] = []
-  for (const step of creates) contracts.push(await compiledContract(app, step, expected.steps, artifactsRoot, sourcesRoot))
+  for (const step of creates) contracts.push(await readFreshCompiledContract(app, step, expected.steps, artifactsRoot, sourcesRoot))
   // The launcher must bind the mounted source archive to this plan's commit.
   const identity = {
     app, sourceCommit: expected.sourceCommit, expectedChainId: expected.expectedChainId,
