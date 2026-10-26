@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xc6ebcb8ec247447c3c77c69f8f72729532e561321e032ade37e5edecf04549a9"
+      "integrity": "sha256:0xd8b8d0e11bef4267cfca1ae31ac3db6e4811cbdbfc129026c2bdc5d1180bca81"
     },
     "contracts.PayToPlayUI": {
       "type": "contract",

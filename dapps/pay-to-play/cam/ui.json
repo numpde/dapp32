@@ -82,7 +82,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Deposits are held by the Pay-to-Play contract. Each account has a separate balance in each channel. A channel sets the payment recipient and withdrawal waiting time. Review buttons prepare and simulate a transaction without sending it. Send with wallet submits it; wait for confirmation before relying on the result."
+                "text": "Deposits are held by the Pay-to-Play contract. Each account has a separate balance in each channel. A channel sets the payment recipient and withdrawal waiting time."
               }
             },
             {
@@ -836,7 +836,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Find the new channel’s exact ID in the ChannelCreated event in your transaction receipt. This viewer shows the transaction hash, but does not decode that event. The channel count alone cannot identify your new channel."
+            "text": "Use the channel ID from the ChannelCreated event in the creation transaction’s receipt."
           }
         },
         {
@@ -860,7 +860,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "A channel’s withdrawal wait cannot change and must be at most 30 days. After creation, find its exact ID in the ChannelCreated event in the receipt; the viewer does not decode that event."
+            "text": "A channel’s withdrawal wait cannot change and must be at most 30 days."
           }
         },
         {
@@ -938,7 +938,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Enter the balance owner and an existing channel ID, then open that balance. This only reads it; no transaction is sent. The opened owner and channel stay fixed when wallet accounts change."
+            "text": "Choose the account and channel whose balance you want to open. Changing wallets does not change an already-open balance."
           }
         },
         {
@@ -987,16 +987,6 @@
             "label": "Channels created (including channel 0)",
             "value": "$view.channelCount"
           }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "createChannelFields",
-            "args": {
-              "view": "$view"
-            }
-          }
         }
       ]
     },
@@ -1004,16 +994,31 @@
       "requires": [
         "view"
       ],
-      "element": "Screen",
-      "props": {
-        "title": "Choose an account and channel"
-      },
+      "element": "Fragment",
       "children": [
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Open a balance"
+          },
+          "children": [
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "balanceChooserFields",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            }
+          ]
+        },
         {
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "balanceChooserFields",
+            "function": "createChannelFields",
             "args": {
               "view": "$view"
             }

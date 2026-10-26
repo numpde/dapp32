@@ -142,21 +142,26 @@ test("every read destination retains the application heading above its task", as
   const { session, cam } = await fixture()
   await session.load()
   const inputs = { customer, channelId: "1", cumulativeTotal: "20", invoiceHash }
-  const titles: Record<string, string> = {
-    home: "Choose an account and channel",
-    position: "Account balance",
-    voucherDigest: "Voucher signing details",
-    channelLookup: "Find a channel ID",
-    choosePosition: "Choose an account and channel",
-    recovery: "Recovery for this account and channel",
+  const titles: Record<string, readonly string[]> = {
+    home: ["Open a balance", "Create a channel"],
+    position: ["Account balance"],
+    voucherDigest: ["Voucher signing details"],
+    channelLookup: ["Find a channel ID"],
+    choosePosition: ["Open a balance", "Create a channel"],
+    recovery: ["Recovery for this account and channel"],
   }
   for (const [route, declaration] of Object.entries(cam.routes)) {
     if (declaration.kind !== "read") continue
     const opened = await session.navigate(route, Object.fromEntries(declaration.inputs.map(name => [name, inputs[name as keyof typeof inputs]])))
     assert.equal(opened.resolvedUi.element, "Screen", route)
     assert.equal(opened.resolvedUi.props.title, "Pay-to-Play", route)
-    assert.equal(opened.resolvedUi.children[0]?.element, "Screen", route)
-    assert.equal(opened.resolvedUi.children[0]?.props.title, titles[route], route)
+    const body = opened.resolvedUi.children[0]
+    assert(body)
+    const tasks = body.element === "Fragment" ? body.children : [body]
+    assert.deepEqual(tasks.map(task => {
+      assert.equal(task.element, "Screen")
+      return task.props.title
+    }), titles[route], route)
   }
 })
 
@@ -214,6 +219,27 @@ test("account destinations offer navigation with the inspected identity across w
     const navigation = resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === destination)
     assert(navigation, `${route} must offer ${destination}`)
     assert.deepEqual(navigation.call.args, toInertValue({ customer, channelId: "1" }))
+  }
+})
+
+test("opening a balance and creating a channel are peer tasks with separate controls", async () => {
+  const { session } = await fixture()
+  await session.load()
+  for (const account of [customer, other]) {
+    const opened = await session.setAccount({ address: account })
+    assert.equal(opened.resolvedUi.element, "Screen")
+    const tasks = opened.resolvedUi.children[0]
+    assert.equal(tasks?.element, "Fragment")
+    const [lookup, creation] = tasks.children
+    assert.equal(lookup?.element, "Screen")
+    assert.equal(lookup.props.title, "Open a balance")
+    assert.deepEqual(resolvedUiButtons(lookup).map(button => button.call.function), ["position"])
+    assert.equal(creation?.element, "Screen")
+    assert.equal(creation.props.title, "Create a channel")
+    const buttons = resolvedUiButtons(creation)
+    assert.deepEqual(buttons.map(button => button.call.function), ["createChannel"])
+    assert.equal(buttons[0]?.disabled === true, account !== other, "admin controls remain visible with contract-projected availability")
+    assert.equal(tasks.children.length, 2)
   }
 })
 
@@ -289,7 +315,7 @@ test("channel creation continues to a current lookup without predicting a create
   assert.equal((lookup.values[0] as Record<string, unknown>).channelCount, "5")
   assert.equal(lookup.state.fundAmount, undefined)
   const admin = await session.setAccount({ address: other })
-  assert.equal(resolvedUiButtons(admin.resolvedUi).find(button => button.call.function === "createChannel")?.disabled, false)
+  assert.deepEqual(resolvedUiButtons(admin.resolvedUi).map(button => button.call.function), ["position"], "receipt lookup must not offer another channel creation")
   await session.setAccount({ address: customer })
   assert.equal(lookup.state.lookupCustomer, customer)
   assert.equal(lookup.state.lookupChannelId, null)
