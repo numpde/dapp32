@@ -1,3 +1,4 @@
+import { readCompiledContractSource } from "../release-compiled-contract.ts"
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { mkdtemp, mkdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises"
@@ -61,6 +62,20 @@ test("standalone business approval compiles only business contracts without CAM 
     assert.deepEqual(snapshot.contracts.map(contract => contract.role), ["escrow"])
     assert.equal(snapshot.steps.length, 1)
     assert.deepEqual(parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(snapshot))), snapshot)
+  })
+})
+
+test("original-source artifact reading keeps historical settings separate from fresh release approval", async () => {
+  await fixture(async ({ artifacts, sources }) => {
+    await alterArtifact(artifacts, artifact => {
+      artifact.metadata.compiler.version = "0.8.34+fixture"
+      artifact.metadata.settings.optimizer.runs = 999
+      artifact.metadata.settings.evmVersion = "cancun"
+    })
+    const original = await readCompiledContractSource({ source: "cam/src/CamRoot.sol", contract: "CamRoot" }, artifacts, sources)
+    assert.equal(original.compilerVersion, "0.8.34+fixture")
+    assert.equal(original.compilerSettings.evmVersion, "cancun")
+    await assert.rejects(prepareReferenceSnapshot("escrow", escrowReference(plan, deployer), plan, artifacts, sources), /compiler version.*pinned/)
   })
 })
 
