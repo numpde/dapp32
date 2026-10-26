@@ -143,8 +143,8 @@ def validate_identity(config, app):
 def validate(config, app, source_commit, *, purpose="deployment"):
     """Validate all saved inputs; None leaves source selection with the saved pin."""
     validate_identity(config, app)
-    if purpose not in ("deployment", "ui"):
-        raise ValueError("Release configuration purpose must be deployment or ui.")
+    if purpose not in ("deployment", "ui", "contracts"):
+        raise ValueError("Release configuration purpose must be deployment, contracts or ui.")
     expected = {"schemaVersion", "app", "sourceCommit", "rpcUrl", "deployerPrivateKey", "settings", "confirmDeploy", "approvalImageId"}
     if isinstance(config, dict) and "localNetwork" in config:
         expected.add("localNetwork")
@@ -156,7 +156,11 @@ def validate(config, app, source_commit, *, purpose="deployment"):
     check_value(config["deployerPrivateKey"], "key")
     settings = config["settings"]
     names = {name for name, _, _ in fields(app)}
-    required = {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR"} if purpose == "ui" else names - {"CAM_HASH"}
+    required = names - {"CAM_HASH"}
+    if purpose in ("ui", "contracts"):
+        required = {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR"}
+        if purpose == "contracts":
+            required |= {name for name, _, _ in APP_FIELDS[app]}
     if not isinstance(settings, dict) or not required <= settings.keys() <= names:
         raise ValueError("The release configuration settings are incomplete or unknown; run the release setup again.")
     local = "localNetwork" in config
@@ -166,13 +170,13 @@ def validate(config, app, source_commit, *, purpose="deployment"):
         check_value(config["localNetwork"], "docker-network")
         if config["rpcUrl"] != LOCAL_RPC_URL or settings["EXPECTED_CHAIN_ID"] != "31338":
             raise ValueError("Local releases require the fixture chain and RPC.")
-        if purpose == "deployment" and (config["deployerPrivateKey"] != LOCAL_DEPLOYER_KEY
+        if purpose in ("deployment", "contracts") and (config["deployerPrivateKey"] != LOCAL_DEPLOYER_KEY
                                         or settings["EXPECTED_DEPLOYER_ADDRESS"] != LOCAL_DEPLOYER_ADDRESS):
             raise ValueError("Local releases require the fixture chain, RPC and funded deployer account.")
     else:
         check_value(config["rpcUrl"], "rpc")
     for name, _, kind in fields(app):
-        if purpose == "ui" and name not in required:
+        if purpose != "deployment" and name not in required:
             continue
         if name == "CAM_HASH" and name not in settings:
             continue
@@ -446,7 +450,7 @@ def update_source(app, source_commit, source, output, *, purpose="deployment"):
 
 def unpack(app, source_commit, mode, source, output):
     config = read_json_file(source, "configuration")
-    if mode in ("artifact", "ui-artifact"):
+    if mode in ("artifact", "ui-artifact", "contracts-artifact"):
         # The saved plan owns expected contract state; retired signing settings
         # and the current checkout do not govern this read-only operation.
         validate_identity(config, app)
@@ -461,7 +465,7 @@ def unpack(app, source_commit, mode, source, output):
         else:
             check_value(config.get("rpcUrl"), "rpc")
     else:
-        validate(config, app, source_commit, purpose="ui" if mode == "ui-deploy" else "deployment")
+        validate(config, app, source_commit, purpose="ui" if mode == "ui-deploy" else "contracts" if mode == "contracts-deploy" else "deployment")
     prefix = app.upper().replace("-", "_")
     if mode == "ui-deploy":
         settings = {
@@ -471,6 +475,34 @@ def unpack(app, source_commit, mode, source, output):
             "UI_RELEASE_OUTPUT_DIR": config["settings"]["OUTPUT_DIR"],
             "RELEASE_APPROVAL_IMAGE": config["approvalImageId"],
         }
+    elif mode == "contracts-deploy":
+        supplied = config["settings"]
+        contract_settings = {}
+        if app == "pay-to-play":
+            contract_settings = {"intendedPaymentAdmin": supplied["INTENDED_PAYMENT_ADMIN"],
+                                 "nullClaimPeriod": int(supplied["NULL_CLAIM_PERIOD"])}
+        elif app == "bike-nft":
+            contract_settings = {
+                "tokenName": supplied["TOKEN_NAME"], "tokenSymbol": supplied["TOKEN_SYMBOL"],
+                "baseTokenURI": supplied["BASE_TOKEN_URI"], "collectionURI": supplied["COLLECTION_URI"],
+                "intendedComponentsAdmin": supplied["INTENDED_COMPONENTS_ADMIN"],
+                "componentsAdminDelay": int(supplied["COMPONENTS_ADMIN_DELAY"]),
+                "componentsPauser": supplied["COMPONENTS_PAUSER"], "componentsConfigurer": supplied["COMPONENTS_CONFIGURER"],
+                "intendedManagerAdmin": supplied["INTENDED_MANAGER_ADMIN"],
+                "managerAdminDelay": int(supplied["MANAGER_ADMIN_DELAY"]),
+                "managerPauser": supplied["MANAGER_PAUSER"], "managerConfigurer": supplied["MANAGER_CONFIGURER"],
+                "registrars": [address.strip() for address in supplied["REGISTRARS"].split(",")],
+            }
+        settings = {
+            "CONTRACT_RELEASE_APP": app, "CONTRACT_RELEASE_SOURCE_COMMIT": config["sourceCommit"],
+            "CONTRACT_RELEASE_EXPECTED_CHAIN_ID": config["settings"]["EXPECTED_CHAIN_ID"],
+            "CONTRACT_RELEASE_CREATOR_ADDRESS": config["settings"]["EXPECTED_DEPLOYER_ADDRESS"],
+            "CONTRACT_RELEASE_OUTPUT_DIR": config["settings"]["OUTPUT_DIR"],
+            "CONTRACT_RELEASE_SETTINGS_JSON": json.dumps(contract_settings),
+            "RELEASE_APPROVAL_IMAGE": config["approvalImageId"],
+        }
+    elif mode == "contracts-artifact":
+        settings = {"CONTRACT_RELEASE_APP": app}
     elif mode == "ui-artifact":
         settings = {"UI_RELEASE_APP": app}
     elif mode == "artifact":
@@ -491,7 +523,7 @@ def unpack(app, source_commit, mode, source, output):
     encoded = b"".join(f"{name}={value}\0".encode() for name, value in settings.items())
     write_private(output / "inputs", encoded)
     write_private(output / "rpc-url", (config["rpcUrl"] + "\n").encode())
-    if mode in ("deploy", "ui-deploy"):
+    if mode in ("deploy", "ui-deploy", "contracts-deploy"):
         write_private(output / "deployer-key", (config["deployerPrivateKey"] + "\n").encode())
 
 
@@ -513,7 +545,7 @@ def ui_plan_source(app, source, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "update", "update-ui", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "artifact-plan"))
+    parser.add_argument("mode", choices=("network", "setup", "update", "update-ui", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()

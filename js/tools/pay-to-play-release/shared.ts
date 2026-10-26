@@ -4,13 +4,16 @@ import { checkedReleaseChainId, parseJsonRecord, requireDistinctHexValues, requi
 export const RELEASE_PLAN_SCHEMA = "pay-to-play.release-plan.v1"
 export const DEPLOYMENT_SCHEMA = "pay-to-play.deployment.v2"
 
-type ReleaseSettings = {
+export type ContractSettings = {
+  readonly intendedPaymentAdmin: Address
+  readonly nullClaimPeriod: number
+}
+
+type ReleaseSettings = ContractSettings & {
   readonly sourceCommit: string
   readonly camURI: string
   readonly camHash: Hex
   readonly intendedCamRootOwner: Address
-  readonly intendedPaymentAdmin: Address
-  readonly nullClaimPeriod: number
 }
 
 export type ReleasePlan = ReleaseSettings & {
@@ -49,8 +52,7 @@ function settings(value: Record<string, unknown>): ReleaseSettings {
     camURI: requiredNonemptyString(value.camURI, "CAM URI"),
     camHash: requiredBytes32(value.camHash, "CAM hash"),
     intendedCamRootOwner: requiredNonzeroAddress(value.intendedCamRootOwner, "intended CAM root owner"),
-    intendedPaymentAdmin: requiredNonzeroAddress(value.intendedPaymentAdmin, "intended payment admin"),
-    nullClaimPeriod: checkedClaimPeriod(value.nullClaimPeriod),
+    ...parseContractSettings(value),
   }
 }
 
@@ -92,4 +94,11 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   requireDistinctHexValues([artifact.camRoot, artifact.payToPlay, artifact.payToPlayUI], "deployment contract addresses")
   requireDistinctHexValues([artifact.camRootCreationTransaction, artifact.payToPlayCreationTransaction, artifact.payToPlayUICreationTransaction], "deployment creation transactions")
   return artifact
+}
+
+export function parseContractSettings(value: Record<string, unknown>): ContractSettings {
+  return {
+    intendedPaymentAdmin: requiredNonzeroAddress(value.intendedPaymentAdmin, "intended payment admin"),
+    nullClaimPeriod: checkedClaimPeriod(value.nullClaimPeriod),
+  }
 }

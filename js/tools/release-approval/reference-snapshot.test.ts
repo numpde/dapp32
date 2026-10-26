@@ -6,6 +6,8 @@ import { dirname, join } from "node:path"
 import test from "node:test"
 import { keccak256, toHex } from "viem"
 
+import { contractDeploymentReference } from "../contract-release/reference.ts"
+import type { ContractReleasePlan } from "../contract-release/shared.ts"
 import { escrowReference } from "../escrow-release/reference.ts"
 import { prepareReferenceSnapshot, parseReferenceSnapshot } from "./reference-snapshot.ts"
 import { uiDeploymentReference, type UIReleasePlan } from "../ui-release/shared.ts"
@@ -43,6 +45,22 @@ test("standalone UI approval compiles only the UI and retains independent backin
       snapshotSha256: `0x${createHash("sha256").update(JSON.stringify(substituted)).digest("hex")}`,
     }))
     assert.throws(() => parseReferenceSnapshot(substitutedBytes), /UI.*backing|backing.*UI/i)
+  })
+})
+
+test("standalone business approval compiles only business contracts without CAM or UI artifacts", async () => {
+  await fixture(async ({ artifacts, sources }) => {
+    await rm(join(artifacts, "CamRoot.sol"), { recursive: true })
+    await rm(join(artifacts, "CamEscrowUI.sol"), { recursive: true })
+    const plan: ContractReleasePlan = { schema: "cam.contract-release-plan.v1", app: "escrow", sourceCommit,
+      expectedChainId: 8453, settings: {} }
+    const bytes = new TextEncoder().encode(JSON.stringify(plan))
+    const reference = contractDeploymentReference(plan, deployer)
+    const snapshot = await prepareReferenceSnapshot("escrow", reference, bytes, artifacts, sources)
+    assert.equal(snapshot.schema, "release-approval.contract-reference.v1")
+    assert.deepEqual(snapshot.contracts.map(contract => contract.role), ["escrow"])
+    assert.equal(snapshot.steps.length, 1)
+    assert.deepEqual(parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(snapshot))), snapshot)
   })
 })
 

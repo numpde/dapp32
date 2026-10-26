@@ -67,6 +67,38 @@ class ReleaseConfigTest(unittest.TestCase):
                 release_config.ui_plan_source(app, plan, output)
                 self.assertEqual("b" * 40, (output / "ui-source").read_text().strip())
 
+    def test_business_deployment_translates_only_its_own_settings_without_cam_or_ui(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                config = configuration(app)
+                names = {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR"}
+                names |= {name for name, _, _ in release_config.APP_FIELDS[app]}
+                config["settings"] = {name: value for name, value in config["settings"].items() if name in names}
+                source = root / "config.json"
+                source.write_text(json.dumps(config))
+                output = root / "stage"
+                output.mkdir()
+                with patch.dict("os.environ", {"RELEASE_CONFIG_FILE": str(source)}):
+                    release_config.unpack(app, COMMIT, "contracts-deploy", source, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                self.assertEqual(app, inputs["CONTRACT_RELEASE_APP"])
+                self.assertEqual(COMMIT, inputs["CONTRACT_RELEASE_SOURCE_COMMIT"])
+                settings = json.loads(inputs["CONTRACT_RELEASE_SETTINGS_JSON"])
+                self.assertFalse(any("cam" in name.lower() or "ui" in name.lower() for name in settings))
+                if app == "escrow":
+                    self.assertEqual({}, settings)
+                elif app == "pay-to-play":
+                    self.assertEqual(86400, settings["nullClaimPeriod"])
+                    self.assertEqual(FIXTURE_ADDRESS, settings["intendedPaymentAdmin"])
+                else:
+                    self.assertEqual(config["settings"]["BASE_TOKEN_URI"], settings["baseTokenURI"])
+                    self.assertEqual(config["settings"]["COLLECTION_URI"], settings["collectionURI"])
+                    self.assertEqual([FIXTURE_ADDRESS], settings["registrars"])
+                    self.assertEqual(86400, settings["componentsAdminDelay"])
+                self.assertEqual(FIXTURE_KEY + "\n", (output / "deployer-key").read_text())
+                self.assertEqual(config, json.loads(source.read_text()))
+
     def test_ui_deployment_uses_only_its_own_inputs_and_preserves_business_records(self):
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:

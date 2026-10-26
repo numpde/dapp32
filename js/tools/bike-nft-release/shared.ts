@@ -33,8 +33,11 @@ const DEPLOYMENT_KEYS = [
   "managerCreationTransaction", "uiCreationTransaction",
 ] as const
 
-export type ReleaseAuthorities = {
-  readonly intendedCamRootOwner: CamHost["address"]
+export type ContractSettings = {
+  readonly tokenName: string
+  readonly tokenSymbol: string
+  readonly baseTokenURI: string
+  readonly collectionURI: string
   readonly intendedComponentsAdmin: CamHost["address"]
   readonly componentsAdminDelay: number
   readonly componentsPauser: CamHost["address"]
@@ -46,16 +49,13 @@ export type ReleaseAuthorities = {
   readonly registrars: readonly CamHost["address"][]
 }
 
-export type ReleasePlan = ReleaseAuthorities & {
+export type ReleasePlan = ContractSettings & {
   readonly schema: typeof RELEASE_PLAN_SCHEMA
   readonly sourceCommit: string
   readonly expectedChainId: number
   readonly camURI: string
   readonly camHash: `0x${string}`
-  readonly tokenName: string
-  readonly tokenSymbol: string
-  readonly baseTokenURI: string
-  readonly collectionURI: string
+  readonly intendedCamRootOwner: CamHost["address"]
 }
 
 export type DeploymentArtifact = Omit<ReleasePlan, "schema" | "expectedChainId"> & {
@@ -145,6 +145,14 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
     camURI: requiredSingleLineString(value.camURI, "camURI"),
     camHash: requiredBytes32(value.camHash, "camHash"),
     intendedCamRootOwner: addressField(value, "intendedCamRootOwner"),
+    ...parseContractSettings(value),
+  }
+}
+
+function addressField(value: Record<string, unknown>, key: string): CamHost["address"] { return requiredNonzeroAddress(value[key], key) }
+
+export function parseContractSettings(value: Record<string, unknown>): ContractSettings {
+  return {
     tokenName: requiredSingleLineString(value.tokenName, "tokenName"), tokenSymbol: requiredSingleLineString(value.tokenSymbol, "tokenSymbol"),
     baseTokenURI: requiredBaseTokenURI(value.baseTokenURI), collectionURI: requiredSingleLineString(value.collectionURI, "collectionURI"),
     intendedComponentsAdmin: addressField(value, "intendedComponentsAdmin"), componentsAdminDelay: requiredDelay(value.componentsAdminDelay, "componentsAdminDelay"),
@@ -154,5 +162,3 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
     registrars: requiredAddresses(value.registrars, "registrars"),
   }
 }
-
-function addressField(value: Record<string, unknown>, key: string): CamHost["address"] { return requiredNonzeroAddress(value[key], key) }

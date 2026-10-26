@@ -46,9 +46,13 @@ type ReferenceSnapshotBase = ReleaseReference & {
 }
 
 export type ReferenceSnapshot = ReferenceSnapshotBase & (
-  { readonly schema: "release-approval.reference.v2" }
+  { readonly schema: "release-approval.reference.v2" | "release-approval.contract-reference.v1" }
   | { readonly schema: "release-approval.ui-reference.v1"; readonly backing: UIBackingReference }
 )
+
+export function businessContractRoles(app: ReleaseApp): readonly string[] {
+  return Object.keys(ARTIFACTS[app]).filter(role => role !== "camRoot" && role !== "ui")
+}
 
 export const COMPILER_VERSION = "0.8.35+commit.47b9dedd"
 export function sha256(bytes: Uint8Array | string): Hex {
@@ -150,7 +154,7 @@ function snapshotAbi(value: unknown, role: string): Abi {
   return abi
 }
 
-function snapshotContracts(value: unknown, app: ReleaseApp, inventory = Object.keys(ARTIFACTS[app])): readonly CompiledContractReference[] {
+function snapshotContracts(value: unknown, app: ReleaseApp, inventory: readonly string[] = Object.keys(ARTIFACTS[app])): readonly CompiledContractReference[] {
   if (!Array.isArray(value) || value.length !== inventory.length) throw new Error("reference compiler contract inventory is incomplete")
   const roles = new Set<string>()
   for (const item of value) {
@@ -234,8 +238,9 @@ export function parseReferenceSnapshot(bytes: Uint8Array): ReferenceSnapshot {
   if (bytes.byteLength > 1024 * 1024) throw new Error("release approval reference exceeds 1048576 bytes")
   const value = parseJsonRecord(bytes, "release approval reference")
   const uiOnly = value.schema === "release-approval.ui-reference.v1"
+  const businessOnly = value.schema === "release-approval.contract-reference.v1"
   requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "expectedDeployer", "planSha256", "steps", "contracts", "snapshotSha256", ...(uiOnly ? ["backing"] : [])], "release approval reference")
-  if (!uiOnly && value.schema !== "release-approval.reference.v2") throw new Error("unsupported release approval reference schema")
+  if (!uiOnly && !businessOnly && value.schema !== "release-approval.reference.v2") throw new Error("unsupported release approval reference schema")
   if (value.app !== "escrow" && value.app !== "bike-nft" && value.app !== "pay-to-play") throw new Error("unknown release approval app")
   if (typeof value.snapshotSha256 !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value.snapshotSha256)) throw new Error("invalid reference snapshot digest")
   const { snapshotSha256, ...base } = value
@@ -244,7 +249,7 @@ export function parseReferenceSnapshot(bytes: Uint8Array): ReferenceSnapshot {
   requiredNonzeroAddress(value.expectedDeployer, "reference expected deployer")
   if (!Number.isSafeInteger(value.expectedChainId) || Number(value.expectedChainId) <= 0) throw new Error("invalid reference chain ID")
   bytes32(value.planSha256, "reference plan digest")
-  const contracts = snapshotContracts(value.contracts, value.app, uiOnly ? ["ui"] : undefined)
+  const contracts = snapshotContracts(value.contracts, value.app, uiOnly ? ["ui"] : businessOnly ? businessContractRoles(value.app) : undefined)
   const steps = snapshotSteps(value.steps, contracts)
   if (uiOnly) {
     const backing = record(value.backing, "UI backing deployment")

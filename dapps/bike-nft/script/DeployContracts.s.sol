@@ -36,7 +36,6 @@ contract DeployContracts is Script, BikeNftContractDeployment {
         settings.componentsAdminDelay = _readDelay(json, ".settings.componentsAdminDelay");
         settings.managerAdminDelay = _readDelay(json, ".settings.managerAdminDelay");
         settings.registrars = vm.parseJsonAddressArray(json, ".settings.registrars");
-        _validateSettings(settings);
         uint256 key = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(key);
         vm.startBroadcast(key);
@@ -52,33 +51,4 @@ contract DeployContracts is Script, BikeNftContractDeployment {
         return uint48(value);
     }
 
-    function _validateSettings(ContractSettings memory settings) private pure {
-        _requireText(settings.tokenName, "tokenName", false);
-        _requireText(settings.tokenSymbol, "tokenSymbol", false);
-        _requireText(settings.baseTokenURI, "baseTokenURI", true);
-        _requireText(settings.collectionURI, "collectionURI", false);
-        if (settings.intendedComponentsAdmin == address(0)) revert InvalidBusinessPlan("intendedComponentsAdmin");
-        if (settings.intendedManagerAdmin == address(0)) revert InvalidBusinessPlan("intendedManagerAdmin");
-        if (settings.componentsPauser == address(0)) revert InvalidBusinessPlan("componentsPauser");
-        if (settings.componentsConfigurer == address(0)) revert InvalidBusinessPlan("componentsConfigurer");
-        if (settings.managerPauser == address(0)) revert InvalidBusinessPlan("managerPauser");
-        if (settings.managerConfigurer == address(0)) revert InvalidBusinessPlan("managerConfigurer");
-        if (settings.componentsAdminDelay == 0) revert InvalidBusinessPlan("componentsAdminDelay");
-        if (settings.managerAdminDelay == 0) revert InvalidBusinessPlan("managerAdminDelay");
-        if (settings.registrars.length == 0) revert InvalidBusinessPlan("registrars");
-        for (uint256 i = 0; i < settings.registrars.length; i++) {
-            if (settings.registrars[i] == address(0)) revert InvalidBusinessPlan("registrars");
-            for (uint256 j = 0; j < i; j++) {
-                if (settings.registrars[i] == settings.registrars[j]) revert InvalidBusinessPlan("registrars");
-            }
-        }
-    }
-
-    function _requireText(string memory value, string memory field, bool allowEmpty) private pure {
-        bytes memory characters = bytes(value);
-        if (!allowEmpty && characters.length == 0) revert InvalidBusinessPlan(field);
-        for (uint256 i = 0; i < characters.length; i++) {
-            if (characters[i] == 0x0a || characters[i] == 0x0d) revert InvalidBusinessPlan(field);
-        }
-    }
 }

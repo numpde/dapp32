@@ -1,7 +1,7 @@
-import { keccak256, stringToHex } from "viem"
+import { keccak256, stringToHex, type Address } from "viem"
 import type { ExpectedArgument, ReleaseReference, ExpectedStep } from "../release-approval/reference.ts"
 import { createdContract, expectedDeployer } from "../release-approval/reference.ts"
-import { parseReleasePlan } from "./shared.ts"
+import { parseReleasePlan, type ContractSettings } from "./shared.ts"
 
 const roleId = (name: string) => keccak256(stringToHex(name))
 
@@ -20,10 +20,34 @@ export function bikeReference(planBytes: Uint8Array, independentDeployer: string
 
   const steps: ExpectedStep[] = [
     { kind: "create", role: "camRoot", name: "CamRoot", action: "Deploy CAM root with the selected manifest", argumentLabels: ["Initial CAM owner", "CAM manifest URI", "CAM manifest SHA-256"], constructorTypes: ["address", "string", "bytes32"], args: [deployer, plan.camURI, plan.camHash] },
-    { kind: "create", role: "components", name: "BicycleComponents", action: "Deploy component NFT collection and initial admin-transfer delay", argumentLabels: ["Collection name", "Collection symbol", "Initial Components admin", "Components admin-transfer delay (seconds)", "Token metadata URI prefix", "Collection metadata URI"], constructorTypes: ["string", "string", "address", "uint48", "string", "string"], args: [plan.tokenName, plan.tokenSymbol, deployer, String(plan.componentsAdminDelay), plan.baseTokenURI, plan.collectionURI] },
-    { kind: "create", role: "manager", name: "BicycleComponentManager", action: "Deploy component registration manager and initial admin-transfer delay", argumentLabels: ["Initial Manager admin", "Manager admin-transfer delay (seconds)", "Verified BicycleComponents contract"], constructorTypes: ["address", "uint48", "address"], args: [deployer, String(plan.managerAdminDelay), createdContract("components")] },
+    ...bikeContractCreations(plan, deployer),
     bikeUICreation(createdContract("manager")),
   ]
+  steps.push(...bikeContractConfiguration(plan, deployer))
+  const call = (role: string, name: string, signature: string, action: string, argumentLabels: readonly string[], ...args: ExpectedStep["args"]): void => {
+    steps.push({ kind: "call", role, name, action, argumentLabels, signature, args })
+  }
+
+  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind CAM ownership acceptance to the CAM host", ["CAM contract name", "Verified CamRoot contract"], "ICamRootOwnership", createdContract("camRoot"))
+  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind the component registry in CAM", ["CAM contract name", "Verified BicycleComponentManager contract"], "BicycleComponentManager", createdContract("manager"))
+  steps.push(bikeUIBinding(createdContract("ui")))
+  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind the component NFT collection in CAM", ["CAM contract name", "Verified BicycleComponents contract"], "BicycleComponents", createdContract("components"))
+  if (plan.intendedCamRootOwner.toLowerCase() !== sender) call("camRoot", "transferOwnership", "transferOwnership(address)", "Nominate the selected CAM owner; separate acceptance is required", ["Selected CAM owner"], plan.intendedCamRootOwner)
+  steps.push(...bikeAdminNominations(plan, deployer))
+
+  return { sourceCommit: plan.sourceCommit, expectedChainId: plan.expectedChainId, expectedDeployer: deployer, steps }
+}
+
+export function bikeContractCreations(plan: ContractSettings, deployer: Address): ExpectedStep[] {
+  return [
+    { kind: "create", role: "components", name: "BicycleComponents", action: "Deploy component NFT collection and initial admin-transfer delay", argumentLabels: ["Collection name", "Collection symbol", "Initial Components admin", "Components admin-transfer delay (seconds)", "Token metadata URI prefix", "Collection metadata URI"], constructorTypes: ["string", "string", "address", "uint48", "string", "string"], args: [plan.tokenName, plan.tokenSymbol, deployer, String(plan.componentsAdminDelay), plan.baseTokenURI, plan.collectionURI] },
+    { kind: "create", role: "manager", name: "BicycleComponentManager", action: "Deploy component registration manager and initial admin-transfer delay", argumentLabels: ["Initial Manager admin", "Manager admin-transfer delay (seconds)", "Verified BicycleComponents contract"], constructorTypes: ["address", "uint48", "address"], args: [deployer, String(plan.managerAdminDelay), createdContract("components")] },
+  ]
+}
+
+export function bikeContractConfiguration(plan: ContractSettings, deployer: Address): ExpectedStep[] {
+  const sender = deployer.toLowerCase()
+  const steps: ExpectedStep[] = []
   const call = (role: string, name: string, signature: string, action: string, argumentLabels: readonly string[], ...args: ExpectedStep["args"]): void => {
     steps.push({ kind: "call", role, name, action, argumentLabels, signature, args })
   }
@@ -53,13 +77,16 @@ export function bikeReference(planBytes: Uint8Array, independentDeployer: string
   if (plan.managerPauser.toLowerCase() !== sender) revoke("manager", "PAUSER_ROLE", managerPausing)
   if (plan.managerConfigurer.toLowerCase() !== sender) revoke("manager", "CONFIGURER_ROLE", managerConfiguration)
 
-  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind CAM ownership acceptance to the CAM host", ["CAM contract name", "Verified CamRoot contract"], "ICamRootOwnership", createdContract("camRoot"))
-  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind the component registry in CAM", ["CAM contract name", "Verified BicycleComponentManager contract"], "BicycleComponentManager", createdContract("manager"))
-  steps.push(bikeUIBinding(createdContract("ui")))
-  call("camRoot", "setContractAddress", "setContractAddress(string,address)", "Bind the component NFT collection in CAM", ["CAM contract name", "Verified BicycleComponents contract"], "BicycleComponents", createdContract("components"))
-  if (plan.intendedCamRootOwner.toLowerCase() !== sender) call("camRoot", "transferOwnership", "transferOwnership(address)", "Nominate the selected CAM owner; separate acceptance is required", ["Selected CAM owner"], plan.intendedCamRootOwner)
+  return steps
+}
+
+export function bikeAdminNominations(plan: ContractSettings, deployer: Address): ExpectedStep[] {
+  const sender = deployer.toLowerCase()
+  const steps: ExpectedStep[] = []
+  const call = (role: string, name: string, signature: string, action: string, argumentLabels: readonly string[], ...args: ExpectedStep["args"]): void => {
+    steps.push({ kind: "call", role, name, action, argumentLabels, signature, args })
+  }
   if (plan.intendedComponentsAdmin.toLowerCase() !== sender) call("components", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", "Nominate the selected Components admin; acceptance follows its transfer delay", ["Selected Components admin"], plan.intendedComponentsAdmin)
   if (plan.intendedManagerAdmin.toLowerCase() !== sender) call("manager", "beginDefaultAdminTransfer", "beginDefaultAdminTransfer(address)", "Nominate the selected Manager admin; acceptance follows its transfer delay", ["Selected Manager admin"], plan.intendedManagerAdmin)
-
-  return { sourceCommit: plan.sourceCommit, expectedChainId: plan.expectedChainId, expectedDeployer: deployer, steps }
+  return steps
 }

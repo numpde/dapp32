@@ -7,24 +7,28 @@ case "$app" in
   escrow)
     script=escrow/script/DeployEscrowRelease.s.sol
     ui_contract=CamEscrowUI
-    contracts="CamRoot CamEscrow $ui_contract"
+    business_contracts=CamEscrow
+    contracts="CamRoot $business_contracts $ui_contract"
     ;;
   bike-nft)
     script=bike-nft/script/DeployBikeNftRelease.s.sol
     ui_contract=BicycleComponentManagerUI
-    contracts="CamRoot BicycleComponents BicycleComponentManager $ui_contract"
+    business_contracts="BicycleComponents BicycleComponentManager"
+    contracts="CamRoot $business_contracts $ui_contract"
     ;;
   pay-to-play)
     script=pay-to-play/script/DeployPayToPlayRelease.s.sol
     ui_contract=PayToPlayUI
-    contracts="CamRoot PayToPlay $ui_contract"
+    business_contracts=PayToPlay
+    contracts="CamRoot $business_contracts $ui_contract"
     ;;
   *) printf '%s\n' "unknown release app: $app" >&2; exit 2 ;;
 esac
 case "${RELEASE_OPERATION:-deployment}" in
   deployment) ;;
+  contracts) script="$app/script/DeployContracts.s.sol"; contracts="$business_contracts" ;;
   ui) script="$app/script/DeployUI.s.sol"; contracts="$ui_contract" ;;
-  *) printf '%s\n' 'Compiler export must select deployment or ui.' >&2; exit 2 ;;
+  *) printf '%s\n' 'Compiler export must select deployment, contracts or ui.' >&2; exit 2 ;;
 esac
 
 if [ ! -d "$output" ] || [ -L "$output" ] || [ -n "$(find "$output" -mindepth 1 -maxdepth 1 -print -quit)" ]; then

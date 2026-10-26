@@ -25,8 +25,7 @@ contract DeployContracts is Script, PayToPlayContractDeployment {
         string memory json = _readPlan();
         address intendedAdmin = vm.parseJsonAddress(json, ".settings.intendedPaymentAdmin");
         uint256 period = vm.parseJsonUint(json, ".settings.nullClaimPeriod");
-        if (intendedAdmin == address(0)) revert InvalidBusinessPlan("intendedPaymentAdmin");
-        if (period > 30 days) revert InvalidBusinessPlan("nullClaimPeriod");
+        if (period > type(uint64).max) revert InvalidBusinessPlan("nullClaimPeriod");
         uint64 nullClaimPeriod = uint64(period);
         uint256 key = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(key);

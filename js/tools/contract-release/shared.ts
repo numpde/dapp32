@@ -1,5 +1,7 @@
+import { parseContractSettings as parseBikeContractSettings, type ContractSettings as BikeContractSettings } from "../bike-nft-release/shared.ts"
+import { parseContractSettings as parsePaymentContractSettings, type ContractSettings as PaymentContractSettings } from "../pay-to-play-release/shared.ts"
 import type { Address, Hex } from "viem"
-import { ARTIFACTS, type ReleaseApp } from "../release-approval/reference-read.ts"
+import { businessContractRoles, type ReleaseApp } from "../release-approval/reference-read.ts"
 import {
   checkedReleaseChainId, parseJsonRecord, requireDistinctHexValues, requireExactKeys,
   requiredBytes32, requiredJsonRecord, requiredNonzeroAddress, requiredNonzeroBytes32,
@@ -24,9 +26,7 @@ export type ContractDeploymentArtifact = {
   readonly initializationTransactions: readonly Hex[]
 }
 
-export function businessContractRoles(app: ReleaseApp): readonly string[] {
-  return Object.keys(ARTIFACTS[app]).filter(role => role !== "camRoot" && role !== "ui")
-}
+export { businessContractRoles } from "../release-approval/reference-read.ts"
 
 export function parseContractDeployment(bytes: Uint8Array, app: ReleaseApp): ContractDeploymentArtifact {
   const value = parseJsonRecord(bytes, "business deployment artifact")
@@ -57,4 +57,39 @@ export function parseContractDeployment(bytes: Uint8Array, app: ReleaseApp): Con
     planSha256: requiredBytes32(value.planSha256, "business plan SHA-256"), contracts,
     initializationTransactions: value.initializationTransactions.map(hash => requiredTransactionHash(hash, "business initialization transaction")),
   }
+}
+
+export type ContractReleasePlan = {
+  readonly schema: "cam.contract-release-plan.v1"
+  readonly sourceCommit: string
+  readonly expectedChainId: number
+} & (
+  | { readonly app: "bike-nft"; readonly settings: BikeContractSettings }
+  | { readonly app: "pay-to-play"; readonly settings: PaymentContractSettings }
+  | { readonly app: "escrow"; readonly settings: Readonly<Record<string, never>> }
+)
+
+export function parseContractReleasePlan(bytes: Uint8Array): ContractReleasePlan {
+  const value = parseJsonRecord(bytes, "business release plan")
+  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "settings"], "business release plan")
+  if (value.schema !== "cam.contract-release-plan.v1") throw new Error("Unsupported business release plan schema")
+  const identity = {
+    schema: "cam.contract-release-plan.v1" as const,
+    sourceCommit: requiredSourceCommit(value.sourceCommit),
+    expectedChainId: checkedReleaseChainId(requiredSafeInteger(value.expectedChainId, "business chain ID")),
+  }
+  const settings = requiredJsonRecord(value.settings, "business contract settings")
+  if (value.app === "bike-nft") {
+    const parsed = parseBikeContractSettings(settings)
+    requireExactKeys(settings, Object.keys(parsed), "Bike contract settings")
+    return { ...identity, app: value.app, settings: parsed }
+  }
+  if (value.app === "pay-to-play") {
+    const parsed = parsePaymentContractSettings(settings)
+    requireExactKeys(settings, Object.keys(parsed), "PayToPlay contract settings")
+    return { ...identity, app: value.app, settings: parsed }
+  }
+  if (value.app !== "escrow") throw new Error("Business release plan must select bike-nft, escrow or pay-to-play")
+  requireExactKeys(settings, [], "Escrow contract settings")
+  return { ...identity, app: value.app, settings: {} }
 }
