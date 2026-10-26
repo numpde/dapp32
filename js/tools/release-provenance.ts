@@ -1,9 +1,62 @@
 import { keccak256, type Address, type Hex } from "viem"
 
 import {
-  requiredNonzeroAddress,
+  requiredNonzeroAddress, requiredNonzeroBytes32, requiredJsonRecord, requireExactKeys,
   requiredTransactionHash,
 } from "./release-values.ts"
+
+export type ContractIdentity = {
+  readonly address: Address
+  readonly codeHash: Hex
+  readonly creationTransaction: Hex
+  readonly creationInputHash: Hex
+}
+
+export function parseContractIdentity(value: unknown, label: string): ContractIdentity {
+  const identity = requiredJsonRecord(value, label)
+  requireExactKeys(identity, ["address", "codeHash", "creationTransaction", "creationInputHash"], label)
+  return {
+    address: requiredNonzeroAddress(identity.address, `${label} address`),
+    codeHash: requiredNonzeroBytes32(identity.codeHash, `${label} runtime hash`),
+    creationTransaction: requiredTransactionHash(identity.creationTransaction, `${label} creation transaction`),
+    creationInputHash: requiredNonzeroBytes32(identity.creationInputHash, `${label} creation input hash`),
+  }
+}
+
+export type ContractIdentityReference = Omit<ContractIdentity, "creationInputHash"> & { readonly creationInputHash?: Hex }
+export type ContractIdentityReader = {
+  getBlock(request: { blockNumber: bigint }): Promise<{ hash: Hex | null }>
+  getCode(request: { address: Address; blockNumber: bigint }): Promise<Hex | undefined>
+  getTransactionReceipt(request: { hash: Hex }): Promise<CreationReceiptEvidence & { blockNumber: bigint; blockHash: Hex }>
+  getTransaction(request: { hash: Hex }): Promise<{ hash: Hex; from: Address; to: Address | null; input: Hex }>
+}
+
+export async function observeContractIdentity(client: ContractIdentityReader, expected: ContractIdentityReference,
+  creator: Address, blockNumber: bigint, label: string): Promise<{ identity: ContractIdentity; creationInput: Hex }> {
+  const [receipt, transaction, code] = await Promise.all([
+    client.getTransactionReceipt({ hash: expected.creationTransaction }),
+    client.getTransaction({ hash: expected.creationTransaction }),
+    client.getCode({ address: expected.address, blockNumber }),
+  ])
+  const creation = { address: expected.address, transactionHash: expected.creationTransaction }
+  const target = `${label} ${expected.address}`
+  const actualCreator = creationReceiptDeployer(creation, receipt, target)
+  if (actualCreator.toLowerCase() !== creator.toLowerCase()) throw new Error(`Cannot verify ${target}: creation sender ${actualCreator} differs from recorded creator ${creator}`)
+  const creationInputHash = creationTransactionInputHash(creation, transaction, creator, target)
+  if (expected.creationInputHash !== undefined && expected.creationInputHash.toLowerCase() !== creationInputHash.toLowerCase()) {
+    throw new Error(`Cannot verify ${target}: creation input hash ${creationInputHash} differs from recorded hash ${expected.creationInputHash}`)
+  }
+  if (receipt.blockNumber > blockNumber) throw new Error(`Cannot verify ${target}: creation receipt block ${receipt.blockNumber} is later than observation block ${blockNumber}`)
+  const creationBlock = await client.getBlock({ blockNumber: receipt.blockNumber })
+  if (creationBlock.hash !== receipt.blockHash) {
+    throw new Error(`Cannot verify ${target}: creation receipt block ${receipt.blockHash} differs from canonical block ${creationBlock.hash}`)
+  }
+  if (code === undefined || code === "0x") throw new Error(`Cannot verify ${target}: no runtime exists at observation block ${blockNumber}`)
+  const codeHash = keccak256(code)
+  if (codeHash.toLowerCase() !== expected.codeHash.toLowerCase()) throw new Error(`Cannot verify ${target}: runtime hash ${codeHash} differs from recorded hash ${expected.codeHash}`)
+  return { identity: { address: expected.address, creationTransaction: expected.creationTransaction, creationInputHash, codeHash },
+    creationInput: transaction.input }
+}
 
 export type CreatedContract = { readonly address: Address; readonly transactionHash: Hex }
 export type CreationReceiptEvidence = {

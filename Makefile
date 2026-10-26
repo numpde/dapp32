@@ -1018,6 +1018,7 @@ help:
 	  '  make pay-to-play/release/ui/artifact CONFIG=/absolute/private/ui.json UI_RECORDS=/absolute/ui-deployment' \
 	  '    Uses the saved UI plan and creation transaction; verifies source/runtime/backing without sending transactions.' \
 	  '    Read-only CONFIG may omit the signing key and approval image. Existing final records are never overwritten.' \
+	  '  make release/cam/check           Typecheck and test CAM component admission and publication tools.' \
 	  '  make release/contracts/check     Typecheck and test shared business deployment plans and approval recipes.' \
 	  '  make release/ui/check            Typecheck and test the shared UI deployment tools for all three apps.' \
 	  '    Walk through every input and save one ready-to-deploy configuration for bike-nft, escrow or pay-to-play.' \
@@ -1279,7 +1280,7 @@ js/compiler/qualify:
 js/tests:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/release/check release/ui/check release/contracts/check pay-to-play/refunds/check
+js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/release/check release/ui/check release/contracts/check release/cam/check pay-to-play/refunds/check
 
 cam/conformance/check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
@@ -1368,6 +1369,13 @@ bike-nft/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T release-check
+
+.PHONY: release/cam/check
+release/cam/check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)-cam-release-check" \
+	  $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/check.yml run --build --rm -T -e RELEASE_TOOL_DIR=tools/cam-release release-check
 
 .PHONY: release/contracts/check
 release/contracts/check:

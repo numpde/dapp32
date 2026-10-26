@@ -14,7 +14,7 @@ function plan(app: UIReleasePlan["app"]): UIReleasePlan {
   return {
     schema: "cam.ui-release-plan.v1", app, sourceCommit: "a".repeat(40), expectedChainId: 43113,
     backing: { sourceCommit: "b".repeat(40), chainId: 43113, creator: coreCreator,
-      artifactSha256: `0x${"66".repeat(32)}`, address: backing, codeHash: keccak256(code), creationTransaction: transactionHash },
+      artifactSha256: `0x${"66".repeat(32)}`, address: backing, codeHash: keccak256(code), creationTransaction: transactionHash, creationInputHash: keccak256("0x6000") },
   }
 }
 
@@ -80,7 +80,12 @@ test("backing admission checks creation and current code without consulting wall
     assert.equal(observed.blockNumber, "20")
     assert.equal(observed.blockHash, blockHash)
     assert.ok(calls.includes("receipt") && calls.includes("code"))
-    await assert.rejects(verifyUIBacking({ ...client, getCode: async () => "0x6002" as const }, selected.backing), /runtime/i)
+    await assert.rejects(verifyUIBacking({ ...client, getCode: async () => "0x6002" as const }, selected.backing), error => {
+      assert(error instanceof Error)
+      assert.match(error.message, /runtime/i)
+      for (const evidence of [backing, keccak256("0x6002"), keccak256(code)]) assert(error.message.includes(evidence))
+      return true
+    })
     await assert.rejects(verifyUIBacking({ ...client, getTransactionReceipt: async () => ({
       ...await client.getTransactionReceipt(), contractAddress: uiCreator,
     }) }, selected.backing), /creation.*address|address.*creation/i)

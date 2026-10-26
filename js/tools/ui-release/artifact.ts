@@ -1,24 +1,11 @@
 import { resolve } from "node:path"
-import { createPublicClient, encodeDeployData, getAddress, http, keccak256, toHex, type Address, type Hex } from "viem"
+import { createPublicClient, encodeDeployData, getAddress, http, keccak256, toHex } from "viem"
 import { requiredEnv } from "../input.ts"
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import { ARTIFACTS, parseReferenceSnapshot, sha256 } from "../release-approval/reference-read.ts"
 import { createdContract, creationReceiptDeployer, creationTransactionInputHash } from "../release-provenance.ts"
 import { parseJsonRecord, runReleaseTool } from "../release-values.ts"
-import { parseUIReleasePlan, UI_SCRIPT_NAME, verifyUIBacking, type UIBackingReference } from "./shared.ts"
-
-export type UIDeploymentArtifact = {
-  readonly schema: "cam.ui-deployment.v1"
-  readonly app: "bike-nft" | "escrow" | "pay-to-play"
-  readonly sourceCommit: string
-  readonly chainId: number
-  readonly creator: Address
-  readonly planSha256: Hex
-  readonly referenceSha256: Hex
-  readonly backing: UIBackingReference
-  readonly ui: { address: Address; creationTransaction: Hex; creationInputHash: Hex; codeHash: Hex }
-  readonly verificationBlock: { number: Hex; hash: Hex }
-}
+import { parseUIReleasePlan, UI_SCRIPT_NAME, verifyUIBacking, type UIDeploymentArtifact } from "./shared.ts"
 
 async function main(): Promise<void> {
   const env = process.env

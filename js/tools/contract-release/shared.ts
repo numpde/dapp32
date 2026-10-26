@@ -1,19 +1,13 @@
+import { parseContractIdentity, type ContractIdentity, type ContractIdentityReference } from "../release-provenance.ts"
 import { parseContractSettings as parseBikeContractSettings, type ContractSettings as BikeContractSettings } from "../bike-nft-release/shared.ts"
 import { parseContractSettings as parsePaymentContractSettings, type ContractSettings as PaymentContractSettings } from "../pay-to-play-release/shared.ts"
 import { getAddress, type Address, type Hex } from "viem"
-import { businessContractRoles, type ReleaseApp } from "../release-approval/reference-read.ts"
+import { businessContractRoles, sha256, type ReleaseApp } from "../release-approval/reference-read.ts"
 import {
   checkedReleaseChainId, parseJsonRecord, requireDistinctHexValues, requireExactKeys,
   requiredBytes32, requiredJsonRecord, requiredNonzeroAddress, requiredNonzeroBytes32,
   requiredSafeInteger, requiredSourceCommit, requiredTransactionHash,
 } from "../release-values.ts"
-
-export type ContractIdentity = {
-  readonly address: Address
-  readonly codeHash: Hex
-  readonly creationTransaction: Hex
-  readonly creationInputHash: Hex
-}
 
 export type ContractDeploymentArtifact = {
   readonly schema: "cam.contract-deployment.v1"
@@ -47,14 +41,7 @@ export function parseContractDeployment(bytes: Uint8Array, app: ReleaseApp): Con
   requireExactKeys(identities, businessContractRoles(app), "business contract inventory")
   const contracts: Record<string, ContractIdentity> = {}
   for (const [role, identity] of Object.entries(identities)) {
-    const contract = requiredJsonRecord(identity, `${role} contract identity`)
-    requireExactKeys(contract, ["address", "codeHash", "creationTransaction", "creationInputHash"], `${role} contract identity`)
-    contracts[role] = {
-      address: requiredNonzeroAddress(contract.address, `${role} address`),
-      codeHash: requiredNonzeroBytes32(contract.codeHash, `${role} runtime hash`),
-      creationTransaction: requiredTransactionHash(contract.creationTransaction, `${role} creation transaction`),
-      creationInputHash: requiredNonzeroBytes32(contract.creationInputHash, `${role} creation input hash`),
-    }
+    contracts[role] = parseContractIdentity(identity, `${role} contract identity`)
   }
   requireDistinctHexValues(Object.values(contracts).map(contract => contract.address), "business contract addresses")
   requireDistinctHexValues(Object.values(contracts).map(contract => contract.creationTransaction), "business creation transactions")
@@ -143,4 +130,45 @@ export function parseContractReleasePlan(bytes: Uint8Array): ContractReleasePlan
   if (value.app !== "escrow") throw new Error("Business release plan must select bike-nft, escrow or pay-to-play")
   requireExactKeys(settings, [], "Escrow contract settings")
   return { ...identity, app: value.app, settings: {} }
+}
+
+export type BusinessDeploymentSelection = {
+  readonly app: ReleaseApp
+  readonly sourceCommit: string
+  readonly chainId: number
+  readonly creator: Address
+  readonly artifactSha256: Hex
+  readonly contracts: Readonly<Record<string, ContractIdentityReference>>
+}
+
+export function businessFromDeployment(app: ReleaseApp, bytes: Uint8Array): BusinessDeploymentSelection {
+  const artifactSha256 = sha256(bytes)
+  const deployment = parseJsonRecord(bytes, "business deployment artifact")
+  if (deployment.schema === "cam.contract-deployment.v1") {
+    const parsed = parseContractDeployment(bytes, app)
+    return { app, sourceCommit: parsed.sourceCommit, chainId: parsed.chainId, creator: parsed.creator,
+      artifactSha256, contracts: parsed.contracts }
+  }
+  if (deployment.schema !== `${app}.deployment.v1` && deployment.schema !== `${app}.deployment.v2`) {
+    throw new Error(`Cannot select ${app} business deployment: its artifact schema is not a known business-bearing release format`)
+  }
+  const identity = (address: unknown, codeHash: unknown, transaction: unknown, label: string): ContractIdentityReference => ({
+    address: requiredNonzeroAddress(address, `${label} address`), codeHash: requiredNonzeroBytes32(codeHash, `${label} runtime hash`),
+    creationTransaction: requiredTransactionHash(transaction, `${label} creation transaction`),
+  })
+  const contracts = app === "bike-nft" ? {
+    components: identity(deployment.components, deployment.componentsCodeHash, deployment.componentsCreationTransaction, "Components"),
+    manager: identity(deployment.manager, deployment.managerCodeHash, deployment.managerCreationTransaction, "Manager"),
+  } : app === "escrow" ? {
+    escrow: identity(deployment.camEscrow, deployment.camEscrowCodeHash, deployment.camEscrowCreationTransaction, "Escrow"),
+  } : {
+    payments: { ...identity(deployment.payToPlay, deployment.payToPlayCodeHash, deployment.payToPlayCreationTransaction, "Payments"),
+      creationInputHash: requiredNonzeroBytes32(deployment.payToPlayCreationInputHash, "payment creation input hash") },
+  }
+  const selected = Object.values(contracts)
+  requireDistinctHexValues(selected.map(contract => contract.address), "business contract addresses")
+  requireDistinctHexValues(selected.map(contract => contract.creationTransaction), "business creation transactions")
+  return { app, sourceCommit: requiredSourceCommit(deployment.sourceCommit),
+    chainId: checkedReleaseChainId(requiredSafeInteger(deployment.chainId, "business deployment chain ID")),
+    creator: requiredNonzeroAddress(deployment.deployer, "business creator"), artifactSha256, contracts }
 }

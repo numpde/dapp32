@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
-import type { UIDeploymentArtifact } from "./artifact.ts"
+import type { UIDeploymentArtifact } from "./shared.ts"
 import type { UIReleasePlan } from "./shared.ts"
 
 test("UI artifact publication is exclusive and a keyless retry preserves an existing verified record", async () => {

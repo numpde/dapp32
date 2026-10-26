@@ -1,3 +1,4 @@
+import type { ContractIdentity } from "../release-provenance.ts"
 import { resolve } from "node:path"
 import { isDeepStrictEqual } from "node:util"
 import { createPublicClient, getAddress, http, keccak256, parseAbi, serializeTransaction, toHex, type Hex } from "viem"
@@ -7,7 +8,7 @@ import { parseReferenceSnapshot, sha256 } from "../release-approval/reference-re
 import { ReleaseVerifier } from "../release-approval/verifier.ts"
 import { parseJsonRecord, requiredJsonRecord, requiredTransactionHash, runReleaseTool } from "../release-values.ts"
 import { contractDeploymentReference } from "./reference.ts"
-import { parseContractDeployment, parseContractReleasePlan, type ContractDeploymentArtifact, type ContractIdentity, type DelayedAdministration } from "./shared.ts"
+import { parseContractDeployment, parseContractReleasePlan, type ContractDeploymentArtifact, type DelayedAdministration } from "./shared.ts"
 
 const OWNABLE = parseAbi(["function owner() view returns (address)", "function pendingOwner() view returns (address)"])
 const DELAYED_ADMIN = parseAbi(["function defaultAdmin() view returns (address)", "function pendingDefaultAdmin() view returns (address,uint48)"])

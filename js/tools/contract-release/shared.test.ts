@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import { contractDeploymentReference } from "./reference.ts"
-import { parseContractReleasePlan } from "./shared.ts"
+import { businessFromDeployment, parseContractReleasePlan } from "./shared.ts"
 
 const creator = `0x${"11".repeat(20)}`
 const admin = `0x${"22".repeat(20)}`
@@ -39,4 +39,31 @@ test("business settings retain their app-owned publication policy before native 
   assert.throws(() => parseContractReleasePlan(bytes({ ...identity, app: "bike-nft", settings: { ...settings, registrars: [admin, admin] } })), /distinct|duplicate/i)
   assert.throws(() => parseContractReleasePlan(bytes({ ...identity, app: "bike-nft", settings: { ...settings, componentsAdminDelay: 0 } })), /delay/i)
   assert.throws(() => parseContractReleasePlan(bytes({ ...identity, app: "pay-to-play", settings: { intendedPaymentAdmin: admin, nullClaimPeriod: 2592001 } })), /claim period/i)
+})
+
+
+test("known historical business identities do not require root or UI provenance", () => {
+  const common = { sourceCommit: "c".repeat(40), chainId: 31338, deployer: creator }
+  const codeHash = `0x${"33".repeat(32)}`
+  const transaction = `0x${"44".repeat(32)}`
+  const inputHash = `0x${"55".repeat(32)}`
+  const historical = [
+    ["pay-to-play", { schema: "pay-to-play.deployment.v1", ...common, payToPlay: admin, payToPlayCodeHash: codeHash,
+      payToPlayCreationTransaction: transaction, payToPlayCreationInputHash: inputHash,
+      camURI: "https://example.test/main.json", camHash: `0x${"77".repeat(32)}`, intendedCamRootOwner: admin,
+      intendedPaymentAdmin: admin, nullClaimPeriod: 86400, camRoot: `0x${"88".repeat(20)}`,
+      camRootCodeHash: codeHash, camRootCreationTransaction: `0x${"99".repeat(32)}` }, ["payments"]],
+    ["escrow", { schema: "escrow.deployment.v1", ...common, camEscrow: admin, camEscrowCodeHash: codeHash,
+      camEscrowCreationTransaction: transaction }, ["escrow"]],
+    ["bike-nft", { schema: "bike-nft.deployment.v1", ...common, components: creator, manager: admin,
+      componentsCodeHash: codeHash, managerCodeHash: codeHash, componentsCreationTransaction: transaction,
+      managerCreationTransaction: `0x${"66".repeat(32)}` }, ["components", "manager"]],
+  ] as const
+  for (const [app, artifact, roles] of historical) {
+    const selected = businessFromDeployment(app, bytes(artifact))
+    assert.deepEqual(Object.keys(selected.contracts), roles)
+    assert.equal(selected.sourceCommit, common.sourceCommit)
+    assert.equal(selected.creator, creator)
+    assert(!("ui" in selected.contracts) && !("camRoot" in selected.contracts))
+  }
 })
