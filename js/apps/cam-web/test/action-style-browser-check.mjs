@@ -37,6 +37,22 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await assertDisplayedValues({ call, evaluate })
     await assertDisplayFailureWitnesses({ call, evaluate })
     await assertNumericValidationPresentation({ evaluate, wait })
+    await evaluate(`(()=>{
+      const input=document.querySelector('input[inputmode]');
+      const group=input.closest('fieldset');
+      const editor=group===null?input.closest('label.field').parentElement:group;
+      window.numericSummaryWitness=()=>{const output=document.createElement('output');output.dataset.numericSummaryWitness='true';output.textContent='Derived input result';editor.append(output)};
+      input.addEventListener('input',window.numericSummaryWitness,{once:true});
+    })()`)
+    try {
+      await assert.rejects(assertNumericValidationPresentation({ evaluate, wait }), /numeric editor visible content and size/, 'numeric editing rejects an appearing result regardless of its markup')
+    } finally {
+      await evaluate(`(()=>{
+        document.querySelector('input[inputmode]').removeEventListener('input',window.numericSummaryWitness);
+        document.querySelector('[data-numeric-summary-witness]')?.remove();
+        delete window.numericSummaryWitness;
+      })()`)
+    }
     await evaluate(`navigator.clipboard.writeText=()=>new Promise(resolve=>{window.finishOldCopy=resolve});document.querySelector('.hex-copy').click();window.actionFixture.account('0x4444444444444444444444444444444444444444')`)
     await wait(`document.querySelector('.hex-value code').textContent==='0x4444444444444444444444444444444444444444'`)
     await evaluate('window.finishOldCopy()')

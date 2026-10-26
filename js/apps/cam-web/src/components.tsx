@@ -498,7 +498,6 @@ function DurationFieldView({ node, disabled, onDuration }: { readonly node: Reso
       </label>)}
     </div>
     <p id={hintId} className="visually-hidden" role="status">{explanation}</p>
-    {node.formattedValue === undefined ? null : <PropertyRow label="Total" value={node.formattedValue} />}
   </fieldset>
 }
 
