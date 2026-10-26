@@ -75,6 +75,39 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 finally:
                     transcript.finish()
 
+    def test_sequential_approval_project_requires_the_previous_phase_artifact(self) -> None:
+        first = "cam-release-" + "a" * 24 + "-run"
+        second = "cam-release-" + "b" * 24 + "-run"
+        keyless = "cam-release-" + "c" * 24 + "-run"
+        for artifact_state in ("missing", "symlink", "complete"):
+            with self.subTest(artifact_state=artifact_state), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                artifact = root / "contract-deployment.json"
+                if artifact_state == "complete":
+                    artifact.write_text("{}")
+                elif artifact_state == "symlink":
+                    (root / "unadmitted.json").write_text("{}")
+                    artifact.symlink_to(root / "unadmitted.json")
+                transcript = self.rehearsal.Transcript(root / "approval-pty.log")
+                transcript.phase_artifacts = [artifact, root / "ui-deployment.json"]
+                try:
+                    transcript.extend(f"Release container project: {first}\nRelease approval\n  App: escrow\n".encode())
+                    self.assertEqual(first, transcript.project)
+                    transcript.extend(f"Release container project: {keyless}\n".encode())
+                    self.assertEqual(first, transcript.project, "Keyless collection cannot replace the approval owner")
+                    transcript.extend(f"Release container project: {second}\nRelease approval\n".encode())
+                    if artifact_state == "complete":
+                        transcript.check()
+                        self.assertEqual(second, transcript.project)
+                        self.assertEqual([first, second], transcript.projects)
+                        self.assertNotIn("  App: escrow", transcript.identity_lines[transcript.identity_start:])
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "preceding phase artifact"):
+                            transcript.check()
+                        self.assertEqual(first, transcript.project)
+                finally:
+                    transcript.finish()
+
     def test_main_rejects_without_transmission_amid_foreign_releases_and_retains_forge_journals(self) -> None:
         for app in ("escrow", "bike-nft", "pay-to-play"):
             with self.subTest(app=app):
@@ -107,10 +140,11 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             }
 
             @contextmanager
-            def terminal(path, selected_app):
+            def terminal(path, selected_app, *, config_file):
                 nonlocal transcript
                 self.assertEqual(app, selected_app)
-                output = root / "deployment"
+                self.assertEqual(root / "control/release.json", config_file)
+                output = root / "deployment/contracts"
                 (output / "broadcast").mkdir(parents=True)
                 (output / "broadcast/run-latest.json").write_text('{"receipts":[],"transactions":[]}')
                 (output / "artifact").mkdir()
@@ -197,7 +231,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                                  [call.args[1] for call in commands.call_args_list])
             facts = json.loads((root / "approval-diagnostics.json").read_text())
             self.assertEqual("passed", facts["result"])
-            self.assertTrue((root / "deployment/broadcast/run-latest.json").is_file())
+            self.assertTrue((root / "deployment/contracts/broadcast/run-latest.json").is_file())
 
     def test_transcript_limit_fails_the_check_but_retains_cleanup_tail(self) -> None:
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(
@@ -386,7 +420,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.rehearsal, "stop_release", side_effect=stop,
             ), mock.patch.object(self.rehearsal, "progress"):
                 with self.assertRaisesRegex(self.rehearsal.ReleaseCleanupError, "Inner release cleanup"):
-                    with self.rehearsal.release_terminal(path, "escrow") as (_master, _process, transcript):
+                    with self.rehearsal.release_terminal(path, "escrow", config_file=None) as (_master, _process, transcript):
                         transcript.result = "passed"
             facts = json.loads(path.with_name("approval-diagnostics.json").read_text())
             self.assertEqual("cleanup-incomplete", facts["result"])

@@ -58,11 +58,32 @@ class ToolchainVersionTest(unittest.TestCase):
                 # This release image is selected by an exact local image ID at launch.
                 if path == repo_path("compose/release/approval.yml") and image == '"${RELEASE_APPROVAL_IMAGE:?missing_RELEASE_APPROVAL_IMAGE}"':
                     continue
+                # This one source-export lane receives IDs from release_tool_image,
+                # which checks the archived context label and exact local image ID.
+                # test_release_cam exercises that caller with rejected IDs/metadata.
+                if path == repo_path("compose/release/cam-source.yml") and image in {
+                    '"${CAM_COMPONENT_FOUNDRY_IMAGE:?missing_CAM_COMPONENT_FOUNDRY_IMAGE}"',
+                    '"${CAM_COMPONENT_CHECKS_IMAGE:?missing_CAM_COMPONENT_CHECKS_IMAGE}"',
+                }:
+                    self.assert_cam_source_immutable_image_posture()
+                    continue
                 if not self.is_pinned_image_reference(image):
                     failures.append(f"{path}:{line_number}: Compose image must be tag-and-digest pinned: {image}")
 
         if failures:
             self.fail("\n".join(failures))
+
+    def assert_cam_source_immutable_image_posture(self) -> None:
+        foundry = "sha256:" + "a" * 64
+        checks = "sha256:" + "b" * 64
+        services = rendered_compose_config("compose/release/cam-source.yml", env={
+            "CAM_COMPONENT_FOUNDRY_IMAGE": foundry, "CAM_COMPONENT_CHECKS_IMAGE": checks,
+        })["services"]
+        for name, expected in (("release-cam-source", foundry), ("release-cam-source-dependencies", checks)):
+            with self.subTest(service=name):
+                self.assertEqual(expected, services[name]["image"])
+                self.assertEqual("never", services[name]["pull_policy"])
+                self.assertFalse(services[name].get("build"))
 
     def test_compose_builds_use_explicit_container_contexts(self) -> None:
         failures: list[str] = []

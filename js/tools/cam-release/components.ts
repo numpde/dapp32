@@ -27,7 +27,7 @@ export async function admitCamComponents({ app, businessBytes, uiBytes, business
     throw new Error("Cannot compose CAM: the selected UI artifact names a different business deployment")
   }
   if (await client.getChainId() !== business.chainId) throw new Error("Cannot compose CAM: RPC chain differs from the selected component artifacts")
-  const blockNumber = observationBlock?.number ?? await client.getBlockNumber()
+  const blockNumber = observationBlock === undefined ? await client.getBlockNumber() : observationBlock.number
   const block = await client.getBlock({ blockNumber })
   if (observationBlock !== undefined && block.hash !== observationBlock.hash) throw new Error("Cannot compose CAM: its selected observation block is no longer canonical")
   const contracts: Record<string, ContractIdentity> = {}

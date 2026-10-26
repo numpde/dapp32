@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tomllib
 import unittest
-from .text.test_rendered_compose_posture import makefile_compose_unit
+from .text.test_rendered_compose_posture import makefile_compose_unit, release_deployment_units
 
 from .common import (
     compose_command_text,
@@ -18,39 +18,32 @@ from .release_posture import (
     expanded_release_target,
     assert_deployment_authority_split,
     assert_offline_read_only_release_check,
-    assert_receipt_gated_verification,
     assert_release_output_directions,
     assert_verification_has_no_signing_authority,
-    assert_verification_snapshot_boundary,
 )
 
 
 CHECK = ("compose/release/check.yml", "compose/escrow/release/check.yml")
-DEPLOY = makefile_compose_unit("ESCROW_RELEASE_APPROVAL_COMPOSE_FILES")
-VERIFY = ("compose/release/verify.yml", "compose/escrow/release/verify.yml")
+DEPLOY = release_deployment_units()[2]
 OUTPUT_DIR = "/tmp/escrow-release-output"
-ARTIFACT_FILE = "/tmp/escrow-release-output/artifact/deployment.json"
 RPC_URL_FILE = "/tmp/escrow-release-rpc-url"
 PRIVATE_KEY_FILE = "/tmp/escrow-release-private-key"
 SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 RELEASE_ENV = {
+    "CONTRACT_RELEASE_APP": "escrow", "UI_RELEASE_APP": "escrow", "CAM_RELEASE_APP": "escrow",
+    "RELEASE_APPROVAL_APP": "escrow",
+    "CONTRACT_RELEASE_SOURCE_COMMIT": SOURCE_COMMIT,
+    "UI_RELEASE_SOURCE_COMMIT": SOURCE_COMMIT,
+    "CAM_RELEASE_SOURCE_COMMIT": SOURCE_COMMIT,
     "DEPLOYER_PRIVATE_KEY_FILE": PRIVATE_KEY_FILE,
-    "ESCROW_DEPLOYMENT_ARTIFACT_FILE": ARTIFACT_FILE,
-    "ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
-    "ESCROW_RELEASE_CAM_URI": "https://example.test/escrow/cam/main.json",
-    "ESCROW_RELEASE_EXPECTED_CHAIN_ID": "11155111",
-    "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT": SOURCE_COMMIT,
-    "ESCROW_RELEASE_OUTPUT_DIR": OUTPUT_DIR,
-    "ESCROW_RELEASE_SOURCE_COMMIT": SOURCE_COMMIT,
     "RPC_URL_FILE": RPC_URL_FILE,
     "RELEASE_OUTPUT_DIR": OUTPUT_DIR,
-    "RELEASE_DEPLOYMENT_ARTIFACT_FILE": ARTIFACT_FILE,
 }
 
 
 class EscrowReleasePostureTest(unittest.TestCase):
     def test_base_signer_has_no_ungated_rpc_path(self) -> None:
-        config = rendered_compose_config(makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"), env=RELEASE_ENV)
+        config = rendered_compose_config(makefile_compose_unit("CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES"), env=RELEASE_ENV)
         services = compose_mapping(config, "services")
         signer = services["deploy-release"]
         self.assertNotIn("release-approval", services)
@@ -68,36 +61,28 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIn("/*.test.ts", compose_command_text(service))
 
     def test_release_make_targets_fail_closed(self) -> None:
-        deploy = expanded_release_target("escrow/release/deploy")
-        verify = expanded_release_target("escrow/release/verify")
-
-        self.assertIn("CONFIRM_ESCROW_RELEASE_DEPLOY", deploy)
-        self.assertIn("DEPLOYER_PRIVATE_KEY_FILE", deploy)
-        self.assertIn("RPC_URL_FILE", deploy)
-        self.assertIn(
-            'require_release_rpc_input',
-            deploy,
-        )
-        self.assertIn(
-            'require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$DEPLOYER_PRIVATE_KEY_FILE"',
-            deploy,
-        )
-        self.assertIn('validate_new_release_output "$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"', deploy)
-        self.assertIn("env -u PRIVATE_KEY -u RPC_URL", deploy)
-        self.assertNotIn('rm -rf "$output_dir"', deploy)
-
-        self.assertIn("ESCROW_DEPLOYMENT_ARTIFACT_FILE", verify)
-        self.assertIn(
-            'require_release_rpc_input',
-            verify,
-        )
-        self.assertRegex(verify, r'require_release_file "\$\{?ESCROW_DEPLOYMENT_ARTIFACT_FILE\}?" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"')
-        self.assertIn("env -u PRIVATE_KEY -u RPC_URL", verify)
+        for phase in ("contracts", "ui", "cam"):
+            with self.subTest(phase=phase):
+                action = "publish" if phase == "cam" else "deploy"
+                deploy = expanded_release_target(f"escrow/release/{phase}/{action}")
+                self.assertIn("DEPLOYER_PRIVATE_KEY_FILE", deploy)
+                self.assertIn("require_release_rpc_input", deploy)
+                self.assertIn('require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$DEPLOYER_PRIVATE_KEY_FILE"', deploy)
+                prefix = {"contracts": "CONTRACT", "ui": "UI", "cam": "CAM"}[phase]
+                self.assertIn(f'validate_new_release_output "$output_dir" {prefix}_RELEASE_OUTPUT_DIR', deploy)
+                self.assertIn("env -u PRIVATE_KEY -u RPC_URL", deploy)
+                self.assertNotIn('rm -rf "$output_dir"', deploy)
+                artifact = expanded_release_target(f"escrow/release/{phase}/artifact")
+                self.assertIn("read-only RPC access; no signing key is used", artifact)
+                self.assertIn('require_release_file "$release_config_input"', artifact)
+                self.assertIn("-plan-source escrow", artifact)
+                self.assertIn("env -u PRIVATE_KEY -u RPC_URL", artifact)
+                self.assertNotIn('require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE"', artifact)
 
     def test_release_make_targets_run_from_disposable_commit_snapshots(self) -> None:
         source = read_text(repo_path("Makefile"))
-        deploy = expanded_release_target("escrow/release/deploy")
-        verify = expanded_release_target("escrow/release/verify")
+        deploy = expanded_release_target("escrow/release/contracts/deploy")
+        verify = expanded_release_target("escrow/release/contracts/artifact")
         cleanup = source[source.index("define release_snapshot_cleanup"):source.index("endef", source.index("define release_snapshot_cleanup"))]
 
         self.assertIn('GIT_NO_REPLACE_OBJECTS=1 git archive', source)
@@ -117,10 +102,10 @@ class EscrowReleasePostureTest(unittest.TestCase):
             self.assertIn(f'COMPOSE_PROJECT_NAME="$$ceremony_project-{phase}"', source)
 
         self.assertIn("release_phase=deploy;", deploy)
-        self.assertIn("compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release", verify)
-        self.assertIn('-f "$ceremony_source/compose/escrow/release/deploy.yml"', deploy)
+        self.assertIn('source_commit="$(< "$release_config_dir/contract-source")"', verify)
+        self.assertIn('-f "$ceremony_source/compose/release/contracts.yml"', deploy)
         self.assertIn('"${release_phase_overlays[@]}" "${release_transport_args[@]}"', deploy)
-        self.assertIn('-f "$ceremony_source/compose/escrow/release/verify.yml" "${release_transport_args[@]}"', verify)
+        self.assertIn('-f compose/release/contracts-artifact.yml "${release_transport_args[@]}"', verify)
         prepare = source.split("define release_prepare_snapshot\n", 1)[1].split("\nendef", 1)[0]
         execute = source.split("define release_deploy_execution\n", 1)[1].split("\nendef", 1)[0]
         self.assertLess(prepare.index("trap cleanup EXIT"), prepare.index("$(release_snapshot_allocate)"))
@@ -144,6 +129,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         assert_deployment_authority_split(
             self,
             config,
+            operation="contracts",
             planner_name="release-plan",
             signer_name="deploy-release",
             materializer_name="release-artifact",
@@ -152,12 +138,15 @@ class EscrowReleasePostureTest(unittest.TestCase):
         )
         assert_release_output_directions(
             self,
+            operation="contracts",
+            publisher=compose_service(config, "release-contract-publish"),
+            candidate_target="/contract-candidate",
             planner=plan,
             signer=deploy,
             materializer=artifact,
             plan_target="/release-plan",
             broadcast_target="/release-broadcast",
-            artifact_target="/release-artifact",
+            artifact_target="/contract-artifact",
         )
         self.assertEqual("none", deploy["network_mode"])
         self.assertEqual({"release_artifact_internal": None}, artifact["networks"])
@@ -182,7 +171,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         artifact_rpc_url = compose_volume(artifact_proxy, "/run/inputs/rpc_url")
         self.assertEqual(RPC_URL_FILE, artifact_rpc_url["source"])
         self.assertIs(artifact_rpc_url["read_only"], True)
-        evidence_targets = {"/release-plan", "/release-broadcast", "/release-artifact", "/run/inputs/rpc_url"}
+        evidence_targets = {"/release-plan", "/release-broadcast", "/contract-candidate", "/contract-artifact", "/run/inputs/rpc_url"}
         for service in config["services"].values():
             for mount in compose_sequence_or_empty(service, "volumes"):
                 if mount["target"] not in evidence_targets:
@@ -193,7 +182,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
         deploy_command = compose_command_text(deploy)
         self.assertNotIn("release-plan.args", deploy_command)
-        self.assertIn("ESCROW_RELEASE_PLAN_PATH", compose_mapping(deploy, "environment"))
+        self.assertIn("CONTRACT_RELEASE_PLAN_PATH", compose_mapping(deploy, "environment"))
         self.assertNotIn("ESCROW_RELEASE_CAM_ROOT_TEXT", deploy_command)
         foundry_config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
         self.assertIn(
@@ -209,7 +198,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         deploy_broadcast = compose_volume(deploy, "/release-broadcast")
         artifact_plan = compose_volume(artifact, "/release-plan")
         artifact_broadcast = compose_volume(artifact, "/release-broadcast")
-        artifact_write = compose_volume(artifact, "/release-artifact")
+        artifact_write = compose_volume(compose_service(config, "release-contract-publish"), "/contract-artifact")
 
         self.assertEqual(f"{OUTPUT_DIR}/plan", plan_write["source"])
         self.assertEqual(f"{OUTPUT_DIR}/broadcast", deploy_broadcast["source"])
@@ -217,54 +206,36 @@ class EscrowReleasePostureTest(unittest.TestCase):
         for volume in (plan_write, deploy_plan, deploy_broadcast, artifact_plan, artifact_broadcast, artifact_write):
             self.assertIn(volume["bind"], ({}, {"create_host_path": False}))
 
-    def test_verifier_has_offline_source_and_receipt_gates_without_send_authority(self) -> None:
-        config = rendered_compose_config(VERIFY, env=RELEASE_ENV)
-        input_check = compose_service(config, "verify-input")
-        proxy = compose_service(config, "verify-rpc-proxy")
-        provenance = compose_service(config, "verify-provenance")
-        verify = compose_service(config, "verify-release")
-
-        assert_receipt_gated_verification(
-            self,
-            input_service=input_check,
-            input_service_name="verify-input",
-            provenance_service=provenance,
-            provenance_service_name="verify-provenance",
-            verifier_service=verify,
-        )
-        assert_verification_snapshot_boundary(
-            self,
-            input_service=input_check,
-            downstream_services=(provenance, verify),
-            external_artifact_target="/deployment/deployment.json",
-            snapshot_target="/out",
-        )
-        assert_verification_has_no_signing_authority(
-            self,
-            compose_mapping(config, "services"),
-        )
-        self.assertEqual("tools/escrow-release", compose_mapping(input_check, "environment")["RELEASE_TOOL_DIR"])
-        self.assertIn("/verify-input.ts", compose_command_text(input_check))
-        self.assertEqual("tools/escrow-release", compose_mapping(provenance, "environment")["RELEASE_TOOL_DIR"])
-        self.assertIn("/verify-provenance.ts", compose_command_text(provenance))
-
-        proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
-        self.assertIn("eth_getStorageAt", proxy_methods)
-        self.assertIn("eth_getTransactionReceipt", proxy_methods)
-
-        artifact_input = compose_volume(input_check, "/deployment/deployment.json")
-        self.assertEqual(ARTIFACT_FILE, artifact_input["source"])
-        verified_input = compose_volume(input_check, "/out")
-        self.assertEqual("release_verified", verified_input["source"])
-
-        # Compose v2.40.3, pinned in the checks image, omits
-        # bind.create_host_path from rendered JSON. Pin the engine policy in
-        # source while the rendered assertions above own exact sources and
-        # read-only access.
-        self.assertEqual(2, read_text(repo_path(VERIFY[0])).count("create_host_path: false"))
-
-        self.assertNotIn("deployment.args", str(config))
-        self.assertNotIn("DEPLOYMENT_ARGUMENTS", str(config))
+    def test_verifier_has_original_source_and_receipt_evidence_without_send_authority(self) -> None:
+        for phase, role in (("CONTRACT", "contract"), ("UI", "ui"), ("CAM", "cam")):
+            with self.subTest(phase=phase):
+                config = rendered_compose_config(makefile_compose_unit(f"{phase}_RELEASE_ARTIFACT_COMPOSE_FILES"), env=RELEASE_ENV)
+                services = compose_mapping(config, "services")
+                assert_verification_has_no_signing_authority(self, services)
+                collector = services["release-artifact"]
+                for target in ("/release-plan", "/release-broadcast", "/reference"):
+                    mount = compose_volume(collector, target)
+                    self.assertIs(mount["read_only"], True)
+                    self.assertIsNot(mount["bind"].get("create_host_path"), True)
+                proxy = services["release-artifact-rpc-proxy"]
+                methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
+                self.assertIn("eth_getTransactionReceipt", methods)
+                self.assertIn("eth_getTransactionByHash", methods)
+                self.assertIn("eth_getCode", methods)
+                publisher = services[f"release-{role}-publish"]
+                assert_offline_read_only_release_check(self, publisher)
+                self.assertIs(compose_volume(publisher, f"/{role}-candidate")["read_only"], True)
+                if phase != "CAM":
+                    verifier = services[f"release-{role}-verify"]
+                    self.assertIn('--sig "verify()"', compose_command_text(verifier))
+                    self.assertIn("--offline", compose_command_text(verifier))
+                    for target in ("/work/dapps", "/release-plan", f"/{role}-candidate"):
+                        self.assertIs(compose_volume(verifier, target)["read_only"], True)
+                else:
+                    self.assertNotIn("release-cam-verify", services)
+                    self.assertIs(compose_volume(collector, "/prepared")["read_only"], True)
+                self.assertNotIn("deployment.args", str(config))
+                self.assertNotIn("DEPLOYMENT_ARGUMENTS", str(config))
 
 
 if __name__ == "__main__":

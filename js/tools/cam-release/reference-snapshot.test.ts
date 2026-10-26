@@ -20,13 +20,13 @@ const components: AdmittedCamComponents = { app: "escrow", chainId: 31338,
   ui: { sourceCommit: "c".repeat(40), creator, artifactSha256: digest, contract: identity(ui), backing: "escrow" },
   observationBlock: { number: 10n, hash: digest } }
 
-function prepare(complete = false, selectedRoot = root) {
+function prepare(complete: boolean, selectedRoot: Address) {
   const manifest = { uri: "ipfs://desired/main.json", hash: digest }
   const planBytes = new TextEncoder().encode(JSON.stringify({
     schema: "cam.publication-plan.v1", app: "escrow", sourceCommit: "d".repeat(40), expectedChainId: 31338,
     businessArtifactSha256: digest, uiArtifactSha256: digest, bundleArtifactSha256: digest,
     observationBlock: { number: "0xa", hash: digest }, bindings: [{ name: "CamEscrowUI", address: ui }, { name: "CamEscrow", address: core }],
-    manifest, intendedOwner: zeroAddress, root: { kind: "existing", contract: identity(selectedRoot), creator,
+    manifest, nomination: "preserve", intendedOwner: zeroAddress, root: { kind: "existing", contract: identity(selectedRoot), creator,
       sourceCommit: "a".repeat(40), origin: { kind: "publication", artifactSha256: digest }, owner: signer.address, pendingOwner: zeroAddress,
       bindings: { CamEscrowUI: complete ? ui : creator, CamEscrow: core }, manifest },
   }))
@@ -41,7 +41,7 @@ function prepare(complete = false, selectedRoot = root) {
 }
 
 test("existing CAM approval uses original root ABI and explicit target without inventing a creation", async () => {
-  const snapshot = await prepare()
+  const snapshot = await prepare(false, root)
   const parsed = parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(snapshot)))
   assert.deepEqual(parsed, snapshot)
   assert.equal(parsed.contracts[0]!.compilerVersion, "0.8.34+fixture")
@@ -61,7 +61,7 @@ test("existing CAM approval uses original root ABI and explicit target without i
 })
 
 test("already-desired existing CAM snapshot retains no-send intent without weakening signer verifier", async () => {
-  const parsed = parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(await prepare(true))))
+  const parsed = parseReferenceSnapshot(new TextEncoder().encode(JSON.stringify(await prepare(true, root))))
   assert.deepEqual(parsed.steps, [])
   assert.throws(() => new ReleaseVerifier(parsed, async () => null), /no steps or contracts/)
 })

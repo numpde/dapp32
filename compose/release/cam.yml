@@ -1,5 +1,23 @@
 # Fresh read-only admission creates both plan and reference with the same in-memory facts.
 services:
+  release-cam-root-source:
+    extends: {file: ../fragments/node-workspace.yml, service: offline-node-workspace}
+    working_dir: /work
+    environment:
+      CAM_RELEASE_APP: "${CAM_RELEASE_APP:?missing_CAM_RELEASE_APP}"
+    volumes:
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
+      - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
+      - type: bind
+        source: "${CAM_RELEASE_ROOT_ARTIFACT_FILE:?missing_CAM_RELEASE_ROOT_ARTIFACT_FILE}"
+        target: /selected/root.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/root-proof"
+        target: /root-proof
+        bind: {create_host_path: false}
+    command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/root-source.ts']
   release-reference-export:
     depends_on: !reset []
   release-reference-prepare:
@@ -14,13 +32,13 @@ services:
       CAM_RELEASE_EXPECTED_CHAIN_ID: "${CAM_RELEASE_EXPECTED_CHAIN_ID:?missing_CAM_RELEASE_EXPECTED_CHAIN_ID}"
       CAM_RELEASE_SIGNER_ADDRESS: "${CAM_RELEASE_SIGNER_ADDRESS:?missing_CAM_RELEASE_SIGNER_ADDRESS}"
       CAM_RELEASE_URI: "${CAM_RELEASE_URI:?missing_CAM_RELEASE_URI}"
+      CAM_RELEASE_HASH: "${CAM_RELEASE_HASH:?missing_CAM_RELEASE_HASH}"
       CAM_RELEASE_INTENDED_OWNER: "${CAM_RELEASE_INTENDED_OWNER:?missing_CAM_RELEASE_INTENDED_OWNER}"
       CAM_RELEASE_ROOT: "${CAM_RELEASE_ROOT:?missing_CAM_RELEASE_ROOT}"
       CAM_RELEASE_PREPARED_DIR: /prepared
-      CAM_RELEASE_ROOT_ARTIFACT_PATH: /root-origin/root.json
       CAM_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080
       CAM_RELEASE_PLAN_PATH: /release-plan/release-plan.json
-      RELEASE_REHEARSAL: "${RELEASE_REHEARSAL-0}"
+      RELEASE_REHEARSAL: "${RELEASE_REHEARSAL:?missing_RELEASE_REHEARSAL}"
     volumes: !override
       - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
       - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"
@@ -31,8 +49,8 @@ services:
         read_only: true
         bind: {create_host_path: false}
       - type: bind
-        source: "${CAM_RELEASE_ROOT_ARTIFACT_FILE:?missing_CAM_RELEASE_ROOT_ARTIFACT_FILE}"
-        target: /root-origin/root.json
+        source: "${RELEASE_OUTPUT_DIR:?missing_RELEASE_OUTPUT_DIR}/root-proof"
+        target: /root-proof
         read_only: true
         bind: {create_host_path: false}
       - type: bind
@@ -48,7 +66,7 @@ services:
         source: "${RELEASE_APPROVAL_REFERENCE_DIR:?missing_RELEASE_APPROVAL_REFERENCE_DIR}"
         target: /reference-out
         bind: {create_host_path: false}
-    command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/plan.ts']
+    command: [timeout, --signal=TERM, --kill-after=10s, 300s, run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/plan.ts']
   release-rpc-proxy:
     depends_on: !reset []
   deploy-release:

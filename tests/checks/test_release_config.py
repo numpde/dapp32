@@ -97,7 +97,8 @@ RELEASE_APPROVAL_IMAGE=stale
 DEPLOYER_PRIVATE_KEY_FILE=stale
 operation="$MODE"
 if [[ "$MODE" == update || "$MODE" == noninteractive ]]; then operation=cam-publish; fi
-load_release_config escrow "$operation" "$CASE_ROOT/selected-output"
+OUTPUT_DIR="$CASE_ROOT/selected-output"
+load_release_config escrow "$operation"
 [[ "$CAM_RELEASE_APP" == escrow && "$RPC_URL_FILE" == "$release_config_dir/rpc-url" ]]
 if [[ "$MODE" == cam-publish || "$MODE" == update ]]; then
   [[ "$CAM_RELEASE_SIGNER_ADDRESS" == selected-signer && "$CAM_RELEASE_URI" == selected-uri && "$CAM_RELEASE_INTENDED_OWNER" == selected-owner ]]
@@ -187,7 +188,7 @@ printf continued > "$CASE_ROOT/continued"
                                           "OUTPUT_DIR": "/tmp/cam-publication", "CAM_URI": "ipfs://fixture/main.json"}
                     # Retired business and hash settings are irrelevant to root publication.
                     config["settings"].update({name: None for name, _, _ in release_config.APP_FIELDS[app]})
-                    config["settings"]["CAM_HASH"] = None
+                    config["settings"]["CAM_HASH"] = "auto"
                     if owner is not None:
                         config["settings"]["INTENDED_CAM_ROOT_OWNER"] = owner
                     source = root / "config.json"
@@ -199,12 +200,25 @@ printf continued > "$CASE_ROOT/continued"
                     inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                     self.assertEqual({"CAM_RELEASE_APP": app, "CAM_RELEASE_SOURCE_COMMIT": COMMIT,
                                       "CAM_RELEASE_EXPECTED_CHAIN_ID": "84532", "CAM_RELEASE_SIGNER_ADDRESS": FIXTURE_DEPLOYER_ADDRESS,
-                                      "CAM_RELEASE_OUTPUT_DIR": "/tmp/cam-publication", "CAM_RELEASE_URI": "ipfs://fixture/main.json",
+                                      "CAM_RELEASE_OUTPUT_DIR": "/tmp/cam-publication", "CAM_RELEASE_URI": "ipfs://fixture/main.json", "CAM_RELEASE_HASH": "auto",
                                       "CAM_RELEASE_INTENDED_OWNER": owner or "0x" + "00" * 20,
                                       "RELEASE_APPROVAL_IMAGE": APPROVAL_IMAGE, "RELEASE_REHEARSAL": "0"}, inputs)
                     self.assertEqual({"inputs", "rpc-url", "deployer-key"}, {path.name for path in output.iterdir()})
                     self.assertEqual(FIXTURE_KEY + "\n", (output / "deployer-key").read_text())
                     self.assertEqual(before, source.read_bytes())
+
+    def test_cam_publication_preserves_explicit_unverified_hash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = configuration("escrow")
+            config["settings"]["CAM_HASH"] = "0x" + "00" * 32
+            source = root / "config.json"
+            source.write_text(json.dumps(config))
+            output = root / "stage"
+            output.mkdir()
+            release_config.unpack("escrow", COMMIT, "cam-publish", source, output)
+            fields = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+            self.assertEqual(config["settings"]["CAM_HASH"], fields["CAM_RELEASE_HASH"])
 
     def test_cam_paid_publication_retains_strict_source_and_supplied_owner_policy(self):
         for changes, source_commit, error_type in (
@@ -265,7 +279,7 @@ printf continued > "$CASE_ROOT/continued"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             original = configuration("bike-nft")
-            original["settings"].update(REGISTRARS=None, CAM_HASH=None)
+            original["settings"].update(REGISTRARS=None, CAM_HASH="0x" + "00" * 32)
             source = root / "config.json"
             source.write_text(json.dumps(original))
             before = source.read_bytes()
@@ -352,7 +366,7 @@ printf continued > "$CASE_ROOT/continued"
         config["settings"].update(CAM_URI=None, INTENDED_CAM_ROOT_OWNER=None, REGISTRARS=None)
         release_config.validate(config, "bike-nft", COMMIT, purpose="ui")
         with self.assertRaises(ValueError):
-            release_config.validate(config, "bike-nft", COMMIT)
+            release_config.validate(config, "bike-nft", COMMIT, purpose="deployment")
 
     def test_ui_deployment_local_creator_can_differ_from_the_business_fixture_creator(self):
         config = configuration("pay-to-play")
@@ -392,7 +406,7 @@ printf continued > "$CASE_ROOT/continued"
             release_config.unpack("bike-nft", "f" * 40, "artifact", source, output)
             self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
             with self.assertRaises(ValueError):
-                release_config.validate(config, "bike-nft", COMMIT)
+                release_config.validate(config, "bike-nft", COMMIT, purpose="deployment")
 
     def test_artifact_collector_revision_must_match_the_saved_plan(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -415,7 +429,7 @@ printf continued > "$CASE_ROOT/continued"
             output.mkdir()
             (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
             with patch.object(release_config, "input", side_effect=["", "update"], create=True), contextlib.redirect_stdout(io.StringIO()):
-                release_config.update_source("escrow", "f" * 40, source, output)
+                release_config.update_source("escrow", "f" * 40, source, output, purpose="deployment")
             updated = json.loads((output / "release.json").read_text())
             self.assertEqual(APPROVAL_IMAGE, updated["approvalImageId"])
             original["sourceCommit"] = updated["sourceCommit"]
@@ -436,7 +450,7 @@ printf continued > "$CASE_ROOT/continued"
                 output.mkdir()
                 with patch.object(release_config, "input", create=True) as prompt:
                     with self.assertRaises(ValueError):
-                        release_config.update_source("escrow", "f" * 40, source, output)
+                        release_config.update_source("escrow", "f" * 40, source, output, purpose="deployment")
                 prompt.assert_not_called()
                 self.assertEqual([], list(output.iterdir()))
 
@@ -457,13 +471,13 @@ printf continued > "$CASE_ROOT/continued"
                     transcript = io.StringIO()
                     with patch.object(release_config, "input", side_effect=["/tmp/fresh-release", decision], create=True), contextlib.redirect_stdout(transcript):
                         if decision == "update":
-                            release_config.update_source(app, current, source, output)
+                            release_config.update_source(app, current, source, output, purpose="deployment")
                             updated = json.loads((output / "release.json").read_text())
                             expected = dict(original, sourceCommit=current, settings=dict(original["settings"], OUTPUT_DIR="/tmp/fresh-release"))
                             self.assertEqual(expected, updated)
                         else:
                             with self.assertRaisesRegex(ValueError, "cancelled"):
-                                release_config.update_source(app, current, source, output)
+                                release_config.update_source(app, current, source, output, purpose="deployment")
                             self.assertFalse((output / "release.json").exists())
                     self.assertEqual(before, source.read_bytes())
                     for secret in (FIXTURE_RPC, FIXTURE_KEY):
@@ -757,7 +771,7 @@ printf continued > "$CASE_ROOT/continued"
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 config = configuration(app)
                 del config["settings"]["CAM_HASH"]
-                self.assertEqual(config, release_config.validate(config, app, COMMIT))
+                self.assertEqual(config, release_config.validate(config, app, COMMIT, purpose="deployment"))
                 root = Path(temporary)
                 saved = root / "release.json"
                 saved.write_text(json.dumps(config))
@@ -794,7 +808,7 @@ printf continued > "$CASE_ROOT/continued"
                 config = configuration(app)
                 config["settings"]["CAM_HASH"] = "zero"
                 with self.assertRaisesRegex(ValueError, "Invalid CAM_HASH"):
-                    release_config.validate(config, app, COMMIT)
+                    release_config.validate(config, app, COMMIT, purpose="deployment")
 
     def test_walkthrough_produces_complete_ready_to_deploy_file_for_every_app(self):
         for app in release_config.APP_FIELDS:
@@ -838,16 +852,14 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
                 self.assertEqual(f"{app.upper().replace('-', '_')}_DEPLOYMENT_ARTIFACT_FILE=/tmp/new-release-output/artifact/deployment.json\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
 
-    def test_planner_receives_explicit_zero_and_defaults_to_automatic_hash(self):
-        for app in release_config.APP_FIELDS:
-            name = f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH"
-            zero = "0x" + "00" * 32
-            for environment, expected in (({}, "auto"), ({name: zero}, zero)):
-                with self.subTest(app=app, expected=expected):
-                    services = rendered_compose_config(
-                        makefile_compose_unit(f"{app.upper().replace('-', '_')}_RELEASE_DEPLOY_COMPOSE_FILES"), env=environment
-                    )["services"]
-                    self.assertEqual(expected, services["release-plan"]["environment"][name])
+    def test_planner_receives_explicit_zero_and_automatic_hash(self):
+        for value in ("auto", "0x" + "00" * 32):
+            with self.subTest(hash=value):
+                services = rendered_compose_config(
+                    (*makefile_compose_unit("CAM_RELEASE_DEPLOY_COMPOSE_FILES"), "compose/release/reference.yml", "compose/release/cam.yml"),
+                    env={"CAM_RELEASE_HASH": value},
+                )["services"]
+                self.assertEqual(value, services["release-reference-prepare"]["environment"]["CAM_RELEASE_HASH"])
 
     def test_cancel_saves_nothing_and_change_replaces_the_reviewed_settings(self):
         app = "pay-to-play"
@@ -906,7 +918,7 @@ printf continued > "$CASE_ROOT/continued"
         del previous["schemaVersion"]
         del previous["settings"]["EXPECTED_DEPLOYER_ADDRESS"]
         with self.assertRaisesRegex(ValueError, "run the release setup again"):
-            release_config.validate(previous, "escrow", COMMIT)
+            release_config.validate(previous, "escrow", COMMIT, purpose="deployment")
 
     def test_invalid_operator_values_are_rejected_without_echoing_secrets(self):
         cases = {
@@ -1005,7 +1017,7 @@ printf continued > "$CASE_ROOT/continued"
         config["rpcUrl"] = release_config.LOCAL_RPC_URL
         config["deployerPrivateKey"] = release_config.LOCAL_DEPLOYER_KEY
         config["settings"].update(EXPECTED_CHAIN_ID="31338", EXPECTED_DEPLOYER_ADDRESS=release_config.LOCAL_DEPLOYER_ADDRESS, CAM_URI="http://release-cam:8080/pay-to-play/main.json")
-        release_config.validate(config, "pay-to-play", COMMIT)
+        release_config.validate(config, "pay-to-play", COMMIT, purpose="deployment")
         for top_level, name, value in (
             (True, "localNetwork", "unsafe network"),
             (True, "localNetwork", "--argument"),
@@ -1024,10 +1036,10 @@ printf continued > "$CASE_ROOT/continued"
             else:
                 changed["settings"][name] = value
             with self.subTest(field=name), self.assertRaises(ValueError):
-                release_config.validate(changed, "pay-to-play", COMMIT)
+                release_config.validate(changed, "pay-to-play", COMMIT, purpose="deployment")
         del config["localNetwork"]
         with self.assertRaisesRegex(ValueError, "HTTPS"):
-            release_config.validate(config, "pay-to-play", COMMIT)
+            release_config.validate(config, "pay-to-play", COMMIT, purpose="deployment")
 
     def test_manual_network_has_no_app_deployment_or_public_network_authority(self):
         config = rendered_compose_config("compose/release/local-network.yml", env={"COMPOSE_PROFILES": "internal"})

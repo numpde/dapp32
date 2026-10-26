@@ -41,7 +41,7 @@ release_tool_image_overlay() {
 }
 
 release_tool_images_prepare() {
-  local repository="$1" commit="$2" output="$3" operation="${4:-deployment}" checks foundry node rpc
+  local repository="$1" commit="$2" output="$3" operation="$4" checks foundry node rpc
   checks=$(release_tool_image "$repository" "$commit" checks) || return
   foundry=$(release_tool_image "$repository" "$commit" foundry) || return
   node=$(release_tool_image "$repository" "$commit" node-deps) || return
@@ -56,8 +56,6 @@ release_tool_images_prepare() {
   if [[ "$operation" == cam ]]; then deploy_images+=("release-cam-publish $node"); fi
   if [[ "$operation" == contracts ]]; then deploy_images+=("release-contract-verify $foundry" "release-contract-publish $node"); fi
   release_tool_image_overlay "$output/images-deploy.yml" "${deploy_images[@]}"
-  release_tool_image_overlay "$output/images-verify.yml" \
-    "verify-input $node" "verify-rpc-proxy $rpc" "verify-provenance $node" "verify-release $foundry"
 }
 
 release_tool_images_prepare_cam_bundle() {
@@ -77,7 +75,7 @@ release_tool_images_prepare_network() {
 }
 
 release_tool_images_prepare_artifact() {
-  local repository="$1" app_commit="$2" tool_commit="$3" output="$4" operation="${5:-deployment}" node admission rpc foundry checks
+  local repository="$1" app_commit="$2" tool_commit="$3" output="$4" operation="$5" node admission rpc foundry checks
   node=$(release_tool_image "$repository" "$app_commit" node-deps) || return
   admission=$(release_tool_image "$repository" "$tool_commit" node-deps) || return
   rpc=$(release_tool_image "$repository" "$tool_commit" rpc-proxy) || return
@@ -99,23 +97,23 @@ release_tool_images_prepare_artifact() {
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   set -euo pipefail
-  if [[ "${1-}" == artifact || "${1-}" == ui-artifact || "${1-}" == contracts-artifact || "${1-}" == cam-artifact ]]; then
-    if [[ "$#" != 5 ]]; then printf '%s\n' 'Usage: release_tool_images.sh artifact|ui-artifact REPOSITORY APP_SOURCE_COMMIT TOOL_SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
-    operation=deployment
-    if [[ "$1" == ui-artifact ]]; then operation=ui; fi
-    if [[ "$1" == contracts-artifact ]]; then operation=contracts; fi
-    if [[ "$1" == cam-artifact ]]; then operation=cam; fi
+  if [[ "${1-}" == ui-artifact || "${1-}" == contracts-artifact || "${1-}" == cam-artifact ]]; then
+    if [[ "$#" != 5 ]]; then printf '%s\n' 'Usage: release_tool_images.sh contracts-artifact|ui-artifact|cam-artifact REPOSITORY APP_SOURCE_COMMIT TOOL_SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
+    case "$1" in
+      ui-artifact) operation=ui ;;
+      contracts-artifact) operation=contracts ;;
+      cam-artifact) operation=cam ;;
+    esac
     release_tool_images_prepare_artifact "$2" "$3" "$4" "$5" "$operation"
     exit
   fi
-  if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh release|ui|network REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
+  if [[ "$#" != 4 ]]; then printf '%s\n' 'Usage: release_tool_images.sh contracts|ui|cam|cam-bundle|network REPOSITORY SOURCE_COMMIT PRIVATE_OUTPUT_DIR' >&2; exit 2; fi
   case "$1" in
-    release) release_tool_images_prepare "$2" "$3" "$4" ;;
     cam) release_tool_images_prepare "$2" "$3" "$4" cam ;;
     cam-bundle) release_tool_images_prepare_cam_bundle "$2" "$3" "$4" ;;
     contracts) release_tool_images_prepare "$2" "$3" "$4" contracts ;;
     ui) release_tool_images_prepare "$2" "$3" "$4" ui ;;
     network) release_tool_images_prepare_network "$2" "$3" "$4" ;;
-    *) printf '%s\n' 'Choose release, ui, network, artifact or ui-artifact tool images.' >&2; exit 2 ;;
+    *) printf '%s\n' 'Choose contracts, ui, cam, cam-bundle, network, or an ordinary operation-artifact mode.' >&2; exit 2 ;;
   esac
 fi

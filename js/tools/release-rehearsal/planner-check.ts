@@ -9,7 +9,6 @@ const rpcAddress = process.argv[3]
 assert.equal(isIP(rpcAddress), 4, "Pass the running fixture node's IPv4 address")
 
 for (const path of [
-  `/work/dapps/${app}/cam/main.json`,
   "/input/js/package.json",
   "/work/js/node_modules/viem/package.json",
 ]) {
@@ -18,8 +17,7 @@ for (const path of [
 for (const path of ["/run/secrets/deployer_private_key", "/run/inputs/rpc_url", "/release-broadcast", "/release-artifact"]) {
   await assert.rejects(() => readFile(path), { code: "ENOENT" }, `Planner must not receive ${path}`)
 }
-assert.deepEqual(await readdir("/work/dapps"), [app], "Only the selected app is visible")
-assert.deepEqual(await readdir(`/work/dapps/${app}`), ["cam"], "Only CAM resources are visible")
+await assert.rejects(() => readdir("/work/dapps"), { code: "ENOENT" }, "Business planning has no Solidity or CAM source input")
 await assert.rejects(() => open("/out/planner-root-write", "wx"), { code: "EROFS" })
 for (const name of ["PRIVATE_KEY", "RPC_URL", "RPC_URL_FILE", "DEPLOYER_PRIVATE_KEY_FILE"]) {
   assert.equal(process.env[name], undefined, `Planner must not inherit ${name}`)

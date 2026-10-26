@@ -34,9 +34,10 @@ export async function prepareCamReferenceSnapshot({ planBytes, components, signe
       ["manifest hash", selected.manifest.hash, admittedRoot.manifest.hash],
       ...Object.entries(selected.bindings).map(([name, target]) => [`binding ${name}`, target, admittedRoot.bindings[name]] as const),
     ]
-    const mismatch = facts.find(([, planned, observed]) => observed === undefined || planned.toLowerCase() !== observed.toLowerCase())
-      ?? (selected.manifest.uri === admittedRoot.manifest.uri ? undefined
-        : ["manifest URI", selected.manifest.uri, admittedRoot.manifest.uri] as const)
+    let mismatch = facts.find(([, planned, observed]) => observed === undefined || planned.toLowerCase() !== observed.toLowerCase())
+    if (mismatch === undefined && selected.manifest.uri !== admittedRoot.manifest.uri) {
+      mismatch = ["manifest URI", selected.manifest.uri, admittedRoot.manifest.uri]
+    }
     if (mismatch !== undefined) {
       throw new Error(`Cannot prepare CAM approval: root ${selected.contract.address} ${mismatch[0]} ${JSON.stringify(mismatch[1])} differs from the admitted root ${admittedRoot.contract.address} value ${JSON.stringify(mismatch[2])}`)
     }

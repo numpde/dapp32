@@ -115,6 +115,7 @@ release_approval_prepare() {
   export RELEASE_APPROVAL_ARTIFACTS_DIR RELEASE_APPROVAL_REFERENCE_DIR RELEASE_APPROVAL_REFERENCE_FILE
   export RELEASE_APPROVAL_AUDIT_DIR RELEASE_APPROVAL_SOCKET_DIR
   mkdir --mode=0700 -- "$RELEASE_APPROVAL_ARTIFACTS_DIR" "$RELEASE_APPROVAL_REFERENCE_DIR" "$RELEASE_APPROVAL_AUDIT_DIR" "$RELEASE_APPROVAL_SOCKET_DIR"
+  if [[ "$release_operation" == cam ]]; then release_cam_prepare_root_proof "$output"; fi
   compose_release up -d --no-build release-reference-prepare
   release_approval_wait_service release-reference-prepare 720
   if [[ ! -f "$output/plan/release-plan.json" || -L "$output/plan/release-plan.json" ||
@@ -124,7 +125,7 @@ release_approval_prepare() {
   fi
   RELEASE_APPROVAL_PLAN_SHA256="0x$(sha256sum "$output/plan/release-plan.json" | cut -d ' ' -f 1)"
   RELEASE_APPROVAL_REFERENCE_SHA256="$(release_approval_snapshot_digest)"
-  if [[ "${release_operation-deployment}" == cam ]]; then
+  if [[ "$release_operation" == cam ]]; then
     CAM_RELEASE_REMAINING_TRANSACTIONS="$(release_approval_cam_remaining)" || return
     export CAM_RELEASE_REMAINING_TRANSACTIONS
   fi
@@ -338,22 +339,35 @@ release_materialize_cam() {
     printf 'Verified CAM publication: %s/artifact/cam-publication.json\n' "$output"
     return 0
   fi
+  if [[ -f "$output/artifact/cam-attempt.json" && ! -L "$output/artifact/cam-attempt.json" ]]; then
+    printf 'Confirmed partial CAM publication retained: %s/artifact/cam-attempt.json\n' "$output" >&2
+    printf 'Continue with a fresh approval: make %q CONFIG=<signing-config> CAM_BUNDLE=%q ROOT_ARTIFACT=%q OUTPUT_DIR=<new-records-directory>\n' "$CAM_RELEASE_APP/release/cam/publish" "$CAM_RELEASE_PREPARED_DIR" "$output/artifact/cam-attempt.json" >&2
+    return 3
+  fi
   printf 'CAM publication records are incomplete. No transaction was sent by verification. Diagnostics: %s\n' "$log" >&2
   printf 'Complete records keylessly: make %q CONFIG=%q CAM_RECORDS=%q CAM_BUNDLE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$CONFIG" "$output" "$CAM_RELEASE_PREPARED_DIR" >&2
   return 1
 }
 
 release_approval_run() {
+  if [[ ! -v release_operation ]]; then
+    printf '%s\n' 'Approval execution requires an explicit operation; no signer was started.' >&2
+    return 2
+  fi
+  case "$release_operation" in
+    contracts|ui|cam) ;;
+    *) printf '%s\n' 'Approval execution requires an explicit contracts, ui or cam operation; no signer was started.' >&2; return 2 ;;
+  esac
   local output="$1" gate_id forge_id started state attach_status=0 forge_status="" gate_status=""
   export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never
   release_approval_output="$output"
-  if [[ "${release_operation-deployment}" == cam && "$CAM_RELEASE_REMAINING_TRANSACTIONS" == 0 ]]; then
+  if [[ "$release_operation" == cam && "$CAM_RELEASE_REMAINING_TRANSACTIONS" == 0 ]]; then
     printf '%s\n' 'CAM root already has the desired composition. No signing session or transaction is needed.'
     release_materialize_cam "$output"
     return
   fi
 
-  if [[ "${release_operation-deployment}" == cam ]]; then release_approval_require_terminal || return; fi
+  if [[ "$release_operation" == cam ]]; then release_approval_require_terminal || return; fi
   # Both proxies cover the signing and artifact networks. Reserve them before
   # transactions so local address-pool exhaustion cannot first appear afterward.
   compose_release up --no-start --no-build --no-deps release-rpc-proxy release-artifact-rpc-proxy
@@ -436,24 +450,9 @@ release_approval_run() {
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2
     return 1
   fi
-  if [[ "${release_operation-deployment}" == contracts ]]; then
-    release_materialize_contracts "$output"
-    return
-  fi
-  if [[ "${release_operation-deployment}" == cam ]]; then release_materialize_cam "$output"; return; fi
-  if [[ "${release_operation-deployment}" == ui ]]; then
-    release_materialize_ui "$output"
-    return "$?"
-  fi
-  if ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy ||
-     ! compose_release run --rm --no-deps -T release-artifact; then
-    printf '%s\n' 'Signer and approval completed, but artifact collection failed. Do not repeat deployment.' >&2
-    printf 'Retained deployment records: %s\n' "$output" >&2
-    if [[ -n "${CONFIG-}" ]]; then
-      printf 'Complete the artifact without a signer:\n  make %q CONFIG=%q\n' "$approval_app/release/artifact" "$CONFIG" >&2
-    else
-      printf '%s\n' 'Use a read-only CONFIG with schemaVersion 3, app, sourceCommit, rpcUrl and settings.OUTPUT_DIR matching these retained records, then run the app release/artifact target. Local records also need localNetwork.' >&2
-    fi
-    return 1
-  fi
+  case "$release_operation" in
+    contracts) release_materialize_contracts "$output" ;;
+    ui) release_materialize_ui "$output" ;;
+    cam) release_materialize_cam "$output" ;;
+  esac
 }

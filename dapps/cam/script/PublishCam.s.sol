@@ -62,7 +62,12 @@ contract PublishCam is Script, CamPublication {
             plan.createRoot ? plan.manifest.nextURI : vm.parseJsonString(json, ".root.manifest.uri");
         plan.manifest.beforeHash =
             plan.createRoot ? plan.manifest.nextHash : vm.parseJsonBytes32(json, ".root.manifest.hash");
-        plan.nomination.intendedOwner = vm.parseJsonAddress(json, ".intendedOwner");
+        string memory nomination = vm.parseJsonString(json, ".nomination");
+        if (keccak256(bytes(nomination)) == keccak256("nominate")) {
+            plan.nomination.intendedOwner = vm.parseJsonAddress(json, ".intendedOwner");
+        } else if (keccak256(bytes(nomination)) != keccak256("preserve")) {
+            revert InvalidCamPublicationPlan("nomination intent");
+        }
 
         if (!vm.keyExistsJson(json, ".bindings")) revert InvalidCamPublicationPlan("bindings");
         uint256 length;

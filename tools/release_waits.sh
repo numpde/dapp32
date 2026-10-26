@@ -17,7 +17,13 @@ mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUT
 overlay=compose/release/rehearsal-waits.yml
 if [[ "$mode" == ipc-waits ]]; then overlay=compose/release/rehearsal-ipc.yml; fi
 if [[ "$mode" == ipc-waits ]]; then export RELEASE_WAIT_CASE=smoke; fi
-compose=(docker compose --project-name "$project" -f compose/release/deploy.yml -f compose/escrow/release/deploy.yml -f compose/release/rehearsal-deploy.yml -f "$overlay")
+# Constructor plus admin nomination keeps a real second transaction behind the
+# first receipt, so --slow ordering is measured without a special deploy script.
+export CONTRACT_RELEASE_APP=pay-to-play
+export CONTRACT_RELEASE_SOURCE_COMMIT="$ESCROW_RELEASE_SOURCE_COMMIT"
+export CONTRACT_RELEASE_EXPECTED_CHAIN_ID="$ESCROW_RELEASE_EXPECTED_CHAIN_ID"
+export CONTRACT_RELEASE_SETTINGS_JSON='{"intendedPaymentAdmin":"0x0000000000000000000000000000000000000011","nullClaimPeriod":0}'
+compose=(docker compose --project-name "$project" -f compose/release/deploy.yml -f compose/release/artifact.yml -f compose/release/contracts-artifact.yml -f compose/release/contracts.yml -f compose/release/rehearsal-deploy.yml -f "$overlay")
 infrastructure=(docker compose --project-name "${1}" -f compose/release/rehearsal.yml)
 cleanup() {
   status="$?"

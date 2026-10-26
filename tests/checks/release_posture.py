@@ -63,6 +63,7 @@ def assert_deployment_authority_split(
     case: unittest.TestCase,
     config: dict[str, Any],
     *,
+    operation: str,
     planner_name: str,
     signer_name: str,
     materializer_name: str,
@@ -79,36 +80,52 @@ def assert_deployment_authority_split(
     reference_export = services["release-reference-export"]
     reference_prepare = services["release-reference-prepare"]
 
-    case.assertEqual("none", planner["network_mode"])
+    case.assertIn(operation, ("contracts", "ui", "cam"))
+    if operation == "contracts":
+        case.assertEqual("none", planner["network_mode"])
+    else:
+        case.assertNotIn("network_mode", planner)
+        case.assertEqual({"release_artifact_internal"}, set(compose_mapping(planner, "networks")))
     for reference_service in (reference_export, reference_prepare):
-        case.assertEqual("none", reference_service["network_mode"])
+        if operation == "cam" and reference_service is reference_prepare:
+            case.assertNotIn("network_mode", reference_service)
+            case.assertEqual({"release_artifact_internal"}, set(compose_mapping(reference_service, "networks")))
+        else:
+            case.assertEqual("none", reference_service["network_mode"])
         case.assertEqual([], compose_sequence_or_empty(reference_service, "secrets"))
         case.assertEqual([], compose_sequence_or_empty(reference_service, "ports"))
         case.assertIs(reference_service["read_only"], True)
     case.assertEqual("service_completed_successfully", reference_prepare["depends_on"]["release-reference-export"]["condition"])
     case.assertIs(compose_volume(reference_export, "/work/dapps")["read_only"], True)
     case.assertIs(compose_volume(reference_prepare, "/work/dapps")["read_only"], True)
-    case.assertIs(compose_volume(reference_prepare, "/release-plan")["read_only"], True)
+    if operation == "cam":
+        case.assertIsNot(compose_volume(reference_prepare, "/release-plan").get("read_only"), True)
+    else:
+        case.assertIs(compose_volume(reference_prepare, "/release-plan")["read_only"], True)
     case.assertIs(compose_volume(reference_prepare, "/reference-artifacts")["read_only"], True)
     case.assertIsNot(compose_volume(reference_prepare, "/reference-out").get("read_only"), True)
-    for proxy in (signing_proxy, materializer_proxy):
-        case.assertEqual(
-            "service_completed_successfully",
-            proxy["depends_on"][planner_name]["condition"],
-        )
+    case.assertNotIn("depends_on", materializer_proxy)
+    if operation == "cam":
+        case.assertNotIn("depends_on", signing_proxy)
+        case.assertEqual("service_healthy", reference_prepare["depends_on"][materializer_proxy_name]["condition"])
+    else:
+        case.assertEqual("service_completed_successfully", signing_proxy["depends_on"][planner_name]["condition"])
+    case.assertEqual("service_healthy", materializer["depends_on"][materializer_proxy_name]["condition"])
     case.assertEqual([], compose_sequence_or_empty(planner, "secrets"))
     case.assertEqual([], compose_sequence_or_empty(planner, "ports"))
     case.assertEqual(1, float(planner["cpus"]))
     case.assertEqual(planner["mem_limit"], planner["memswap_limit"])
     case.assertIn(planner["ulimits"]["core"], ({}, {"hard": 0, "soft": 0}))
     case.assertTrue(planner["init"])
-    planner_environment = _environment(planner)
-    cam_paths = [value for key, value in planner_environment.items() if key.endswith("_CAM_ROOT_PATH")]
-    case.assertEqual(1, len(cam_paths))
-    cam_directory = cam_paths[0].rsplit("/", 1)[0]
-    mounts = compose_sequence_or_empty(planner, "volumes")
-    case.assertNotIn("/work/dapps", [mount["target"] for mount in mounts])
-    case.assertTrue(compose_volume(planner, cam_directory)["read_only"])
+    for target in ("/input/js", "/work/js/node_modules"):
+        case.assertIs(compose_volume(planner, target)["read_only"], True)
+    if operation == "contracts":
+        case.assertNotIn("/work/dapps", [mount["target"] for mount in compose_sequence_or_empty(planner, "volumes")])
+    elif operation == "ui":
+        case.assertIs(compose_volume(planner, "/backing/deployment.json")["read_only"], True)
+    else:
+        for target in ("/work/dapps", "/prepared", "/root-origin/root.json"):
+            case.assertIs(compose_volume(planner, target)["read_only"], True)
     key_holders = [
         name
         for name, service in services.items()
@@ -188,98 +205,65 @@ def assert_deployment_authority_split(
 def assert_release_output_directions(
     case: unittest.TestCase,
     *,
+    operation: str,
     planner: dict[str, Any],
     signer: dict[str, Any],
     materializer: dict[str, Any],
+    publisher: dict[str, Any],
     plan_target: str,
     broadcast_target: str,
+    candidate_target: str,
     artifact_target: str,
 ) -> None:
+    case.assertIn(operation, ("contracts", "ui", "cam"))
     plan_write = compose_volume(planner, plan_target)
     signer_plan = compose_volume(signer, plan_target)
     materializer_plan = compose_volume(materializer, plan_target)
+    publisher_plan = compose_volume(publisher, plan_target)
     signer_broadcast = compose_volume(signer, broadcast_target)
     materializer_broadcast = compose_volume(materializer, broadcast_target)
-    materializer_artifact = compose_volume(materializer, artifact_target)
+    candidate_write = compose_volume(materializer, candidate_target)
+    publisher_candidate = compose_volume(publisher, candidate_target)
+    artifact_write = compose_volume(publisher, artifact_target)
 
     case.assertIsNot(plan_write.get("read_only"), True)
-    for volume in (signer_plan, materializer_plan):
+    for volume in (signer_plan, materializer_plan, publisher_plan):
         case.assertEqual(plan_write["source"], volume["source"])
         case.assertIs(volume["read_only"], True)
+    case.assertEqual([False], _source_access_modes(planner, plan_write["source"]))
+    for service in (signer, materializer, publisher):
+        case.assertEqual([True], _source_access_modes(service, plan_write["source"]))
+
     case.assertIsNot(signer_broadcast.get("read_only"), True)
     case.assertEqual(signer_broadcast["source"], materializer_broadcast["source"])
     case.assertIs(materializer_broadcast["read_only"], True)
-    case.assertIsNot(materializer_artifact.get("read_only"), True)
-    case.assertEqual([False], _source_access_modes(planner, plan_write["source"]))
-    case.assertEqual([True], _source_access_modes(signer, plan_write["source"]))
-    case.assertEqual([True], _source_access_modes(materializer, plan_write["source"]))
     case.assertEqual([], _source_access_modes(planner, signer_broadcast["source"]))
     case.assertEqual([False], _source_access_modes(signer, signer_broadcast["source"]))
-    case.assertEqual(
-        [True],
-        _source_access_modes(materializer, signer_broadcast["source"]),
-    )
-    case.assertEqual([], _source_access_modes(planner, materializer_artifact["source"]))
-    case.assertEqual([], _source_access_modes(signer, materializer_artifact["source"]))
-    case.assertEqual(
-        [False],
-        _source_access_modes(materializer, materializer_artifact["source"]),
-    )
+    case.assertEqual([True], _source_access_modes(materializer, signer_broadcast["source"]))
+    case.assertEqual([], _source_access_modes(publisher, signer_broadcast["source"]))
 
+    case.assertIsNot(candidate_write.get("read_only"), True)
+    case.assertEqual(candidate_write["source"], publisher_candidate["source"])
+    case.assertIs(publisher_candidate["read_only"], True)
+    case.assertEqual([False], _source_access_modes(materializer, candidate_write["source"]))
+    case.assertEqual([True], _source_access_modes(publisher, candidate_write["source"]))
+    for service in (planner, signer):
+        case.assertEqual([], _source_access_modes(service, candidate_write["source"]))
+        case.assertEqual([], _source_access_modes(service, artifact_write["source"]))
 
-def assert_receipt_gated_verification(
-    case: unittest.TestCase,
-    *,
-    input_service: dict[str, Any],
-    input_service_name: str,
-    provenance_service: dict[str, Any],
-    provenance_service_name: str,
-    verifier_service: dict[str, Any],
-) -> None:
-    case.assertEqual("none", input_service["network_mode"])
-    case.assertEqual(
-        "service_completed_successfully",
-        provenance_service["depends_on"][input_service_name]["condition"],
-    )
-    case.assertEqual(
-        "service_completed_successfully",
-        verifier_service["depends_on"][provenance_service_name]["condition"],
-    )
-
-
-def assert_verification_snapshot_boundary(
-    case: unittest.TestCase,
-    *,
-    input_service: dict[str, Any],
-    downstream_services: tuple[dict[str, Any], ...],
-    external_artifact_target: str,
-    snapshot_target: str,
-) -> None:
-    external_artifact = compose_volume(input_service, external_artifact_target)
-    case.assertEqual("bind", external_artifact["type"])
-    case.assertIs(external_artifact["read_only"], True)
-    for service in downstream_services:
-        case.assertEqual(
-            [],
-            [
-                volume
-                for volume in compose_sequence_or_empty(service, "volumes")
-                if volume.get("type") == "bind"
-                and (
-                    volume.get("source") == external_artifact["source"]
-                    or volume.get("target") == external_artifact_target
-                )
-            ],
-        )
-
-    snapshot_write = compose_volume(input_service, snapshot_target)
-    case.assertIsNot(snapshot_write.get("read_only"), True)
-    case.assertEqual({}, snapshot_write["volume"])
-    for service in downstream_services:
-        snapshot_read = compose_volume(service, snapshot_target)
-        case.assertEqual(snapshot_write["source"], snapshot_read["source"])
-        case.assertIs(snapshot_read["read_only"], True)
-        case.assertEqual({"nocopy": True}, snapshot_read["volume"])
+    case.assertIsNot(artifact_write.get("read_only"), True)
+    case.assertEqual([False], _source_access_modes(publisher, artifact_write["source"]))
+    if operation == "ui":
+        case.assertEqual([], _source_access_modes(materializer, artifact_write["source"]))
+    else:
+        artifact_read = compose_volume(materializer, artifact_target)
+        case.assertEqual(artifact_write["source"], artifact_read["source"])
+        case.assertIs(artifact_read["read_only"], True)
+        case.assertEqual([True], _source_access_modes(materializer, artifact_write["source"]))
+    assert_offline_read_only_release_check(case, publisher)
+    for target in ("/input/js", "/work/js/node_modules"):
+        case.assertIs(compose_volume(publisher, target)["read_only"], True)
+    assert_verification_has_no_signing_authority(case, {"publisher": publisher})
 
 
 def assert_verification_has_no_signing_authority(

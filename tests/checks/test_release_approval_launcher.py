@@ -191,7 +191,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
                 self.rehearsal.subprocess, "Popen", side_effect=FileNotFoundError("fixture stop"),
             ) as launch:
                 with self.assertRaisesRegex(FileNotFoundError, "fixture stop"):
-                    with self.rehearsal.release_terminal(Path(directory) / "approval-pty.log", app):
+                    with self.rehearsal.release_terminal(Path(directory) / "approval-pty.log", app, config_file=None):
                         self.fail("fixture must stop at process launch")
                 self.assertEqual(["make", f"{app}/release/deploy"], launch.call_args.args[0])
 
@@ -271,7 +271,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
 
                 rehearsal.subprocess.Popen = fake_make
                 rehearsal.CLEANUP_TIMEOUT = 10
-                with rehearsal.release_terminal(root / "approval-pty.log", "escrow") as (master, child, transcript):
+                with rehearsal.release_terminal(root / "approval-pty.log", "escrow", config_file=None) as (master, child, transcript):
                     deadline = time.monotonic() + 10
                     while b"child-ready" not in transcript:
                         if time.monotonic() > deadline:
@@ -348,7 +348,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
                 self.rehearsal.subprocess, "Popen", side_effect=FileNotFoundError("fake missing make"),
             ):
                 with self.assertRaisesRegex(FileNotFoundError, "fake missing make"):
-                    with self.rehearsal.release_terminal(log, "escrow"):
+                    with self.rehearsal.release_terminal(log, "escrow", config_file=None):
                         self.fail("a failed child launch cannot enter the rehearsal")
             self.assertEqual(b"", log.read_bytes())
             self.assertEqual(0o600, stat.S_IMODE(log.stat().st_mode))
@@ -370,7 +370,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
                 self.rehearsal.subprocess, "Popen", side_effect=launch,
             ), mock.patch.object(self.rehearsal, "stop_release") as stop:
                 with self.assertRaises(SystemExit) as cancelled:
-                    with self.rehearsal.release_terminal(log, "escrow"):
+                    with self.rehearsal.release_terminal(log, "escrow", config_file=None):
                         self.fail("launch-time cancellation cannot enter the rehearsal")
                 self.assertEqual(130, cancelled.exception.code)
                 self.assertEqual(child, stop.call_args.args[0])
@@ -388,7 +388,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
                 side_effect=self.rehearsal.ReleaseCleanupError("Container cleanup is unconfirmed"),
             ):
                 with self.assertRaisesRegex(self.rehearsal.ReleaseCleanupError, "unconfirmed"):
-                    with self.rehearsal.release_terminal(log, "escrow") as (_master, _child, transcript):
+                    with self.rehearsal.release_terminal(log, "escrow", config_file=None) as (_master, _child, transcript):
                         transcript.extend(b"retained cancellation diagnostics\n")
                         signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
             self.assertEqual(b"retained cancellation diagnostics\n", log.read_bytes())

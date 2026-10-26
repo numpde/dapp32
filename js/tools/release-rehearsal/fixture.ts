@@ -60,3 +60,14 @@ export function shellAssignments(inputs: Readonly<Record<string, string>>): stri
     return `${name}='${value.replaceAll("'", "'\\''")}'`
   }).join("\n") + "\n"
 }
+
+/** The initial ordinary full release has no URI until its exact bundle is hosted. */
+export function rehearsalConfiguration(app: RehearsalApp, directory: string, sourceCommit: string, approvalImageId: string, localNetwork: string) {
+  const prefix = app.toUpperCase().replaceAll("-", "_") + "_RELEASE_"
+  const settings = Object.fromEntries(Object.entries(releaseInputs(app, directory))
+    .filter(([name]) => name.startsWith(prefix) && name !== prefix + "CAM_URI")
+    .map(([name, value]) => [name.slice(prefix.length), value]))
+  settings.CAM_HASH = "auto"
+  return { schemaVersion: 3, app, sourceCommit, approvalImageId, localNetwork,
+    rpcUrl: rpcURL, deployerPrivateKey: deployerKey, confirmDeploy: true, settings }
+}

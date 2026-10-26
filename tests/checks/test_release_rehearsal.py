@@ -31,8 +31,7 @@ class ReleaseRehearsalTest(unittest.TestCase):
                 ).split("\0")[:-1]
                 supplied = {"RELEASE_SOURCE_DIR": arguments.pop(0)}
                 files = tuple(arguments[index + 1] for index, value in enumerate(arguments) if value == "-f")
-                owner = app.upper().replace("-", "_") + "_RELEASE_DEPLOY_COMPOSE_FILES"
-                self.assertEqual(makefile_compose_units()[owner], files[:-1])
+                self.assertEqual(makefile_compose_units()["CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES"], files[:-1])
                 self.assertEqual("/tmp/rehearsal-fixture/source", supplied["RELEASE_SOURCE_DIR"])
                 services = rendered_compose_config(files, env=supplied)["services"]
                 for name in ("release-plan", "release-rpc-proxy", "release-artifact-rpc-proxy", "release-artifact"):
@@ -41,8 +40,8 @@ class ReleaseRehearsalTest(unittest.TestCase):
     def test_rehearsal_preserves_release_commands_and_rpc_method_gates(self) -> None:
         for files in release_rehearsal_units():
             with self.subTest(files=files):
-                normal = rendered_compose_config(files[:-1])["services"]
-                fixture = rendered_compose_config(files)["services"]
+                normal = rendered_compose_config(files[:-1], env={"CAM_RELEASE_HASH": "0x" + "c" * 64})["services"]
+                fixture = rendered_compose_config(files, env={"CAM_RELEASE_HASH": "0x" + "c" * 64})["services"]
                 for name, service in normal.items():
                     if "command" in service:
                         self.assertEqual(service["command"], fixture[name]["command"])
@@ -57,7 +56,7 @@ class ReleaseRehearsalTest(unittest.TestCase):
         file_owner = infrastructure["rehearsal-prepare"]["user"]
         for name, files in makefile_compose_units().items():
             if name.endswith(("_RELEASE_DEPLOY_COMPOSE_FILES", "_RELEASE_VERIFY_COMPOSE_FILES")):
-                services = rendered_compose_config(files)["services"]
+                services = rendered_compose_config(files, env={"CAM_RELEASE_HASH": "0x" + "c" * 64})["services"]
                 for service_name in ("release-rpc-proxy", "release-artifact-rpc-proxy", "verify-rpc-proxy"):
                     if service_name in services:
                         self.assertEqual(file_owner, services[service_name]["user"])
@@ -81,7 +80,7 @@ class ReleaseRehearsalTest(unittest.TestCase):
 
     def test_fixture_network_replaces_only_the_public_upstream_network(self) -> None:
         for files in release_rehearsal_units():
-            config = rendered_compose_config(files)
+            config = rendered_compose_config(files, env={"CAM_RELEASE_HASH": "0x" + "c" * 64})
             for name, service in config["services"].items():
                 if name.endswith("rpc-proxy"):
                     self.assertEqual(["python3", "/rehearsal/rpc_proxy.py"], service["entrypoint"])

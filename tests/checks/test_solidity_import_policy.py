@@ -17,15 +17,22 @@ FORGE_STD_ALLOWED_TEST_IMPORTS = {"Test.sol"}
 FORGE_STD_ALLOWED_SCRIPT_IMPORTS = {"Script.sol"}
 DEPENDENCY_PACKAGES = (OZ_PACKAGE, FORGE_STD_PACKAGE)
 DAPPS_ROOT_ALLOWED_IMPORTS = {
+    "dapps/pay-to-play/script/DeployUI.s.sol": {"cam/script/UIReleaseScript.sol"},
+    "dapps/pay-to-play/script/PayToPlayUIDeployment.sol": {"cam/src/CamRoot.sol"},
+    "dapps/pay-to-play/src/PayToPlayUI.sol": {"cam/src/ICamApp.sol"},
+    "dapps/pay-to-play/test/unit/PayToPlayUI.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/pay-to-play/script/DeployPayToPlayLocal.s.sol": {"cam/src/CamRoot.sol"},
-    "dapps/pay-to-play/script/DeployPayToPlayRelease.s.sol": {"cam/src/CamRoot.sol"},
     "dapps/pay-to-play/script/PayToPlayReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
     "dapps/pay-to-play/test/unit/PayToPlayRelease.t.sol": {"cam/src/CamRoot.sol"},
+    "dapps/bike-nft/script/DeployUI.s.sol": {"cam/script/UIReleaseScript.sol"},
+    "dapps/bike-nft/script/BikeNftUIDeployment.sol": {"cam/src/CamRoot.sol"},
+    "dapps/bike-nft/test/unit/script/DeployBikeNftRelease.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/script/BikeNftLocalFixture.sol": {"cam/src/CamRoot.sol"},
-    "dapps/bike-nft/script/DeployBikeNftRelease.s.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/script/BikeNftReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
     "dapps/bike-nft/test/unit/script/BikeNftReleaseVerifier.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/test/unit/BicycleComponentManager/DeploymentHandovers.t.sol": {"cam/src/CamRoot.sol"},
+    "dapps/escrow/script/DeployUI.s.sol": {"cam/script/UIReleaseScript.sol"},
+    "dapps/escrow/test/unit/DeployEscrowRelease.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/escrow/script/EscrowDeployment.sol": {"cam/src/CamRoot.sol"},
     "dapps/escrow/script/EscrowReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
     "dapps/escrow/test/unit/EscrowReleaseVerifier.t.sol": {"cam/src/CamRoot.sol"},
@@ -44,6 +51,12 @@ class SolidityImportPolicyTest(unittest.TestCase):
         )
         self.assertIsNotNone(error)
         self.assertIn("research", error)
+
+    def test_cross_dapp_relative_imports_require_the_exact_owner_and_target(self) -> None:
+        source = repo_path("dapps/pay-to-play/src/PayToPlayUI.sol")
+        self.assertIsNone(self.validate_relative_import(source, "../../cam/src/ICamApp.sol"))
+        self.assertIsNotNone(self.validate_relative_import(source, "../../cam/src/CamRoot.sol"))
+        self.assertIsNotNone(self.validate_relative_import(repo_path("dapps/pay-to-play/src/PayToPlay.sol"), "../../cam/src/ICamApp.sol"))
 
     def test_contract_imports_are_relative_or_explicitly_allowed_dependencies(self) -> None:
         dependency_versions = self.dependency_versions()
@@ -108,6 +121,11 @@ class SolidityImportPolicyTest(unittest.TestCase):
             return f"{source}: first-party code cannot import research snapshots: {import_path}"
         dapp_root = self.dapp_root_for(source)
         if resolved != dapp_root and dapp_root not in resolved.parents:
+            source_name = source.relative_to(repo_path("")).as_posix()
+            if source_name in DAPPS_ROOT_ALLOWED_IMPORTS:
+                for allowed in DAPPS_ROOT_ALLOWED_IMPORTS[source_name]:
+                    if resolved == (repo_path("dapps") / allowed).resolve():
+                        return self.validate_dapps_root_import(source, allowed)
             return f"{source}: relative import escapes {dapp_root.relative_to(repo_path(''))}/: {import_path}"
 
         if not resolved.is_file():

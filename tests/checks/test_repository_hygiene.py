@@ -106,6 +106,9 @@ PACKAGE_CI_PREREQS = (
     "bike-nft/release/check",
     "escrow/release/check",
     "pay-to-play/release/check",
+    "release/ui/check",
+    "release/contracts/check",
+    "release/cam/check",
     "pay-to-play/refunds/check",
 )
 FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
@@ -181,6 +184,8 @@ class RepositoryHygieneTest(unittest.TestCase):
                 {"access": "read", "path": "./pay-to-play/cam/main.json"},
                 {"access": "read", "path": "/out/deployment.json"},
                 {"access": "read", "path": "/release-plan/release-plan.json"},
+                {"access": "read", "path": "/ui-candidate/ui-deployment.json"},
+                {"access": "read", "path": "/contract-candidate/contract-deployment.json"},
             ],
             config["profile"]["default"]["fs_permissions"],
         )

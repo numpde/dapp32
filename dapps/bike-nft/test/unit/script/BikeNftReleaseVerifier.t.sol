@@ -4,7 +4,8 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {BikeNftReleaseVerifier} from "../../../script/BikeNftReleaseVerifier.sol";
-import {DeployBikeNftRelease} from "../../../script/DeployBikeNftRelease.s.sol";
+import {BikeNftContractDeployment} from "../../../script/BikeNftContractDeployment.sol";
+import {BikeNftUIDeployment} from "../../../script/BikeNftUIDeployment.sol";
 import {BicycleComponentManager} from "../../../src/BicycleComponentManager.sol";
 import {BicycleComponentManagerUI} from "../../../src/BicycleComponentManagerUI.sol";
 import {BicycleComponents} from "../../../src/BicycleComponents.sol";
@@ -15,13 +16,36 @@ contract BikeNftReleaseVerifierHarness is BikeNftReleaseVerifier {
     }
 }
 
-contract BikeNftReleaseDeploymentHarness is DeployBikeNftRelease {
-    function deployRelease(ReleasePlan memory plan) external returns (Deployment memory) {
-        return _deployRelease(plan, address(this));
+// This fixture assembles the historical artifact state through the ordinary business/UI helpers.
+contract BikeNftVerifierFixture is BikeNftContractDeployment, BikeNftUIDeployment {
+    struct Deployment {
+        CamRoot camRoot;
+        BicycleComponents components;
+        BicycleComponentManager manager;
+        BicycleComponentManagerUI ui;
     }
 
-    function validatePlan(ReleasePlan memory plan) external view {
-        _validatePlan(plan);
+    function deployFixture(BikeNftReleaseVerifier.Artifact memory selected) external returns (Deployment memory deployment) {
+        ContractSettings memory settings = ContractSettings({
+            tokenName: selected.tokenName, tokenSymbol: selected.tokenSymbol,
+            baseTokenURI: selected.baseTokenURI, collectionURI: selected.collectionURI,
+            intendedComponentsAdmin: selected.intendedComponentsAdmin, componentsAdminDelay: selected.componentsAdminDelay,
+            componentsPauser: selected.componentsPauser, componentsConfigurer: selected.componentsConfigurer,
+            intendedManagerAdmin: selected.intendedManagerAdmin, managerAdminDelay: selected.managerAdminDelay,
+            managerPauser: selected.managerPauser, managerConfigurer: selected.managerConfigurer, registrars: selected.registrars
+        });
+        Contracts memory business = deployBikeNftContracts(settings, address(this));
+        configureBikeNftContracts(business, settings, address(this));
+        nominateBikeNftAdmins(business, settings, address(this));
+        deployment.components = business.components;
+        deployment.manager = business.manager;
+        deployment.ui = deployBikeNftUI(address(business.manager));
+        deployment.camRoot = new CamRoot(address(this), selected.camURI, selected.camHash);
+        deployment.camRoot.setContractAddress("ICamRootOwnership", address(deployment.camRoot));
+        deployment.camRoot.setContractAddress("BicycleComponentManager", address(business.manager));
+        bindBikeNftUI(deployment.camRoot, deployment.ui);
+        deployment.camRoot.setContractAddress("BicycleComponents", address(business.components));
+        if (selected.intendedCamRootOwner != address(this)) deployment.camRoot.transferOwnership(selected.intendedCamRootOwner);
     }
 }
 
@@ -50,8 +74,8 @@ contract BikeNftReleaseVerifierTest is Test {
     function setUp() public {
         vm.chainId(11155111);
         verifier = new BikeNftReleaseVerifierHarness();
-        BikeNftReleaseDeploymentHarness deploymentHarness = new BikeNftReleaseDeploymentHarness();
-        DeployBikeNftRelease.Deployment memory deployment = deploymentHarness.deployRelease(_releasePlan());
+        BikeNftVerifierFixture deploymentHarness = new BikeNftVerifierFixture();
+        BikeNftVerifierFixture.Deployment memory deployment = deploymentHarness.deployFixture(_releasePlan());
         deployer = address(deploymentHarness);
         root = deployment.camRoot;
         components = deployment.components;
@@ -213,9 +237,9 @@ contract BikeNftReleaseVerifierTest is Test {
         private
         returns (BikeNftReleaseVerifier.Artifact memory artifact)
     {
-        BikeNftReleaseDeploymentHarness deploymentHarness = new BikeNftReleaseDeploymentHarness();
+        BikeNftVerifierFixture deploymentHarness = new BikeNftVerifierFixture();
         deployer = address(deploymentHarness);
-        DeployBikeNftRelease.ReleasePlan memory plan = _releasePlan();
+        BikeNftReleaseVerifier.Artifact memory plan = _releasePlan();
         plan.camHash = sha256(vm.readFileBinary("bike-nft/cam/main.json"));
         plan.intendedCamRootOwner = deployer;
         plan.intendedComponentsAdmin = deployer;
@@ -229,8 +253,7 @@ contract BikeNftReleaseVerifierTest is Test {
         plan.registrars = new address[](2);
         plan.registrars[0] = deployer;
         plan.registrars[1] = REGISTRAR;
-        deploymentHarness.validatePlan(plan);
-        DeployBikeNftRelease.Deployment memory deployment = deploymentHarness.deployRelease(plan);
+        BikeNftVerifierFixture.Deployment memory deployment = deploymentHarness.deployFixture(plan);
         root = deployment.camRoot;
         components = deployment.components;
         manager = deployment.manager;
@@ -258,10 +281,10 @@ contract BikeNftReleaseVerifierTest is Test {
     }
 
     function _artifact() private view returns (BikeNftReleaseVerifier.Artifact memory artifact) {
-        DeployBikeNftRelease.ReleasePlan memory plan = _releasePlan();
+        BikeNftReleaseVerifier.Artifact memory plan = _releasePlan();
         artifact = BikeNftReleaseVerifier.Artifact({
             sourceCommit: plan.sourceCommit,
-            chainId: plan.expectedChainId,
+            chainId: plan.chainId,
             deployer: deployer,
             camURI: plan.camURI,
             camHash: plan.camHash,
@@ -290,28 +313,26 @@ contract BikeNftReleaseVerifierTest is Test {
         });
     }
 
-    function _releasePlan() private pure returns (DeployBikeNftRelease.ReleasePlan memory plan) {
+    function _releasePlan() private pure returns (BikeNftReleaseVerifier.Artifact memory plan) {
         address[] memory registrars = new address[](1);
         registrars[0] = REGISTRAR;
-        plan = DeployBikeNftRelease.ReleasePlan({
-            sourceCommit: SOURCE_COMMIT,
-            expectedChainId: 11_155_111,
-            camURI: CAM_URI,
-            camHash: CAM_HASH,
-            intendedCamRootOwner: ROOT_OWNER,
-            tokenName: "Bicycle Components",
-            tokenSymbol: "BIKE",
-            baseTokenURI: "https://example.test/tokens/",
-            collectionURI: "https://example.test/collection.json",
-            intendedComponentsAdmin: COMPONENTS_ADMIN,
-            componentsAdminDelay: ADMIN_DELAY,
-            componentsPauser: COMPONENTS_PAUSER,
-            componentsConfigurer: COMPONENTS_CONFIGURER,
-            intendedManagerAdmin: MANAGER_ADMIN,
-            managerAdminDelay: ADMIN_DELAY,
-            managerPauser: MANAGER_PAUSER,
-            managerConfigurer: MANAGER_CONFIGURER,
-            registrars: registrars
-        });
+        plan.sourceCommit = SOURCE_COMMIT;
+        plan.chainId = 11_155_111;
+        plan.camURI = CAM_URI;
+        plan.camHash = CAM_HASH;
+        plan.intendedCamRootOwner = ROOT_OWNER;
+        plan.tokenName = "Bicycle Components";
+        plan.tokenSymbol = "BIKE";
+        plan.baseTokenURI = "https://example.test/tokens/";
+        plan.collectionURI = "https://example.test/collection.json";
+        plan.intendedComponentsAdmin = COMPONENTS_ADMIN;
+        plan.componentsAdminDelay = ADMIN_DELAY;
+        plan.componentsPauser = COMPONENTS_PAUSER;
+        plan.componentsConfigurer = COMPONENTS_CONFIGURER;
+        plan.intendedManagerAdmin = MANAGER_ADMIN;
+        plan.managerAdminDelay = ADMIN_DELAY;
+        plan.managerPauser = MANAGER_PAUSER;
+        plan.managerConfigurer = MANAGER_CONFIGURER;
+        plan.registrars = registrars;
     }
 }

@@ -162,8 +162,8 @@ release_config_teardown() { fake_down config; }
 class ReleaseLifecycleTest(unittest.TestCase):
     def test_post_send_artifact_failures_preserve_evidence_and_offer_read_only_recovery(self):
         for failure in ("proxy", "collector"):
-            for configured in (False, True):
-                with self.subTest(failure=failure, configured=configured), tempfile.TemporaryDirectory() as directory:
+            for phase in ("contracts", "ui", "cam"):
+                with self.subTest(failure=failure, phase=phase), tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
                     (root / "socket").mkdir()
                     (root / "socket/rpc.sock").touch()
@@ -171,10 +171,17 @@ class ReleaseLifecycleTest(unittest.TestCase):
                     evidence = root / "output/retained-plan"
                     evidence.write_text("retained evidence")
                     env = self.environment(root, root / "ceremony")
-                    env.update(ARTIFACT_FAILURE=failure, CONFIG=str(root / "operator's config.json") if configured else "")
+                    env.update(ARTIFACT_FAILURE=failure, CONFIG=str(root / "operator's config.json"), RELEASE_PHASE=phase)
                     script = SHELL_SETUP + r'''
 source "$LAUNCHER"
 approval_app=bike-nft
+release_operation="$RELEASE_PHASE"
+CONTRACT_RELEASE_APP=bike-nft
+UI_RELEASE_APP=bike-nft
+CAM_RELEASE_APP=bike-nft
+CAM_RELEASE_REMAINING_TRANSACTIONS=1
+CAM_RELEASE_PREPARED_DIR="$CASE_ROOT/prepared"
+release_approval_require_terminal() { :; }
 RELEASE_APPROVAL_SOCKET_DIR="$CASE_ROOT/socket"
 stty() { :; }
 release_approval_show_startup() { :; }
@@ -209,26 +216,32 @@ release_approval_run "$CASE_ROOT/output"
                     process = self.launch(script, env)
                     stdout, stderr = process.communicate(timeout=10)
                     self.assertNotEqual(0, process.returncode, stdout + stderr)
-                    self.assertIn("Signer and approval completed", stderr)
-                    self.assertIn("Do not repeat deployment", stderr)
-                    self.assertIn("fixture " + failure + " failure", stderr)
+                    self.assertIn("No transaction was sent by verification", stderr)
+                    if phase != "cam":
+                        self.assertIn("Do not repeat deployment", stderr)
+                    diagnostics = "".join(path.read_text() for path in (root / "output").glob("*-verification-*/verification.log"))
+                    self.assertIn("fixture " + failure + " failure", diagnostics)
                     self.assertEqual("retained evidence", evidence.read_text())
                     events = (root / "events").read_text().splitlines()
                     self.assertEqual(1, sum(event.startswith("up ") and event.endswith(" deploy-release") for event in events))
                     self.assertEqual(0 if failure == "proxy" else 1, sum(event.endswith(" release-artifact") for event in events))
-                    if configured:
-                        command = next(line.strip() for line in stderr.splitlines() if line.strip().startswith("make "))
-                        self.assertEqual(["make", "bike-nft/release/artifact", "CONFIG=" + env["CONFIG"]], shlex.split(command))
+                    command = next(line.strip() for line in stderr.splitlines() if "make " in line)
+                    command = command[command.index("make "):]
+                    expected = ["make", f"bike-nft/release/{phase}/artifact"]
+                    if phase == "cam":
+                        expected += ["CONFIG=" + env["CONFIG"], "CAM_RECORDS=" + str(root / "output"),
+                                     "CAM_BUNDLE=" + str(root / "prepared")]
                     else:
-                        self.assertIn("read-only CONFIG", stderr)
-                        self.assertIn("sourceCommit", stderr)
-                        self.assertNotIn("CONFIG=", stderr)
+                        expected += [("CONTRACT_RECORDS=" if phase == "contracts" else "UI_RECORDS=") + str(root / "output"),
+                                     "CONFIG=" + env["CONFIG"]]
+                    self.assertEqual(expected, shlex.split(command))
 
     def test_artifact_completion_copies_prepared_dependencies_and_rejects_unsafe_paths_first(self):
         for case in ("default", "prepared", "missing", "symlink"):
             with self.subTest(case=case), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                current = root / "js/node_modules"
+                checkout = root / "checkout"
+                current = checkout / "js/node_modules"
                 prepared = root / "prepared tree/node_modules"
                 selected = current if case == "default" else prepared
                 selected.mkdir(parents=True)
@@ -248,23 +261,28 @@ release_approval_run "$CASE_ROOT/output"
                 for child in ("plan", "broadcast", "artifact"):
                     (records / child).mkdir(parents=True, exist_ok=True)
                 (records / "plan/release-plan.json").write_text("{}")
+                checkout.mkdir(exist_ok=True)
                 env = self.environment(root, root)
-                env.update(CONFIG=str(root / "config.json"))
+                env.update(CONFIG=str(root / "config.json"), PRIVATE_KEY="must-not-reach-compose", RPC_URL="must-not-reach-compose")
                 (root / "config.json").write_text("{}")
                 prelude = root / "prelude.sh"
                 prelude.write_text(make_definition("release_host_guard_functions") + r'''
 # Alpine checks lack GNU realpath -m and mktemp's suffix template support.
 realpath() { "$PYTHON" -c 'import os,sys; print(os.path.abspath(sys.argv[-1]))' "$@"; }
-mktemp() { "$PYTHON" -c 'import os,sys,tempfile; fd,path=tempfile.mkstemp(dir=os.path.dirname(sys.argv[1])); os.close(fd); print(path)' "$1"; }
+mktemp() { "$PYTHON" -c 'import os,sys,tempfile; print(tempfile.mkdtemp(dir=os.path.dirname(sys.argv[-1])))' "$@"; }
 git() { printf '%040d\n' 2; }
 load_release_config() {
   printf 'config\n' >> "$CASE_ROOT/events"
-  ESCROW_RELEASE_SOURCE_COMMIT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  ESCROW_RELEASE_OUTPUT_DIR="$CASE_ROOT/records"
+  release_config_dir="$CASE_ROOT/config-stage"
+  mkdir "$release_config_dir"
+  CONTRACT_RELEASE_APP=escrow
   RPC_URL_FILE="$CASE_ROOT/rpc-url"
   RELEASE_REHEARSAL=0
 }
-compose_release_config() { printf 'plan\n' >> "$CASE_ROOT/events"; }
+compose_release_config() {
+  printf 'plan\n' >> "$CASE_ROOT/events"
+  printf '%040s\n' aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa > "$release_config_dir/contract-source"
+}
 release_run_owned() {
   shift
   if [[ "$1 $2" == 'bash tools/release_tool_images.sh' ]]; then
@@ -273,13 +291,17 @@ release_run_owned() {
 }
 ''')
                 compose = root / "compose.sh"
-                compose.write_text('printf "%s\\n" "$*" >> "$CASE_ROOT/events"\n')
+                compose.write_text(r'''
+printf "%s\n" "$*" >> "$CASE_ROOT/events"
+printf "%s\n" "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEASE_OUTPUT_DIR" "$RELEASE_SOURCE_DIR" > "$CASE_ROOT/grants"
+''')
                 arguments = [
-                    "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "escrow/release/artifact",
-                    f"CURDIR={root}", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=exit 97",
+                    "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "escrow/release/contracts/artifact", f"CONTRACT_RECORDS={records}",
+                    f"CURDIR={checkout}", "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=exit 97",
                     f"release_host_guard_functions=source {prelude}", "release_config_compose=:",
                     'release_snapshot_allocate=ceremony_root="$$CASE_ROOT/ceremony"; ceremony_source="$$ceremony_root/source"; ceremony_project=fixture; mkdir -p "$$ceremony_source/js"; printf "allocate\\n" >> "$$CASE_ROOT/events"',
-                    "release_snapshot_archive=:", "release_snapshot_cleanup=:",
+                    'release_snapshot_archive=mkdir -p "$$ceremony_source/tools" "$$ceremony_source/dapps"; cp "$$LAUNCHER" "$$(dirname -- "$$LAUNCHER")/release_approval_preflight.sh" "$$ceremony_source/tools/"; cp() { if [[ "$${3-}" == dapps/dependencies ]]; then mkdir -p "$$4"; else command cp "$$@"; fi; }', "release_snapshot_cleanup=:",
+                    'release_snapshot_dependency_compose=compose_release_dependencies() { printf "dependencies\\n" >> "$$CASE_ROOT/events"; }',
                     f"DOCKER_COMPOSE=bash {compose}",
                 ]
                 if case != "default":
@@ -290,7 +312,7 @@ release_run_owned() {
                     self.assertIn("RELEASE_ARTIFACT_NODE_MODULES_DIR", result.stderr)
                     if case == "symlink":
                         self.assertIn("must not pass through a symlink", result.stderr)
-                    self.assertFalse((root / "events").exists(), result.stdout + result.stderr)
+                    self.assertEqual(["config", "plan"], (root / "events").read_text().splitlines())
                     self.assertFalse((root / "ceremony").exists())
                     continue
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -300,6 +322,7 @@ release_run_owned() {
                 self.assertEqual("../typescript/bin/tsc", os.readlink(copied / ".bin/tsc"))
                 events = (root / "events").read_text().splitlines()
                 self.assertIn("images:" + "a" * 40 + ":" + "2".zfill(40), events)
+                self.assertEqual(["unset", "unset", str(root / "rpc-url"), str(records), str(root / "ceremony/source")], (root / "grants").read_text().splitlines())
                 commands = [event for event in events if " -f " in " " + event]
                 self.assertIn("release-artifact-dependencies", commands[0])
                 self.assertIn("release-artifact-rpc-proxy", commands[1])
@@ -308,32 +331,26 @@ release_run_owned() {
 
     def test_deployment_preserves_app_settings_and_explicit_file_grants(self):
         samples = {
-            "bike-nft": ("BASE_TOKEN_URI", "COMPONENTS_PAUSER", "INTENDED_MANAGER_ADMIN"),
-            "escrow": ("INTENDED_CAM_ROOT_OWNER",),
-            "pay-to-play": ("INTENDED_PAYMENT_ADMIN", "NULL_CLAIM_PERIOD"),
+            "bike-nft": '{"baseTokenURI":"","componentsPauser":"0x1111111111111111111111111111111111111111"}',
+            "escrow": '{}',
+            "pay-to-play": '{"intendedPaymentAdmin":"0x1111111111111111111111111111111111111111","nullClaimPeriod":90}',
         }
         for app, settings in samples.items():
             with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                prefix = app.upper().replace("-", "_")
                 env = self.environment(root, root)
-                env.update(RENDERED_COMPOSE_FIXTURE_ENV)
-                env.update({
-                    "APP_PREFIX": prefix, "CASE_ROOT": str(root), "RELEASE_REHEARSAL": "0",
-                    f"CONFIRM_{prefix}_RELEASE_DEPLOY": "YES",
-                    f"{prefix}_RELEASE_OUTPUT_DIR": str(root / "new-output"),
-                    "BIKE_NFT_RELEASE_BASE_TOKEN_URI": "",
-                    "RPC_URL_FILE": str(root / "rpc-url"), "DEPLOYER_PRIVATE_KEY_FILE": str(root / "key"),
-                    "PRIVATE_KEY": "must-not-reach-compose", "RPC_URL": "must-not-reach-compose",
-                    "SAMPLE_NAMES": " ".join(f"{prefix}_RELEASE_{name}" for name in settings),
-                })
+                env.update(CONFIG=str(root / "config.json"),
+                           CONTRACT_RELEASE_EXPECTED_CHAIN_ID="43113", CONTRACT_RELEASE_OUTPUT_DIR=str(root / "new-output"),
+                           CONTRACT_RELEASE_SETTINGS_JSON=settings,
+                           RPC_URL_FILE=str(root / "rpc-url"), DEPLOYER_PRIVATE_KEY_FILE=str(root / "key"),
+                           PRIVATE_KEY="must-not-reach-compose", RPC_URL="must-not-reach-compose")
                 stub = root / "compose.sh"
                 stub.write_text(r'''
 printf '%s\n' "$@" > "$CASE_ROOT/arguments"
 printf '%s\n' "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$DEPLOYER_PRIVATE_KEY_FILE" "$RELEASE_OUTPUT_DIR" "$RELEASE_SOURCE_DIR" > "$CASE_ROOT/grants"
-for name in $SAMPLE_NAMES; do printf '%s\0' "${!name}"; done > "$CASE_ROOT/settings"
+printf '%s' "$CONTRACT_RELEASE_SETTINGS_JSON" > "$CASE_ROOT/settings"
 ''', encoding="utf-8")
-                generated = expanded_release_target(f"{app}/release/deploy", (
+                generated = expanded_release_target(f"{app}/release/contracts/deploy", (
                     "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
                     "release_require_clean_source=source_commit=" + "ab" * 20,
                     "release_host_guard_functions=:", "release_config_compose=:",
@@ -347,7 +364,6 @@ release_command_grace=15
 release_phase_overlays=(-f "$ceremony_source/compose/release/reference.yml")
 release_transport_args=()
 release_image_args=(-f "$CASE_ROOT/images-deploy.yml")
-while IFS= read -r name; do export -n "$name"; done < <(compgen -v "${APP_PREFIX}_RELEASE_")
 export -n RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE
 load_release_config() { printf '%s\n' "$*" > "$CASE_ROOT/config-mode"; }
 require_release_rpc_input() { [[ -n "$RPC_URL_FILE" ]]; }
@@ -358,70 +374,59 @@ release_run_owned() { shift; "$@"; }
                 process = self.launch(script, env)
                 stdout, stderr = process.communicate(timeout=5)
                 self.assertEqual(0, process.returncode, stdout + stderr)
-                self.assertEqual(f"{app} deploy\n", (root / "config-mode").read_text())
+                self.assertEqual(f"{app} contracts-deploy \n", (root / "config-mode").read_text())
                 self.assertEqual(["unset", "unset", str(root / "rpc-url"), str(root / "key"), str(root / "new-output"), str(root / "archived-source")], (root / "grants").read_text().splitlines())
-                self.assertEqual([env[f"{prefix}_RELEASE_{name}"] for name in settings], (root / "settings").read_bytes().decode().split("\0")[:-1])
+                self.assertEqual(settings, (root / "settings").read_text())
                 self.assertEqual([
                     "-f", str(root / "archived-source/compose/release/deploy.yml"),
-                    "-f", str(root / f"archived-source/compose/{app}/release/deploy.yml"),
                     "-f", str(root / "archived-source/compose/release/artifact.yml"),
-                    "-f", str(root / f"archived-source/compose/{app}/release/artifact.yml"),
+                    "-f", str(root / "archived-source/compose/release/contracts-artifact.yml"),
+                    "-f", str(root / "archived-source/compose/release/contracts.yml"),
                     "-f", str(root / "archived-source/compose/release/reference.yml"),
                     "-f", str(root / "images-deploy.yml"), "run", "--rm", "--no-deps", "release-plan",
                 ], (root / "arguments").read_text().splitlines())
 
-    def test_verification_uses_each_apps_frozen_source_and_read_only_inputs(self):
+    def test_public_verification_composes_keyless_phase_artifact_completion(self):
         for app in ("bike-nft", "escrow", "pay-to-play"):
             with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                artifact = root / "deployment.json"
-                artifact.write_text("{}", encoding="utf-8")
-                prefix = app.upper().replace("-", "_")
-                source_commit = "ab" * 20
+                records = root / "records"
+                for phase in ("contracts", "ui", "cam"):
+                    (records / phase / "artifact").mkdir(parents=True)
+                records.chmod(0o700)
+                (records / "cam/artifact/cam-publication.json").write_text("{}")
                 env = self.environment(root, root)
-                env.update({
-                    f"{prefix}_DEPLOYMENT_ARTIFACT_FILE": str(artifact),
-                    "APP_PREFIX": prefix, "RPC_URL_FILE": str(root / "rpc-url"),
-                    "PRIVATE_KEY": "must-not-reach-compose", "RPC_URL": "must-not-reach-compose",
-                })
-                stub = root / "compose.sh"
-                stub.write_text(r'''
-printf '%s\n' "$@" > "$CASE_ROOT/arguments"
-source_name="${APP_PREFIX}_RELEASE_EXPECTED_SOURCE_COMMIT"
-printf '%s\n' "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEASE_DEPLOYMENT_ARTIFACT_FILE" "${!source_name}" > "$CASE_ROOT/grants"
-''', encoding="utf-8")
+                env.update(CONFIG=str(root / "readonly.json"), CAM_RELEASE_OUTPUT_DIR=str(records))
                 generated = expanded_release_target(f"{app}/release/verify", (
                     "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
-                    f"release_require_clean_source=source_commit={source_commit}",
-                    "release_host_guard_functions=:", "release_config_compose=:",
-                    "release_verify_execution=compose_release run --rm --no-deps -T verify-release",
-                    f"DOCKER_COMPOSE=bash {stub}",
+                    "release_require_clean_source=:", "release_host_guard_functions=:", "release_config_compose=:",
                 ))
                 script = r'''
-ceremony_project=fixture
-ceremony_source="$CASE_ROOT/archived-source"
-release_command_grace=15
-release_transport_args=(-f "$ceremony_source/compose/release/rehearsal-verify.yml")
-release_image_args=(-f "$CASE_ROOT/images-verify.yml")
 load_release_config() { printf '%s\n' "$*" > "$CASE_ROOT/config-mode"; }
-require_release_rpc_input() { [[ -n "$RPC_URL_FILE" ]]; }
+require_release_config() { :; }
 require_release_file() { [[ -f "$1" ]]; }
-release_run_owned() { shift; "$@"; }
+reject_release_path_symlinks() { [[ ! -L "$1" ]]; }
+release_run_owned() {
+  shift
+  printf '%s\0' "$@" >> "$CASE_ROOT/calls"
+  printf '\0' >> "$CASE_ROOT/calls"
+}
+release_make_cleanup_grace=420
 ''' + generated
                 process = self.launch(script, env)
                 stdout, stderr = process.communicate(timeout=5)
                 self.assertEqual(0, process.returncode, stdout + stderr)
-                self.assertEqual(f"{app} verify\n", (root / "config-mode").read_text())
-                self.assertEqual([
-                    "unset", "unset", str(root / "rpc-url"), str(artifact), source_commit,
-                ], (root / "grants").read_text().splitlines())
-                self.assertEqual([
-                    "-f", str(root / "archived-source/compose/release/verify.yml"),
-                    "-f", str(root / f"archived-source/compose/{app}/release/verify.yml"),
-                    "-f", str(root / "archived-source/compose/release/rehearsal-verify.yml"),
-                    "-f", str(root / "images-verify.yml"),
-                    "run", "--rm", "--no-deps", "-T", "verify-release",
-                ], (root / "arguments").read_text().splitlines())
+                self.assertEqual(f"{app} cam-bundle \n", (root / "config-mode").read_text())
+                calls = [call.split("\0") for call in (root / "calls").read_text().rstrip("\0").split("\0\0")]
+                expected = []
+                for phase, name in (("contracts", "CONTRACT_RECORDS"), ("ui", "UI_RECORDS"), ("cam", "CAM_RECORDS")):
+                    command = ["make", "--no-print-directory", f"{app}/release/{phase}/artifact",
+                               "CONFIG=" + env["CONFIG"], f"{name}={records / phase}"]
+                    if phase == "cam":
+                        command.append(f"CAM_BUNDLE={records / 'cam-bundle'}")
+                    expected.append(command)
+                self.assertEqual(expected, calls)
+                self.assertIn("Verified CAM publication", stdout)
 
     def test_public_viewer_inspection_failure_never_starts_or_cleans_a_project(self):
         for inspection in ("failed", "occupied", "setup-failed", "empty"):
@@ -792,6 +797,7 @@ release_run_owned 1 "$PYTHON" -c 'import os, time; from pathlib import Path; Pat
                     env["ATTACH_EXIT"] = "143"
                 script = SHELL_SETUP + "\n" + r"""
 source "$LAUNCHER"
+release_operation=contracts
 RELEASE_APPROVAL_SOCKET_DIR="$CASE_ROOT/socket"
 docker() {
   if [[ "$1" == attach ]]; then exec "$PYTHON" "$CASE_ROOT/fake_docker.py" "$@"; fi
@@ -1022,7 +1028,8 @@ compose_release_config() {
 mode=deploy
 if [[ "$OUTCOME" == verify ]]; then mode=verify; fi
 if [[ "$OUTCOME" == ui-override ]]; then
-  load_release_config escrow ui-deploy "$CASE_ROOT/new-output"
+  OUTPUT_DIR="$CASE_ROOT/new-output"
+  load_release_config escrow ui-deploy
   [[ "$UI_RELEASE_OUTPUT_DIR" == "$CASE_ROOT/new-output" ]]
 else load_release_config escrow "$mode"; fi
 '''
@@ -1113,6 +1120,7 @@ compose_release_config() {
             root = Path(directory)
             env = self.environment(root, root)
             script = f'source {shlex.quote(str(LAUNCHER))}\n' + r'''
+release_operation=contracts
 compose_release() {
   printf '%s\n' "$*" >> "$CASE_ROOT/events"
   printf '%s %s\n' "${COMPOSE_PROGRESS-unset}" "${COMPOSE_ANSI-unset}" > "$CASE_ROOT/presentation"
@@ -1144,6 +1152,7 @@ release_approval_run "$CASE_ROOT/output"
                 env["STARTUP_CASE"] = case
                 script = SHELL_SETUP + "\n" + r'''
 source "$LAUNCHER"
+release_operation=contracts
 docker() {
   if [[ "$1" == logs ]]; then
     if [[ "$3" == 16 ]]; then
@@ -1272,6 +1281,301 @@ exit "$PRIMARY_STATUS"
                     stdout, stderr = process.communicate(timeout=10)
                     self.assertEqual(primary, process.returncode, stdout + stderr)
                     self.assertIn(f"cleanup={result}\n", stdout)
+
+
+class ReleaseFullCompositionTests(unittest.TestCase):
+    """Fake phase producers exercise shell sequencing and reuse, not chain verification."""
+
+    HARNESS = r'''
+source "$WRAPPER"
+require_release_config() { [[ -f "$1" ]]; }
+require_release_file() { [[ -f "$1" && ! -L "$1" ]]; }
+reject_release_path_symlinks() { [[ ! -L "$1" ]]; }
+validate_new_release_output() { [[ "$1" == "$CASE_ROOT/"* && ! -e "$1" ]]; }
+release_full_read_uri_presence() { release_full_has_uri="$HAS_URI"; }
+release_full_make() {
+  printf '%s\0' "$@" >> "$CASE_ROOT/calls"
+  printf '\0' >> "$CASE_ROOT/calls"
+  local target="$1" destination="" business="" ui="" root="" records="" argument
+  shift
+  for argument in "$@"; do
+    case "$argument" in
+      OUTPUT_DIR=*) destination="${argument#*=}" ;;
+      CONTRACT_ARTIFACT=*) business="${argument#*=}" ;;
+      UI_ARTIFACT=*) ui="${argument#*=}" ;;
+      ROOT_ARTIFACT=*) root="${argument#*=}" ;;
+      CAM_RECORDS=*) records="${argument#*=}" ;;
+    esac
+  done
+  if [[ "$target" == "${FAIL_TARGET-}" ]]; then
+    mkdir -p -- "$destination"
+    if [[ "$target" == */cam/publish ]]; then
+      printf 'confirmed root, unfinished bindings\n' > "$destination/partial"
+    fi
+    return 23
+  fi
+  case "$target" in
+    */contracts/deploy)
+      mkdir -p -- "$destination/artifact"
+      printf 'verified business\n' > "$destination/artifact/contract-deployment.json" ;;
+    */ui/deploy)
+      mkdir -p -- "$destination/artifact"
+      printf 'verified ui\n' > "$destination/artifact/ui-deployment.json" ;;
+    */cam/bundle)
+      mkdir -p -- "$destination/inputs" "$destination/artifact"
+      cp -- "$business" "$destination/inputs/business.json"
+      cp -- "$ui" "$destination/inputs/ui.json"
+      if [[ -n "$root" ]]; then cp -- "$root" "$destination/inputs/root.json"; fi
+      printf 'verified bundle\n' > "$destination/artifact/cam-bundle.json" ;;
+    */cam/publish)
+      mkdir -p -- "$destination/artifact"
+      if [[ -n "$root" ]]; then
+        mkdir -p -- "$destination/root-proof"
+        cp -- "$root" "$destination/root-proof/root.json"
+      fi
+      printf 'verified cam\n' > "$destination/artifact/cam-publication.json" ;;
+    */contracts/artifact) [[ -f "$CASE_ROOT/release/contracts/artifact/contract-deployment.json" ]] || return 24 ;;
+    */ui/artifact) [[ -f "$CASE_ROOT/release/ui/artifact/ui-deployment.json" ]] || return 24 ;;
+    */cam/artifact)
+      if [[ -f "$records/artifact/cam-publication.json" ]]; then return 0; fi
+      if [[ -f "$records/partial" ]]; then
+        mkdir -p -- "$records/artifact"
+        cp -- "$records/partial" "$records/artifact/cam-attempt.json"
+        return 3
+      fi
+      return 24 ;;
+    *) return 25 ;;
+  esac
+}
+release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
+'''
+
+    def fixture(self, root: Path) -> None:
+        private = root / "private files"
+        private.mkdir()
+        for name in ("business.json", "ui.json", "cam.json"):
+            (private / name).write_text("{}\n", encoding="utf-8")
+        (root / "selected-business.json").write_text("existing business\n", encoding="utf-8")
+        (root / "selected-root.json").write_text("original root evidence\n", encoding="utf-8")
+
+    def invoke(self, root: Path, *, app: str, operation: str, uri: bool,
+               **changes: str) -> tuple[subprocess.CompletedProcess[str], list[list[str]]]:
+        calls = root / "calls"
+        calls.write_bytes(b"")
+        env = dict(os.environ, WRAPPER=str(ROOT / "tools/release_full.sh"), CASE_ROOT=str(root),
+                   CONFIG=str(root / "private files/business.json"), UI_CONFIG=str(root / "private files/ui.json"),
+                   CAM_CONFIG=str(root / "private files/cam.json"), APP=app, OPERATION=operation, HAS_URI=str(int(uri)))
+        for name in ("ROOT", "ROOT_ARTIFACT", "CAM_BUNDLE", "CONTRACT_ARTIFACT"):
+            env.pop(name, None)
+        if operation == "update":
+            env.update(CONTRACT_ARTIFACT=str(root / "selected-business.json"), ROOT_ARTIFACT=str(root / "selected-root.json"))
+        env.update(changes)
+        result = subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", self.HARNESS],
+                                cwd=ROOT, env=env, capture_output=True, text=True, timeout=10)
+        commands = [entry.decode().split("\0") for entry in calls.read_bytes().split(b"\0\0") if entry]
+        return result, commands
+
+    def test_full_release_uses_ordinary_operations_and_rechecks_existing_records(self) -> None:
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                result, calls = self.invoke(root, operation="full", uri=True, app=app)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual([f"{app}/release/{phase}" for phase in
+                                  ("contracts/deploy", "ui/deploy", "cam/bundle", "cam/publish")], [call[0] for call in calls])
+                self.assertIn(f"CONFIG={root / 'private files/ui.json'}", calls[1])
+                self.assertIn(f"CONFIG={root / 'private files/cam.json'}", calls[3])
+                original = (root / "release/cam/artifact/cam-publication.json").read_bytes()
+                result, calls = self.invoke(root, operation="full", uri=True, app=app)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual([f"{app}/release/{phase}" for phase in
+                                  ("contracts/artifact", "ui/artifact", "cam/artifact")], [call[0] for call in calls])
+                self.assertEqual(original, (root / "release/cam/artifact/cam-publication.json").read_bytes())
+
+    def test_partial_publication_requires_new_invocation_and_only_continues_remaining_work(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True,
+                                        FAIL_TARGET="escrow/release/cam/publish")
+            self.assertEqual(23, result.returncode, result.stderr)
+            self.assertEqual(1, sum(call[0].endswith("cam/publish") for call in calls))
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/contracts/artifact", "escrow/release/ui/artifact",
+                              "escrow/release/cam/artifact", "escrow/release/cam/publish"], [call[0] for call in calls])
+            attempt = root / "release/cam/artifact/cam-attempt.json"
+            self.assertIn(f"ROOT_ARTIFACT={attempt}", calls[-1])
+            self.assertIn(f"OUTPUT_DIR={root / 'release/cam/continuation'}", calls[-1])
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("escrow/release/cam/artifact", calls[-1][0])
+            self.assertIn(f"CAM_RECORDS={root / 'release/cam/continuation'}", calls[-1])
+            self.assertFalse(any(call[0].endswith("/deploy") or call[0].endswith("/publish") for call in calls))
+            (root / "release/cam/continuation/root-proof/root.json").write_text("different root\n")
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("different root evidence", result.stderr)
+            self.assertFalse(any(call[0].endswith("cam/publish") for call in calls))
+
+    def test_completed_publication_takes_precedence_over_retained_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, _ = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            (root / "release/cam/artifact/cam-attempt.json").write_text("earlier attempt\n")
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual("escrow/release/cam/artifact", calls[-1][0])
+            self.assertFalse(any(call[0].endswith("cam/publish") for call in calls))
+
+    def test_hosting_pause_resumes_after_verifying_components_without_redeployment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=False)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(3, len(calls))
+            self.assertIn("host or pin", result.stdout)
+            self.assertFalse((root / "release/cam").exists())
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/contracts/artifact", "escrow/release/ui/artifact", "escrow/release/cam/publish"],
+                             [call[0] for call in calls])
+
+    def test_update_reuses_business_and_selects_only_ui_bundle_and_existing_root_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, calls = self.invoke(root, app="escrow", uri=True, operation="update")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/ui/deploy", "escrow/release/cam/bundle", "escrow/release/cam/publish"],
+                             [call[0] for call in calls])
+            self.assertIn(f"CONTRACT_ARTIFACT={root / 'selected-business.json'}", calls[0])
+            self.assertIn(f"ROOT_ARTIFACT={root / 'selected-root.json'}", calls[2])
+            self.assertFalse((root / "release/contracts").exists())
+
+    def test_failed_phase_stops_then_uses_keyless_completion_instead_of_redeploying(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True, FAIL_TARGET="escrow/release/ui/deploy")
+            self.assertEqual(23, result.returncode, result.stderr)
+            self.assertEqual(2, len(calls))
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(24, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/contracts/artifact", "escrow/release/ui/artifact"], [call[0] for call in calls])
+
+    def test_retained_bundle_cannot_silently_change_selected_business_or_root(self) -> None:
+        for name in ("selected-business.json", "selected-root.json"):
+            with self.subTest(selection=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                result, _ = self.invoke(root, app="escrow", operation="update", uri=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                (root / name).write_text("different selection\n", encoding="utf-8")
+                result, calls = self.invoke(root, app="escrow", uri=True, operation="update")
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertIn("different", result.stderr)
+                self.assertNotIn("escrow/release/cam/publish", [call[0] for call in calls])
+
+    def test_incomplete_bundle_can_be_replaced_without_redeploying_verified_components(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, _ = self.invoke(root, app="escrow", operation="full", uri=True, FAIL_TARGET="escrow/release/cam/bundle")
+            self.assertEqual(23, result.returncode, result.stderr)
+            result, _ = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("CAM_BUNDLE", result.stderr)
+            prepared = root / "recovered-bundle"
+            (prepared / "inputs").mkdir(parents=True)
+            (prepared / "artifact").mkdir()
+            shutil.copyfile(root / "release/contracts/artifact/contract-deployment.json", prepared / "inputs/business.json")
+            shutil.copyfile(root / "release/ui/artifact/ui-deployment.json", prepared / "inputs/ui.json")
+            (prepared / "artifact/cam-bundle.json").write_text("verified recovered bundle\n", encoding="utf-8")
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True, CAM_BUNDLE=str(prepared))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/contracts/artifact", "escrow/release/ui/artifact", "escrow/release/cam/publish"],
+                             [call[0] for call in calls])
+            self.assertIn(f"CAM_BUNDLE={prepared}", calls[-1])
+
+    def test_explicit_verification_uses_only_saved_phase_completion_for_full_and_update(self) -> None:
+        for operation in ("full", "update"):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                result, _ = self.invoke(root, app="escrow", uri=True, operation=operation)
+                self.assertEqual(0, result.returncode, result.stderr)
+                result, calls = self.invoke(root, app="escrow", operation="verify", uri=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                expected = ["escrow/release/ui/artifact", "escrow/release/cam/artifact"]
+                if operation == "full":
+                    expected.insert(0, "escrow/release/contracts/artifact")
+                self.assertEqual(expected, [call[0] for call in calls])
+
+    def test_verification_never_creates_missing_release_or_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, calls = self.invoke(root, app="escrow", uri=True, operation="verify")
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertEqual([], calls)
+            self.assertFalse((root / "release").exists())
+            result, _ = self.invoke(root, app="escrow", operation="full", uri=False)
+            self.assertEqual(0, result.returncode, result.stderr)
+            result, calls = self.invoke(root, app="escrow", uri=True, operation="verify")
+            self.assertEqual(24, result.returncode, result.stderr)
+            self.assertTrue(all(call[0].endswith("/artifact") for call in calls))
+            self.assertFalse((root / "release/cam").exists())
+
+    def test_phase_configuration_paths_are_literal_make_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "unexpected-make-expansion"
+            literal = f"{root}/config-$(shell touch {marker}).json"
+            capture = root / "capture.mk"
+            capture.write_text(".PHONY: capture\ncapture:\n\t@printf '%s\\n' \"$$CONFIG\" \"$$UI_CONFIG\" \"$$CAM_CONFIG\"\n", encoding="utf-8")
+            result = subprocess.run(["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(capture),
+                                     "capture", f"CONFIG={literal}", f"UI_CONFIG={literal}", f"CAM_CONFIG={literal}"],
+                                    cwd=ROOT, capture_output=True, text=True, timeout=10)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse(marker.exists(), "Configuration filenames must not execute Make expressions")
+            self.assertEqual([literal] * 3, result.stdout.splitlines())
+
+    def test_cam_root_selection_is_explicit_and_cannot_fall_back_to_an_ambient_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / "root evidence.json"
+            evidence.write_text("{}\n", encoding="utf-8")
+            cases = (({"ROOT": "new"}, ["new"]),
+                     ({"ROOT_ARTIFACT": str(evidence)}, ["existing", str(evidence)]),
+                     ({"ROOT": "", "ROOT_ARTIFACT": str(evidence)}, ["existing", str(evidence)]),
+                     ({}, None), ({"ROOT": "new", "ROOT_ARTIFACT": str(evidence)}, None), ({"ROOT": "other"}, None))
+            for selected, expected in cases:
+                with self.subTest(selected=selected):
+                    env = dict(os.environ, SELECTOR=str(ROOT / "tools/release_cam.sh"),
+                               CAM_RELEASE_ROOT="stale", CAM_RELEASE_ROOT_ARTIFACT_FILE="stale")
+                    env.pop("ROOT", None)
+                    env.pop("ROOT_ARTIFACT", None)
+                    env.update(selected)
+                    script = r'''
+source "$SELECTOR"
+require_release_file() { [[ -f "$1" ]]; }
+release_cam_select_root
+printf '%s\n' "$CAM_RELEASE_ROOT"
+if [[ -v CAM_RELEASE_ROOT_ARTIFACT_FILE ]]; then printf '%s\n' "$CAM_RELEASE_ROOT_ARTIFACT_FILE"; fi
+'''
+                    result = subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", script],
+                                            env=env, capture_output=True, text=True, timeout=10)
+                    if expected is None:
+                        self.assertEqual(2, result.returncode, result.stderr)
+                        self.assertEqual("", result.stdout)
+                    else:
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        self.assertEqual(expected, result.stdout.splitlines())
 
 
 if __name__ == "__main__":

@@ -134,7 +134,7 @@ def makefile_compose_unit(name: str) -> tuple[str, ...]:
 
 
 def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
-    make_units = (*makefile_compose_units().values(), *release_rehearsal_units(), *release_wait_units())
+    make_units = (*makefile_compose_units().values(), *release_deployment_units(), *release_rehearsal_units(), *release_wait_units())
     single_make_unit_files = {
         unit[0]
         for unit in make_units
@@ -159,22 +159,29 @@ def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
     )
 
 
-def release_rehearsal_units() -> tuple[tuple[str, ...], ...]:
+def release_deployment_units() -> tuple[tuple[str, ...], ...]:
     units = []
-    for name, files in makefile_compose_units().items():
-        for mode in ("deploy", "verify", "artifact"):
-            if name.endswith(f"_RELEASE_{mode.upper()}_COMPOSE_FILES"):
-                units.append((*files, f"compose/release/rehearsal-{mode}.yml"))
+    for phase in ("CONTRACT", "UI", "CAM"):
+        files = makefile_compose_unit(f"{phase}_RELEASE_DEPLOY_COMPOSE_FILES")
+        reference = (*files, "compose/release/reference.yml")
+        if phase == "CAM":
+            reference = (*reference, "compose/release/cam.yml")
+        units.extend((files, reference, (*reference, "compose/release/approval.yml")))
     return tuple(units)
 
 
-def release_wait_units() -> tuple[tuple[str, ...], ...]:
-    return tuple(
-        (*files, overlay)
-        for files in release_rehearsal_units()
-        if "compose/escrow/release/deploy.yml" in files
-        for overlay in ("compose/release/rehearsal-waits.yml", "compose/release/rehearsal-ipc.yml")
+def release_rehearsal_units() -> tuple[tuple[str, ...], ...]:
+    deploy = tuple((*files, "compose/release/rehearsal-deploy.yml") for files in release_deployment_units())
+    artifact = tuple(
+        (*makefile_compose_unit(f"{phase}_RELEASE_ARTIFACT_COMPOSE_FILES"), "compose/release/rehearsal-artifact.yml")
+        for phase in ("CONTRACT", "UI", "CAM")
     )
+    return (*deploy, *artifact)
+
+
+def release_wait_units() -> tuple[tuple[str, ...], ...]:
+    files = (*makefile_compose_unit("CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES"), "compose/release/rehearsal-deploy.yml")
+    return tuple((*files, overlay) for overlay in ("compose/release/rehearsal-waits.yml", "compose/release/rehearsal-ipc.yml"))
 
 
 def compose_files_with_required_env() -> tuple[str, ...]:
@@ -421,30 +428,12 @@ class RenderedComposePostureTest(unittest.TestCase):
             ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
             ("compose/release/setup-rpc.yml", "rpc-proxy", "rpc_url", "rpc_url"),
         }
-        for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
-            deploy = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
-            reference = makefile_compose_unit(f"{app}_RELEASE_REFERENCE_COMPOSE_FILES")
-            approval = makefile_compose_unit(f"{app}_RELEASE_APPROVAL_COMPOSE_FILES")
-            verify = makefile_compose_unit(f"{app}_RELEASE_VERIFY_COMPOSE_FILES")
-            expected_secrets.update({
-                (deploy, "release-rpc-proxy", "rpc_url", "rpc_url"),
-                (deploy, "deploy-release", "deployer_private_key", "deployer_private_key"),
-                (verify, "verify-rpc-proxy", "rpc_url", "rpc_url"),
-            })
-            for files in (reference, approval):
+        for files in (*release_deployment_units(), *release_rehearsal_units()):
+            if "compose/release/deploy.yml" in files:
                 expected_secrets.update({
                     (files, "release-rpc-proxy", "rpc_url", "rpc_url"),
                     (files, "deploy-release", "deployer_private_key", "deployer_private_key"),
                 })
-        for files in release_rehearsal_units():
-            mode = files[-1]
-            if mode.endswith("rehearsal-deploy.yml"):
-                expected_secrets.update({
-                    (files, "release-rpc-proxy", "rpc_url", "rpc_url"),
-                    (files, "deploy-release", "deployer_private_key", "deployer_private_key"),
-                })
-            elif mode.endswith("rehearsal-verify.yml"):
-                expected_secrets.add((files, "verify-rpc-proxy", "rpc_url", "rpc_url"))
         for files in release_wait_units():
             expected_secrets.update({
                 (files, "release-rpc-proxy", "rpc_url", "rpc_url"),
@@ -931,10 +920,14 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_release_planning_deadline_covers_the_workspace_runner(self) -> None:
         # Pin the command boundary without spending five minutes in a stalled build.
-        for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
-            with self.subTest(app=app):
-                files = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
-                plan = compose_service(rendered_compose_config(files), "release-plan")
+        for phase in ("CONTRACT", "UI", "CAM"):
+            with self.subTest(phase=phase):
+                files = makefile_compose_unit(f"{phase}_RELEASE_DEPLOY_COMPOSE_FILES")
+                planner = "release-plan"
+                if phase == "CAM":
+                    files = (*files, "compose/release/reference.yml", "compose/release/cam.yml")
+                    planner = "release-reference-prepare"
+                plan = compose_service(rendered_compose_config(files), planner)
                 self.assertEqual(
                     ["timeout", "--signal=TERM", "--kill-after=10s", "300s", "run-js-workspace"],
                     plan["command"][:5],
@@ -957,13 +950,17 @@ class RenderedComposePostureTest(unittest.TestCase):
             ),
         }
 
-        for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
-            for phase in ("DEPLOY", "REFERENCE", "APPROVAL"):
-                files = makefile_compose_unit(f"{app}_RELEASE_{phase}_COMPOSE_FILES")
-                expected.update({
-                    (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
-                    (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
-                })
+        for files in release_deployment_units():
+            expected.update({
+                (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
+                (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
+            })
+        expected.update({
+            ("compose/release/cam-source.yml", "release-cam-source", "/tmp/component-artifacts", "/component-artifacts"),
+            ("compose/release/cam-bundle.yml", "release-cam-inputs", "/tmp/cam-prepared/inputs", "/inputs"),
+            ("compose/release/cam-bundle.yml", "release-cam-bundle", "/tmp/cam-prepared/bundle", "/bundle"),
+            ("compose/release/cam-bundle.yml", "release-cam-bundle", "/tmp/cam-prepared/artifact", "/artifact"),
+        })
 
         for compose_unit in compose_render_units():
             if "compose/deps.yml" not in compose_unit_files(compose_unit):
@@ -1023,8 +1020,22 @@ class RenderedComposePostureTest(unittest.TestCase):
             if files[-1].endswith("rehearsal-ipc.yml"):
                 expected.add((files, "release-rpc-proxy", "/tmp/release-wait-socket", "/run/approval"))
         for files in compose_render_units():
-            if "compose/release/artifact.yml" in compose_unit_files(files):
+            native_artifacts = {
+                "compose/release/contracts-artifact.yml": ("contract", "/tmp/contract-candidate"),
+                "compose/release/ui-artifact.yml": ("ui", "/tmp/ui-candidate"),
+                "compose/release/cam-artifact.yml": ("cam", "/tmp/cam-candidate"),
+            }
+            native = [value for overlay, value in native_artifacts.items() if overlay in compose_unit_files(files)]
+            if native:
+                role, candidate = native[0]
+                expected.update({
+                    (files, "release-artifact", candidate, f"/{role}-candidate"),
+                    (files, f"release-{role}-publish", "/tmp/release-output/artifact", f"/{role}-artifact"),
+                })
+            elif "compose/release/artifact.yml" in compose_unit_files(files):
                 expected.add((files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"))
+            if "compose/release/cam.yml" in compose_unit_files(files):
+                expected.add((files, "release-reference-prepare", "/tmp/release-output/plan", "/release-plan"))
             if "compose/release/reference.yml" in compose_unit_files(files):
                 expected.update({
                     (files, "release-reference-export", "/tmp/release-output/approval/artifacts", "/reference-artifacts"),

@@ -4,10 +4,10 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {PayToPlay} from "../../src/PayToPlay.sol";
 import {PayToPlayUI} from "../../src/PayToPlayUI.sol";
-import {DeployPayToPlayRelease} from "../../script/DeployPayToPlayRelease.s.sol";
+import {PayToPlayContractDeployment} from "../../script/PayToPlayContractDeployment.sol";
 import {PayToPlayReleaseVerifier} from "../../script/PayToPlayReleaseVerifier.sol";
 
-contract PayToPlayReleaseHarness is DeployPayToPlayRelease, PayToPlayReleaseVerifier {
+contract PayToPlayReleaseHarness is PayToPlayContractDeployment, PayToPlayReleaseVerifier {
     function prepareUI(address payments) external returns (PayToPlayUI) {
         return deployPayToPlayUI(payments);
     }
@@ -20,21 +20,22 @@ contract PayToPlayReleaseHarness is DeployPayToPlayRelease, PayToPlayReleaseVeri
         return payToPlayUISourceCodeHash(payments);
     }
 
-    function parse(string memory json) external view returns (ReleasePlan memory) {
-        return _parsePlan(json);
+    function createPayments(uint64 period) external returns (PayToPlay) {
+        return deployPayToPlayContract(address(this), period);
     }
 
-    function matchInputs(ReleasePlan memory plan) external view {
-        _requireOperatorInputs(plan);
-    }
-
-    function validate(ReleasePlan memory plan) external view {
-        _validatePlan(plan);
-    }
-
-    function deploy(ReleasePlan memory plan) external returns (CamRoot root, PayToPlay payments) {
-        _validatePlan(plan);
-        return _deploy(plan, address(this));
+    // Assemble historical verifier evidence in a fixture; no production publication runtime is involved.
+    function deployFixture(uint64 period, bytes32 hash, address rootOwner, address admin)
+        external
+        returns (CamRoot root, PayToPlay payments)
+    {
+        payments = deployPayToPlayContract(address(this), period);
+        nominatePayToPlayAdmin(payments, admin, address(this));
+        PayToPlayUI ui = deployPayToPlayUI(address(payments));
+        root = new CamRoot(address(this), "https://example.test/pay-to-play/cam/main.json", hash);
+        root.setContractAddress("PayToPlay", address(payments));
+        bindPayToPlayUI(root, ui);
+        if (rootOwner != address(this)) root.transferOwnership(rootOwner);
     }
 
     function verify(Artifact memory artifact, string memory source) external {
@@ -55,8 +56,7 @@ contract PayToPlayReleaseTest is Test {
     }
 
     function testDeploymentSeparatesAuthoritiesAndCreatesOnlyReservedChannel() external {
-        DeployPayToPlayRelease.ReleasePlan memory plan = _plan(60);
-        (CamRoot root, PayToPlay payments) = harness.deploy(plan);
+        (CamRoot root, PayToPlay payments) = _deploy(60);
         assertEq(root.owner(), address(harness));
         assertEq(root.pendingOwner(), ROOT_OWNER);
         assertEq(payments.owner(), address(harness));
@@ -71,7 +71,7 @@ contract PayToPlayReleaseTest is Test {
     }
 
     function testReplacementUIIsInactiveUntilExplicitBinding() external {
-        (CamRoot root, PayToPlay payments) = harness.deploy(_plan(60));
+        (CamRoot root, PayToPlay payments) = _deploy(60);
         address previousUI = root.contractAddress("PayToPlayUI");
         PayToPlayUI replacement = harness.prepareUI(address(payments));
         assertEq(root.contractAddress("PayToPlayUI"), previousUI);
@@ -88,7 +88,7 @@ contract PayToPlayReleaseTest is Test {
     }
 
     function testVerifierRejectsSubstitutedSigningProjectionEvidence() external {
-        (CamRoot root, PayToPlay payments) = harness.deploy(_plan(60));
+        (CamRoot root, PayToPlay payments) = _deploy(60);
         vm.prank(ROOT_OWNER);
         root.acceptOwnership();
         vm.prank(ADMIN);
@@ -115,14 +115,12 @@ contract PayToPlayReleaseTest is Test {
     }
 
     function testAcceptsZeroAndMaximumWait() external {
-        harness.validate(_plan(0));
-        harness.validate(_plan(30 days));
+        assertEq(harness.createPayments(0).channel(0).claimPeriod, 0);
+        assertEq(harness.createPayments(30 days).channel(0).claimPeriod, 30 days);
     }
 
     function testZeroCamHashDeploysAndVerifiesWithoutMaskingDigestDrift() external {
-        DeployPayToPlayRelease.ReleasePlan memory plan = _plan(60);
-        plan.camHash = bytes32(0);
-        (CamRoot root, PayToPlay payments) = harness.deploy(plan);
+        (CamRoot root, PayToPlay payments) = harness.deployFixture(60, bytes32(0), ROOT_OWNER, ADMIN);
         vm.prank(ROOT_OWNER);
         root.acceptOwnership();
         vm.prank(ADMIN);
@@ -136,31 +134,13 @@ contract PayToPlayReleaseTest is Test {
         harness.verify(artifact, SOURCE);
     }
 
-    function testRejectsTooLongWaitBeforeDeployment() external {
-        DeployPayToPlayRelease.ReleasePlan memory plan = _plan(30 days + 1);
-        vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "nullClaimPeriod"));
-        harness.validate(plan);
-    }
-
-    function testRejectsWrongChainSourceAndAuthority() external {
-        DeployPayToPlayRelease.ReleasePlan memory plan = _plan(60);
-        plan.expectedChainId = 1;
-        vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "expectedChainId"));
-        harness.validate(plan);
-        plan = _plan(60);
-        plan.camHash ^= bytes32(uint256(1));
-        vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "camHash"));
-        harness.validate(plan);
-        plan = _plan(60);
-        plan.intendedPaymentAdmin = address(0);
-        vm.expectRevert(
-            abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "intendedPaymentAdmin")
-        );
-        harness.validate(plan);
+    function testBusinessConstructionRejectsTooLongWait() external {
+        vm.expectRevert(abi.encodeWithSelector(PayToPlay.ClaimPeriodTooLong.selector, uint64(30 days + 1)));
+        harness.createPayments(30 days + 1);
     }
 
     function testBothOwnershipHandoffsAreRequired() external {
-        (CamRoot root, PayToPlay payments) = harness.deploy(_plan(60));
+        (CamRoot root, PayToPlay payments) = _deploy(60);
         PayToPlayReleaseVerifier.Artifact memory artifact = _artifact(root, payments, 60);
         _expectVerification("CamRoot ownership");
         harness.verify(artifact, SOURCE);
@@ -225,7 +205,7 @@ contract PayToPlayReleaseTest is Test {
     }
 
     function testRejectsRootPendingAfterPaymentAdminAccepts() external {
-        (CamRoot root, PayToPlay payments) = harness.deploy(_plan(60));
+        (CamRoot root, PayToPlay payments) = _deploy(60);
         vm.prank(ADMIN);
         payments.acceptOwnership();
         PayToPlayReleaseVerifier.Artifact memory artifact = _artifact(root, payments, 60);
@@ -248,98 +228,20 @@ contract PayToPlayReleaseTest is Test {
         harness.verify(artifact, SOURCE);
     }
 
-    function testParsesZeroWaitAndRejectsWrongSchemaAndOversizedWait() external {
-        DeployPayToPlayRelease.ReleasePlan memory plan = harness.parse(_json("0"));
-        assertEq(plan.nullClaimPeriod, 0);
-        assertEq(plan.intendedCamRootOwner, ROOT_OWNER);
-        assertEq(plan.intendedPaymentAdmin, ADMIN);
-        vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "schema"));
-        harness.parse('{"schema":"wrong"}');
-        string memory tooLarge = _json("18446744073709551616");
-        vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "nullClaimPeriod"));
-        harness.parse(tooLarge);
-    }
-
-    function testOperatorInputsMustEachMatchThePlan() external {
-        string[6] memory names = [
-            "SOURCE_COMMIT",
-            "EXPECTED_CHAIN_ID",
-            "CAM_URI",
-            "INTENDED_CAM_ROOT_OWNER",
-            "INTENDED_PAYMENT_ADMIN",
-            "NULL_CLAIM_PERIOD"
-        ];
-        string[6] memory fields = [
-            "sourceCommit",
-            "expectedChainId",
-            "camURI",
-            "intendedCamRootOwner",
-            "intendedPaymentAdmin",
-            "nullClaimPeriod"
-        ];
-        string[6] memory values = [SOURCE, "11155111", URI, vm.toString(ROOT_OWNER), vm.toString(ADMIN), "60"];
-        string[6] memory wrong = [
-            string("ffffffffffffffffffffffffffffffffffffffff"),
-            "1",
-            "https://other.test/main.json",
-            vm.toString(address(123)),
-            vm.toString(address(123)),
-            "61"
-        ];
-        for (uint256 i; i < names.length; i++) {
-            vm.setEnv(string.concat("PAY_TO_PLAY_RELEASE_", names[i]), values[i]);
-        }
-        DeployPayToPlayRelease.ReleasePlan memory plan = _plan(60);
-        harness.matchInputs(plan);
-        for (uint256 i; i < names.length; i++) {
-            string memory name = string.concat("PAY_TO_PLAY_RELEASE_", names[i]);
-            vm.setEnv(name, wrong[i]);
-            vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.OperatorInputMismatch.selector, fields[i]));
-            harness.matchInputs(plan);
-            vm.setEnv(name, values[i]);
-        }
-    }
-
-    function _json(string memory period) private view returns (string memory) {
-        return string.concat(
-            '{"schema":"pay-to-play.release-plan.v1","sourceCommit":"',
-            SOURCE,
-            '","expectedChainId":11155111,"camURI":"',
-            URI,
-            '","camHash":"',
-            vm.toString(sha256("manifest")),
-            '","intendedCamRootOwner":"',
-            vm.toString(ROOT_OWNER),
-            '","intendedPaymentAdmin":"',
-            vm.toString(ADMIN),
-            '","nullClaimPeriod":',
-            period,
-            "}"
-        );
-    }
-
     function _expectVerification(string memory field) private {
         vm.expectRevert(abi.encodeWithSelector(PayToPlayReleaseVerifier.ReleaseVerificationFailed.selector, field));
     }
 
     function _accepted(uint64 period) private returns (CamRoot root, PayToPlay payments) {
-        (root, payments) = harness.deploy(_plan(period));
+        (root, payments) = _deploy(period);
         vm.prank(ROOT_OWNER);
         root.acceptOwnership();
         vm.prank(ADMIN);
         payments.acceptOwnership();
     }
 
-    function _plan(uint64 period) private view returns (DeployPayToPlayRelease.ReleasePlan memory) {
-        return DeployPayToPlayRelease.ReleasePlan({
-            sourceCommit: SOURCE,
-            expectedChainId: block.chainid,
-            camURI: URI,
-            camHash: sha256(vm.readFileBinary("pay-to-play/cam/main.json")),
-            intendedCamRootOwner: ROOT_OWNER,
-            intendedPaymentAdmin: ADMIN,
-            nullClaimPeriod: period
-        });
+    function _deploy(uint64 period) private returns (CamRoot root, PayToPlay payments) {
+        return harness.deployFixture(period, sha256(vm.readFileBinary("pay-to-play/cam/main.json")), ROOT_OWNER, ADMIN);
     }
 
     function _artifact(CamRoot root, PayToPlay payments, uint64 period)

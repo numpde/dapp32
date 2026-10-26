@@ -75,7 +75,7 @@ export async function stageCamBundle({ dappsRootPath, rootPath, outputDir, contr
     }
     root.protocol.integrity = `sha256:${sha256(resources.get(root.protocol.uri)!)}`
   }
-  const rootBytes = jsonBytes(root)
+  const rootBytes = jsonBytes(root, false)
   // This base resolves local resources before hosting chooses a URI or CID.
   // Publication admission checks the eventual URI against these exact bytes.
   const issue = validateCamBundle({ rootURI: "https://cam-bundle.invalid/main.json", rootBytes, resources })[0]
@@ -120,7 +120,7 @@ export async function stageCamBundle({ dappsRootPath, rootPath, outputDir, contr
   return { rootBytes, rootSha256: sha256(rootBytes), authoredRootSha256: sha256(authoredRootBytes), resources }
 }
 
-function jsonBytes(value: unknown, sortKeys = false): Uint8Array {
+function jsonBytes(value: unknown, sortKeys: boolean): Uint8Array {
   return new TextEncoder().encode(`${JSON.stringify(value, sortKeys ? (_key, item: unknown) =>
     isRecordObject(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item
     : undefined, 2)}\n`)

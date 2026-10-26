@@ -1,9 +1,0 @@
-# App-specific inputs to the shared read-only artifact runtime.
-services:
-  release-artifact:
-    environment:
-      RELEASE_TOOL_DIR: tools/pay-to-play-release
-      PAY_TO_PLAY_RELEASE_PLAN_PATH: /release-plan/release-plan.json
-      PAY_TO_PLAY_RELEASE_BROADCAST_DIR: /release-broadcast
-      PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_PATH: /release-artifact/deployment.json
-      PAY_TO_PLAY_RELEASE_RPC_URL: http://release-artifact-rpc-proxy:8080

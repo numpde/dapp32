@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   const dappsRootPath = requiredEnv(env, "CAM_RELEASE_AUTHORING_DAPPS_ROOT")
   const outputDir = requiredEnv(env, "CAM_RELEASE_BUNDLE_DIR")
   const staged = await stageCamBundle({ dappsRootPath, rootPath: resolve(dappsRootPath, app, "cam/main.json"), outputDir, contractABIs })
-  const abiSources = bundleCompilationSources(selected, business.sourceCommit, ui.sourceCommit, rootSourceCommit ?? authoringSourceCommit)
+  const abiSources = bundleCompilationSources(selected, business.sourceCommit, ui.sourceCommit, rootSourceCommit)
   const artifact = { schema: "cam.bundle.v1", app, authoringSourceCommit, chainId: admitted.chainId,
     authoredRootSha256: staged.authoredRootSha256, rootSha256: staged.rootSha256,
     businessArtifactSha256: admitted.business.artifactSha256, uiArtifactSha256: admitted.ui.artifactSha256, abiSources,

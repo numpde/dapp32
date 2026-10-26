@@ -1,4 +1,4 @@
-import { getAddress, type Address, type Hex } from "viem"
+import { getAddress, zeroAddress, zeroHash, type Address, type Hex } from "viem"
 import type { ReleaseApp } from "../release-approval/reference-read.ts"
 import { camBindingRecipe } from "./bindings.ts"
 import { parseContractIdentity, type ContractIdentity } from "../release-provenance.ts"
@@ -13,7 +13,7 @@ export type CamRootBaseline = {
   readonly contract: ContractIdentity
   readonly creator: Address
   readonly sourceCommit: string
-  readonly origin: { readonly kind: "publication" | "legacy-origin"; readonly artifactSha256: Hex }
+  readonly origin: { readonly kind: "publication" | "legacy-origin" | "attempt"; readonly artifactSha256: Hex }
   readonly bindings: Readonly<Record<string, Address>>
   readonly manifest: CamManifest
 }
@@ -35,13 +35,14 @@ export type CamReleasePlan = {
   readonly observationBlock: { readonly number: Hex; readonly hash: Hex }
   readonly bindings: readonly { readonly name: string; readonly address: Address | { readonly createdContract: "camRoot" } }[]
   readonly manifest: CamManifest
+  readonly nomination: "preserve" | "nominate"
   readonly intendedOwner: Address
   readonly root: { readonly kind: "new" } | ExistingCamRoot
 }
 
 export function parseCamReleasePlan(bytes: Uint8Array): CamReleasePlan {
   const value = parseJsonRecord(bytes, "CAM publication plan")
-  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "businessArtifactSha256", "uiArtifactSha256", "bundleArtifactSha256", "observationBlock", "bindings", "manifest", "intendedOwner", "root"], "CAM publication plan")
+  requireExactKeys(value, ["schema", "app", "sourceCommit", "expectedChainId", "businessArtifactSha256", "uiArtifactSha256", "bundleArtifactSha256", "observationBlock", "bindings", "manifest", "nomination", "intendedOwner", "root"], "CAM publication plan")
   if (value.schema !== "cam.publication-plan.v1") throw new Error("Unsupported CAM publication plan schema")
   const app = value.app
   if (app !== "bike-nft" && app !== "escrow" && app !== "pay-to-play") throw new Error("CAM publication must select bike-nft, escrow or pay-to-play")
@@ -78,7 +79,7 @@ export function parseCamReleasePlan(bytes: Uint8Array): CamReleasePlan {
     requireExactKeys(bindings, recipe.map(step => step.args[0] as string), "existing CAM bindings")
     const origin = requiredJsonRecord(root.origin, "CAM root origin")
     requireExactKeys(origin, ["kind", "artifactSha256"], "CAM root origin")
-    if (origin.kind !== "publication" && origin.kind !== "legacy-origin") throw new Error("CAM root origin must select publication or legacy-origin")
+    if (origin.kind !== "publication" && origin.kind !== "legacy-origin" && origin.kind !== "attempt") throw new Error("CAM root origin must select publication, attempt or legacy-origin")
     selection = { kind: "existing", contract: parseContractIdentity(root.contract, "existing CAM root identity"),
       creator: requiredNonzeroAddress(root.creator, "original CAM root creator"), sourceCommit: requiredSourceCommit(root.sourceCommit),
       origin: { kind: origin.kind, artifactSha256: requiredBytes32(origin.artifactSha256, "CAM root origin artifact SHA-256") },
@@ -87,6 +88,7 @@ export function parseCamReleasePlan(bytes: Uint8Array): CamReleasePlan {
       manifest: manifest(root.manifest, "existing CAM manifest"),
     }
   } else throw new Error("CAM root selection must explicitly choose new or existing")
+  if (value.nomination !== "preserve" && value.nomination !== "nominate") throw new Error("CAM nomination must explicitly preserve or nominate")
   return { schema: "cam.publication-plan.v1", app, sourceCommit: requiredSourceCommit(value.sourceCommit),
     expectedChainId: checkedReleaseChainId(requiredSafeInteger(value.expectedChainId, "CAM chain ID")),
     businessArtifactSha256: requiredBytes32(value.businessArtifactSha256, "business artifact SHA-256"),
@@ -94,7 +96,7 @@ export function parseCamReleasePlan(bytes: Uint8Array): CamReleasePlan {
     bundleArtifactSha256: requiredBytes32(value.bundleArtifactSha256, "bundle artifact SHA-256"),
     observationBlock: { number: observationBlock.number as Hex, hash: requiredBytes32(observationBlock.hash, "CAM admission block hash") }, bindings,
     manifest: manifest(value.manifest, "desired CAM manifest"),
-    intendedOwner: address(value.intendedOwner, "intended CAM owner"), root: selection }
+    nomination: value.nomination, intendedOwner: address(value.intendedOwner, "intended CAM owner"), root: selection }
 }
 
 function manifest(value: unknown, label: string): CamManifest {
@@ -111,4 +113,21 @@ function address(value: unknown, label: string): Address {
 export function sameAddress(left: Address, right: Address): boolean { return left.toLowerCase() === right.toLowerCase() }
 export function sameManifest(left: CamManifest, right: CamManifest): boolean {
   return left.uri === right.uri && left.hash.toLowerCase() === right.hash.toLowerCase()
+}
+
+/** Zero explicitly leaves remote manifest integrity unverified; the bundle record still commits local bytes. */
+export function camManifestHash(requested: unknown, rootSha256: Hex): Hex {
+  if (requested === "auto") return rootSha256
+  const selected = requiredBytes32(requested, "requested CAM hash")
+  if (selected.toLowerCase() !== zeroHash && selected.toLowerCase() !== rootSha256.toLowerCase()) {
+    throw new Error(`Requested CAM hash ${selected} differs from prepared root SHA-256 ${rootSha256}`)
+  }
+  return selected
+}
+
+export function camNominationIntent(intendedOwner: Address, owner: Address): CamReleasePlan["nomination"] {
+  return sameAddress(intendedOwner, zeroAddress) || sameAddress(intendedOwner, owner) ? "preserve" : "nominate"
+}
+export function camNominationOwner(plan: Pick<CamReleasePlan, "nomination" | "intendedOwner">): Address {
+  return plan.nomination === "preserve" ? zeroAddress : plan.intendedOwner
 }

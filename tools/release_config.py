@@ -140,7 +140,7 @@ def validate_identity(config, app):
         raise ValueError("The saved source commit must be an exact 40-character Git commit hash.")
 
 
-def validate(config, app, source_commit, *, purpose="deployment"):
+def validate(config, app, source_commit, *, purpose):
     """Validate all saved inputs; None leaves source selection with the saved pin."""
     validate_identity(config, app)
     if purpose not in ("deployment", "ui", "contracts", "cam"):
@@ -177,7 +177,7 @@ def validate(config, app, source_commit, *, purpose="deployment"):
             raise ValueError("Local releases require the fixture chain, RPC and funded deployer account.")
     else:
         check_value(config["rpcUrl"], "rpc")
-    checked = required | ({"INTENDED_CAM_ROOT_OWNER"} & settings.keys() if purpose == "cam" else set())
+    checked = required | ({"INTENDED_CAM_ROOT_OWNER", "CAM_HASH"} & settings.keys() if purpose == "cam" else set())
     for name, _, kind in fields(app):
         if purpose != "deployment" and name not in checked:
             continue
@@ -396,7 +396,7 @@ def setup(app, source_commit, output):
                 config["settings"][name] = ask_collection_uri(label, config["settings"]["TOKEN_NAME"], previous)
             else:
                 config["settings"][name] = ask(label, kind, previous, secret=False, local_cam_uri=local_cam_uri)
-        validate(config, app, source_commit)
+        validate(config, app, source_commit, purpose="deployment")
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
         print(f"Approval image: {config['approvalImageId']}")
         for name, value in config["settings"].items():
@@ -426,7 +426,7 @@ def read_json_file(source, label):
     return config
 
 
-def update_source(app, source_commit, source, output, *, purpose="deployment"):
+def update_source(app, source_commit, source, output, *, purpose):
     config = read_json_file(source, "configuration")
     validate(config, app, None, purpose=purpose)
     print(f"Saved source commit:   {config['sourceCommit']}\nCurrent source commit: {source_commit}")
@@ -491,6 +491,7 @@ def unpack(app, source_commit, mode, source, output):
             settings.update({
                 "CAM_RELEASE_SIGNER_ADDRESS": supplied["EXPECTED_DEPLOYER_ADDRESS"],
                 "CAM_RELEASE_URI": supplied["CAM_URI"],
+                "CAM_RELEASE_HASH": supplied.get("CAM_HASH", "auto"),
                 "CAM_RELEASE_INTENDED_OWNER": supplied.get("INTENDED_CAM_ROOT_OWNER", "0x" + "00" * 20),
                 "RELEASE_APPROVAL_IMAGE": config["approvalImageId"],
             })

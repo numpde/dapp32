@@ -10,7 +10,7 @@ import type { ExpectedArgument, ExpectedStep } from "./reference.ts"
 export type CreationReceipt = {
   transactionHash: Hex
   status: Hex
-  contractAddress: Address | null
+  contractAddress: Address | null | undefined
 }
 
 export type TransactionReview = {
@@ -118,7 +118,7 @@ export class ReleaseVerifier {
     const receipt = await this.receipt(creation.hash)
     if (receipt === null) throw new Error(`Successful creation receipt for ${role} is not available`)
     if (receipt.transactionHash.toLowerCase() !== creation.hash.toLowerCase() ||
-        receipt.status !== "0x1" || receipt.contractAddress === null ||
+        receipt.status !== "0x1" || receipt.contractAddress == null ||
         getAddress(receipt.contractAddress) !== getAddress(creation.predictedAddress)) {
       throw new Error(`Creation receipt for ${role} does not match a successful deployment`)
     }

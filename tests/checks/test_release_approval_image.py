@@ -235,6 +235,11 @@ docker() {
       return "$TEST_DOWN_STATUS" ;;
     *" build "*)
       if [[ "$TEST_BLOCK" == stage ]]; then block_child; fi ;;
+    *" release-config "*)
+      printf 'CONTRACT_RELEASE_APP=escrow\0CONTRACT_RELEASE_SOURCE_COMMIT=%s\0CONTRACT_RELEASE_EXPECTED_CHAIN_ID=31338\0CONTRACT_RELEASE_SETTINGS_JSON={}\0' "$TEST_COMMIT" > "$RELEASE_CONFIG_STAGE_DIR/inputs" ;;
+    *" CONTRACT_RELEASE_SETTINGS_JSON=[] "*)
+      printf 'business contract settings must be an object\n' >&2
+      return 1 ;;
     *" rehearsal-prepare "*)
       printf '# fixture inputs\n' >"$RELEASE_REHEARSAL_DIR/control/inputs.env" ;;
     *" up "*)
@@ -300,6 +305,8 @@ python3() {
             "RELEASE_APPROVAL_SIMULATION": "normal",
             "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.build),
         })
+        if kind in ("rehearsal", "rehearsal-target"):
+            env["RELEASE_APPROVAL_IMAGE"] = "sha256:" + "b" * 64
         if kind in ("image", "image-target"):
             argv = [bash, str(self.repo / "tools/release_approval_image_build.sh"), "a" * 40, str(self.output)]
             self.project = "cam-approval-image-work"
@@ -307,12 +314,11 @@ python3() {
             argv = [bash, str(self.repo / "tools/release_rehearsal.sh"), "escrow", "docker compose", "approval-pty"]
             if kind == "rehearsal-full":
                 argv[-1] = "release"
-                argv.extend(["-f", "compose/release/deploy.yml"])
-                env["RELEASE_APPROVAL_IMAGE"] = "sha256:" + "f" * 64
+
             digest = hashlib.sha256(str(self.work).encode()).hexdigest()[:24]
             self.project = "cam-rehearsal-" + digest
         self.projects = [self.project]
-        if kind == "rehearsal-full":
+        if kind == "rehearsal-full" and block == "pty":
             self.projects.insert(0, self.project + "-planner")
         if kind in ("image-target", "rehearsal-target"):
             # Exercise the target's command with a shorter deadline; its lane

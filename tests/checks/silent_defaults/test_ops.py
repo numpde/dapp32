@@ -99,18 +99,12 @@ ALLOWED_SHELL_DEFAULTS = {
     ("compose/release/viewer.yml", "RELEASE_VIEWER_RPC_URL", "-", ""),
     ("compose/release/viewer.yml", "RELEASE_VIEWER_INTERACTIVE", "-", "0"),
     ("compose/release/viewer.yml", "VIEWER_RPC_LOCATION", "-", ""),
-    # CONFIG is tested for presence to select the saved-configuration workflow.
-    ("tools/release_approval_deploy.sh", "CONFIG", "-", ""),
     # An omitted build selector chooses all supported release helper tools.
     ("tools/release_tool_images.sh", "1", "-", ""),
-    # CAM_HASH is an optional release input: omission deliberately selects
-    # automatic source hashing, as documented in make help and guided setup.
-    ("Makefile", "BIKE_NFT_RELEASE_CAM_HASH", "-", "auto"),
-    ("Makefile", "ESCROW_RELEASE_CAM_HASH", "-", "auto"),
-    ("Makefile", "PAY_TO_PLAY_RELEASE_CAM_HASH", "-", "auto"),
-    ("compose/bike-nft/release/deploy.yml", "BIKE_NFT_RELEASE_CAM_HASH", "-", "auto"),
-    ("compose/escrow/release/deploy.yml", "ESCROW_RELEASE_CAM_HASH", "-", "auto"),
-    ("compose/pay-to-play/release/deploy.yml", "PAY_TO_PLAY_RELEASE_CAM_HASH", "-", "auto"),
+    # The first, offline component-selection service runs before this value is
+    # known. It exports the exact selected source before bundle preparation;
+    # consumers requiring a root compilation reject a missing source there.
+    ("compose/release/cam-bundle.yml", "CAM_ROOT_SOURCE_COMMIT", "-", ""),
     # Compose must render cast-offline without an RPC secret. The Make
     # cast-rpc entrypoint still requires RPC_URL/RPC_URL_FILE before runtime.
     ("compose/cast.yml", "RPC_URL_FILE", ":-", "/dev/null"),

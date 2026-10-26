@@ -5,28 +5,22 @@ app=${1:?pass the release app}
 output=${2:?pass an existing empty artifact output directory}
 case "$app" in
   escrow)
-    script=escrow/script/DeployEscrowRelease.s.sol
     ui_contract=CamEscrowUI
     business_contracts=CamEscrow
-    contracts="CamRoot $business_contracts $ui_contract"
     ;;
   bike-nft)
-    script=bike-nft/script/DeployBikeNftRelease.s.sol
     ui_contract=BicycleComponentManagerUI
     business_contracts="BicycleComponents BicycleComponentManager"
-    contracts="CamRoot $business_contracts $ui_contract"
     ;;
   pay-to-play)
-    script=pay-to-play/script/DeployPayToPlayRelease.s.sol
     ui_contract=PayToPlayUI
     business_contracts=PayToPlay
-    contracts="CamRoot $business_contracts $ui_contract"
     ;;
   *) printf '%s\n' "unknown release app: $app" >&2; exit 2 ;;
 esac
 set --
-case "${RELEASE_OPERATION:-deployment}" in
-  deployment) ;;
+script=""
+case "${RELEASE_OPERATION:?Compiler export requires an explicit operation}" in
   source-contracts)
     script=""; contracts="$business_contracts"
     for contract in $business_contracts; do set -- "$@" "$app/src/$contract.sol"; done
@@ -36,7 +30,7 @@ case "${RELEASE_OPERATION:-deployment}" in
   cam) script="cam/script/PublishCam.s.sol"; contracts=CamRoot ;;
   contracts) script="$app/script/DeployContracts.s.sol"; contracts="$business_contracts" ;;
   ui) script="$app/script/DeployUI.s.sol"; contracts="$ui_contract" ;;
-  *) printf '%s\n' 'Compiler export must select deployment, contracts, ui or an explicit source component.' >&2; exit 2 ;;
+  *) printf '%s\n' 'Compiler export must select cam, contracts, ui or an explicit source component.' >&2; exit 2 ;;
 esac
 
 if [ ! -d "$output" ] || [ -L "$output" ] || [ -n "$(find "$output" -mindepth 1 -maxdepth 1 -print -quit)" ]; then

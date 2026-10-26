@@ -97,7 +97,26 @@ contract PublishCamTest is Test {
         publisher.publishJSON(json, KEY);
     }
 
+    function testExplicitPreserveModeDoesNotNominateTheRawRequestedOwner() external {
+        CamRoot root = new CamRoot(signer, "ipfs://before", bytes32(uint256(1)));
+        vm.startPrank(signer);
+        root.setContractAddress("Business", address(0x44));
+        root.transferOwnership(address(0x55));
+        vm.stopPrank();
+        publisher.publishJSON(_plan(_existing(root, signer), _concreteBinding(), "preserve"), KEY);
+        assertEq(root.pendingOwner(), address(0x55));
+        assertEq(root.contractAddress("Business"), address(0x11));
+    }
+
     function _plan(string memory root, string memory bindings) private view returns (string memory) {
+        return _plan(root, bindings, "nominate");
+    }
+
+    function _plan(string memory root, string memory bindings, string memory nomination)
+        private
+        view
+        returns (string memory)
+    {
         string memory metadata = string.concat(
             '{"schema":"cam.publication-plan.v1","app":"escrow","sourceCommit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",',
             '"businessArtifactSha256":"',
@@ -121,7 +140,9 @@ contract PublishCamTest is Test {
             ',"manifest":{"uri":"ipfs://desired","hash":"',
             vm.toString(bytes32(uint256(2))),
             '"},',
-            '"intendedOwner":"0x0000000000000000000000000000000000000033"}'
+            '"nomination":"',
+            nomination,
+            '","intendedOwner":"0x0000000000000000000000000000000000000033"}'
         );
     }
 

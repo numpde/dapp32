@@ -1,40 +1,60 @@
 from __future__ import annotations
 
 import unittest
-from .text.test_rendered_compose_posture import makefile_compose_unit
 
-from .common import compose_mapping, compose_service, rendered_compose_config
+from .text.test_rendered_compose_posture import makefile_compose_unit, release_deployment_units
+from .common import compose_mapping, compose_service, compose_volume, rendered_compose_config
 from .release_posture import (
     assert_deployment_authority_split,
     assert_offline_read_only_release_check,
-    assert_receipt_gated_verification,
     assert_release_output_directions,
     assert_verification_has_no_signing_authority,
-    assert_verification_snapshot_boundary,
 )
+
+
+RELEASE_ENV = {
+    "CONTRACT_RELEASE_APP": "pay-to-play", "UI_RELEASE_APP": "pay-to-play", "CAM_RELEASE_APP": "pay-to-play",
+    "RELEASE_APPROVAL_APP": "pay-to-play",
+    "CONTRACT_RELEASE_SETTINGS_JSON": '{"intendedPaymentAdmin":"0x0000000000000000000000000000000000000012","nullClaimPeriod":0}',
+    "CAM_RELEASE_INTENDED_OWNER": "0x0000000000000000000000000000000000000011",
+}
+
 
 class PayToPlayReleasePostureTest(unittest.TestCase):
     def test_payments_use_shared_deployment_authority_boundaries(self) -> None:
-        config = rendered_compose_config(makefile_compose_unit("PAY_TO_PLAY_RELEASE_APPROVAL_COMPOSE_FILES"))
-        services = compose_mapping(config, "services")
-        assert_deployment_authority_split(self, config, planner_name="release-plan", signer_name="deploy-release",
-            materializer_name="release-artifact", signing_proxy_name="release-rpc-proxy", materializer_proxy_name="release-artifact-rpc-proxy")
-        assert_release_output_directions(self, planner=services["release-plan"], signer=services["deploy-release"],
-            materializer=services["release-artifact"], plan_target="/release-plan", broadcast_target="/release-broadcast", artifact_target="/release-artifact")
-        for name in ("release-plan", "deploy-release"):
-            env = compose_mapping(services[name], "environment")
-            self.assertEqual("0", env["PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD"])
-            self.assertNotEqual(env["PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER"], env["PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN"])
-        self.assertIn("eth_getTransactionByHash", services["release-artifact-rpc-proxy"]["environment"]["RPC_ALLOWED_METHODS"])
+        for operation, role, files in zip(("contracts", "ui", "cam"), ("contract", "ui", "cam"), release_deployment_units()[2::3]):
+            with self.subTest(operation=operation):
+                config = rendered_compose_config(files, env=RELEASE_ENV)
+                services = compose_mapping(config, "services")
+                planner_name = "release-reference-prepare" if operation == "cam" else "release-plan"
+                assert_deployment_authority_split(self, config, operation=operation, planner_name=planner_name,
+                    signer_name="deploy-release", materializer_name="release-artifact",
+                    signing_proxy_name="release-rpc-proxy", materializer_proxy_name="release-artifact-rpc-proxy")
+                assert_release_output_directions(self, operation=operation, planner=services[planner_name],
+                    signer=services["deploy-release"], materializer=services["release-artifact"],
+                    publisher=services[f"release-{role}-publish"], plan_target="/release-plan",
+                    broadcast_target="/release-broadcast", candidate_target=f"/{role}-candidate", artifact_target=f"/{role}-artifact")
+                env = compose_mapping(services[planner_name], "environment")
+                if operation == "contracts":
+                    self.assertEqual(RELEASE_ENV["CONTRACT_RELEASE_SETTINGS_JSON"], env["CONTRACT_RELEASE_SETTINGS_JSON"])
+                    self.assertNotIn("CAM_RELEASE_INTENDED_OWNER", env)
+                elif operation == "cam":
+                    self.assertEqual(RELEASE_ENV["CAM_RELEASE_INTENDED_OWNER"], env["CAM_RELEASE_INTENDED_OWNER"])
+                    self.assertNotIn("CONTRACT_RELEASE_SETTINGS_JSON", env)
+                self.assertIn("eth_getTransactionByHash", services["release-artifact-rpc-proxy"]["environment"]["RPC_ALLOWED_METHODS"])
 
-    def test_verification_is_snapshot_and_receipt_gated_without_signing(self) -> None:
-        config = rendered_compose_config(("compose/release/verify.yml", "compose/pay-to-play/release/verify.yml"))
-        services = compose_mapping(config, "services")
-        assert_receipt_gated_verification(self, input_service=services["verify-input"], input_service_name="verify-input",
-            provenance_service=services["verify-provenance"], provenance_service_name="verify-provenance", verifier_service=services["verify-release"])
-        assert_verification_snapshot_boundary(self, input_service=services["verify-input"], downstream_services=(services["verify-provenance"], services["verify-release"]),
-            external_artifact_target="/deployment/deployment.json", snapshot_target="/out")
-        assert_verification_has_no_signing_authority(self, services)
+    def test_verification_uses_immutable_retained_inputs_without_signing(self) -> None:
+        for phase, role in (("CONTRACT", "contract"), ("UI", "ui"), ("CAM", "cam")):
+            with self.subTest(phase=phase):
+                config = rendered_compose_config(makefile_compose_unit(f"{phase}_RELEASE_ARTIFACT_COMPOSE_FILES"), env=RELEASE_ENV)
+                services = compose_mapping(config, "services")
+                assert_verification_has_no_signing_authority(self, services)
+                for target in ("/release-plan", "/release-broadcast", "/reference"):
+                    self.assertIs(compose_volume(services["release-artifact"], target)["read_only"], True)
+                publisher = services[f"release-{role}-publish"]
+                assert_offline_read_only_release_check(self, publisher)
+                self.assertIs(compose_volume(publisher, f"/{role}-candidate")["read_only"], True)
+                self.assertIsNot(compose_volume(publisher, f"/{role}-artifact").get("read_only"), True)
 
     def test_release_tool_check_is_offline(self) -> None:
         config = rendered_compose_config(("compose/release/check.yml", "compose/pay-to-play/release/check.yml"))

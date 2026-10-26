@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
-# Selected component source exports for keyless CAM preparation.
+# CAM root selection and original component exports for preparation/publication.
 
 release_cam_source_projects=()
+
+release_cam_select_root() {
+  if [[ -v ROOT && "$ROOT" == new && ( ! -v ROOT_ARTIFACT || -z "$ROOT_ARTIFACT" ) ]]; then
+    export CAM_RELEASE_ROOT=new
+    unset CAM_RELEASE_ROOT_ARTIFACT_FILE
+  elif [[ -v ROOT_ARTIFACT && -n "$ROOT_ARTIFACT" && ( ! -v ROOT || -z "$ROOT" ) ]]; then
+    require_release_file "$ROOT_ARTIFACT" ROOT_ARTIFACT
+    export CAM_RELEASE_ROOT=existing CAM_RELEASE_ROOT_ARTIFACT_FILE="$ROOT_ARTIFACT"
+  else
+    printf '%s\n' 'Choose ROOT=new or ROOT_ARTIFACT identifying an existing root.' >&2
+    return 2
+  fi
+}
 
 release_cam_sources_cleanup() {
   local project failed=0
@@ -47,4 +60,17 @@ release_cam_prepare_sources() {
     release_cam_export root "$CAM_ROOT_SOURCE_COMMIT" source-root
   fi
   release_cam_archive "$CAM_AUTHORING_SOURCE_COMMIT" "$CAM_RELEASE_PREPARED_DIR/sources/authoring"
+}
+
+release_cam_prepare_root_proof() {
+  local output="$1" selected_commit release_repository="$PWD"
+  source "$ceremony_source/tools/release_tool_images.sh"
+  export RELEASE_SOURCE_DIR="$ceremony_source"
+  mkdir --mode=0700 -- "$output/root-proof" "$output/root-proof/sources" "$output/root-proof/compiler" "$output/root-proof/compiler/root"
+  if [[ "$CAM_RELEASE_ROOT" == existing ]]; then
+    compose_release run --rm --no-deps -T release-cam-root-source
+    selected_commit=$(< "$output/root-proof/source-commit")
+    local CAM_RELEASE_PREPARED_DIR="$output/root-proof"
+    release_cam_export root "$selected_commit" source-root
+  fi
 }

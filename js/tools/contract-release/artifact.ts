@@ -51,7 +51,7 @@ async function main(): Promise<void> {
   }
   const verifier = new ReleaseVerifier(reference, async hash => {
     const receipt = await client.getTransactionReceipt({ hash })
-    return { transactionHash: receipt.transactionHash, status: receipt.status === "success" ? "0x1" : "0x0", contractAddress: receipt.contractAddress ?? null }
+    return { transactionHash: receipt.transactionHash, status: receipt.status === "success" ? "0x1" : "0x0", contractAddress: receipt.contractAddress }
   })
   const contracts: Record<string, ContractIdentity> = {}
   const initializationTransactions: Hex[] = []

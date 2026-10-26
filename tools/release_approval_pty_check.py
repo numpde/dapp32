@@ -85,6 +85,9 @@ class Transcript(bytearray):
         self.rpc_failed = False
         self.failure: str | None = None
         self.project: str | None = None
+        self.announced_project: str | None = None
+        self.projects: list[str] = []
+        self.phase_artifacts: list[Path] = []
         self.start_seen = False
         self.review_seen = False
         self.review_number = 0
@@ -96,6 +99,7 @@ class Transcript(bytearray):
         self.explanation_seen = False
         self.cleanup_incomplete = False
         self.identity_lines: list[str] = []
+        self.identity_start = 0
         self.requests = self.responses = 0
         self.last_rpc = "none"
         self.stats: dict[str, int] = {}
@@ -150,11 +154,34 @@ class Transcript(bytearray):
         line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line)
         if line.startswith("Release container project:"):
             match = re.fullmatch(r"Release container project: (cam-release-[0-9a-f]{24}-run)", line)
-            if match is None or (self.project is not None and self.project != match.group(1)):
+            if match is None:
+                if self.failure is None:
+                    self.failure = "Release container project announcement is malformed or conflicting"
+            elif self.phase_artifacts:
+                # Keyless source/artifact phases also announce projects. Only a
+                # subsequent approval header selects the next paid phase owner.
+                self.announced_project = match.group(1)
+            elif self.project is not None and self.project != match.group(1):
                 if self.failure is None:
                     self.failure = "Release container project announcement is malformed or conflicting"
             else:
+                if self.project is None:
+                    self.projects.append(match.group(1))
                 self.project = match.group(1)
+        if line == "Release approval" and self.phase_artifacts:
+            candidate = self.announced_project
+            transition = self.project is not None and self.project != candidate
+            previous = len(self.projects) - 1
+            admitted_transition = (transition and len(self.projects) < len(self.phase_artifacts)
+                                   and self.phase_artifacts[previous].is_file()
+                                   and not self.phase_artifacts[previous].is_symlink())
+            if candidate is None or (transition and not admitted_transition):
+                if self.failure is None:
+                    self.failure = "Approval project changed before its preceding phase artifact was complete"
+            elif self.project != candidate:
+                self.projects.append(candidate)
+                self.project = candidate
+                self.identity_start = len(self.identity_lines)
         if line == PROMPT:
             self.start_seen = True
         if line == "Release approval" or line.startswith((
@@ -355,7 +382,7 @@ def stop_release(process: subprocess.Popen[bytes], master: int, transcript: byte
 
 
 @contextmanager
-def release_terminal(log_path: Path, app: str):
+def release_terminal(log_path: Path, app: str, *, config_file: Path | None):
     """Own the child session, cancellation, terminal descriptors and live logs."""
     master = slave = None
     process = None
@@ -382,6 +409,8 @@ def release_terminal(log_path: Path, app: str):
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
         env = os.environ.copy()
         env["RELEASE_APPROVAL_TRACE_RPC"] = "1"
+        if config_file is not None:
+            env["CONFIG"] = str(config_file)
         if cancelled is not None:
             raise SystemExit(128 + cancelled)
         progress(f"Starting the release launcher; live log: {log_path}")
@@ -675,7 +704,7 @@ def approve_transactions(master, process, transcript: Transcript, output: Path,
     if (reference["app"] != app or reference["expectedChainId"] != 31338
             or reference["expectedDeployer"].lower() != deployer.lower()
             or reference["sourceCommit"] != source_commit
-            or f"  Reference SHA-256: {reference['snapshotSha256']}" not in transcript.identity_lines):
+            or f"  Reference SHA-256: {reference['snapshotSha256']}" not in transcript.identity_lines[transcript.identity_start:]):
         raise RuntimeError("Approval reference differs from the displayed fixture identity")
     steps = reference["steps"]
     if not isinstance(steps, list) or not 1 <= len(steps) <= 128:
@@ -768,7 +797,7 @@ def main(app: str, scenario: str) -> None:
         raise RuntimeError("PTY rehearsal scenario must be reject or success")
     image = required("RELEASE_APPROVAL_IMAGE")
     prefix = app.upper().replace("-", "_")
-    output = Path(required(f"{prefix}_RELEASE_OUTPUT_DIR"))
+    base_output = Path(required(f"{prefix}_RELEASE_OUTPUT_DIR"))
     deployer = required(f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS")
     source_commit = required(f"{prefix}_RELEASE_SOURCE_COMMIT")
     rehearsal_dir = Path(required("RELEASE_REHEARSAL_DIR"))
@@ -788,131 +817,162 @@ def main(app: str, scenario: str) -> None:
         raise RuntimeError("Automatic approval requires the public rehearsal deployer")
     if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
         raise RuntimeError("Rehearsal source commit is malformed")
-    if not rehearsal_dir.is_dir() or output.exists():
-        raise RuntimeError("Rehearsal or new release output directory is missing/used")
+    stage = required("REHEARSAL_PUBLICATION_STAGE") if scenario == "success" else "components"
+    if stage not in ("components", "cam"):
+        raise RuntimeError("Successful rehearsal must select components or cam")
+    if not rehearsal_dir.is_dir() or (stage == "components" and base_output.exists()):
+        raise RuntimeError("Rehearsal or new component output directory is missing/used")
+    if stage == "cam" and (not (base_output / "cam-bundle/artifact/cam-bundle.json").is_file() or (base_output / "cam").exists()):
+        raise RuntimeError("CAM continuation requires prepared components and no previous CAM attempt")
     if "CONFIG" in os.environ:
         raise RuntimeError("PTY rehearsal must not inherit an operator release CONFIG")
     progress(f"Fixture-only {app} {scenario} check; simulation={simulation}")
     rehearsal_project = rehearsal_network.removesuffix("-rehearsal")
     nonce_before = fixture_nonce(rehearsal_project, deployer)
-    log_path = rehearsal_dir / "approval-pty.log"
-    with release_terminal(log_path, app) as (master, process, transcript):
+    log_directory = rehearsal_dir
+    if stage == "cam":
+        log_directory = rehearsal_dir / "cam-pty"
+        log_directory.mkdir(mode=0o700)
+    log_path = log_directory / "approval-pty.log"
+    phases = [("contracts", "contract-deployment.json")]
+    if scenario == "success":
+        phases = [("contracts", "contract-deployment.json"), ("ui", "ui-deployment.json")] if stage == "components" else [("cam", "cam-publication.json")]
+    with release_terminal(log_path, app, config_file=rehearsal_dir / "control/release.json") as (master, process, transcript):
         transcript.scenario = scenario
-        read_until(master, process, transcript, lambda: transcript.start_seen,
-                   time.monotonic() + 900, "the displayed release identity and start prompt")
-        display = "\n".join(transcript.identity_lines) + "\n"
-        required_display = (
-            "Release approval", f"  App: {app}", "  Chain ID: 31338",
-            f"  Signer: {deployer}", f"  Source commit: {source_commit}", PROMPT,
-        )
-        if any(value not in transcript.identity_lines for value in required_display):
-            raise RuntimeError(f"Approval terminal did not display the selected {app} release identity")
-        if re.search(r"  Reference SHA-256: 0x[0-9a-f]{64}\r?\n", display) is None:
-            raise RuntimeError("Approval terminal did not display a full reference SHA-256")
-        project = transcript.project
-        if project is None:
-            raise RuntimeError("Release launcher did not announce its container project")
-        approval_ids = containers("release-approval", project)
-        if len(approval_ids) != 1:
-            raise RuntimeError("The announced release project must contain exactly one approval service")
-        approval_id = next(iter(approval_ids))
-        transcript.diagnostics["approval"] = approval_id
-        if state(approval_id) != "running":
-            raise RuntimeError("Approval service must be running at the start prompt")
-        socket_path = approval_socket_source(approval_id)
-        if socket_path.exists() or socket_path.is_symlink():
-            raise RuntimeError("Approval socket existed before the operator entered start")
-        if containers("deploy-release", project):
-            raise RuntimeError("Forge container existed before the operator entered start")
-        prompt_count = transcript.identity_lines.count(PROMPT)
-        os.write(master, b"\n")
-        read_until(master, process, transcript,
-                   lambda: transcript.identity_lines.count(PROMPT) > prompt_count,
-                   time.monotonic() + 30, "the start prompt to repeat after blank Enter")
-        if containers("release-approval", project) != {approval_id} or state(approval_id) != "running":
-            raise RuntimeError("Blank Enter stopped or replaced the approval service before start")
-        if socket_path.exists() or socket_path.is_symlink():
-            raise RuntimeError("Blank Enter opened the approval socket before start")
-        if containers("deploy-release", project):
-            raise RuntimeError("Blank Enter started Forge before the operator entered start")
-        progress("Blank Enter kept approval waiting; checking the backend, then entering start automatically")
-        backend_chain_id(approval_id)
-        os.write(master, b"start\n")
-        read_until(master, process, transcript, socket_path.is_socket,
-                   time.monotonic() + 30, "the approval socket to open")
-        read_until(master, process, transcript,
-                   lambda: len(containers("deploy-release", project)) == 1
-                   and state(next(iter(containers("deploy-release", project)))) == "running",
-                   time.monotonic() + 30, "Forge to start after the approval socket opened")
-        signer_ids = containers("deploy-release", project)
-        if len(signer_ids) != 1:
-            raise RuntimeError("Starting approval must start exactly one Forge container")
-        signer = next(iter(signer_ids))
-        transcript.diagnostics["signer"] = signer
-        progress("Forge is running; checking direct IPC and the pinned Cast client")
-        listener_chain_id(approval_id)
-        approval_chain_id(signer)
-        for operation, arguments in (("block-number", ()), ("nonce", (deployer,)), ("gas-price", ())):
-            progress(f"Checking read-only RPC operation: {operation}")
-            signer_rpc_read(signer, operation, *arguments)
-        if scenario == "success":
-            approvals = approve_transactions(master, process, transcript, output, app, deployer, source_commit, nonce_before)
+        transcript.phase_artifacts = [base_output / phase / "artifact" / name for phase, name in phases]
+        consumed_prompts = 0
+        next_nonce = nonce_before
+        for phase, artifact_name in phases:
+            output = base_output / phase
+            transcript.review_seen = False
+            transcript.review_number = 0
+            transcript.review_ready = False
+            read_until(master, process, transcript, lambda: transcript.identity_lines.count(PROMPT) > consumed_prompts,
+                       time.monotonic() + 900, "the displayed release identity and start prompt")
+            phase_identity = transcript.identity_lines[transcript.identity_start:]
+            display = "\n".join(phase_identity) + "\n"
+            required_display = (
+                "Release approval", f"  App: {app}", "  Chain ID: 31338",
+                f"  Signer: {deployer}", f"  Source commit: {source_commit}", PROMPT,
+            )
+            if any(value not in phase_identity for value in required_display):
+                raise RuntimeError(f"Approval terminal did not display the selected {app} release identity")
+            if re.search(r"  Reference SHA-256: 0x[0-9a-f]{64}\r?\n", display) is None:
+                raise RuntimeError("Approval terminal did not display a full reference SHA-256")
+            consumed_prompts = transcript.identity_lines.count(PROMPT)
+            project = transcript.project
+            if project is None:
+                raise RuntimeError("Release launcher did not announce its container project")
+            approval_ids = containers("release-approval", project)
+            if len(approval_ids) != 1:
+                raise RuntimeError("The announced release project must contain exactly one approval service")
+            approval_id = next(iter(approval_ids))
+            transcript.diagnostics["approval"] = approval_id
+            if state(approval_id) != "running":
+                raise RuntimeError("Approval service must be running at the start prompt")
+            socket_path = approval_socket_source(approval_id)
+            if socket_path.exists() or socket_path.is_symlink():
+                raise RuntimeError("Approval socket existed before the operator entered start")
+            if containers("deploy-release", project):
+                raise RuntimeError("Forge container existed before the operator entered start")
+            prompt_count = transcript.identity_lines.count(PROMPT)
+            os.write(master, b"\n")
+            read_until(master, process, transcript,
+                       lambda: transcript.identity_lines.count(PROMPT) > prompt_count,
+                       time.monotonic() + 30, "the start prompt to repeat after blank Enter")
+            if containers("release-approval", project) != {approval_id} or state(approval_id) != "running":
+                raise RuntimeError("Blank Enter stopped or replaced the approval service before start")
+            if socket_path.exists() or socket_path.is_symlink():
+                raise RuntimeError("Blank Enter opened the approval socket before start")
+            if containers("deploy-release", project):
+                raise RuntimeError("Blank Enter started Forge before the operator entered start")
+            consumed_prompts = transcript.identity_lines.count(PROMPT)
+            progress("Blank Enter kept approval waiting; checking the backend, then entering start automatically")
+            backend_chain_id(approval_id)
+            os.write(master, b"start\n")
+            read_until(master, process, transcript, socket_path.is_socket,
+                       time.monotonic() + 30, "the approval socket to open")
+            read_until(master, process, transcript,
+                       lambda: len(containers("deploy-release", project)) == 1
+                       and state(next(iter(containers("deploy-release", project)))) == "running",
+                       time.monotonic() + 30, "Forge to start after the approval socket opened")
+            signer_ids = containers("deploy-release", project)
+            if len(signer_ids) != 1:
+                raise RuntimeError("Starting approval must start exactly one Forge container")
+            signer = next(iter(signer_ids))
+            transcript.diagnostics["signer"] = signer
+            progress("Forge is running; checking direct IPC and the pinned Cast client")
+            listener_chain_id(approval_id)
+            approval_chain_id(signer)
+            for operation, arguments in (("block-number", ()), ("nonce", (deployer,)), ("gas-price", ())):
+                progress(f"Checking read-only RPC operation: {operation}")
+                signer_rpc_read(signer, operation, *arguments)
+            if scenario == "success":
+                approvals = approve_transactions(master, process, transcript, output, app, deployer, source_commit, next_nonce)
+                artifact = output / "artifact" / artifact_name
+                read_until(master, process, transcript,
+                           lambda: artifact.is_file() and not artifact.is_symlink()
+                           and not containers("release-approval", project) and not containers("deploy-release", project),
+                           time.monotonic() + 900, f"{phase} artifact and phase cleanup")
+                check_success_audit(read_audit(output), approvals)
+                check_fixture_receipts(rehearsal_project, [item[0] for item in approvals])
+                next_nonce += len(approvals)
+                if fixture_nonce(rehearsal_project, deployer) != next_nonce:
+                    raise RuntimeError("Fixture nonce differs from the approved phase transaction count")
+                continue
+            read_until(master, process, transcript,
+                       lambda: transcript.review_seen and transcript.review_ready,
+                       time.monotonic() + 180, "the first signed transaction review")
+            progress("First transaction review reached; rejecting it automatically")
+            os.write(master, b"r")
             status = wait_for_exit(process, master, transcript, time.monotonic() + 180)
             transcript.check()
-            if status != 0:
-                raise RuntimeError(f"Approved release command failed (status {status}); inspect approval-pty.log")
-            check_success_audit(read_audit(output), approvals)
-            check_fixture_receipts(rehearsal_project, [item[0] for item in approvals])
-            if fixture_nonce(rehearsal_project, deployer) != nonce_before + len(approvals):
-                raise RuntimeError("Fixture nonce does not match the number of approved release transactions")
-            artifact = output / "artifact" / "deployment.json"
-            if artifact.is_symlink() or not artifact.is_file():
-                raise RuntimeError("Approved release did not publish a regular deployment artifact")
+            if status == 0:
+                raise RuntimeError("Rejecting the first transaction must fail the release command")
+            progress("Checking rejection audit, unchanged nonce, absent broadcast, and container cleanup")
+            events = read_audit(output)
+            kinds = []
+            closed_reasons = []
+            for event in events:
+                kind = event.get("kind")
+                if not isinstance(kind, str):
+                    raise RuntimeError("Approval audit event is missing its kind")
+                kinds.append(kind)
+                if kind == "closed":
+                    reason = event.get("reason")
+                    if not isinstance(reason, str):
+                        raise RuntimeError("Approval closure audit is missing its reason")
+                    closed_reasons.append(reason)
+            if "pending" not in kinds or "closed" not in kinds or any(kind in kinds for kind in ("approved", "transmitting", "accepted")):
+                raise RuntimeError("Audit must show the candidate and rejection without approval or transmission")
+            if not any("reject" in reason.lower() for reason in closed_reasons):
+                raise RuntimeError("Audit did not preserve the operator rejection reason")
+            broadcast = output / "broadcast"
+            if broadcast.is_symlink() or not broadcast.is_dir():
+                raise RuntimeError("Rejected release did not retain its regular Forge journal directory")
+            if (output / "artifact" / artifact_name).exists():
+                raise RuntimeError("Rejected release must not publish a deployment artifact")
+            if fixture_nonce(rehearsal_project, deployer) != nonce_before:
+                raise RuntimeError("Deployer nonce changed; a transaction was broadcast despite rejection")
             if containers("release-approval", project) or containers("deploy-release", project):
-                raise RuntimeError("Release containers remained after the approved launcher finished")
+                raise RuntimeError("Release containers remained after the launcher reported completion")
+            if not transcript.explanation_seen:
+                raise RuntimeError("Launcher failure did not explain that earlier release effects may exist")
             transcript.result = "passed"
-            progress("PASS: every planned transaction approved and mined; deployment artifact retained; release containers removed")
+            progress("PASS: first transaction rejected, nonce unchanged, no broadcast, audit retained, release containers removed")
             return
-        read_until(master, process, transcript,
-                   lambda: transcript.review_seen and transcript.review_ready,
-                   time.monotonic() + 180, "the first signed transaction review")
-        progress("First transaction review reached; rejecting it automatically")
-        os.write(master, b"r")
-        status = wait_for_exit(process, master, transcript, time.monotonic() + 180)
+
+        status = wait_for_exit(process, master, transcript, time.monotonic() + 900)
         transcript.check()
-        if status == 0:
-            raise RuntimeError("Rejecting the first transaction must fail the release command")
-        progress("Checking rejection audit, unchanged nonce, absent broadcast, and container cleanup")
-        events = read_audit(output)
-        kinds = []
-        closed_reasons = []
-        for event in events:
-            kind = event.get("kind")
-            if not isinstance(kind, str):
-                raise RuntimeError("Approval audit event is missing its kind")
-            kinds.append(kind)
-            if kind == "closed":
-                reason = event.get("reason")
-                if not isinstance(reason, str):
-                    raise RuntimeError("Approval closure audit is missing its reason")
-                closed_reasons.append(reason)
-        if "pending" not in kinds or "closed" not in kinds or any(kind in kinds for kind in ("approved", "transmitting", "accepted")):
-            raise RuntimeError("Audit must show the candidate and rejection without approval or transmission")
-        if not any("reject" in reason.lower() for reason in closed_reasons):
-            raise RuntimeError("Audit did not preserve the operator rejection reason")
-        broadcast = output / "broadcast"
-        if broadcast.is_symlink() or not broadcast.is_dir():
-            raise RuntimeError("Rejected release did not retain its regular Forge journal directory")
-        if (output / "artifact" / "deployment.json").exists():
-            raise RuntimeError("Rejected release must not publish a deployment artifact")
-        if fixture_nonce(rehearsal_project, deployer) != nonce_before:
-            raise RuntimeError("Deployer nonce changed; a transaction was broadcast despite rejection")
-        if containers("release-approval", project) or containers("deploy-release", project):
-            raise RuntimeError("Release containers remained after the launcher reported completion")
-        if not transcript.explanation_seen:
-            raise RuntimeError("Launcher failure did not explain that earlier release effects may exist")
+        if status != 0:
+            raise RuntimeError(f"Approved full release command failed (status {status}); inspect the phase PTY log")
+        if len(transcript.projects) != len(phases):
+            raise RuntimeError("Full release did not use exactly the expected ordinary approval phases")
+        if stage == "components":
+            if not (base_output / "cam-bundle/artifact/cam-bundle.json").is_file() or (base_output / "cam").exists():
+                raise RuntimeError("The URI-free full release must stop after prepared bundle export")
         transcript.result = "passed"
-        progress("PASS: first transaction rejected, nonce unchanged, no broadcast, audit retained, release containers removed")
+        progress("PASS: ordinary phase transactions approved and mined; immutable artifacts and receipts retained; phase containers removed")
 
 
 if __name__ == "__main__":

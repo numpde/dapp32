@@ -1,3 +1,4 @@
+import { readBoundedRegularFile } from "../release-files.ts"
 import { camBindingRecipe } from "./bindings.ts"
 import { ARTIFACTS, businessContractRoles, type ReleaseApp } from "../release-approval/reference-read.ts"
 import { readCompiledContractSource, type CompiledContractSource } from "../release-compiled-contract.ts"
@@ -32,10 +33,22 @@ export function selectBundleCompilations(app: ReleaseApp, business: Readonly<Rec
 }
 
 export function bundleCompilationSources(selected: ReturnType<typeof selectBundleCompilations>,
-  businessSource: string, uiSource: string, rootSource: string) {
+  businessSource: string, uiSource: string, rootSource: string | undefined) {
   return Object.fromEntries([...selected].map(([name, original]) => {
-    const sourceCommit = original.role === "ui" ? uiSource : original.role === "camRoot" ? rootSource : businessSource
+    let sourceCommit: string
+    if (original.role === "ui") sourceCommit = uiSource
+    else if (original.role === "camRoot") {
+      if (rootSource === undefined) throw new Error("Selected root ABI requires its original source commit")
+      sourceCommit = rootSource
+    } else sourceCommit = businessSource
     const { abi: _abi, creationBytecode: _program, compilerSettings: _settings, ...compilation } = original.compilation
     return [name, { role: original.role, sourceCommit, ...compilation }]
   }))
+}
+
+/** Root provenance is independent of the authored bundle and its logical ABI resources. */
+export async function readOriginalRootCompilation(app: ReleaseApp, sourceCommit: string) {
+  const selected = new TextDecoder().decode(await readBoundedRegularFile("/root-proof/source-commit", "original root source selection", 40))
+  if (selected !== sourceCommit) throw new Error("Cannot admit existing CAM root: retained original source differs from selected root evidence")
+  return readRootCompilation(app, "/root-proof/compiler/root", "/root-proof/sources/root/dapps")
 }

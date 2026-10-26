@@ -2,7 +2,7 @@ import { zeroAddress, type Abi } from "viem"
 import { assertAbiMatchesSteps } from "../release-approval/reference-read.ts"
 import type { AdmittedCamComponents } from "./components.ts"
 import { camBindingRecipe } from "./bindings.ts"
-import { sameAddress, sameManifest, type CamReleasePlan } from "./shared.ts"
+import { camNominationOwner, sameAddress, sameManifest, type CamReleasePlan } from "./shared.ts"
 import { createdContract, expectedDeployer, type ReleaseReference, type ExpectedStep } from "../release-approval/reference.ts"
 
 export type CamPublicationReference = ReleaseReference & { readonly root: CamReleasePlan["root"] }
@@ -45,10 +45,11 @@ export function camPublicationReference(plan: CamReleasePlan, independentSigner:
       args: [plan.manifest.uri, plan.manifest.hash] })
   }
   const pendingOwner = root.kind === "new" ? zeroAddress : root.pendingOwner
-  if (!sameAddress(plan.intendedOwner, zeroAddress) && !sameAddress(plan.intendedOwner, signer)
-      && !sameAddress(plan.intendedOwner, pendingOwner)) {
+  const intendedOwner = camNominationOwner(plan)
+  if (!sameAddress(intendedOwner, zeroAddress) && !sameAddress(intendedOwner, signer)
+      && !sameAddress(intendedOwner, pendingOwner)) {
     steps.push({ kind: "call", role: "camRoot", name: "transferOwnership", action: "Nominate the selected CAM owner; separate acceptance is required",
-      argumentLabels: ["Selected CAM owner"], signature: "transferOwnership(address)", args: [plan.intendedOwner] })
+      argumentLabels: ["Selected CAM owner"], signature: "transferOwnership(address)", args: [intendedOwner] })
   }
   if (root.kind === "existing") {
     if (originalRootABI === undefined) throw new Error("Cannot publish CAM: original root ABI is required for existing-root call admission")

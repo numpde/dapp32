@@ -78,24 +78,38 @@ class ReleaseToolImagesTest(unittest.TestCase):
             return result, int((root / "count").read_text()), outputs
 
     def test_identical_tool_inputs_reuse_images_across_application_commits(self):
-        result, builds, overlays = self.run_case(r'''
-release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"
-release_tool_images_prepare /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
+        for operation in ("contracts", "ui", "cam"):
+            with self.subTest(operation=operation):
+                result, builds, overlays = self.run_case(f'''
+release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output" {operation}
+release_tool_images_prepare /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output" {operation}
 ''')
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertEqual(4, builds)
-        self.assertIn("Reusing", result.stderr)
-        for text in overlays.values():
-            self.assertIn("sha256:", text)
-            self.assertIn("build: !reset null", text)
-            self.assertIn("pull_policy: never", text)
-            self.assertNotIn("release-approval:", text)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(4, builds)
+                self.assertIn("Reusing", result.stderr)
+                self.assertEqual({"images-dependencies.yml", "images-check.yml", "images-deploy.yml"}, overlays.keys())
+                for text in overlays.values():
+                    self.assertIn("sha256:", text)
+                    self.assertIn("build: !reset null", text)
+                    self.assertIn("pull_policy: never", text)
+                    self.assertNotIn("release-approval:", text)
+
+    def test_image_preparation_requires_an_explicit_operation(self):
+        for script in (
+            'release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"',
+            'release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"',
+        ):
+            with self.subTest(script=script):
+                result, builds, outputs = self.run_case(script)
+                self.assertNotEqual(0, result.returncode)
+                self.assertEqual(0, builds)
+                self.assertEqual({}, outputs)
 
     def test_only_a_changed_tool_context_rebuilds(self):
         result, builds, _ = self.run_case(r'''
-release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"
+release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output" contracts
 printf '%040d' 17 > "$CASE_ROOT/trees/foundry"
-release_tool_images_prepare /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
+release_tool_images_prepare /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output" contracts
 ''')
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(5, builds)
@@ -119,103 +133,126 @@ release_tool_images_prepare_network /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
             self.assertRegex(after["rpc-proxy"]["image"], r"^sha256:[0-9a-f]{64}$")
 
     def test_artifact_completion_has_only_read_only_rpc_and_artifact_authority(self):
-        result, builds, overlays = self.run_case(r'''
-release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"
-release_tool_images_prepare_artifact /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
+        for operation, prefix, native in (("contracts", "CONTRACT", "contract"), ("ui", "UI", "ui"), ("cam", "CAM", "cam")):
+            with self.subTest(operation=operation):
+                result, builds, overlays = self.run_case(f'''
+release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output" {operation}
+release_tool_images_prepare_artifact /fixture bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output" {operation}
 ''')
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertEqual(2, builds)
-        self.assertEqual({"images-artifact.yml"}, overlays.keys())
-        with tempfile.TemporaryDirectory() as temporary:
-            overlay = Path(temporary) / "images-artifact.yml"
-            overlay.write_text(overlays[overlay.name])
-            for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
-                files = makefile_compose_unit(f"{app}_RELEASE_ARTIFACT_COMPOSE_FILES")
-                config = rendered_compose_config((*files, str(overlay)), env={"RELEASE_SOURCE_DIR": "/tmp/original-source"})
-                self.assertEqual({"release-artifact-dependencies", "release-artifact", "release-artifact-rpc-proxy"}, config["services"].keys())
-                self.assertNotIn("secrets", config)
-                admission = config["services"]["release-artifact-dependencies"]
-                self.assertEqual("none", admission["network_mode"])
-                self.assertNotIn("depends_on", admission)
-                self.assertEqual({"/input/js", "/work/js/node_modules"}, {mount["target"] for mount in admission["volumes"]})
-                self.assertTrue(all(mount["read_only"] for mount in admission["volumes"]))
-                self.assertEqual("run-js-workspace", admission["command"][0])
-                proxy = config["services"]["release-artifact-rpc-proxy"]
-                methods = set(proxy["environment"]["RPC_ALLOWED_METHODS"].split())
-                self.assertNotIn("eth_sendRawTransaction", methods)
-                self.assertNotIn("eth_sendTransaction", methods)
-                artifact = config["services"]["release-artifact"]
-                self.assertEqual({"release-artifact-rpc-proxy"}, artifact["depends_on"].keys())
-                writable = [mount["target"] for mount in artifact["volumes"] if not mount.get("read_only")]
-                self.assertEqual(["/release-artifact"], writable)
-                sources = {mount["source"] for mount in artifact["volumes"]}
-                self.assertIn("/tmp/original-source/js", sources)
-                for service in config["services"].values():
-                    self.assertNotIn("build", service)
-                    self.assertEqual("never", service["pull_policy"])
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(3 if operation == "cam" else 4, builds)
+                self.assertEqual({"images-artifact.yml", "images-dependencies.yml"}, overlays.keys())
+                with tempfile.TemporaryDirectory() as temporary:
+                    overlay = Path(temporary) / "images-artifact.yml"
+                    overlay.write_text(overlays[overlay.name])
+                    files = makefile_compose_unit(f"{prefix}_RELEASE_ARTIFACT_COMPOSE_FILES")
+                    services = rendered_compose_config((*files, str(overlay)), env={"RELEASE_SOURCE_DIR": "/tmp/original-source"})["services"]
+                    expected = {"release-artifact-dependencies", "release-artifact", "release-artifact-rpc-proxy", f"release-{native}-publish"}
+                    if operation != "cam":
+                        expected.add(f"release-{native}-verify")
+                    self.assertEqual(expected, services.keys())
+                    admission = services["release-artifact-dependencies"]
+                    self.assertEqual("none", admission["network_mode"])
+                    self.assertNotIn("depends_on", admission)
+                    self.assertEqual({"/input/js", "/work/js/node_modules"}, {mount["target"] for mount in admission["volumes"]})
+                    self.assertTrue(all(mount["read_only"] for mount in admission["volumes"]))
+                    self.assertEqual("run-js-workspace", admission["command"][0])
+                    methods = set(services["release-artifact-rpc-proxy"]["environment"]["RPC_ALLOWED_METHODS"].split())
+                    self.assertNotIn("eth_sendRawTransaction", methods)
+                    self.assertNotIn("eth_sendTransaction", methods)
+                    artifact = services["release-artifact"]
+                    self.assertEqual({"release-artifact-rpc-proxy"}, artifact["depends_on"].keys())
+                    self.assertEqual([f"/{native}-candidate"], [mount["target"] for mount in artifact["volumes"] if mount.get("read_only") is not True])
+                    self.assertIn("/tmp/original-source/js", {mount["source"] for mount in artifact["volumes"]})
+                    publisher = services[f"release-{native}-publish"]
+                    self.assertEqual("none", publisher["network_mode"])
+                    self.assertEqual([f"/{native}-artifact"], [mount["target"] for mount in publisher["volumes"] if mount.get("read_only") is not True])
+                    for service in services.values():
+                        self.assertNotIn("build", service)
+                        self.assertEqual("never", service["pull_policy"])
+                        self.assertFalse(service.get("secrets"))
+                        self.assertNotIn("PRIVATE_KEY", service["environment"])
 
     def test_recovery_keeps_historical_app_runtime_and_current_admission_and_transport(self):
-        result, _, overlays = self.run_case(r'''
+        for operation, prefix, native in (("contracts", "CONTRACT", "contract"), ("ui", "UI", "ui"), ("cam", "CAM", "cam")):
+            with self.subTest(operation=operation):
+                result, _, overlays = self.run_case(r'''
 release_tool_image() {
   case "$2:$3" in
     aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:node-deps) printf 'sha256:%064d\n' 1 ;;
     bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:node-deps) printf 'sha256:%064d\n' 2 ;;
     bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:rpc-proxy) printf 'sha256:%064d\n' 3 ;;
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:checks) printf 'sha256:%064d\n' 4 ;;
+    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:foundry) printf 'sha256:%064d\n' 5 ;;
     *) return 88 ;;
   esac
 }
-release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output"
-''')
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        with tempfile.TemporaryDirectory() as directory:
-            overlay = Path(directory) / "images-artifact.yml"
-            overlay.write_text(overlays[overlay.name])
-            files = makefile_compose_unit("ESCROW_RELEASE_ARTIFACT_COMPOSE_FILES")
-            services = rendered_compose_config((*files, str(overlay)))["services"]
-            self.assertEqual("sha256:" + "1".zfill(64), services["release-artifact"]["image"])
-            self.assertEqual("sha256:" + "2".zfill(64), services["release-artifact-dependencies"]["image"])
-            self.assertEqual("sha256:" + "3".zfill(64), services["release-artifact-rpc-proxy"]["image"])
+release_tool_images_prepare_artifact /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "$CASE_ROOT/output" ''' + operation)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                with tempfile.TemporaryDirectory() as directory:
+                    overlay = Path(directory) / "images-artifact.yml"
+                    overlay.write_text(overlays[overlay.name])
+                    files = makefile_compose_unit(f"{prefix}_RELEASE_ARTIFACT_COMPOSE_FILES")
+                    services = rendered_compose_config((*files, str(overlay)))["services"]
+                    self.assertEqual("sha256:" + "1".zfill(64), services["release-artifact"]["image"])
+                    self.assertEqual("sha256:" + "1".zfill(64), services[f"release-{native}-publish"]["image"])
+                    self.assertEqual("sha256:" + "2".zfill(64), services["release-artifact-dependencies"]["image"])
+                    self.assertEqual("sha256:" + "3".zfill(64), services["release-artifact-rpc-proxy"]["image"])
+                    if operation != "cam":
+                        self.assertEqual("sha256:" + "5".zfill(64), services[f"release-{native}-verify"]["image"])
+                    dependencies = Path(directory) / "images-dependencies.yml"
+                    dependencies.write_text(overlays[dependencies.name])
+                    verifier = rendered_compose_config(("compose/deps.yml", str(dependencies)))["services"]["soldeer-verify"]
+                    self.assertEqual("sha256:" + "4".zfill(64), verifier["image"])
 
     def test_engine_or_build_failure_publishes_no_runtime_overrides(self):
-        for failure in ("inventory", "build", "inspect"):
-            with self.subTest(failure=failure):
-                result, _, outputs = self.run_case('release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"', failure=failure)
-                self.assertNotEqual(0, result.returncode)
-                self.assertEqual({}, outputs)
+        for operation in ("contracts", "ui", "cam"):
+            for failure in ("inventory", "build", "inspect"):
+                with self.subTest(operation=operation, failure=failure):
+                    result, _, outputs = self.run_case('release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output" ' + operation, failure=failure)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertEqual({}, outputs)
 
     def test_runtime_uses_inspected_ids_even_if_the_cache_tag_changes(self):
-        result, _, overlays = self.run_case('release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"', retag=True)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertTrue(all("999" not in text for text in overlays.values()))
+        for operation in ("contracts", "ui", "cam"):
+            with self.subTest(operation=operation):
+                result, _, overlays = self.run_case('release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output" ' + operation, retag=True)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertTrue(all("999" not in text for text in overlays.values()))
 
     def test_rendered_release_phases_change_only_helper_image_selection(self):
-        result, _, overlays = self.run_case('release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output"')
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        phases = [("dependencies", ("compose/deps.yml",), {"soldeer-verify"})]
-        for app in ("bike-nft", "escrow", "pay-to-play"):
-            for phase in ("check", "deploy", "verify"):
-                prefix = app.upper().replace("-", "_")
-                unit = f"{prefix}_RELEASE_{phase.upper()}_COMPOSE_FILES"
-                if phase == "deploy":
-                    unit = f"{prefix}_RELEASE_APPROVAL_COMPOSE_FILES"
-                files = makefile_compose_unit(unit)
-                phases.append((phase, files, None))
-        with tempfile.TemporaryDirectory() as temporary:
-            for phase, files, selected in phases:
-                with self.subTest(phase=phase, files=files):
-                    overlay = Path(temporary) / f"images-{phase}.yml"
-                    overlay.write_text(overlays[overlay.name])
-                    before = rendered_compose_config(files)["services"]
-                    after = rendered_compose_config((*files, str(overlay)))["services"]
-                    self.assertEqual(before.keys(), after.keys(), "image overrides must not introduce services")
-                    if selected is None:
-                        selected = set(after) - {"release-approval"}
-                    for service in selected:
-                        self.assertNotIn("build", after[service])
-                        self.assertRegex(after[service]["image"], r"^sha256:[0-9a-f]{64}$")
-                        self.assertEqual("never", after[service]["pull_policy"])
-                        original = {key: value for key, value in before[service].items() if key not in {"build", "image", "pull_policy"}}
-                        changed = {key: value for key, value in after[service].items() if key not in {"build", "image", "pull_policy"}}
-                        self.assertEqual(original, changed, "image reuse must preserve runtime confinement")
-                    if "release-approval" in before:
-                        self.assertEqual(before["release-approval"], after["release-approval"])
+        for operation, prefix in (("contracts", "CONTRACT"), ("ui", "UI"), ("cam", "CAM")):
+            result, _, overlays = self.run_case('release_tool_images_prepare /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "$CASE_ROOT/output" ' + operation)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            files = (*makefile_compose_unit(f"{prefix}_RELEASE_DEPLOY_COMPOSE_FILES"), "compose/release/reference.yml", "compose/release/approval.yml")
+            if operation == "cam":
+                files = (*files, "compose/release/cam.yml")
+            selected = {"release-plan", "release-reference-export", "release-reference-prepare", "release-rpc-proxy", "deploy-release",
+                        "release-artifact-dependencies", "release-artifact-rpc-proxy", "release-artifact"}
+            if operation == "cam":
+                selected.add("release-cam-publish")
+            else:
+                native = "contract" if operation == "contracts" else "ui"
+                selected.update({f"release-{native}-verify", f"release-{native}-publish"})
+            phases = (("dependencies", ("compose/deps.yml",), {"soldeer-verify"}),
+                      ("check", makefile_compose_unit(f"{prefix}_RELEASE_CHECK_COMPOSE_FILES") if operation != "cam" else ("compose/release/check.yml",), {"release-check"}),
+                      ("deploy", files, selected))
+            with tempfile.TemporaryDirectory() as temporary:
+                for phase, files, selected in phases:
+                    with self.subTest(operation=operation, phase=phase):
+                        overlay = Path(temporary) / f"images-{phase}.yml"
+                        overlay.write_text(overlays[overlay.name])
+                        before = rendered_compose_config(files, env={"RELEASE_OPERATION": operation, "CAM_RELEASE_HASH": "0x" + "c" * 64})["services"]
+                        after = rendered_compose_config((*files, str(overlay)), env={"RELEASE_OPERATION": operation, "CAM_RELEASE_HASH": "0x" + "c" * 64})["services"]
+                        self.assertEqual(before.keys(), after.keys(), "image overrides must not introduce services")
+                        if phase == "deploy":
+                            self.assertEqual(selected | {"release-approval"}, after.keys())
+                        for service in selected:
+                            self.assertNotIn("build", after[service])
+                            self.assertRegex(after[service]["image"], r"^sha256:[0-9a-f]{64}$")
+                            self.assertEqual("never", after[service]["pull_policy"])
+                            original = {key: value for key, value in before[service].items() if key not in {"build", "image", "pull_policy"}}
+                            changed = {key: value for key, value in after[service].items() if key not in {"build", "image", "pull_policy"}}
+                            self.assertEqual(original, changed, "image reuse must preserve runtime confinement")
+                        for service in before.keys() - selected:
+                            self.assertEqual(before[service], after[service], "unselected services must remain unchanged")

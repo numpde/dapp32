@@ -1,29 +1,23 @@
 from __future__ import annotations
 
 import unittest
-from .text.test_rendered_compose_posture import makefile_compose_unit
 
-from .common import (
-    compose_command_text,
-    compose_mapping,
-    compose_service,
-    compose_volume,
-    rendered_compose_config,
-)
+from .text.test_rendered_compose_posture import makefile_compose_unit, release_deployment_units
+from .common import compose_command_text, compose_mapping, compose_service, compose_volume, rendered_compose_config
 from .release_posture import (
     expanded_release_target,
     assert_deployment_authority_split,
     assert_offline_read_only_release_check,
-    assert_receipt_gated_verification,
     assert_release_output_directions,
     assert_verification_has_no_signing_authority,
-    assert_verification_snapshot_boundary,
 )
 
 
 CHECK = ("compose/release/check.yml", "compose/bike-nft/release/check.yml")
-DEPLOY = makefile_compose_unit("BIKE_NFT_RELEASE_APPROVAL_COMPOSE_FILES")
-VERIFY = ("compose/release/verify.yml", "compose/bike-nft/release/verify.yml")
+RELEASE_ENV = {
+    "CONTRACT_RELEASE_APP": "bike-nft", "UI_RELEASE_APP": "bike-nft", "CAM_RELEASE_APP": "bike-nft",
+    "RELEASE_APPROVAL_APP": "bike-nft",
+}
 
 
 class BikeNftReleasePostureTest(unittest.TestCase):
@@ -33,97 +27,66 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         self.assertEqual("tools/bike-nft-release", compose_mapping(service, "environment")["RELEASE_TOOL_DIR"])
 
     def test_deployment_authority_is_split_by_phase(self) -> None:
-        config = rendered_compose_config(DEPLOY)
-        plan = compose_service(config, "release-plan")
-        signer = compose_service(config, "deploy-release")
-        artifact = compose_service(config, "release-artifact")
+        for operation, role, files in zip(("contracts", "ui", "cam"), ("contract", "ui", "cam"), release_deployment_units()[2::3]):
+            with self.subTest(operation=operation):
+                config = rendered_compose_config(files, env=RELEASE_ENV)
+                services = compose_mapping(config, "services")
+                planner_name = "release-reference-prepare" if operation == "cam" else "release-plan"
+                assert_deployment_authority_split(self, config, operation=operation, planner_name=planner_name,
+                    signer_name="deploy-release", materializer_name="release-artifact",
+                    signing_proxy_name="release-rpc-proxy", materializer_proxy_name="release-artifact-rpc-proxy")
+                assert_release_output_directions(self, operation=operation, planner=services[planner_name],
+                    signer=services["deploy-release"], materializer=services["release-artifact"],
+                    publisher=services[f"release-{role}-publish"], plan_target="/release-plan",
+                    broadcast_target="/release-broadcast", candidate_target=f"/{role}-candidate", artifact_target=f"/{role}-artifact")
+                signer = services["deploy-release"]
+                self.assertEqual({"release_artifact_internal": None}, services["release-artifact"]["networks"])
+                signer_command = compose_command_text(signer)
+                self.assertNotIn("release-plan.args", signer_command)
+                plan_name = {"contracts": "CONTRACT_RELEASE_PLAN_PATH", "ui": "UI_RELEASE_PLAN_PATH", "cam": "CAM_PUBLICATION_PLAN_PATH"}[operation]
+                self.assertEqual("/release-plan/release-plan.json", compose_mapping(signer, "environment")[plan_name])
+                self.assertIn("PRIVATE_KEY=", signer_command)
+                self.assertNotIn("export PRIVATE_KEY", signer_command)
 
-        assert_deployment_authority_split(
-            self,
-            config,
-            planner_name="release-plan",
-            signer_name="deploy-release",
-            materializer_name="release-artifact",
-            signing_proxy_name="release-rpc-proxy",
-            materializer_proxy_name="release-artifact-rpc-proxy",
-        )
-        assert_release_output_directions(
-            self,
-            planner=plan,
-            signer=signer,
-            materializer=artifact,
-            plan_target="/release-plan",
-            broadcast_target="/release-broadcast",
-            artifact_target="/release-artifact",
-        )
-        self.assertEqual("none", signer["network_mode"])
-        self.assertEqual({"release_artifact_internal": None}, artifact["networks"])
-
-        signer_command = compose_command_text(signer)
-        self.assertNotIn("release-plan.args", signer_command)
-        self.assertEqual("/release-plan/release-plan.json", compose_mapping(signer, "environment")["BIKE_NFT_RELEASE_PLAN_PATH"])
-        self.assertIn("PRIVATE_KEY=", signer_command)
-        self.assertNotIn("export PRIVATE_KEY", signer_command)
-
-    def test_verification_is_read_only_and_receipt_gated(self) -> None:
-        config = rendered_compose_config(VERIFY)
-        input_check = compose_service(config, "verify-input")
-        provenance = compose_service(config, "verify-provenance")
-        verifier = compose_service(config, "verify-release")
-
-        assert_receipt_gated_verification(
-            self,
-            input_service=input_check,
-            input_service_name="verify-input",
-            provenance_service=provenance,
-            provenance_service_name="verify-provenance",
-            verifier_service=verifier,
-        )
-        assert_verification_snapshot_boundary(
-            self,
-            input_service=input_check,
-            downstream_services=(provenance, verifier),
-            external_artifact_target="/deployment/deployment.json",
-            snapshot_target="/out",
-        )
-        assert_verification_has_no_signing_authority(
-            self,
-            compose_mapping(config, "services"),
-        )
-
-        external_artifact = compose_volume(input_check, "/deployment/deployment.json")
-        self.assertIn(external_artifact["bind"], ({}, {"create_host_path": False}))
-        verified_input = compose_volume(input_check, "/out")
-        self.assertEqual("release_verified", verified_input["source"])
-
-        rendered = str(config)
-        self.assertNotIn("deployment.args", rendered)
-        self.assertNotIn("DEPLOYMENT_ARGUMENTS", rendered)
+    def test_verification_uses_retained_read_only_evidence_without_signing(self) -> None:
+        for phase, role in (("CONTRACT", "contract"), ("UI", "ui"), ("CAM", "cam")):
+            with self.subTest(phase=phase):
+                config = rendered_compose_config(makefile_compose_unit(f"{phase}_RELEASE_ARTIFACT_COMPOSE_FILES"), env=RELEASE_ENV)
+                services = compose_mapping(config, "services")
+                assert_verification_has_no_signing_authority(self, services)
+                collector = services["release-artifact"]
+                for target in ("/release-plan", "/release-broadcast", "/reference"):
+                    self.assertIs(compose_volume(collector, target)["read_only"], True)
+                publisher = services[f"release-{role}-publish"]
+                assert_offline_read_only_release_check(self, publisher)
+                self.assertIs(compose_volume(publisher, f"/{role}-candidate")["read_only"], True)
+                if phase != "CAM":
+                    verifier = services[f"release-{role}-verify"]
+                    self.assertIn('--sig "verify()"', compose_command_text(verifier))
+                    self.assertIn("--offline", compose_command_text(verifier))
+                    for target in ("/work/dapps", "/release-plan", f"/{role}-candidate"):
+                        self.assertIs(compose_volume(verifier, target)["read_only"], True)
+                self.assertNotIn("deployment.args", str(config))
+                self.assertNotIn("DEPLOYMENT_ARGUMENTS", str(config))
 
     def test_make_entrypoints_require_clean_snapshotted_source_and_protected_files(self) -> None:
-        deploy = expanded_release_target("bike-nft/release/deploy")
+        for phase in ("contracts", "ui", "cam"):
+            target = "publish" if phase == "cam" else "deploy"
+            with self.subTest(phase=phase):
+                deploy = expanded_release_target(f"bike-nft/release/{phase}/{target}")
+                self.assertIn("require_release_rpc_input", deploy)
+                self.assertIn('require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$DEPLOYER_PRIVATE_KEY_FILE"', deploy)
+                self.assertIn("git archive", deploy)
+                self.assertIn('"${release_phase_overlays[@]}" "${release_transport_args[@]}"', deploy)
+                self.assertIn(f'release_operation="{phase}"', deploy)
+                artifact = expanded_release_target(f"bike-nft/release/{phase}/artifact")
+                self.assertIn("-plan-source bike-nft", artifact)
+                self.assertIn('source_commit="$(< "$release_config_dir/', artifact)
+                self.assertIn("env -u PRIVATE_KEY -u RPC_URL", artifact)
+                self.assertNotIn('require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE"', artifact)
         verify = expanded_release_target("bike-nft/release/verify")
-        self.assertIn("CONFIRM_BIKE_NFT_RELEASE_DEPLOY", deploy)
-        self.assertIn(
-            'require_release_rpc_input',
-            deploy,
-        )
-        self.assertIn(
-            'require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$DEPLOYER_PRIVATE_KEY_FILE"',
-            deploy,
-        )
-        self.assertIn('validate_new_release_output "$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"', deploy)
-        self.assertIn(
-            'require_release_rpc_input',
-            verify,
-        )
-        self.assertRegex(verify, r'require_release_file "\$\{?BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE\}?" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"')
-        self.assertIn("release_phase=deploy;", deploy)
-        self.assertIn("compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release", verify)
-        self.assertIn('-f "$ceremony_source/compose/bike-nft/release/deploy.yml"', deploy)
-        self.assertIn('"${release_phase_overlays[@]}" "${release_transport_args[@]}"', deploy)
-        self.assertIn('-f "$ceremony_source/compose/bike-nft/release/verify.yml" "${release_transport_args[@]}"', verify)
-
+        self.assertIn("release_full bike-nft verify", verify)
+        self.assertIn('release_run_owned "$release_make_cleanup_grace" make', verify)
 
 
 if __name__ == "__main__":

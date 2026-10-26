@@ -2,13 +2,11 @@
 # Rehearse the normal release commands; only infrastructure and handoff actions are fixture-owned.
 set -euo pipefail
 unset MAKEFLAGS MAKEOVERRIDES MFLAGS GNUMAKEFLAGS MAKEFILES
+unset UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE OUTPUT_DIR
 app="${1:?Pass a supported app}"
 action="${3:?Pass release, waits, ipc-waits, approval-pty, or approval-success}"
 if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits && "$action" != approval-pty && "$action" != approval-success ]]; then
   printf '%s\n' 'Release rehearsal action must be release, waits, ipc-waits, approval-pty, or approval-success.' >&2; exit 2
-fi
-if [[ "$action" == release && "$#" -lt 5 ]]; then
-  printf '%s\n' 'Release rehearsal requires the deployment Compose arguments supplied by Make.' >&2; exit 2
 fi
 if [[ ( "$action" == waits || "$action" == ipc-waits ) && "$app" != escrow ]]; then
   printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
@@ -33,9 +31,7 @@ if [[ "$simulation" == skip && ( "$action" != approval-pty || "$app" != escrow )
 fi
 export RELEASE_APPROVAL_SIMULATION="$simulation"
 case "$app" in
-  bike-nft) pending='AddressMismatch("intendedCamRootOwner"' ;;
-  escrow) pending='CamRootOwnerMismatch' ;;
-  pay-to-play) pending='ReleaseVerificationFailed("CamRoot ownership")' ;;
+  bike-nft|escrow|pay-to-play) ;;
   *) printf 'No release rehearsal is defined for %s\n' "$app" >&2; exit 2 ;;
 esac
 umask 077
@@ -137,7 +133,7 @@ digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
 project="cam-rehearsal-${digest:0:24}"
 export RELEASE_REHEARSAL_NETWORK="$project-rehearsal"
 compose=(docker compose --project-name "$project" -f compose/release/rehearsal.yml)
-planner_compose=(docker compose --project-name "$project-planner" "${@:4}" -f compose/release/rehearsal-deploy.yml)
+planner_compose=(docker compose --project-name "$project-planner" -f compose/release/deploy.yml -f compose/release/artifact.yml -f compose/release/contracts-artifact.yml -f compose/release/contracts.yml -f compose/release/rehearsal-deploy.yml)
 unset PRIVATE_KEY RPC_URL RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 git_environment="$(git rev-parse --local-env-vars)"
 while IFS= read -r name; do unset "$name"; done <<<"$git_environment"
@@ -178,7 +174,7 @@ run_logged() {
   shift
   local grace=15
   local release_progress_phase="$log"
-  if [[ "$1" == make || "$log" == approval-image-build.log ]]; then grace=330; fi
+  if [[ "$1" == make || "$log" == approval-image-build.log ]]; then grace="$release_make_cleanup_grace"; fi
   release_process_report "Starting $log; private output: $RELEASE_REHEARSAL_DIR/$log"
   if ! release_run_owned "$grace" timeout --foreground --kill-after="${grace}s" 900 "$@" >"$RELEASE_REHEARSAL_DIR/$log" 2>&1; then
     tail -n 60 "$RELEASE_REHEARSAL_DIR/$log" >&2
@@ -189,40 +185,47 @@ run_logged() {
 }
 
 verify_handoffs() {
-  printf 'Checking that pending ownership prevents release verification...\n'
-  if release_run_owned 330 timeout --foreground --kill-after=330s 900 make "$app/release/verify" >"$RELEASE_REHEARSAL_DIR/pending-verification.log" 2>&1; then
-    printf '%s\n' 'Verification incorrectly accepted pending ownership.' >&2
-    return 1
-  fi
-  if ! grep -F -- "$pending" "$RELEASE_REHEARSAL_DIR/pending-verification.log" >/dev/null; then
-    tail -n 60 "$RELEASE_REHEARSAL_DIR/pending-verification.log" >&2
-    printf '%s\n' 'Verification failed for a reason other than the pending CAM owner.' >&2
-    return 1
-  fi
+  # Artifact completion proves the recorded operation, including pending nominations.
+  run_logged pending-verification.log make "$app/release/verify" "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json"
   run_logged handoffs.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-accept
-  printf 'Verifying %s after handoffs and CAM discovery...\n' "$app"
-  run_logged verification.log make "$app/release/verify"
+  run_logged verification.log make "$app/release/verify" "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json"
   printf 'Release rehearsal passed: %s\n' "$app"
 }
 
 rehearse_success() {
-  release_run_owned 330 timeout --foreground --kill-after=330s 900 \
+  REHEARSAL_PUBLICATION_STAGE=components release_run_owned 330 timeout --foreground --kill-after=330s 900 \
     python3 tools/release_approval_pty_check.py "$app" success
-  # Recover from the same retained plan/broadcast without a signing input.
-  mv -- "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment.json" \
-    "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment-before-recovery.json"
+  run_logged host-selection.log "${compose[@]}" run --build --rm --no-deps -T -e REHEARSAL_ACTION=host rehearsal-prepare
+  run_logged host-bundle.log "${compose[@]}" -f "$RELEASE_REHEARSAL_DIR/control/cam-host.json" \
+    up --no-deps --force-recreate --wait --wait-timeout 30 release-cam
+  REHEARSAL_PUBLICATION_STAGE=cam release_run_owned 330 timeout --foreground --kill-after=330s 900 \
+    python3 tools/release_approval_pty_check.py "$app" success
+  # Preserve component commitments; recover the last phase from its retained plan and receipts.
+  for phase in contracts ui cam; do
+    case "$phase" in contracts) artifact=contract-deployment ;; ui) artifact=ui-deployment ;; cam) artifact=cam-publication ;; esac
+    if [[ "$phase" == cam ]]; then
+      mv -- "$RELEASE_REHEARSAL_DIR/deployment/$phase/artifact/$artifact.json" \
+        "$RELEASE_REHEARSAL_DIR/deployment/$phase/artifact/$artifact-before-recovery.json"
+    else
+      cp -a -- "$RELEASE_REHEARSAL_DIR/deployment/$phase/artifact/$artifact.json" \
+        "$RELEASE_REHEARSAL_DIR/deployment/$phase/artifact/$artifact-before-recovery.json"
+    fi
+  done
   python3 -I -B -c '
 import json, os, pathlib, sys
 root = pathlib.Path(os.environ["RELEASE_REHEARSAL_DIR"])
 config = {"schemaVersion": 3, "app": sys.argv[1], "sourceCommit": sys.argv[2],
           "rpcUrl": "http://release-anvil:8545", "localNetwork": os.environ["RELEASE_REHEARSAL_NETWORK"],
-          "settings": {"OUTPUT_DIR": str(root / "deployment")}}
+          "settings": {"EXPECTED_CHAIN_ID": "31338", "OUTPUT_DIR": str(root / "deployment")}}
 (root / "artifact-recovery.json").write_text(json.dumps(config) + "\n")
 ' "$app" "$(git rev-parse HEAD)"
-  run_logged artifact-completion.log make "$app/release/artifact" \
+  run_logged artifact-completion.log make "$app/release/verify" \
     "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json" DEPLOYER_PRIVATE_KEY_FILE= PRIVATE_KEY=
-  cmp -- "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment-before-recovery.json" \
-    "$RELEASE_REHEARSAL_DIR/deployment/artifact/deployment.json"
+  for phase in contracts ui cam; do
+    case "$phase" in contracts) artifact=contract-deployment ;; ui) artifact=ui-deployment ;; cam) artifact=cam-publication ;; esac
+    cmp -- "$RELEASE_REHEARSAL_DIR/deployment/$phase/artifact/$artifact-before-recovery.json" \
+      "$RELEASE_REHEARSAL_DIR/deployment/$phase/artifact/$artifact.json"
+  done
   verify_handoffs
 }
 
@@ -241,6 +244,19 @@ if [[ "$action" == waits || "$action" == ipc-waits ]]; then
   bash tools/release_waits.sh "$project" "$action"
   exit "$?"
 fi
+if [[ ! -v RELEASE_APPROVAL_IMAGE || -z "$RELEASE_APPROVAL_IMAGE" ]]; then
+  release_process_report 'Building the fixture approval image from the private candidate commit'
+  run_logged approval-image-build.log bash -c \
+    'source tools/release_approval_images.sh; release_approval_build_image "$@"' bash \
+    "$(git rev-parse HEAD)" "$RELEASE_REHEARSAL_DIR/approval-image"
+  RELEASE_APPROVAL_IMAGE="$(python3 -I -B -c \
+    'import json, sys; print(json.load(open(sys.argv[1]))["imageId"])' \
+    "$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json")"
+  export RELEASE_APPROVAL_IMAGE
+fi
+run_logged configure.log "${compose[@]}" run --build --rm --no-deps -T \
+  -e REHEARSAL_ACTION=configure -e "REHEARSAL_SOURCE_COMMIT=$(git rev-parse HEAD)" \
+  -e "RELEASE_APPROVAL_IMAGE=$RELEASE_APPROVAL_IMAGE" -e "RELEASE_REHEARSAL_NETWORK=$RELEASE_REHEARSAL_NETWORK" rehearsal-prepare
 if [[ "$action" == approval-pty ]]; then
   release_process_report 'Infrastructure and inputs ready; starting the automatic rejection check'
   release_run_owned 330 python3 tools/release_approval_pty_check.py "$app" reject
@@ -257,45 +273,33 @@ export RELEASE_SOURCE_DIR="$RELEASE_REHEARSAL_DIR/source"
 export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/planner-check"
 mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact"
 planner_started=1
+mkdir --mode=0700 -- "$RELEASE_REHEARSAL_DIR/control/planner-config"
+RELEASE_CONFIG_STAGE_DIR="$RELEASE_REHEARSAL_DIR/control/planner-config" \
+  RELEASE_CONFIG_FILE="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_LOCAL_NETWORK="$RELEASE_REHEARSAL_NETWORK" \
+  run_logged planner-config.log docker compose --project-name "$project-planner" -f compose/release/config.yml run --rm --no-deps -T release-config \
+  contracts-deploy "$app" "$(git rev-parse HEAD)"
+mapfile -d '' -t planner_inputs < "$RELEASE_REHEARSAL_DIR/control/planner-config/inputs"
+export "${planner_inputs[@]}"
 anvil_id="$("${compose[@]}" ps --quiet release-anvil)"
 if [[ ! "$anvil_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Cannot identify the fixture node.' >&2; exit 1; fi
 anvil_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$anvil_id")"
 run_logged planner-boundaries.log "${planner_compose[@]}" run --build --rm --no-deps -T release-plan \
   timeout --signal=TERM --kill-after=10s 300s run-js-workspace node --experimental-strip-types tools/release-rehearsal/planner-check.ts "$app" "$anvil_ip"
 
-# Malformed CAM must fail inside the real planner, before any proxy or signer starts.
-cp -a "dapps/$app/cam" "$RELEASE_REHEARSAL_DIR/bad-cam"
-printf '{\n' >"$RELEASE_REHEARSAL_DIR/bad-cam/main.json"
-cat >"$RELEASE_REHEARSAL_DIR/bad-cam.yml" <<EOF
-services:
-  release-plan:
-    volumes:
-      - type: bind
-        source: $RELEASE_REHEARSAL_DIR/bad-cam
-        target: /work/dapps/$app/cam
-        read_only: true
-        bind:
-          create_host_path: false
-EOF
-bad_compose=("${planner_compose[@]}" -f "$RELEASE_REHEARSAL_DIR/bad-cam.yml")
-if release_run_owned 15 timeout --foreground --kill-after=10s 360 "${bad_compose[@]}" up --build --abort-on-container-exit --exit-code-from release-artifact release-artifact >"$RELEASE_REHEARSAL_DIR/planner-rejection.log" 2>&1; then
-  printf '%s\n' 'Malformed CAM incorrectly passed the planner.' >&2; exit 1
+# Malformed business settings fail inside the ordinary offline planner before a plan is published.
+if release_run_owned 15 timeout --foreground --kill-after=10s 360 "${planner_compose[@]}" run --build --rm --no-deps -T \
+    -e CONTRACT_RELEASE_SETTINGS_JSON='[]' release-plan >"$RELEASE_REHEARSAL_DIR/planner-rejection.log" 2>&1; then
+  printf '%s\n' 'Malformed business settings incorrectly passed planning.' >&2; exit 1
 fi
-planner_id="$("${bad_compose[@]}" ps --all --quiet release-plan)"
-if [[ ! "$planner_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'The malformed CAM planner did not run.' >&2; exit 1; fi
-if [[ "$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$planner_id")" != 'exited 1' ]]; then
-  printf '%s\n' 'The malformed CAM planner did not exit with its expected validation failure.' >&2; exit 1
-fi
-docker logs "$planner_id" >"$RELEASE_REHEARSAL_DIR/planner-command.log" 2>&1
-if ! grep -F 'inspectReleaseCamBundle' "$RELEASE_REHEARSAL_DIR/planner-command.log" >/dev/null; then
-  tail -n 40 "$RELEASE_REHEARSAL_DIR/planner-command.log" >&2
-  printf '%s\n' 'The negative planner test failed before CAM validation.' >&2; exit 1
+if ! grep -F 'business contract settings' "$RELEASE_REHEARSAL_DIR/planner-rejection.log" >/dev/null; then
+  tail -n 40 "$RELEASE_REHEARSAL_DIR/planner-rejection.log" >&2
+  printf '%s\n' 'The negative planner test failed before business settings validation.' >&2; exit 1
 fi
 if [[ -e "$RELEASE_OUTPUT_DIR/plan/release-plan.json" ]]; then
-  printf '%s\n' 'The rejected CAM left a published plan.' >&2; exit 1
+  printf '%s\n' 'The rejected settings left a published plan.' >&2; exit 1
 fi
 for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release release-artifact; do
-  container_id="$("${bad_compose[@]}" ps --all --quiet "$service")"
+  container_id="$("${planner_compose[@]}" ps --all --quiet "$service")"
   if [[ -n "$container_id" ]]; then
     if [[ ! "$container_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Unexpected planner test container identity.' >&2; exit 1; fi
     if [[ "$(docker inspect --format '{{.State.StartedAt}}' "$container_id")" != 0001-01-01T00:00:00Z ]]; then
@@ -307,12 +311,4 @@ release_run_owned 60 timeout -k 15s 60s bash tools/compose_cleanup.sh "$project-
 planner_started=0
 unset RELEASE_OUTPUT_DIR RELEASE_SOURCE_DIR
 
-release_process_report 'Building the fixture approval image from the private candidate commit'
-run_logged approval-image-build.log bash -c \
-  'source tools/release_approval_images.sh; release_approval_build_image "$@"' bash \
-  "$(git rev-parse HEAD)" "$RELEASE_REHEARSAL_DIR/approval-image"
-RELEASE_APPROVAL_IMAGE="$(python3 -I -B -c \
-  'import json, sys; print(json.load(open(sys.argv[1]))["imageId"])' \
-  "$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json")"
-export RELEASE_APPROVAL_IMAGE
 rehearse_success

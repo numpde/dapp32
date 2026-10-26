@@ -2,6 +2,57 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
+# Freeze literal release inputs before shell probes can export command-line values.
+ifneq ($(origin CONFIG),undefined)
+override CONFIG := $(value CONFIG)
+export CONFIG
+endif
+ifneq ($(origin UI_CONFIG),undefined)
+override UI_CONFIG := $(value UI_CONFIG)
+export UI_CONFIG
+endif
+ifneq ($(origin CAM_CONFIG),undefined)
+override CAM_CONFIG := $(value CAM_CONFIG)
+export CAM_CONFIG
+endif
+ifneq ($(origin CONTRACT_ARTIFACT),undefined)
+override CONTRACT_ARTIFACT := $(value CONTRACT_ARTIFACT)
+export CONTRACT_ARTIFACT
+endif
+ifneq ($(origin UI_ARTIFACT),undefined)
+override UI_ARTIFACT := $(value UI_ARTIFACT)
+export UI_ARTIFACT
+endif
+ifneq ($(origin ROOT),undefined)
+override ROOT := $(value ROOT)
+export ROOT
+endif
+ifneq ($(origin ROOT_ARTIFACT),undefined)
+override ROOT_ARTIFACT := $(value ROOT_ARTIFACT)
+export ROOT_ARTIFACT
+endif
+ifneq ($(origin CAM_BUNDLE),undefined)
+override CAM_BUNDLE := $(value CAM_BUNDLE)
+export CAM_BUNDLE
+endif
+ifneq ($(origin CAM_RECORDS),undefined)
+override CAM_RECORDS := $(value CAM_RECORDS)
+export CAM_RECORDS
+endif
+ifneq ($(origin OUTPUT_DIR),undefined)
+override OUTPUT_DIR := $(value OUTPUT_DIR)
+export OUTPUT_DIR
+endif
+ifneq ($(origin CONTRACT_RECORDS),undefined)
+override CONTRACT_RECORDS := $(value CONTRACT_RECORDS)
+export CONTRACT_RECORDS
+endif
+ifneq ($(origin UI_RECORDS),undefined)
+override UI_RECORDS := $(value UI_RECORDS)
+export UI_RECORDS
+endif
+
+
 COMPOSE_DIR := compose
 DOCKER_COMPOSE ?= docker compose
 # Compose stdout is captured by several operator workflows; progress must not
@@ -74,43 +125,6 @@ export ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORI
 export CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS
 export LOCAL_UID LOCAL_GID ALLOW_UPDATE
 export RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
-export CONFIG
-ifneq ($(origin CONTRACT_ARTIFACT),undefined)
-override CONTRACT_ARTIFACT := $(value CONTRACT_ARTIFACT)
-export CONTRACT_ARTIFACT
-endif
-ifneq ($(origin UI_ARTIFACT),undefined)
-override UI_ARTIFACT := $(value UI_ARTIFACT)
-export UI_ARTIFACT
-endif
-ifneq ($(origin ROOT),undefined)
-override ROOT := $(value ROOT)
-export ROOT
-endif
-ifneq ($(origin ROOT_ARTIFACT),undefined)
-override ROOT_ARTIFACT := $(value ROOT_ARTIFACT)
-export ROOT_ARTIFACT
-endif
-ifneq ($(origin CAM_BUNDLE),undefined)
-override CAM_BUNDLE := $(value CAM_BUNDLE)
-export CAM_BUNDLE
-endif
-ifneq ($(origin CAM_RECORDS),undefined)
-override CAM_RECORDS := $(value CAM_RECORDS)
-export CAM_RECORDS
-endif
-ifneq ($(origin OUTPUT_DIR),undefined)
-override OUTPUT_DIR := $(value OUTPUT_DIR)
-export OUTPUT_DIR
-endif
-ifneq ($(origin CONTRACT_RECORDS),undefined)
-override CONTRACT_RECORDS := $(value CONTRACT_RECORDS)
-export CONTRACT_RECORDS
-endif
-ifneq ($(origin UI_RECORDS),undefined)
-override UI_RECORDS := $(value UI_RECORDS)
-export UI_RECORDS
-endif
 export CAM_URI
 export VIEWER_TERMINAL_MOCK
 COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
@@ -154,26 +168,11 @@ BIKE_NFT_LOCAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml
 BIKE_NFT_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-gui.yml
 BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/bike-nft/release/check.yml
-BIKE_NFT_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/bike-nft/release/artifact.yml
-BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml $(BIKE_NFT_RELEASE_ARTIFACT_COMPOSE_FILES)
-BIKE_NFT_RELEASE_REFERENCE_COMPOSE_FILES := $(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml
-BIKE_NFT_RELEASE_APPROVAL_COMPOSE_FILES := $(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
-BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/bike-nft/release/verify.yml
 ESCROW_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/scenario.yml
 ESCROW_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-terminal.yml
 ESCROW_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-gui.yml
 ESCROW_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/escrow/release/check.yml
-ESCROW_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/escrow/release/artifact.yml
-ESCROW_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml $(ESCROW_RELEASE_ARTIFACT_COMPOSE_FILES)
-ESCROW_RELEASE_REFERENCE_COMPOSE_FILES := $(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml
-ESCROW_RELEASE_APPROVAL_COMPOSE_FILES := $(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
-ESCROW_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/escrow/release/verify.yml
 PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/pay-to-play/release/check.yml
-PAY_TO_PLAY_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/pay-to-play/release/artifact.yml
-PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml $(PAY_TO_PLAY_RELEASE_ARTIFACT_COMPOSE_FILES)
-PAY_TO_PLAY_RELEASE_REFERENCE_COMPOSE_FILES := $(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml
-PAY_TO_PLAY_RELEASE_APPROVAL_COMPOSE_FILES := $(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
-PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/pay-to-play/release/verify.yml
 CONTRACT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml
 CONTRACT_RELEASE_ARTIFACT_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/artifact.yml -f $(COMPOSE_DIR)/release/contracts-artifact.yml
 CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml $(CONTRACT_RELEASE_ARTIFACT_COMPOSE_FILES) -f $(COMPOSE_DIR)/release/contracts.yml
@@ -231,21 +230,6 @@ if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then \
 fi
 endef
 
-define release_validate_chain_and_cam_uri
-chain_id="$${$(1)_RELEASE_EXPECTED_CHAIN_ID}"; \
-if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == "1337" || "$$chain_id" == "31337" ]]; then \
-  printf '%s\n' '$(1)_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; \
-fi; \
-cam_uri="$${$(1)_RELEASE_CAM_URI}"; \
-if [[ ! "$$cam_uri" =~ ^(https|ipfs):// ]]; then \
-  if [[ ! -v RELEASE_REHEARSAL || "$$RELEASE_REHEARSAL" != "1" || "$$cam_uri" != "http://release-cam:8080/$(2)/main.json" ]]; then \
-    printf '%s\n' '$(1)_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI, or the exact private app fixture URI for a local release.' >&2; exit 2; \
-  fi; \
-fi; \
-if [[ "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then \
-  printf '%s\n' '$(1)_RELEASE_CAM_URI must not contain shell syntax.' >&2; exit 2; \
-fi
-endef
 
 define release_host_guard_functions
 reject_release_path_symlinks() { \
@@ -469,8 +453,7 @@ cleanup() { $(release_snapshot_cleanup); }; \
 trap cleanup EXIT; \
 $(release_snapshot_allocate); \
 $(release_snapshot_populate); \
-release_tool_mode=release; \
-if [[ "$${release_operation-deployment}" != deployment ]]; then release_tool_mode="$$release_operation"; fi; \
+release_tool_mode="$$release_operation"; \
 release_run_owned "$$release_command_grace" bash "$$ceremony_source/tools/release_tool_images.sh" "$$release_tool_mode" "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
 release_image_args=(-f "$$ceremony_root/images-$$release_phase.yml"); \
 release_transport_args=(); \
@@ -486,7 +469,7 @@ compose_release_dependencies run --rm soldeer-verify
 endef
 
 define release_deploy_execution
-release_operation="$(if $(4),$(4),deployment)"; export RELEASE_OPERATION="$$release_operation"; \
+release_operation="$(4)"; export RELEASE_OPERATION="$$release_operation"; \
 release_phase=deploy; \
 release_rpc_expected_chain="$$chain_id"; \
 $(release_prepare_snapshot); \
@@ -522,15 +505,6 @@ elif [[ "$$release_operation" == contracts ]]; then printf 'Verified business ar
 else printf 'Release artifact: %s/artifact/deployment.json\n' "$$output_dir"; fi
 endef
 
-define release_verify_execution
-release_operation=deployment; \
-release_phase=verify; \
-release_rpc_expected_chain=""; \
-$(release_prepare_snapshot); \
-release_run_started=1; \
-compose_release up --no-build --abort-on-container-exit --exit-code-from verify-release verify-release
-endef
-
 define release_contracts_deploy
 $(LANE_GUARD); \
 $(SOLDEER_DEPS_GUARD); \
@@ -539,8 +513,7 @@ $(call release_require_clean_source,independent business deployment); \
 $(release_host_guard_functions); \
 $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Business deployment requires CONFIG with its chain, creator, RPC, signing key and output directory.' >&2; exit 2; fi; \
-contract_output_override="$${OUTPUT_DIR-}"; \
-load_release_config $(patsubst %/release/contracts/deploy,%,$@) contracts-deploy "$$contract_output_override"; \
+load_release_config $(patsubst %/release/contracts/deploy,%,$@) contracts-deploy; \
 chain_id="$$CONTRACT_RELEASE_EXPECTED_CHAIN_ID"; \
 require_release_rpc_input; \
 require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$$DEPLOYER_PRIVATE_KEY_FILE"; \
@@ -565,8 +538,7 @@ $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'UI deployment requires CONFIG with its chain, creator, RPC, signing key and output directory.' >&2; exit 2; fi; \
 if [[ ! -v CONTRACT_ARTIFACT || -z "$$CONTRACT_ARTIFACT" ]]; then printf '%s\n' 'Set CONTRACT_ARTIFACT to the backing business deployment artifact.' >&2; exit 2; fi; \
 require_release_file "$$CONTRACT_ARTIFACT" CONTRACT_ARTIFACT; \
-ui_output_override="$${OUTPUT_DIR-}"; \
-load_release_config $(patsubst %/release/ui/deploy,%,$@) ui-deploy "$$ui_output_override"; \
+load_release_config $(patsubst %/release/ui/deploy,%,$@) ui-deploy; \
 export UI_RELEASE_CONTRACT_ARTIFACT_FILE="$$CONTRACT_ARTIFACT"; \
 chain_id="$$UI_RELEASE_EXPECTED_CHAIN_ID"; \
 require_release_rpc_input; \
@@ -589,12 +561,10 @@ $(release_host_guard_functions); \
 $(release_config_compose); \
 source_commit="$$(git rev-parse HEAD)"; \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM bundle preparation requires read-only CONFIG.' >&2; exit 2; fi; \
-load_release_config $(patsubst %/release/cam/bundle,%,$@) cam-bundle "$${OUTPUT_DIR-}"; \
+load_release_config $(patsubst %/release/cam/bundle,%,$@) cam-bundle; \
 require_release_file "$${CONTRACT_ARTIFACT:?Set CONTRACT_ARTIFACT}" CONTRACT_ARTIFACT; \
 require_release_file "$${UI_ARTIFACT:?Set UI_ARTIFACT}" UI_ARTIFACT; \
-if [[ "$${ROOT-}" == new && -z "$${ROOT_ARTIFACT-}" ]]; then export CAM_RELEASE_ROOT=new; \
-elif [[ -n "$${ROOT_ARTIFACT-}" && -z "$${ROOT-}" ]]; then require_release_file "$$ROOT_ARTIFACT" ROOT_ARTIFACT; export CAM_RELEASE_ROOT=existing; \
-else printf '%s\n' 'Choose ROOT=new or ROOT_ARTIFACT identifying an existing root.' >&2; exit 2; fi; \
+source tools/release_cam.sh; release_cam_select_root; \
 export CAM_RELEASE_BUSINESS_ARTIFACT_FILE="$$CONTRACT_ARTIFACT" CAM_RELEASE_UI_ARTIFACT_FILE="$$UI_ARTIFACT"; \
 output_dir="$$CAM_RELEASE_OUTPUT_DIR"; validate_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
 require_release_rpc_input; \
@@ -630,14 +600,12 @@ $(call release_require_clean_source,CAM publication); \
 $(release_host_guard_functions); \
 $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM publication requires CONFIG identifying its chain, current root signer, URI and output.' >&2; exit 2; fi; \
-load_release_config $(patsubst %/release/cam/publish,%,$@) cam-publish "$${OUTPUT_DIR-}"; \
+load_release_config $(patsubst %/release/cam/publish,%,$@) cam-publish; \
 if [[ ! -v CAM_BUNDLE || -z "$$CAM_BUNDLE" ]]; then printf '%s\n' 'Set CAM_BUNDLE to a prepared CAM bundle record directory.' >&2; exit 2; fi; \
 reject_release_path_symlinks "$$CAM_BUNDLE" CAM_BUNDLE; \
 require_release_file "$$CAM_BUNDLE/artifact/cam-bundle.json" 'Prepared CAM bundle artifact'; \
 export CAM_RELEASE_PREPARED_DIR="$$CAM_BUNDLE"; \
-if [[ "$${ROOT-}" == new && -z "$${ROOT_ARTIFACT-}" ]]; then export CAM_RELEASE_ROOT=new; \
-elif [[ -n "$${ROOT_ARTIFACT-}" && -z "$${ROOT-}" ]]; then require_release_file "$$ROOT_ARTIFACT" ROOT_ARTIFACT; export CAM_RELEASE_ROOT=existing CAM_RELEASE_ROOT_ARTIFACT_FILE="$$ROOT_ARTIFACT"; \
-else printf '%s\n' 'Choose ROOT=new or ROOT_ARTIFACT identifying an existing root.' >&2; exit 2; fi; \
+source tools/release_cam.sh; release_cam_select_root; \
 chain_id="$$CAM_RELEASE_EXPECTED_CHAIN_ID"; require_release_rpc_input; \
 require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 output_dir="$$CAM_RELEASE_OUTPUT_DIR"; validate_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
@@ -711,21 +679,20 @@ define release_ui_artifact
 $(call release_independent_artifact,UI_RECORDS,ui,UI,ui,$(UI_RELEASE_ARTIFACT_COMPOSE_FILES))
 endef
 
-define release_deploy_admission
+# Full release and UI update compose the same ordinary phase entrypoints.
+define release_full
 $(LANE_GUARD); \
 $(SOLDEER_DEPS_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
-$(call release_require_clean_source,$(2) release deployment); \
+$(call release_require_clean_source,release composition); \
 $(release_host_guard_functions); \
 $(release_config_compose); \
-load_release_config $(1) deploy
-endef
-
-define release_deploy_files
-require_release_rpc_input; \
-require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
-output_dir="$${$(1)_RELEASE_OUTPUT_DIR}"; \
-validate_new_release_output "$$output_dir" "$(1)_RELEASE_OUTPUT_DIR"
+if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Release composition requires CONFIG.' >&2; exit 2; fi; \
+load_release_config $(1) cam-bundle; \
+release_full_output="$$CAM_RELEASE_OUTPUT_DIR"; \
+release_full_make() { release_run_owned "$$release_make_cleanup_grace" $(MAKE) --no-print-directory "$$@"; }; \
+source tools/release_full.sh; \
+release_full $(1) $(2) "$$release_full_output"
 endef
 
 # App environment assignments remain explicit at the caller.
@@ -735,92 +702,6 @@ LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremo
   RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
   release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(1)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"
 endef
-
-# Prefix, app, frozen Compose files and operator-facing name are app-owned.
-define release_verify
-$(LANE_GUARD); \
-$(SOLDEER_DEPS_GUARD); \
-$(PACKAGE_DEPS_GUARD); \
-$(call release_require_clean_source,$(4) release verification); \
-$(release_host_guard_functions); \
-$(release_config_compose); \
-load_release_config $(2) verify; \
-if [[ ! -v $(1)_DEPLOYMENT_ARTIFACT_FILE || -z "$${$(1)_DEPLOYMENT_ARTIFACT_FILE}" ]]; then \
-  printf 'Missing required verification input: %s\n' '$(1)_DEPLOYMENT_ARTIFACT_FILE' >&2; exit 2; \
-fi; \
-require_release_rpc_input; \
-require_release_file "$${$(1)_DEPLOYMENT_ARTIFACT_FILE}" "$(1)_DEPLOYMENT_ARTIFACT_FILE"; \
-compose_release() { \
-  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-    RPC_URL_FILE="$$RPC_URL_FILE" \
-    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$${$(1)_DEPLOYMENT_ARTIFACT_FILE}" \
-    $(1)_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(3)) "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"; \
-}; \
-$(release_verify_execution)
-endef
-
-# Complete deployment records from retained evidence, without starting a signer.
-define release_artifact_execution
-$(LANE_GUARD); \
-$(release_host_guard_functions); \
-artifact_node_modules="$$RELEASE_ARTIFACT_NODE_MODULES_DIR"; \
-if [[ "$$artifact_node_modules" != /* || "$$(realpath -ms -- "$$artifact_node_modules")" != "$$artifact_node_modules" ]]; then \
-  printf '%s\n' 'RELEASE_ARTIFACT_NODE_MODULES_DIR must be a normalized absolute directory path.' >&2; exit 2; \
-fi; \
-reject_release_path_symlinks "$$artifact_node_modules" RELEASE_ARTIFACT_NODE_MODULES_DIR; \
-if [[ ! -d "$$artifact_node_modules" || ! -r "$$artifact_node_modules" ]]; then \
-  printf '%s\n' 'RELEASE_ARTIFACT_NODE_MODULES_DIR must be a readable prepared node_modules directory.' >&2; exit 2; \
-fi; \
-app="$(patsubst %/release/artifact,%,$@)"; \
-tool_source_commit="$$(git rev-parse HEAD)"; source_commit="$$tool_source_commit"; \
-$(release_config_compose); \
-if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Artifact completion requires CONFIG identifying the saved app, source commit, RPC and deployment output directory.' >&2; exit 2; fi; \
-load_release_config "$$app" artifact; \
-prefix="$${app^^}"; prefix="$${prefix//-/_}"; \
-source_name="$${prefix}_RELEASE_SOURCE_COMMIT"; output_name="$${prefix}_RELEASE_OUTPUT_DIR"; \
-source_commit="$${!source_name}"; output_dir="$${!output_name}"; \
-for path in "$$output_dir" "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; do \
-  reject_release_path_symlinks "$$path" 'Deployment records'; \
-  if [[ ! -d "$$path" ]]; then printf 'Missing deployment records directory: %s\n' "$$path" >&2; exit 2; fi; \
-done; \
-validate_new_release_output "$$output_dir/artifact/deployment.json" 'Deployment artifact'; \
-release_config_input="$$output_dir/plan/release-plan.json"; \
-require_release_file "$$release_config_input" 'Deployment plan'; \
-compose_release_config run --rm --no-deps -T release-config artifact-plan "$$app" "$$source_commit"; \
-unset release_config_input; \
-ceremony_root=""; release_rpc_started=0; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
-cleanup() { $(release_snapshot_cleanup); }; trap cleanup EXIT; \
-$(release_snapshot_allocate); \
-$(release_snapshot_archive); \
-printf 'Artifact JavaScript dependencies: %s (must match saved source %s).\n' "$$artifact_node_modules" "$$source_commit"; \
-cp -a -- "$$artifact_node_modules" "$$ceremony_source/js/node_modules"; \
-release_run_owned 15 bash tools/release_tool_images.sh artifact "$(CURDIR)" "$$source_commit" "$$tool_source_commit" "$$ceremony_root"; \
-artifact_transport_args=(); \
-if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then \
-  require_release_local_network; artifact_transport_args=(-f "$(COMPOSE_DIR)/release/rehearsal-artifact.yml"); \
-fi; \
-compose_release() { \
-  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-  RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" RPC_URL_FILE="$$RPC_URL_FILE" \
-  release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
-  -f "$(COMPOSE_DIR)/release/artifact.yml" -f "$(COMPOSE_DIR)/$$app/release/artifact.yml" \
-  "$${artifact_transport_args[@]}" -f "$$ceremony_root/images-artifact.yml" "$$@"; \
-}; \
-completion_log="$$(mktemp "$$output_dir/artifact-completion-XXXXXXXX.log")"; \
-printf 'Completing artifact from app source %s with recovery tooling %s. Log: %s\n' "$$source_commit" "$$tool_source_commit" "$$completion_log"; \
-release_run_started=1; \
-if ! compose_release run --rm --no-deps -T release-artifact-dependencies > "$$completion_log" 2>&1 || \
-   ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy >> "$$completion_log" 2>&1 || \
-   ! compose_release run --rm --no-deps -T release-artifact >> "$$completion_log" 2>&1; then \
-  printf 'Artifact completion failed. No transactions were submitted. Diagnostics: %s\n' "$$completion_log" >&2; exit 1; \
-fi; \
-printf 'Deployment artifact: %s/artifact/deployment.json\n' "$$output_dir"
-endef
-
-.PHONY: bike-nft/release/artifact escrow/release/artifact pay-to-play/release/artifact
-bike-nft/release/artifact escrow/release/artifact pay-to-play/release/artifact:
-	@$(release_artifact_execution)
 
 define compose_run
 @$(LANE_GUARD); \
@@ -1088,7 +969,7 @@ help:
 	  '    Requires installed locked dependencies.' \
 	  '    Builds its own approval image from the private candidate commit using the locked network dependency stage.' \
 	  '    It tests current source, including uncommitted changes, through a private committed snapshot.' \
-	  '    It deploys through the normal commands, checks pending handoffs fail verification, accepts them,' \
+	  '    It deploys through the normal commands, checks recorded pending handoffs, accepts them,' \
 	  '    loads CAM from its recorded URI, and verifies again. Bike admin waits use the local chain clock.' \
 	  '    Deployment uses public test keys, private HTTP transport, no host ports and no public network.' \
 	  '    Temporary services are removed; records remain at the printed path. Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR' \
@@ -1096,13 +977,20 @@ help:
 	  '  make bike-nft/release/setup CONFIG=/absolute/private/release.json' \
 	  '  make escrow/release/setup CONFIG=/absolute/private/release.json' \
 	  '  make pay-to-play/release/setup CONFIG=/absolute/private/release.json' \
-	  '  make bike-nft/release/artifact CONFIG=/absolute/private/release.json' \
-	  '  make escrow/release/artifact CONFIG=/absolute/private/release.json' \
-	  '  make pay-to-play/release/artifact CONFIG=/absolute/private/release.json' \
-	  '    Complete missing deployment records from saved broadcasts and read-only RPC; sends no transactions.' \
+	  '  make <app>/release/verify CONFIG=/absolute/private/readonly.json [OUTPUT_DIR=/absolute/release-records]' \
+	  '    Verify or complete retained business/UI/CAM artifacts through their ordinary keyless operations.' \
+	  '    Sends no transactions and never creates a missing phase. Ownership acceptance remains separate.' \
 	  '    Uses current js/node_modules by default; its installed dependencies must match the saved source commit.' \
 	  '    For older records, run make js/deps/install in a separate checkout at that commit, then set' \
 	  '    RELEASE_ARTIFACT_NODE_MODULES_DIR=/absolute/matching-checkout/js/node_modules on the artifact command.' \
+	  '    Full deploy composes contracts, UI, bundle and CAM publication in separate retained subdirectories.' \
+	  '    UI_CONFIG and CAM_CONFIG select independent actors; both default to CONFIG. Existing records are verified keylessly.' \
+	  '    Without settings.CAM_URI in CAM_CONFIG, full deploy stops after bundle preparation; host the bytes, set that URI, and rerun.' \
+	  '    CAM_BUNDLE selects a prepared directory when recovering an incomplete bundle export; selected input bytes must match.' \
+	  '  make bike-nft/release/ui/update CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/core.json ROOT_ARTIFACT=/absolute/latest-cam.json [CAM_CONFIG=/absolute/private/owner.json] [OUTPUT_DIR=/absolute/new-records]' \
+	  '  make escrow/release/ui/update CONFIG=... CONTRACT_ARTIFACT=... ROOT_ARTIFACT=...' \
+	  '  make pay-to-play/release/ui/update CONFIG=... CONTRACT_ARTIFACT=... ROOT_ARTIFACT=...' \
+	  '    Update creates only UI, bundle and CAM phases. Use the latest publication artifact for the live root baseline.' \
 	  '  make bike-nft/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
 	  '  make escrow/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
 	  '  make pay-to-play/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
@@ -1142,7 +1030,7 @@ help:
 	  '    Choose public for an HTTPS RPC, or local for the running network/local/up infrastructure.' \
 	  '    Local setup saves its Docker network, exact RPC/CAM URLs and a funded public test key.' \
 	  '    Setup also asks for a new output directory for plans, transactions and deployed contract addresses.' \
-	  '    Keep that directory: verification reads its artifact/deployment.json. Do not create it beforehand.' \
+	  '    Keep that directory: contracts/, ui/, cam-bundle/ and cam/ retain their own plans, inputs and artifacts.' \
 	  '    CONFIG must be new, outside the checkout, with an existing parent and no symlink path components.' \
 	  '    Saves the concrete RPC URL, deployer key, source commit, app settings and deployment confirmation; mode 0600.' \
 	  '    Setup lists installed approval-tool images with their source commits; select one by number.' \
@@ -1156,67 +1044,21 @@ help:
 	  '    SOURCE_COMMIT and RELEASE_APPROVAL_IMAGE_OUTPUT_DIR are optional overrides.' \
 	  '    Deployment checks that exact image ID is present locally; it does not establish image provenance.' \
 	  '    Each signed transaction is shown for approval; output retains the private audit and transaction records.' \
-	  '    Use the same CONFIG with <app>/release/verify after any required ownership handoffs.' \
+	  '    A read-only CONFIG can verify retained records; it needs no signing key or approval image.' \
 	  '  make bike-nft/release/deploy      Send Bike NFT deployment transactions and save deployment records.' \
 	  '  make escrow/release/deploy        Send Escrow deployment transactions and save deployment records.' \
 	  '  make pay-to-play/release/deploy   Send Pay-to-Play deployment transactions and save deployment records.' \
-	  '    These require a clean checkout, installed Solidity/JS dependencies, a funded deployer, an expected chain ID,' \
-	  '    published CAM URI, intended owners, and a new absolute output directory outside the repository.' \
-	  '    Select RPC_CHAIN and RPC_SERVICE=public|alchemy; make release/rpc/list lists the catalog.' \
-	  '    Alchemy also requires RPC_API_KEY_FILE, an absolute owner-only file containing its API key.' \
-	  '    Or use RPC_URL_FILE for a custom HTTPS URL; do not mix it with catalog inputs.' \
-	  '    DEPLOYER_PRIVATE_KEY_FILE contains the deployer key; RPC catalog use does not supply funds or keys.' \
-	  '    All credential files must be absolute and owner-only. Confirm with CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES' \
-	  '    or CONFIRM_ESCROW_RELEASE_DEPLOY=YES or CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES after reviewing all settings.' \
-	  '    Optional <APP>_RELEASE_CAM_HASH: omit or auto pins the local manifest SHA-256; otherwise supply 0x plus 64 hex digits.' \
-	  '    All-zero CAM_HASH stores zero; the viewer displays the UI as unverified. Any nonzero hash must match the local manifest.' \
-	  '    Required Pay-to-Play settings:' \
-	  '      PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID        Target chain number; 1337 and 31337 are excluded.' \
-	  '      PAY_TO_PLAY_RELEASE_CAM_URI                  Published HTTPS/IPFS manifest URI.' \
-	  '      PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER  Intended owner of the CAM host.' \
-	  '      PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN   Intended admin of the payment contract; may differ.' \
-	  '      PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD        Reserved-channel withdrawal wait in seconds, 0-2592000.' \
-	  '      PAY_TO_PLAY_RELEASE_OUTPUT_DIR               New absolute directory outside this repository.' \
-	  '    Required Escrow settings:' \
-	  '      ESCROW_RELEASE_EXPECTED_CHAIN_ID       Target chain number; 1337 and 31337 are excluded.' \
-	  '      ESCROW_RELEASE_CAM_URI                 Published HTTPS/IPFS manifest URI.' \
-	  '      ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER  Intended owner address for the CAM host contract.' \
-	  '      ESCROW_RELEASE_OUTPUT_DIR              New absolute directory outside this repository.' \
-	  '    Required Bike NFT settings:' \
-	  '      BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID       Target chain number; 1337 and 31337 are excluded.' \
-	  '      BIKE_NFT_RELEASE_CAM_URI                 Published HTTPS/IPFS manifest URI.' \
-	  '      BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER  Intended owner address for the CAM host contract.' \
-	  '      BIKE_NFT_RELEASE_TOKEN_NAME              Collection name displayed to users.' \
-	  '      BIKE_NFT_RELEASE_TOKEN_SYMBOL            Short collection symbol.' \
-	  '      BIKE_NFT_RELEASE_BASE_TOKEN_URI          URI prefix; set empty for complete per-token metadata URIs.' \
-	  '      BIKE_NFT_RELEASE_COLLECTION_URI          URI for collection metadata.' \
-	  '      BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN  Intended admin address for the component NFTs.' \
-	  '      BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY     Positive admin-transfer waiting period in seconds.' \
-	  '      BIKE_NFT_RELEASE_COMPONENTS_PAUSER          Address allowed to pause/resume component NFTs.' \
-	  '      BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER      Address allowed to change metadata URI settings.' \
-	  '      BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN     Intended admin address for the component manager.' \
-	  '      BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY        Positive admin-transfer waiting period in seconds.' \
-	  '      BIKE_NFT_RELEASE_MANAGER_PAUSER             Address allowed to pause/resume the manager.' \
-	  '      BIKE_NFT_RELEASE_MANAGER_CONFIGURER         Address allowed to set token contract/delegation limit.' \
-	  '      BIKE_NFT_RELEASE_REGISTRARS              Comma-separated unique nonzero registrar addresses.' \
-	  '      BIKE_NFT_RELEASE_OUTPUT_DIR              New absolute directory outside this repository.' \
-	  '    Copyable commands: https://numpde.github.io/dapp32/deployment/.' \
-	  '    Separate lasting Bike NFT authorities from the funded deployer when useful; explicitly selecting the deployer is allowed.' \
-	  '    The output directory retains plans, broadcasts and deployment records, including partial failures.' \
-	  '    Deployment nominates new owners/admins but does not accept their transfers; selecting the deployer skips that handover.' \
-	  '    Each nominated CAM owner or Pay-to-Play admin submits a separate acceptOwnership() transaction.' \
-	  '    Each nominated Bike admin submits acceptDefaultAdminTransfer() after the delay measured from nomination.' \
-	  '    The deployer retains that ownership/admin authority until acceptance. Keep the deployed addresses from the output directory.' \
-	  '    Run release/verify after all required acceptances. Instructions: https://numpde.github.io/dapp32/deployment/.' \
-	  '  make bike-nft/release/verify      Read the chain and compare it with the saved Bike NFT deployment.' \
-	  '    Select RPC as above; set BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE to the absolute deployment JSON path.' \
-	  '  make escrow/release/verify        Read the chain and compare it with the saved Escrow deployment.' \
-	  '    Select RPC as above; set ESCROW_DEPLOYMENT_ARTIFACT_FILE to the absolute deployment JSON path.' \
-	  '  make pay-to-play/release/verify   Read the chain and compare it with the saved Pay-to-Play deployment.' \
-	  '    Select RPC as above; set PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE to the absolute deployment JSON path.' \
-	  '    Verification needs a clean checkout and installed Solidity/JS dependencies; it sends no transactions.' \
-	  '    Custom RPC URL files and API-key files must also have owner-only permissions.' \
-	  '    Deployment record layout and file rules: https://numpde.github.io/dapp32/deployment/.' \
+	  '    CONFIG selects protected, versioned settings; UI_CONFIG and CAM_CONFIG optionally select other phase actors.' \
+	  '    Requires a clean checkout, installed dependencies, funded signers and new off-repo records for each new phase.' \
+	  '    Retained phases are verified/completed keylessly when the full command is repeated; they are never redeployed.' \
+	  '    Each nominated CAM owner or payment admin accepts ownership separately. Bike admins accept after their delays.' \
+	  '    Records retain authorities observed at their verification block; later acceptances do not rewrite those records.' \
+	  '  make bike-nft/release/verify CONFIG=/absolute/readonly.json [OUTPUT_DIR=/absolute/records]' \
+	  '  make escrow/release/verify CONFIG=/absolute/readonly.json [OUTPUT_DIR=/absolute/records]' \
+	  '  make pay-to-play/release/verify CONFIG=/absolute/readonly.json [OUTPUT_DIR=/absolute/records]' \
+	  '    Verifies the saved component and CAM records using their original sources, not current-role/pause expectations.' \
+	  '    Retain the complete records after partial failure. For historical monolithic records, use their original checkout.' \
+	  '    Workflow, authority handoffs and record layout: https://numpde.github.io/dapp32/deployment/.' \
 	  '' \
 	  'Run a bare local blockchain or query a block number:' \
 	  '  make anvil/internal/up           Run Anvil for Docker peers only; publish no host port.' \
@@ -1754,15 +1596,15 @@ dapps/release/rehearsal/check:
 
 define release_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" release $(1)
+	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" release
 endef
 
 .PHONY: dapps/release/rehearsal/check bike-nft/release/rehearsal/run escrow/release/rehearsal/run pay-to-play/release/rehearsal/run
 bike-nft/release/rehearsal/run:
-	$(call release_rehearsal,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES))
+	$(release_rehearsal)
 
 escrow/release/rehearsal/run:
-	$(call release_rehearsal,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES))
+	$(release_rehearsal)
 
 .PHONY: escrow/release/approval-wait/check
 escrow/release/approval-wait/check:
@@ -1800,7 +1642,7 @@ pay-to-play/release/approval/success/check:
 	$(call release_approval_rehearsal,approval-success)
 
 pay-to-play/release/rehearsal/run:
-	$(call release_rehearsal,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES))
+	$(release_rehearsal)
 
 define local_release_compose
 LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(LOCAL_RELEASE_PROJECT)" \
@@ -2216,7 +2058,9 @@ elif [[ "$$app" == pay-to-play ]]; then \
 else \
   printf '%s\n' 'After deployment, the nominated CAM owner must submit a separate ownership acceptance transaction.'; \
 fi; \
-printf '%s\n' 'The deployer retains that ownership/admin authority until acceptance. Then verify the completed release:'; \
+printf '%s\n' 'The deployer retains that ownership/admin authority until acceptance. Each release phase verifies its own artifact.'; \
+printf 'Keep the complete release directory: %s\n' "$${!output_name}"; \
+printf '%s\n' 'Recheck the retained records without sending transactions:'; \
 printf '  make %s/release/verify CONFIG=%q\n' "$$app" "$$CONFIG"
 endef
 
@@ -2231,65 +2075,16 @@ pay-to-play/release/setup:
 	@$(release_setup)
 
 escrow/release/deploy:
-	@$(call release_deploy_admission,escrow,Escrow); \
-	if [[ ! -v CONFIRM_ESCROW_RELEASE_DEPLOY || "$$CONFIRM_ESCROW_RELEASE_DEPLOY" != "YES" ]]; then \
-	  printf '%s\n' 'Set CONFIRM_ESCROW_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, final owner, and funded deployer.' >&2; \
-	  exit 2; \
-	fi; \
-	for name in ESCROW_RELEASE_EXPECTED_CHAIN_ID ESCROW_RELEASE_CAM_URI ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER DEPLOYER_PRIVATE_KEY_FILE ESCROW_RELEASE_OUTPUT_DIR; do \
-	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
-	    printf 'Missing required release input: %s\n' "$$name" >&2; \
-	    exit 2; \
-	  fi; \
-	done; \
-	$(call release_validate_chain_and_cam_uri,ESCROW,escrow); \
-	owner="$$ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
-	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
-	  exit 2; \
-	fi; \
-	$(call release_deploy_files,ESCROW); \
-	compose_release() { \
-	    ESCROW_RELEASE_CAM_URI="$$cam_uri" \
-	    ESCROW_RELEASE_CAM_HASH="$${ESCROW_RELEASE_CAM_HASH-auto}" \
-	    ESCROW_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
-	    ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
-	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
-	    $(call release_deploy_compose,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)); \
-	}; \
-	compose_release_check() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
-    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; \
-	}; \
-	$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)
+	@$(call release_full,escrow,full)
 
 escrow/release/verify:
-	@$(call release_verify,ESCROW,escrow,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES),Escrow)
+	@$(call release_full,escrow,verify)
 
 bike-nft/release/deploy:
-	@$(call release_deploy_admission,bike-nft,Bike NFT); \
-	if [[ ! -v CONFIRM_BIKE_NFT_RELEASE_DEPLOY || "$$CONFIRM_BIKE_NFT_RELEASE_DEPLOY" != "YES" ]]; then \
-	  printf '%s\n' 'Set CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES only after reviewing every authority, delay, URI, chain, and registrar.' >&2; exit 2; \
-	fi; \
-	required=(BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID BIKE_NFT_RELEASE_CAM_URI BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER BIKE_NFT_RELEASE_TOKEN_NAME BIKE_NFT_RELEASE_TOKEN_SYMBOL BIKE_NFT_RELEASE_BASE_TOKEN_URI BIKE_NFT_RELEASE_COLLECTION_URI BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY BIKE_NFT_RELEASE_COMPONENTS_PAUSER BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY BIKE_NFT_RELEASE_MANAGER_PAUSER BIKE_NFT_RELEASE_MANAGER_CONFIGURER BIKE_NFT_RELEASE_REGISTRARS DEPLOYER_PRIVATE_KEY_FILE BIKE_NFT_RELEASE_OUTPUT_DIR); \
-	for name in "$${required[@]}"; do if [[ ! -v $$name || ( "$$name" != BIKE_NFT_RELEASE_BASE_TOKEN_URI && -z "$${!name}" ) ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
-	$(call release_validate_chain_and_cam_uri,BIKE_NFT,bike-nft); \
-	$(call release_deploy_files,BIKE_NFT); \
-	compose_release() { \
-	  BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
-	  BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" BIKE_NFT_RELEASE_CAM_URI="$$cam_uri" \
-	  BIKE_NFT_RELEASE_CAM_HASH="$${BIKE_NFT_RELEASE_CAM_HASH-auto}" \
-	  BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER="$$BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER" BIKE_NFT_RELEASE_TOKEN_NAME="$$BIKE_NFT_RELEASE_TOKEN_NAME" BIKE_NFT_RELEASE_TOKEN_SYMBOL="$$BIKE_NFT_RELEASE_TOKEN_SYMBOL" \
-	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
-	  BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
-	  BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN" BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY="$$BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY" BIKE_NFT_RELEASE_MANAGER_PAUSER="$$BIKE_NFT_RELEASE_MANAGER_PAUSER" BIKE_NFT_RELEASE_MANAGER_CONFIGURER="$$BIKE_NFT_RELEASE_MANAGER_CONFIGURER" BIKE_NFT_RELEASE_REGISTRARS="$$BIKE_NFT_RELEASE_REGISTRARS" \
-	  $(call release_deploy_compose,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)); \
-	}; \
-	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; }; \
-	$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)
+	@$(call release_full,bike-nft,full)
 
 bike-nft/release/verify:
-	@$(call release_verify,BIKE_NFT,bike-nft,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES),Bike NFT)
+	@$(call release_full,bike-nft,verify)
 
 .PHONY: pay-to-play/release/check pay-to-play/release/deploy pay-to-play/release/verify
 .PHONY: bike-nft/release/contracts/deploy escrow/release/contracts/deploy pay-to-play/release/contracts/deploy
@@ -2308,43 +2103,15 @@ bike-nft/release/ui/deploy escrow/release/ui/deploy pay-to-play/release/ui/deplo
 bike-nft/release/ui/artifact escrow/release/ui/artifact pay-to-play/release/ui/artifact:
 	@$(release_ui_artifact)
 
+.PHONY: bike-nft/release/ui/update escrow/release/ui/update pay-to-play/release/ui/update
+bike-nft/release/ui/update escrow/release/ui/update pay-to-play/release/ui/update:
+	@$(call release_full,$(patsubst %/release/ui/update,%,$@),update)
+
 pay-to-play/release/deploy:
-	@$(call release_deploy_admission,pay-to-play,Pay-to-Play); \
-	if [[ ! -v CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY || "$$CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY" != "YES" ]]; then \
-	  printf '%s\n' 'Set CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, both authorities, withdrawal wait, and funded deployer.' >&2; \
-	  exit 2; \
-	fi; \
-	for name in PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD DEPLOYER_PRIVATE_KEY_FILE PAY_TO_PLAY_RELEASE_OUTPUT_DIR; do \
-	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
-	    printf 'Missing required release input: %s\n' "$$name" >&2; \
-	    exit 2; \
-	  fi; \
-	done; \
-	$(call release_validate_chain_and_cam_uri,PAY_TO_PLAY,pay-to-play); \
-	owner="$$PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
-	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
-	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
-	  exit 2; \
-	fi; \
-	$(call release_deploy_files,PAY_TO_PLAY); \
-	compose_release() { \
-	    PAY_TO_PLAY_RELEASE_CAM_URI="$$cam_uri" \
-	    PAY_TO_PLAY_RELEASE_CAM_HASH="$${PAY_TO_PLAY_RELEASE_CAM_HASH-auto}" \
-	    PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
-	    PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
-	    PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN="$$PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN" \
-	    PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD="$$PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD" \
-	    PAY_TO_PLAY_RELEASE_SOURCE_COMMIT="$$source_commit" \
-	    $(call release_deploy_compose,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)); \
-	}; \
-	compose_release_check() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
-	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; \
-	}; \
-	$(call release_deploy_execution,PAY_TO_PLAY_RELEASE_OUTPUT_DIR)
+	@$(call release_full,pay-to-play,full)
 
 pay-to-play/release/verify:
-	@$(call release_verify,PAY_TO_PLAY,pay-to-play,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES),Pay-to-Play)
+	@$(call release_full,pay-to-play,verify)
 
 # Disposable payment-channel fixture. Its scenario and browser projects are isolated.
 PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-pay-to-play-local-scenario

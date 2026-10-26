@@ -23,7 +23,7 @@ class ContractReleaseTest(unittest.TestCase):
             self.assertFalse(compose_sequence_or_empty(service, "secrets"))
             self.assertNotIn("PRIVATE_KEY", service["environment"])
             writes = {volume["target"] for volume in compose_sequence_or_empty(service, "volumes")
-                      if volume["type"] == "bind" and not volume.get("read_only", False)}
+                      if volume["type"] == "bind" and volume.get("read_only") is not True}
             self.assertEqual({"/contract-candidate"} if name == "release-artifact" else
                              {"/contract-artifact"} if name == "release-contract-publish" else set(), writes)
         methods = services["release-artifact-rpc-proxy"]["environment"]["RPC_ALLOWED_METHODS"].split()

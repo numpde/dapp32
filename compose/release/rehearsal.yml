@@ -54,14 +54,10 @@ services:
     mem_limit: 128m
     cpus: 1
     tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=16m"]
-    volumes:
-      - ../../dapps/bike-nft/cam:/srv/bike-nft:ro
-      - ../../dapps/escrow/cam:/srv/escrow:ro
-      - ../../dapps/pay-to-play/cam:/srv/pay-to-play:ro
     networks: [rehearsal]
     command: [python3, -I, -B, -m, http.server, "8080", --bind, 0.0.0.0, --directory, /srv]
     healthcheck:
-      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/pay-to-play/main.json', timeout=2).close()"]
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=2).close()"]
       interval: 2s
       timeout: 3s
       retries: 10
@@ -90,23 +86,30 @@ services:
       - ../../js:/input/js:ro
       - ../../js/node_modules:/work/js/node_modules:ro
       - type: bind
-        source: "../../dapps/${DAPP:?missing_DAPP}/cam/main.json"
-        target: /deployment/source-main.json
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/contracts/artifact/contract-deployment.json"
+        target: /deployment/business.json
         read_only: true
-        bind:
-          create_host_path: false
+        bind: {create_host_path: false}
       - type: bind
-        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/artifact/deployment.json"
-        target: /deployment/deployment.json
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/ui/artifact/ui-deployment.json"
+        target: /deployment/ui.json
         read_only: true
-        bind:
-          create_host_path: false
+        bind: {create_host_path: false}
       - type: bind
-        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/plan/release-plan.json"
-        target: /deployment/release-plan.json
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/cam/artifact/cam-publication.json"
+        target: /deployment/cam.json
         read_only: true
-        bind:
-          create_host_path: false
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/cam/plan/release-plan.json"
+        target: /deployment/cam-plan.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/cam-bundle/bundle"
+        target: /deployment/bundle
+        read_only: true
+        bind: {create_host_path: false}
 
 networks:
   rehearsal:
