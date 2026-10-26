@@ -218,7 +218,7 @@ button.resource-load[aria-busy="true"] { color: var(--accent); background: linea
 .ui-section > .text-row { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
 .ui-section > .action-button { margin-inline-end: 8px; vertical-align: top; }
 .ui-section > .action-button.button-quiet { padding-inline: 0; margin-inline-end: 20px; }
-.ui-section .ui-section { margin-block-start: 16px; padding: 0 0 0 16px; border-top: 0; border-inline-start: 2px solid var(--line); }
+.ui-section .ui-section { margin-block-start: 16px; padding: 0; border-top: 0; }
 .ui-section .ui-section > :is(h3, h4, h5, h6) { font-size: 0.95rem; }
 .ui-section > :is(.field, fieldset) { margin-block-start: 16px; }
 

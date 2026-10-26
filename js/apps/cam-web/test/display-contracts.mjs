@@ -116,12 +116,20 @@ export async function assertManualCopyRecovery({ call, evaluate, wait }) {
 }
 
 export async function assertContentSeparation(evaluate) {
-  const layout = await evaluate(`(()=>{const border=node=>parseFloat(getComputedStyle(node).borderTopWidth);return {facts:[...document.querySelectorAll('.key-value')].map(node=>({label:node.querySelector('dt')?.textContent,top:border(node)})),sections:[...document.querySelectorAll('.elements > .ui-section')].map(node=>({leading:node.previousElementSibling===null,afterPeer:node.previousElementSibling?.matches('.ui-section')===true,top:border(node)})),nested:[...document.querySelectorAll('.ui-section .ui-section')].map(node=>({top:border(node),left:parseFloat(getComputedStyle(node).borderLeftWidth)})),cards:[...document.querySelectorAll('.nft-row')].map(node=>({top:border(node),left:parseFloat(getComputedStyle(node).borderLeftWidth)})),details:[...document.querySelectorAll('.nft-details')].map(border),overflow:document.documentElement.scrollWidth>innerWidth}})()`)
+  const layout = await evaluate(`(()=>{const border=node=>parseFloat(getComputedStyle(node).borderTopWidth);return {facts:[...document.querySelectorAll('.key-value')].map(node=>({label:node.querySelector('dt')?.textContent,top:border(node)})),sections:[...document.querySelectorAll('.elements > .ui-section')].map(node=>({leading:node.previousElementSibling===null,afterPeer:node.previousElementSibling?.matches('.ui-section')===true,top:border(node)})),nested:[...document.querySelectorAll('.ui-section .ui-section')].map(node=>{
+    const style=getComputedStyle(node),parent=node.parentElement.closest('.ui-section');
+    const heading=node.querySelector(':scope > :is(h2,h3,h4,h5,h6)'),parentHeading=parent.querySelector(':scope > :is(h2,h3,h4,h5,h6)');
+    return {top:border(node),inlineBorder:parseFloat(style.borderInlineStartWidth),indent:parseFloat(style.paddingInlineStart),spacing:parseFloat(style.marginBlockStart),headingLevel:heading===null?null:Number(heading.tagName.slice(1)),parentHeadingLevel:parentHeading===null?null:Number(parentHeading.tagName.slice(1))};
+  }),cards:[...document.querySelectorAll('.nft-row')].map(node=>({top:border(node),left:parseFloat(getComputedStyle(node).borderLeftWidth)})),details:[...document.querySelectorAll('.nft-details')].map(border),overflow:document.documentElement.scrollWidth>innerWidth}})()`)
   assert(layout.facts.length > 0 && layout.sections.length > 1 && layout.nested.length > 0 && layout.cards.length > 0 && layout.details.length > 0, 'the fixture exercises ordinary, nested and NFT grouping')
   for (const fact of layout.facts) assert.equal(fact.top, 0, `facts use spacing rather than dividers: ${fact.label}`)
   assert(layout.sections.some(section=>section.leading) && layout.sections.some(section=>!section.leading&&!section.afterPeer) && layout.sections.some(section=>section.afterPeer), 'the fixture exercises leading sections, groups after flat content and adjacent peers')
   for (const section of layout.sections) assert.equal(section.top > 0, !section.leading, 'new sections separate earlier content; leading sections have no top divider')
-  for (const nested of layout.nested) assert(nested.top === 0 && nested.left > 0, 'nested groups retain their vertical hierarchy cue')
+  for (const nested of layout.nested) {
+    assert(nested.top === 0 && nested.inlineBorder === 0 && nested.indent === 0, 'nested groups have no ornamental border or indentation')
+    assert(nested.spacing > 0, 'nested groups retain vertical spacing')
+    assert(nested.headingLevel !== null && nested.parentHeadingLevel !== null && nested.headingLevel === Math.min(nested.parentHeadingLevel + 1, 6), 'nested group headings retain their semantic hierarchy')
+  }
   for (const card of layout.cards) assert(card.top > 0 && card.left > 0, 'NFT card boundaries remain distinct from fact-row dividers')
   for (const top of layout.details) assert(top > 0, 'preview and identity remain distinct content regions')
   assert(!layout.overflow, 'group boundaries fit the current viewport')
