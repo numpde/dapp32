@@ -18,8 +18,7 @@ export function payToPlayReference(planBytes: Uint8Array, independentDeployer: s
     { kind: "create", role: "camRoot", name: "CamRoot", action: "Deploy CAM root with the selected manifest", argumentLabels: ["Initial CAM owner", "CAM manifest URI", "CAM manifest SHA-256"], constructorTypes: ["address", "string", "bytes32"], args: [deployer, plan.camURI, plan.camHash] },
     payToPlayContractCreation(plan, deployer),
     payToPlayUICreation(createdContract("payments")),
-    { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the payment contract in CAM", argumentLabels: ["CAM contract name", "Verified PayToPlay contract"], signature: "setContractAddress(string,address)", args: ["PayToPlay", createdContract("payments")] },
-    payToPlayUIBinding(createdContract("ui")),
+    ...payToPlayCamBindings({ payments: createdContract("payments"), ui: createdContract("ui") }),
   ]
   if (plan.intendedCamRootOwner.toLowerCase() !== deployer.toLowerCase()) {
     steps.push({ kind: "call", role: "camRoot", name: "transferOwnership", action: "Nominate the selected CAM owner; separate acceptance is required", argumentLabels: ["Selected CAM owner"], signature: "transferOwnership(address)", args: [plan.intendedCamRootOwner] })
@@ -38,4 +37,12 @@ export function payToPlayAdminNomination(plan: ContractSettings, deployer: Addre
     steps.push({ kind: "call", role: "payments", name: "transferOwnership", action: "Nominate the selected payment admin; separate acceptance is required", argumentLabels: ["Selected payment admin"], signature: "transferOwnership(address)", args: [plan.intendedPaymentAdmin] })
   }
   return steps
+}
+
+export function payToPlayCamBindings(contracts: { readonly payments: ExpectedArgument; readonly ui: ExpectedArgument }): ExpectedStep[] {
+  return [
+    { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the payment contract in CAM",
+      argumentLabels: ["CAM contract name", "Verified PayToPlay contract"], signature: "setContractAddress(string,address)", args: ["PayToPlay", contracts.payments] },
+    payToPlayUIBinding(contracts.ui),
+  ]
 }

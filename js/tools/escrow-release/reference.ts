@@ -17,8 +17,7 @@ export function escrowReference(planBytes: Uint8Array, independentDeployer: stri
     { kind: "create", role: "camRoot", name: "CamRoot", action: "Deploy CAM root with the selected manifest", argumentLabels: ["Initial CAM owner", "CAM manifest URI", "CAM manifest SHA-256"], constructorTypes: ["address", "string", "bytes32"], args: [deployer, plan.camURI, plan.camHash] },
     escrowContractCreation(),
     escrowUICreation(createdContract("escrow")),
-    escrowUIBinding(createdContract("ui")),
-    { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the escrow contract in CAM", argumentLabels: ["CAM contract name", "Verified CamEscrow contract"], signature: "setContractAddress(string,address)", args: ["CamEscrow", createdContract("escrow")] },
+    ...escrowCamBindings({ escrow: createdContract("escrow"), ui: createdContract("ui") }),
   ]
   if (plan.intendedCamRootOwner.toLowerCase() !== deployer.toLowerCase()) {
     steps.push({ kind: "call", role: "camRoot", name: "transferOwnership", action: "Nominate the selected CAM owner; separate acceptance is required", argumentLabels: ["Selected CAM owner"], signature: "transferOwnership(address)", args: [plan.intendedCamRootOwner] })
@@ -28,4 +27,11 @@ export function escrowReference(planBytes: Uint8Array, independentDeployer: stri
 
 export function escrowContractCreation(): ExpectedStep {
   return { kind: "create", role: "escrow", name: "CamEscrow", action: "Deploy agreement escrow contract", argumentLabels: [], constructorTypes: [], args: [] }
+}
+
+export function escrowCamBindings(contracts: { readonly escrow: ExpectedArgument; readonly ui: ExpectedArgument }): ExpectedStep[] {
+  return [escrowUIBinding(contracts.ui),
+    { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the escrow contract in CAM",
+      argumentLabels: ["CAM contract name", "Verified CamEscrow contract"], signature: "setContractAddress(string,address)", args: ["CamEscrow", contracts.escrow] },
+  ]
 }
