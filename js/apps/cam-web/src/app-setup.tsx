@@ -58,6 +58,6 @@ export function AppSetup({ onOpen, rpcURLs }: {
     <label className="field"><span>Viewing address (optional)</span><input id="app-account" form="rpc-connection-form" value={account} onChange={event => setAccount(event.currentTarget.value)} /></label>
     <p className="field-hint">Leave blank for a public view. You can connect a signing wallet after opening the app.</p>
     {error === undefined ? null : <Feedback report={error} kind="error" />}
-    {validChain === undefined ? <p className="field-hint">Choose a network or enter a chain ID to select an RPC service.</p> : <div className="connection-facts"><RpcControls key={validChain} chainId={validChain} suppliedURLs={rpcURLs} activeURL={undefined} busy={false} mode="setup" onApply={open} /></div>}
+    {validChain === undefined ? null : <div className="connection-facts"><RpcControls key={validChain} chainId={validChain} suppliedURLs={rpcURLs} activeURL={undefined} busy={false} mode="setup" onApply={open} /></div>}
   </section>
 }

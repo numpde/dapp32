@@ -126,3 +126,34 @@ export async function assertContentSeparation(evaluate) {
   for (const top of layout.details) assert(top > 0, 'preview and identity remain distinct content regions')
   assert(!layout.overflow, 'group boundaries fit the current viewport')
 }
+
+export async function assertNumericValidationPresentation({ evaluate, wait }) {
+  const names = await evaluate(`[...document.querySelectorAll('input[inputmode]')].map(input=>input.name)`)
+  assert(names.length > 0, 'the fixture exercises numeric controls')
+  for (const name of names) {
+    const selector = `input[name=${JSON.stringify(name)}]`
+    async function enter(value) {
+      await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+    }
+    async function presentation(invalid) {
+      await wait(`document.querySelector(${JSON.stringify(selector)}).getAttribute('aria-invalid')===${JSON.stringify(String(invalid))}`)
+      const current = await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)}),probe=document.createElement('span');probe.style.color='var(--danger)';document.body.append(probe);const danger=getComputedStyle(probe).color;probe.remove();const describedBy=input.getAttribute('aria-describedby');const ids=describedBy===null?[]:describedBy.split(' ').filter(Boolean);return {red:getComputedStyle(input).borderTopColor===danger,value:input.value,descriptions:ids.map(id=>{const node=document.getElementById(id),r=node?.getBoundingClientRect();return {text:node?.textContent,visible:r!==undefined&&r.width>1&&r.height>1}})}})()`)
+      assert.equal(current.red, invalid, 'the rendered border follows semantic invalidity')
+      for (const description of current.descriptions) assert(!description.visible && description.text, 'numeric causes remain accessible without visible commentary')
+      if (invalid) assert(current.descriptions.length > 0, 'invalid numeric input has an accessible cause')
+      return current
+    }
+    await enter('not-a-number')
+    await presentation(true)
+    await enter('0')
+    await presentation(false)
+    await evaluate(`(()=>{const input=document.querySelector(${JSON.stringify(selector)}),transfer=new DataTransfer();transfer.setData('text/plain',${JSON.stringify('1\n2')});input.dispatchEvent(new ClipboardEvent('paste',{clipboardData:transfer,bubbles:true,cancelable:true}))})()`)
+    assert.equal((await presentation(true)).value, '', 'rejected multiline input is cleared but remains visibly invalid')
+    await enter('0')
+    await presentation(false)
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true,data:''}))`)
+    await presentation(false)
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'0'}))`)
+    await presentation(false)
+  }
+}

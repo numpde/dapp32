@@ -334,7 +334,7 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
         onChange={event => onInput(node.state.key, event.currentTarget.value)} />
     </label>
     <p id={hintId} className="field-hint">Enter 0x followed by 64 hexadecimal characters, or calculate from exact document bytes. Files stay on this device; selecting one does not upload it or check the URI. Limit: 8 MiB and 15 seconds.</p>
-    {invalid ? <p id={issueId} className="field-hint" role="status">The digest must be 0x followed by exactly 64 hexadecimal characters. Your entry is kept unchanged.</p> : null}
+    {invalid ? <p id={issueId} className="visually-hidden" role="status">The digest must be 0x followed by exactly 64 hexadecimal characters. Your entry is kept unchanged.</p> : null}
     <button ref={fileAction} disabled={disabled} className="resource-load" aria-busy={pending && status.source === "file"} type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>
     <input ref={fileInput} disabled={disabled} type="file" aria-label={`Choose file for ${displayText(node.props.label)}`} hidden onChange={event => {
       const file = event.currentTarget.files?.[0]
@@ -348,7 +348,7 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
       onCancel(node.state.key)
       if (restoreFocus) requestAnimationFrame(() => action?.focus())
     }}>Cancel calculation</button>
-    <p className="field-hint resource-status" role="status">
+    <p className="resource-status" role="status">
       {statusMessages.map(message => <span key={message.kind} className={message.visible ? undefined : "status-placeholder"} aria-hidden={!message.visible}>{message.text}</span>)}
     </p>
     {status?.status === "failed" ? <Feedback report={status} kind="error" /> : null}
@@ -473,7 +473,7 @@ function AmountFieldView({ node, disabled, onAmount }: { readonly node: Resolved
           onEdit={(text, options) => onAmount(node.state.key, representation, text, options)} />
       </label>)}
     </div>
-    {explanation === undefined ? null : <p id={hintId} className="field-hint" role="status">{explanation}</p>}
+    {explanation === undefined ? null : <p id={hintId} className="visually-hidden" role="status">{explanation}</p>}
   </fieldset>
 }
 
@@ -497,8 +497,8 @@ function DurationFieldView({ node, disabled, onDuration }: { readonly node: Reso
           onEdit={(text, options) => onDuration(node.state.key, part, text, options)} />
       </label>)}
     </div>
-    <p id={hintId} className="field-hint" role="status">{explanation}</p>
-    {node.formattedValue === undefined ? null : <p className="field-hint">Total: {displayText(node.formattedValue)}</p>}
+    <p id={hintId} className="visually-hidden" role="status">{explanation}</p>
+    {node.formattedValue === undefined ? null : <PropertyRow label="Total" value={node.formattedValue} />}
   </fieldset>
 }
 
@@ -518,7 +518,7 @@ function IntegerFieldView({ node, disabled, onInteger }: { readonly node: Resolv
         composing={node.draft.composing} issue={issue} aria-describedby={explanation === undefined ? undefined : hintId} aria-invalid={node.draft.status === "invalid"}
         onEdit={(text, options) => onInteger(node.state.key, text, options)} />
     </label>
-    {explanation === undefined ? null : <p id={hintId} className="field-hint" role="status">{explanation}</p>}
+    {explanation === undefined ? null : <p id={hintId} className="visually-hidden" role="status">{explanation}</p>}
   </div>
 }
 
