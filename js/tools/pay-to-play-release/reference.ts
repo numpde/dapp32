@@ -1,6 +1,14 @@
-import type { ReleaseReference } from "../release-approval/reference.ts"
+import type { ExpectedArgument, ExpectedStep, ReleaseReference } from "../release-approval/reference.ts"
 import { createdContract, expectedDeployer } from "../release-approval/reference.ts"
 import { parseReleasePlan } from "./shared.ts"
+
+export function payToPlayUICreation(payments: ExpectedArgument): ExpectedStep {
+  return { kind: "create", role: "ui", name: "PayToPlayUI", action: "Deploy the read-only signing projection for the payment contract", argumentLabels: ["Verified PayToPlay contract"], constructorTypes: ["address"], args: [payments] }
+}
+
+export function payToPlayUIBinding(ui: ExpectedArgument): ExpectedStep {
+  return { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the read-only signing projection in CAM", argumentLabels: ["CAM contract name", "Verified PayToPlayUI contract"], signature: "setContractAddress(string,address)", args: ["PayToPlayUI", ui] }
+}
 
 export function payToPlayReference(planBytes: Uint8Array, independentDeployer: string): ReleaseReference {
   const plan = parseReleasePlan(planBytes)
@@ -8,9 +16,9 @@ export function payToPlayReference(planBytes: Uint8Array, independentDeployer: s
   const steps: ReleaseReference["steps"][number][] = [
     { kind: "create", role: "camRoot", name: "CamRoot", action: "Deploy CAM root with the selected manifest", argumentLabels: ["Initial CAM owner", "CAM manifest URI", "CAM manifest SHA-256"], constructorTypes: ["address", "string", "bytes32"], args: [deployer, plan.camURI, plan.camHash] },
     { kind: "create", role: "payments", name: "PayToPlay", action: "Deploy payment contract with the reserved-channel withdrawal wait", argumentLabels: ["Initial payment admin", "Reserved-channel withdrawal wait (seconds)"], constructorTypes: ["address", "uint64"], args: [deployer, String(plan.nullClaimPeriod)] },
-    { kind: "create", role: "ui", name: "PayToPlayUI", action: "Deploy the read-only signing projection for the payment contract", argumentLabels: ["Verified PayToPlay contract"], constructorTypes: ["address"], args: [createdContract("payments")] },
+    payToPlayUICreation(createdContract("payments")),
     { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the payment contract in CAM", argumentLabels: ["CAM contract name", "Verified PayToPlay contract"], signature: "setContractAddress(string,address)", args: ["PayToPlay", createdContract("payments")] },
-    { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the read-only signing projection in CAM", argumentLabels: ["CAM contract name", "Verified PayToPlayUI contract"], signature: "setContractAddress(string,address)", args: ["PayToPlayUI", createdContract("ui")] },
+    payToPlayUIBinding(createdContract("ui")),
   ]
   if (plan.intendedCamRootOwner.toLowerCase() !== deployer.toLowerCase()) {
     steps.push({ kind: "call", role: "camRoot", name: "transferOwnership", action: "Nominate the selected CAM owner; separate acceptance is required", argumentLabels: ["Selected CAM owner"], signature: "transferOwnership(address)", args: [plan.intendedCamRootOwner] })
