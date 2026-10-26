@@ -26,6 +26,10 @@ export async function writeNewJson(path: string, value: unknown, label: string):
 }
 
 export async function writeNewText(path: string, value: string, label: string): Promise<void> {
+  await writeNewBytes(path, new TextEncoder().encode(value), label)
+}
+
+export async function writeNewBytes(path: string, value: Uint8Array, label: string): Promise<void> {
   const parent = dirname(path)
   const parentStat = await lstat(parent)
   if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
@@ -35,7 +39,7 @@ export async function writeNewText(path: string, value: string, label: string): 
   try {
     const handle = await open(stage, "wx", 0o600)
     try {
-      await handle.writeFile(value, { encoding: "utf-8" })
+      await handle.writeFile(value)
       await handle.sync()
     } finally {
       await handle.close()

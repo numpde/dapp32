@@ -77,7 +77,7 @@ export async function inspectReleaseCamBundle(
   return { camHash }
 }
 
-async function declaredLocalResources(
+export async function declaredLocalResources(
   rootPath: string,
   root: unknown,
 ): Promise<Map<string, Uint8Array>> {
