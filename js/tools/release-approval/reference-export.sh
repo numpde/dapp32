@@ -24,11 +24,18 @@ case "$app" in
     ;;
   *) printf '%s\n' "unknown release app: $app" >&2; exit 2 ;;
 esac
+set --
 case "${RELEASE_OPERATION:-deployment}" in
   deployment) ;;
+  source-contracts)
+    script=""; contracts="$business_contracts"
+    for contract in $business_contracts; do set -- "$@" "$app/src/$contract.sol"; done
+    ;;
+  source-ui) script=""; contracts="$ui_contract"; set -- "$app/src/$ui_contract.sol" ;;
+  source-root) script=""; contracts=CamRoot; set -- cam/src/CamRoot.sol ;;
   contracts) script="$app/script/DeployContracts.s.sol"; contracts="$business_contracts" ;;
   ui) script="$app/script/DeployUI.s.sol"; contracts="$ui_contract" ;;
-  *) printf '%s\n' 'Compiler export must select deployment, contracts or ui.' >&2; exit 2 ;;
+  *) printf '%s\n' 'Compiler export must select deployment, contracts, ui or an explicit source component.' >&2; exit 2 ;;
 esac
 
 if [ ! -d "$output" ] || [ -L "$output" ] || [ -n "$(find "$output" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
@@ -41,7 +48,11 @@ if [ "${FOUNDRY_OUT:-}" != /tmp/foundry-out ]; then
 fi
 
 umask 077
-forge build --offline "$script"
+if [ -n "$script" ]; then
+  forge build --offline "$script"
+else
+  forge build --offline "$@"
+fi
 
 for contract in $contracts; do
   source="$FOUNDRY_OUT/$contract.sol/$contract.json"

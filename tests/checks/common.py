@@ -22,6 +22,12 @@ DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", 
 # prove that omitted operator inputs fail closed. Negative render checks should
 # own that invariant instead of relying on this fixture map.
 RENDERED_COMPOSE_FIXTURE_ENV = {
+    "CAM_COMPONENT_CHECKS_IMAGE": "sha256:" + "b" * 64,
+    "CAM_COMPONENT_FOUNDRY_IMAGE": "sha256:" + "a" * 64,
+    "CAM_COMPONENT_SOURCE_PURPOSE": "source-contracts",
+    "CAM_COMPONENT_SOURCE_DIR": "/tmp/archived-component",
+    "CAM_COMPONENT_ARTIFACTS_DIR": "/tmp/component-artifacts",
+    "CAM_COMPONENT_APP": "pay-to-play",
     "CONTRACT_RELEASE_APP": "escrow",
     "CONTRACT_RELEASE_SOURCE_COMMIT": "a" * 40,
     "CONTRACT_RELEASE_EXPECTED_CHAIN_ID": "31338",

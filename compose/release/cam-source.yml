@@ -1,0 +1,51 @@
+# Offline compilation of a selected component's own archived source.
+services:
+  release-cam-source:
+    extends:
+      file: ../forge.yml
+      service: forge-test
+    build: !reset null
+    image: "${CAM_COMPONENT_FOUNDRY_IMAGE:?missing_CAM_COMPONENT_FOUNDRY_IMAGE}"
+    pull_policy: never
+    depends_on:
+      release-cam-source-dependencies:
+        condition: service_completed_successfully
+    cpus: 1
+    memswap_limit: 1g
+    environment:
+      RELEASE_OPERATION: "${CAM_COMPONENT_SOURCE_PURPOSE:?missing_CAM_COMPONENT_SOURCE_PURPOSE}"
+    volumes: !override
+      - type: bind
+        source: "${CAM_COMPONENT_SOURCE_DIR:?missing_CAM_COMPONENT_SOURCE_DIR}/dapps"
+        target: /work/dapps
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/tools/release-approval/reference-export.sh"
+        target: /usr/local/bin/reference-export
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${CAM_COMPONENT_ARTIFACTS_DIR:?missing_CAM_COMPONENT_ARTIFACTS_DIR}"
+        target: /component-artifacts
+        bind: {create_host_path: false}
+    command: [sh, /usr/local/bin/reference-export, "${CAM_COMPONENT_APP:?missing_CAM_COMPONENT_APP}", /component-artifacts]
+
+  release-cam-source-dependencies:
+    extends:
+      file: ../deps.yml
+      service: soldeer-verify
+    build: !reset null
+    image: "${CAM_COMPONENT_CHECKS_IMAGE:?missing_CAM_COMPONENT_CHECKS_IMAGE}"
+    pull_policy: never
+    volumes: !override
+      - type: bind
+        source: "${CAM_COMPONENT_SOURCE_DIR:?missing_CAM_COMPONENT_SOURCE_DIR}/dapps"
+        target: /work
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/tests/checks/test_dependency_integrity.py"
+        target: /input/test_dependency_integrity.py
+        read_only: true
+        bind: {create_host_path: false}
