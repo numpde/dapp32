@@ -164,13 +164,13 @@ test("payment tasks keep their controls together and separate channel administra
   const { session } = await fixture()
   await session.load()
   const opened = await session.navigate("position", { customer, channelId: "1" })
-  const groups: Record<string, string> = {}
-  function visit(node: ResolvedUiNode, title = ""): void {
+  const groups: Record<string, string | undefined> = {}
+  function visit(node: ResolvedUiNode, title: string | undefined): void {
     if (node.element === "Screen") title = String(node.props.title)
     if (node.element === "Button") groups[node.call.function] = title
     if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, title))
   }
-  visit(opened.resolvedUi)
+  visit(opened.resolvedUi, undefined)
   for (const [group, routes] of [
     ["Deposit", ["fund"]],
     ["Withdraw or move funds", ["requestWithdrawal", "setWithdrawal", "withdraw", "move"]],
@@ -185,15 +185,15 @@ test("recovery separates account actions from channel retirement and explains re
   const { session } = await fixture()
   await session.load()
   const opened = await session.navigate("recovery", { customer, channelId: "1" })
-  const groups: Record<string, string> = {}
+  const groups: Record<string, string | undefined> = {}
   const retirement: ResolvedUiNode[] = []
-  function visit(node: ResolvedUiNode, title = ""): void {
+  function visit(node: ResolvedUiNode, title: string | undefined): void {
     if (node.element === "Screen") title = String(node.props.title)
     if (title === "Retire this channel") retirement.push(node)
     if (node.element === "Button") groups[node.call.function] = title
     if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, title))
   }
-  visit(opened.resolvedUi)
+  visit(opened.resolvedUi, undefined)
   for (const route of ["renewPosition", "setRefundRecipient", "closePosition", "refund"]) assert.equal(groups[route], "Account recovery", route)
   assert.equal(groups.closeChannel, "Retire this channel")
   const warning = retirement.findIndex(node => node.element === "Text" && String(node.props.text).includes("every customer"))
