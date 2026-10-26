@@ -42,11 +42,23 @@ function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCa
 }
 function render(): void {
   const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "", metadata }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+    { element: "Screen", props: { title: "Overview" }, children: [
+      { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
+    ] },
     { element: "Status", props: { label: "Before actions", value: "Before" }, children: [] },
     { element: "Status", props: { label: "Document digest", value: fixtureDigest }, children: [] },
     { element: "Screen", props: { title: "Fixture actions" }, children: [
+      { element: "Status", props: { label: "Current account role", value: "Owner" }, children: [] },
+      { element: "Text", props: { text: "These actions use the current account." }, children: [] },
+      { element: "Status", props: { label: "Account permissions", value: "Available" }, children: [] },
+      { element: "Screen", props: { title: "Read-only details" }, children: [
+        { element: "Status", props: { label: "Position", value: "Active" }, children: [] },
+      ] },
       { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },
       ...actions.map(item => ({ element: "Button" as const, props: { label: item.label }, call: { namespace: "routes", function: item.route, args: {} }, children: [] as const, ...("disabled" in item ? { disabled: item.disabled } : {}) })),
+    ] },
+    { element: "Screen", props: { title: "Result" }, children: [
+      { element: "Status", props: { label: "Progress", value: "Ready" }, children: [] },
     ] },
     { element: "DocumentHashField", props: { label: "Document", algorithm: "sha256", sourceURI: "https://example.test/document" }, state: { key: "document" }, children: [] },
     { element: "Nft", props: { contractAddress: "0x5555555555555555555555555555555555555555", tokenId: "42", metadataURI: metadata }, children: [] },

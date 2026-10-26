@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 
 export async function assertDisplayedValues({ call, evaluate }) {
   await assertFeedbackPresentation(evaluate)
+  await assertContentSeparation(evaluate)
   const rows = await evaluate(`(()=>{const rows=[...document.querySelectorAll('dl')];return rows.map(row=>{const outer=row.parentElement.closest('dl');return {tags:[...row.children].map(child=>child.tagName),invalidParent:outer!==null&&row.parentElement.closest('dd')?.parentElement!==outer,label:row.firstElementChild?.textContent,overflow:row.scrollWidth>row.clientWidth+1}})})()`)
   assert(rows.length > 0, 'the fixture must exercise property rows')
   for (const row of rows) {
@@ -112,4 +113,16 @@ export async function assertManualCopyRecovery({ call, evaluate, wait }) {
   await wait('innerWidth===320')
   assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth&&document.querySelector('.hex-copy-error input').readOnly`), 'copy failure remains selectable and fits a narrow viewport')
   await call('Emulation.clearDeviceMetricsOverride', {})
+}
+
+export async function assertContentSeparation(evaluate) {
+  const layout = await evaluate(`(()=>{const border=node=>parseFloat(getComputedStyle(node).borderTopWidth);return {facts:[...document.querySelectorAll('.key-value')].map(node=>({label:node.querySelector('dt')?.textContent,top:border(node)})),sections:[...document.querySelectorAll('.elements > .ui-section')].map(node=>({leading:node.previousElementSibling===null,afterPeer:node.previousElementSibling?.matches('.ui-section')===true,top:border(node)})),nested:[...document.querySelectorAll('.ui-section .ui-section')].map(node=>({top:border(node),left:parseFloat(getComputedStyle(node).borderLeftWidth)})),cards:[...document.querySelectorAll('.nft-row')].map(node=>({top:border(node),left:parseFloat(getComputedStyle(node).borderLeftWidth)})),details:[...document.querySelectorAll('.nft-details')].map(border),overflow:document.documentElement.scrollWidth>innerWidth}})()`)
+  assert(layout.facts.length > 0 && layout.sections.length > 1 && layout.nested.length > 0 && layout.cards.length > 0 && layout.details.length > 0, 'the fixture exercises ordinary, nested and NFT grouping')
+  for (const fact of layout.facts) assert.equal(fact.top, 0, `facts use spacing rather than dividers: ${fact.label}`)
+  assert(layout.sections.some(section=>section.leading) && layout.sections.some(section=>!section.leading&&!section.afterPeer) && layout.sections.some(section=>section.afterPeer), 'the fixture exercises leading sections, groups after flat content and adjacent peers')
+  for (const section of layout.sections) assert.equal(section.top > 0, !section.leading, 'new sections separate earlier content; leading sections have no top divider')
+  for (const nested of layout.nested) assert(nested.top === 0 && nested.left > 0, 'nested groups retain their vertical hierarchy cue')
+  for (const card of layout.cards) assert(card.top > 0 && card.left > 0, 'NFT card boundaries remain distinct from fact-row dividers')
+  for (const top of layout.details) assert(top > 0, 'preview and identity remain distinct content regions')
+  assert(!layout.overflow, 'group boundaries fit the current viewport')
 }

@@ -96,6 +96,7 @@ h1 {
 }
 
 .key-value {
+  padding: 6px 0;
   display: flex;
   flex-wrap: wrap;
   gap: 6px 12px;
@@ -105,7 +106,7 @@ h1 {
 .key-value > dd { flex: 1 1 150px; min-inline-size: min-content; max-inline-size: 100%; }
 
 .connection-facts { display: grid; gap: 8px; }
-.connection-facts > .key-value { gap: 8px; border: 0; padding: 0; }
+.connection-facts > .key-value { gap: 8px; padding: 0; }
 .connection-facts > .key-value > dt { flex-basis: 140px; }
 .connection-facts code { font-size: inherit; }
 .connection-facts .wallet-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
@@ -304,14 +305,6 @@ summary:focus-visible {
   color: var(--ink);
 }
 
-.key-value {
-  padding: 6px 0;
-  border-top: 1px solid var(--line);
-}
-
-.key-value:first-child {
-  border-top: 0;
-}
 .mono-value > dd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 
 .timestamp-label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
