@@ -159,7 +159,7 @@ const provider = fixtureWalletSource({
   accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])),
   initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
 })
-const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,transactionHash:document.querySelector('.transaction-feedback .hex-value code')?.title,buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(row=>{const cell=row.lastElementChild;const identifier=cell.querySelector('.hex-value code');return [row.querySelector('.key-label').textContent,identifier===null ? cell.textContent : identifier.title]})),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
+const snapshot = `({readRoute:[...document.querySelectorAll('.ui-meta .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),fields:[...document.querySelectorAll('.elements input')].map(node=>node.name),timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,transactionHash:document.querySelector('.transaction-feedback .hex-value code')?.title,buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(row=>{const cell=row.lastElementChild;const identifier=cell.querySelector('.hex-value code');return [row.querySelector('.key-label').textContent,identifier===null ? cell.textContent : identifier.title]})),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
 async function wait(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30_000)
   while (Date.now() < until) {
@@ -232,7 +232,8 @@ try {
   await fill('newChannelCollector', accounts.relayer.address)
   await fill('newClaimPeriod.seconds', '60')
   await send('Create channel')
-  await wait(state => state.text.includes('Choose an account and channel'), 'creation lookup')
+  const lookup = await wait(state => state.readRoute === 'channelLookup' && state.tasks.includes('Find a channel ID') && state.fields.includes('lookupChannelId'), 'creation receipt lookup')
+  assert(!lookup.buttons.some(button => button.name === 'Create channel'), 'receipt lookup must not repeat the channel creation form')
   assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')
   const receipt = await publicClient.getTransactionReceipt({ hash: lastHash })
   const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && decodeEventLog({ abi, ...log }).eventName === 'ChannelCreated')

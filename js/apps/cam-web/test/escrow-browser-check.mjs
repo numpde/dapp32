@@ -224,7 +224,7 @@ async function feedback(kind) {
 async function waitFor(predicate, label, failOnViewerError) {
   let lastState
   for (let count = 0; count < 80 && !timeout.aborted; count++) {
-    const state = await evaluate(`(()=>{const body=document.body;const root=document.documentElement;if(body===null||root===null)return null;return {heading:document.querySelector('h1')?.textContent,task:document.querySelector('.elements .ui-section > h2')?.textContent,text:body.innerText,width:root.scrollWidth,viewport:innerWidth};})()`)
+    const state = await evaluate(`(()=>{const body=document.body;const root=document.documentElement;if(body===null||root===null)return null;return {heading:document.querySelector('h1')?.textContent,route:[...document.querySelectorAll('.ui-meta .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),text:body.innerText,width:root.scrollWidth,viewport:innerWidth};})()`)
     lastState = state
     if (state !== null) {
       if (await predicate(state)) return state
@@ -321,7 +321,7 @@ async function browserCase(name, run) {
 async function freshForm() {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId)
   await openViewer(viewer.href)
-  await waitFor(async state => state.heading === 'Escrow' && state.task === 'Create and fund an escrow agreement' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
+  await waitFor(async state => state.heading === 'Escrow' && state.route === 'createAgreementForm' && state.tasks.includes('Create and fund an escrow agreement') && (await field('agreementRef')) !== undefined, 'fresh create form', true)
 }
 async function openViewer(location) {
   await call('Page.navigate', { url: 'about:blank' }, sessionId)
@@ -337,7 +337,7 @@ try {
   await call('Runtime.enable', {}, sessionId)
   await call('Network.enable', {}, sessionId)
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const ready = await waitFor(state => state.heading === 'Escrow' && state.task === 'Create and fund an escrow agreement', 'Escrow root view', true)
+  const ready = await waitFor(async state => state.heading === 'Escrow' && state.route === 'createAgreementForm' && state.tasks.includes('Create and fund an escrow agreement') && (await field('agreementRef')) !== undefined, 'Escrow root view', true)
   assert(ready.text.includes('Agreement reference'), 'Escrow form did not render')
   assert(ready.text.indexOf('Agreement reference') < ready.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'creation task precedes ID navigation')
   const resources = [cam.href, new URL('./ui.json', cam).href, new URL('./abi/CamEscrow.json', cam).href, new URL('./abi/CamEscrowUI.json', cam).href]
@@ -365,18 +365,19 @@ try {
         const names=['Reference limit','Document URI limit','Maximum phase duration','Allowed arbitration timeout recipients'];
         const rows=names.map(name=>[...document.querySelectorAll('.key-value')].find(row=>row.querySelector('.key-label')?.textContent===name));
         if(rows.some(row=>!row)) return null;
-        const first=rows[0].getBoundingClientRect(),last=rows.at(-1).getBoundingClientRect();
-        return {values:rows.map(row=>row.lastElementChild.textContent),height:last.bottom-first.top,fontSize:parseFloat(getComputedStyle(rows[0]).fontSize)};
+        const fields=['agreementRef','termsUri','acceptanceDuration.days','arbitrationTimeoutBeneficiary'].map(name=>document.querySelector('[name="'+name+'"]'));
+        return {values:rows.map(row=>row.lastElementChild.textContent),local:rows.every((row,index)=>fields[index]!==null&&row.closest('.ui-section')===fields[index].closest('.ui-section')&&(row.compareDocumentPosition(fields[index])&Node.DOCUMENT_POSITION_FOLLOWING)!==0),compact:rows.every(row=>row.getBoundingClientRect().height<=parseFloat(getComputedStyle(row).fontSize)*6)};
       })()`)
       assert(limits, 'creation limits are missing')
       assert.deepEqual(limits.values, ['128 bytes', '512 bytes', '365 days (31,536,000 seconds)', 'client, contractor'])
-      assert(limits.height <= limits.fontSize * 16, `contract limits consume excessive vertical space at ${width}px`)
+      assert(limits.local, `contract limits must precede their affected inputs in the same task at ${width}px`)
+      assert(limits.compact, `contract limit rows consume excessive vertical space at ${width}px`)
     }
   })
   await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View account credit'))?.click()`)
-  const creditView = await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'account credit view', false)
+  const creditView = await waitFor(state => state.route === 'accountCredit' && state.tasks.includes('Withdraw account credit') && state.text.includes('Total withdrawable credit for this account (wei)'), 'account credit view', false)
   assert.equal(creditView.heading, 'Escrow')
-  assert.equal(creditView.task, 'Withdraw account credit')
+  assert(creditView.tasks.includes('Withdraw account credit'))
   assert(creditView.text.indexOf('Withdrawal recipient') < creditView.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'withdrawal task precedes ID navigation')
   await browserCase('empty-credit controls share input boundaries and narrow reflow', async () => {
     for (const width of [1280, 320, 375]) {
@@ -963,7 +964,7 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: cam.href, requestStage: 'Request' }] }, sessionId)
   intercept = 'tamper'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const tampered = await waitFor(state => /File hash mismatch/i.test(state.text) && state.heading === 'Escrow' && state.task === 'Create and fund an escrow agreement', 'CAM hash warning with rendered UI', false)
+  const tampered = await waitFor(async state => /File hash mismatch/i.test(state.text) && state.heading === 'Escrow' && state.route === 'createAgreementForm' && state.tasks.includes('Create and fund an escrow agreement') && (await field('agreementRef')) !== undefined, 'CAM hash warning with rendered UI', false)
   assert(/File hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
 
   // A failed fetch must leave Loading and identify the URL and cause.

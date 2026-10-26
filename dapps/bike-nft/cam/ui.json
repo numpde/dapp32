@@ -442,7 +442,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below, then review the update."
+                "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below."
               }
             },
             {
