@@ -153,6 +153,63 @@ test("every read destination retains the application heading above its task", as
   }
 })
 
+test("payment tasks keep their controls together and separate channel administration", async () => {
+  const { session } = await fixture()
+  await session.load()
+  const opened = await session.navigate("position", { customer, channelId: "1" })
+  const groups: Record<string, string> = {}
+  function visit(node: ResolvedUiNode, title = ""): void {
+    if (node.element === "Screen") title = String(node.props.title)
+    if (node.element === "Button") groups[node.call.function] = title
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, title))
+  }
+  visit(opened.resolvedUi)
+  for (const [group, routes] of [
+    ["Deposit", ["fund"]],
+    ["Withdraw or move funds", ["requestWithdrawal", "setWithdrawal", "withdraw", "move"]],
+    ["Voucher signing key", ["registerVoucherKey"]],
+    ["Voucher payments", ["voucherDigest", "collect"]],
+    ["Create a channel", ["createChannel"]],
+    ["Channel administration", ["setPayee", "setCollector"]],
+  ] as const) for (const route of routes) assert.equal(groups[route], group, route)
+})
+
+test("recovery separates account actions from channel retirement and explains retirement before review", async () => {
+  const { session } = await fixture()
+  await session.load()
+  const opened = await session.navigate("recovery", { customer, channelId: "1" })
+  const groups: Record<string, string> = {}
+  const retirement: ResolvedUiNode[] = []
+  function visit(node: ResolvedUiNode, title = ""): void {
+    if (node.element === "Screen") title = String(node.props.title)
+    if (title === "Retire this channel") retirement.push(node)
+    if (node.element === "Button") groups[node.call.function] = title
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, title))
+  }
+  visit(opened.resolvedUi)
+  for (const route of ["renewPosition", "setRefundRecipient", "closePosition", "refund"]) assert.equal(groups[route], "Account recovery", route)
+  assert.equal(groups.closeChannel, "Retire this channel")
+  const warning = retirement.findIndex(node => node.element === "Text" && String(node.props.text).includes("every customer"))
+  const action = retirement.findIndex(node => node.element === "Button" && node.call.function === "closeChannel")
+  assert(warning >= 0 && warning < action, "the channel-wide consequence must precede the retirement action")
+})
+
+test("account destinations offer navigation with the inspected identity across wallet changes", async () => {
+  const { session } = await fixture()
+  await session.load()
+  for (const route of ["position", "recovery", "voucherDigest"]) {
+    await session.navigate(route, route === "voucherDigest" ? { customer, channelId: "1", cumulativeTotal: "20", invoiceHash } : { customer, channelId: "1" })
+    const opened = await session.setAccount({ address: other })
+    const chooser = resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === "choosePosition")
+    assert(chooser, `${route} must offer a way to change the inspected account or channel`)
+    assert.deepEqual(chooser.call.args, toInertValue({ customer, channelId: "1" }))
+    const destination = route === "position" ? "recovery" : "position"
+    const navigation = resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === destination)
+    assert(navigation, `${route} must offer ${destination}`)
+    assert.deepEqual(navigation.call.args, toInertValue({ customer, channelId: "1" }))
+  }
+})
+
 test("entry chooses an explicit balance before displaying money or business writes", async () => {
   const { session, cam } = await fixture()
   assert.equal(cam.routes.myPosition, undefined)
