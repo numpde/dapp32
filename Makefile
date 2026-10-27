@@ -330,11 +330,12 @@ endef
 
 define release_config_compose
 compose_release_config() { \
-	local config_input="$$CONFIG"; \
+	local config_input="$$CONFIG" credential_input="$$CONFIG"; \
 	if [[ -v release_config_input ]]; then config_input="$$release_config_input"; fi; \
+	if [[ -v release_config_credentials ]]; then credential_input="$$release_config_credentials"; fi; \
   if [[ "$$1" == run ]]; then release_config_started=1; fi; \
   if LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$release_config_project" \
-    RELEASE_CONFIG_STAGE_DIR="$$release_config_dir" RELEASE_CONFIG_FILE="$$config_input" RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" \
+    RELEASE_CONFIG_STAGE_DIR="$$release_config_dir" RELEASE_CONFIG_FILE="$$config_input" RELEASE_CREDENTIAL_CONFIG="$$credential_input" RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/config.yml "$$@"; then \
     if [[ "$$1" == run ]]; then release_config_started=0; fi; \
   else \
@@ -503,6 +504,7 @@ release_approval_require_deployer "$$expected_deployer_name" "$$expected_deploye
 recheck_new_release_output "$$output_dir" "$(1)"; \
 mkdir --mode=0700 -- "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
+release_config_retain "$$output_dir"; \
 if [[ "$$release_operation" == ui ]]; then export UI_RELEASE_CANDIDATE_DIR="$$output_dir/ui-candidate"; fi; \
 if [[ "$$release_operation" == contracts ]]; then export CONTRACT_RELEASE_CANDIDATE_DIR="$$output_dir/contract-candidate"; fi; \
 if [[ "$$release_operation" == cam ]]; then export CAM_RELEASE_CANDIDATE_DIR="$$output_dir/cam-candidate"; fi; \
@@ -576,6 +578,7 @@ $(release_config_compose); \
 source_commit="$$(git rev-parse HEAD)"; \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM bundle preparation requires read-only CONFIG.' >&2; exit 2; fi; \
 load_release_config $(patsubst %/release/cam/bundle,%,$@) cam-bundle; \
+source_commit="$$CAM_RELEASE_SOURCE_COMMIT"; \
 require_release_file "$${CONTRACT_ARTIFACT:?Set CONTRACT_ARTIFACT}" CONTRACT_ARTIFACT; \
 require_release_file "$${UI_ARTIFACT:?Set UI_ARTIFACT}" UI_ARTIFACT; \
 source tools/release_cam.sh; release_cam_select_root; \
@@ -593,6 +596,7 @@ $(release_prepare_snapshot); \
 recheck_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
 mkdir --mode=0700 -- "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/inputs" "$$output_dir/sources" "$$output_dir/compiler" "$$output_dir/bundle" "$$output_dir/artifact"; \
+release_config_retain "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/compiler/business" "$$output_dir/compiler/ui" "$$output_dir/compiler/root"; \
 export CAM_RELEASE_PREPARED_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source"; \
 if [[ "$$CAM_RELEASE_ROOT" == new ]]; then printf '{}\n' > "$$ceremony_root/new-root.json"; export CAM_RELEASE_ROOT_ARTIFACT_FILE="$$ceremony_root/new-root.json"; \

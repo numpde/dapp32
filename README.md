@@ -42,19 +42,27 @@ record folders; updates offer saved work and component choices. `instance.json`
 contains references, while the immutable artifacts retain deployment facts.
 Failed operations and hosting pauses remain resumable through the same command.
 Existing deployment directories are not renamed or migrated automatically.
+The instance configuration supplies defaults and credentials. Operations retain
+their own source, settings and approval-tool choices without overwriting those
+defaults. Retained inputs reference the protected credential file rather than
+copying its RPC URL or signing key. Editing defaults does not change saved work;
+resuming a signing phase requires its selected source revision.
 
 Setup and signed operations resolve the approval tool automatically. An installed
 saved image stays pinned. Otherwise the workflow reuses an image with matching
-tool inputs or builds one using the locked dependency stage, then asks you to
-review the configuration change. Operator images are retained for other instances;
+tool inputs or builds one using the locked dependency stage. The selected image
+is recorded for the operation. Operator images are retained for other instances;
 rehearsals remove only images owned by that run after their containers stop.
+A saved signing operation requires its recorded image. If that image was removed,
+restore it to resume signing; keyless verification does not require the image.
 
 `release/ui/deploy` creates a read-only Solidity UI contract and saves its
 verified record. `release/ui/update` also prepares matching CAM files locally
 and updates the existing CAM root to use the selected UI contract and manifest.
 Upload or pin the files yourself before approving root changes. To pause after
 preparation, omit `settings.CAM_URI` from the CAM configuration, host the files,
-set their manifest URI, then resume. `release/cam/bundle` prepares files only;
+then repeat the command to enter their manifest URI. That URI is retained for
+publication; no configuration edit is required. `release/cam/bundle` prepares files only;
 `release/cam/publish` configures contract addresses and the manifest URI/hash
 on chain. Neither command uploads files.
 

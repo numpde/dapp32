@@ -87,6 +87,35 @@ touch "$CASE_ROOT/continued"
                 self.assertNotIn("unrelated.js", result.stdout + result.stderr)
                 self.assertNotIn("record file", result.stdout + result.stderr)
 
+    def test_saved_operation_cannot_substitute_current_tooling_for_its_missing_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = self.run_shell(root, r'''
+release_config_dir="$CASE_ROOT/stage"
+mkdir "$release_config_dir"
+printf retained-source > "$release_config_dir/retained-source"
+release_config_prepare_approval_images "$SAVED_IMAGE"
+touch "$CASE_ROOT/continued"
+''', missing=True)
+            self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+            self.assertIn(IMAGE, result.stderr)
+            self.assertIn("Restore that exact image", result.stderr)
+            self.assertFalse((root / "continued").exists())
+
+    def test_rehearsal_can_use_only_its_explicitly_pinned_fixture_image(self):
+        for network, admitted in (("cam-rehearsal-fixture-rehearsal", True), ("another-rehearsal", False)):
+            with self.subTest(network=network), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                result = self.run_shell(root, 'RELEASE_REHEARSAL_NETWORK=' + network + '\n' + r'''
+release_config_dir="$CASE_ROOT/stage"
+mkdir "$release_config_dir"
+SAVED_IMAGE="sha256:$(printf 'd%.0s' {1..64})"
+release_config_prepare_approval_images "$SAVED_IMAGE"
+touch "$CASE_ROOT/continued"
+''', missing=False)
+                self.assertEqual(admitted, result.returncode == 0, result.stdout + result.stderr)
+                self.assertEqual(admitted, (root / "continued").exists())
+
     def test_saved_image_overrides_ambient_and_missing_exact_image_blocks_deploy_only(self):
         for mode, missing in (("deploy", False), ("deploy", True), ("verify", True)):
             with self.subTest(mode=mode, missing=missing), tempfile.TemporaryDirectory() as temporary:
@@ -99,6 +128,8 @@ CONFIG="$CASE_ROOT/release.json"
 source_commit="$TOOL_SOURCE"
 release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
 compose_release_config() {
+  if [[ "$*" == *' release-config credential-source '* ]]; then printf '%s\n' "$CONFIG" > "$release_config_dir/credential-source"; return; fi
+  if [[ "$*" == *' release-config retain '* ]]; then printf '{}\n' > "$release_config_dir/operation-inputs.json"; return; fi
   if [[ "$*" == *' release-config approval-pin '* ]]; then
     printf '%s\n' "$SAVED_IMAGE" > "$release_config_dir/approval-pin"
     return

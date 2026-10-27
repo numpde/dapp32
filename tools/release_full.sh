@@ -4,7 +4,7 @@
 # permission to deploy a replacement phase.
 
 release_full_read_uri_presence() {
-  local CONFIG="$1" app="$2" status=0
+  local CONFIG="$1" app="$2" status=0 release_config_input="$1" release_config_credentials="$1"
   require_release_config "$CONFIG"
   compose_release_config run --rm --no-deps -T --entrypoint python3 release-config -I -B -c '
 import sys
@@ -86,6 +86,8 @@ release_full() {
   local contracts="$output/contracts" ui="$output/ui" prepared="$output/cam-bundle" cam="$output/cam"
   if [[ -v CAM_BUNDLE && -n "$CAM_BUNDLE" ]]; then prepared="$CAM_BUNDLE"; fi
   local business_artifact ui_artifact legacy_records
+  local prepared_before=0
+  if [[ -f "$prepared/artifact/cam-bundle.json" ]]; then prepared_before=1; fi
   local -a root_selection
   require_release_config "$ui_config"
   require_release_config "$cam_config"
@@ -143,6 +145,23 @@ release_full() {
   if [[ "$operation" == update && ( -e "$contracts" || -L "$contracts" ) ]]; then
     printf '%s\n' 'UI update needs its own records directory. Keep the full release and select a fresh OUTPUT_DIR.' >&2
     return 2
+  fi
+
+  if [[ "$operation" != verify ]]; then
+    mkdir -p --mode=0700 -- "$output/inputs"
+    local role selected
+    local -a roles=(ui cam)
+    if [[ "$operation" == full ]]; then roles=(business ui cam); fi
+    for role in "${roles[@]}"; do
+      case "$role" in business) selected="$main_config" ;; ui) selected="$ui_config" ;; cam) selected="$cam_config" ;; esac
+      if [[ ! -e "$output/inputs/$role.json" ]]; then
+        release_config_capture "$selected" "$output/inputs/$role.json" "$app" || return
+      fi
+      require_release_config "$output/inputs/$role.json"
+    done
+    if [[ "$operation" == full ]]; then main_config="$output/inputs/business.json"; fi
+    ui_config="$output/inputs/ui.json"
+    cam_config="$output/inputs/cam.json"
   fi
 
   if [[ "$operation" == verify ]]; then
@@ -213,14 +232,18 @@ release_full() {
     if [[ "$release_full_has_uri" == 0 ]]; then
       printf '%s\n' 'CAM files are ready. Paused before CAM root transactions.'
       printf 'Business record: %s\nUI contract record: %s\nCAM files to upload or pin: %s/bundle\n' "$business_artifact" "$ui_artifact" "$prepared"
-      printf '%s\n' 'Set settings.CAM_URI in the selected CAM configuration after hosting these exact files.'
+      printf '%s\n' 'After hosting these exact files, repeat the command to enter their manifest URI. Your instance configuration stays unchanged.'
       if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
         printf 'Resume: make %q INSTANCE=%q\n' "$app/release/${RELEASE_INSTANCE_OPERATION:?}" "$RELEASE_INSTANCE_ROOT"
       else
         printf 'Resume with the same CONFIG and OUTPUT_DIR; the existing phases will be reused.\n'
       fi
-      return 0
+      if [[ "$prepared_before" == 0 ]]; then return 0; fi
+    fi
+    if [[ ! -f "$output/inputs/publication-uri" ]]; then
+      release_config_hosted_uri "$cam_config" "$output/inputs/publication-uri" "$app" || return
     fi
   fi
+  if [[ -f "$output/inputs/publication-uri" ]]; then export RELEASE_CAM_URI_FILE="$output/inputs/publication-uri"; fi
   release_full_cam "$app" "$cam_config" "$prepared" "$cam" publish "${root_selection[@]}"
 }

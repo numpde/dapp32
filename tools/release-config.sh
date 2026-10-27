@@ -1,7 +1,7 @@
 # Host filesystem admission and lifecycle for the shared release configuration.
 # Sourced by Make after its existing release path guards have been defined.
 
-unset release_config_dir release_config_input
+unset release_config_dir release_config_input release_config_credentials
 release_config_started=0
 release_setup_rpc_started=0
 
@@ -26,7 +26,7 @@ release_config_teardown() {
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
-    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" "$release_config_dir/approval-pin" "$release_config_dir/approval-image" "$release_config_dir/approval-built" \
+    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/configuration.json" "$release_config_dir/capture.json" "$release_config_dir/approval-images" "$release_config_dir/approval-pin" "$release_config_dir/approval-image" "$release_config_dir/approval-built" "$release_config_dir/credential-source" "$release_config_dir/retained-source" "$release_config_dir/operation-inputs.json" "$release_config_dir/publication-uri" \
       "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" "$release_config_dir/ui-source" "$release_config_dir/contract-source" "$release_config_dir/cam-source" "$release_config_dir/cam-uri-ready" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
@@ -115,13 +115,17 @@ release_config_prepare_approval_images() {
   if [[ $# == 1 ]]; then pinned="$1"; fi
   source tools/release_approval_images.sh
   if [[ -n "$pinned" ]]; then
-    inventory=$(release_approval_installed_images) || return
+    inventory=$(release_approval_installed_images "$pinned") || return
     while IFS=$'\t' read -r image revision; do
       if [[ "$image" == "$pinned" ]]; then
         printf '%s\n' "$image" > "$release_config_dir/approval-image"
         return 0
       fi
     done <<< "$inventory"
+  fi
+  if [[ -n "$pinned" && -f "$release_config_dir/retained-source" ]]; then
+    printf 'This operation requires approval image %s, which is not installed. Restore that exact image to resume signing. Keyless verification remains available; starting a separate operation may create additional contracts.\n' "$pinned" >&2
+    return 2
   fi
   if [[ -n "$pinned" && ( ! -t 0 || ! -t 1 ) ]]; then
     printf '%s\n' 'The saved approval tool is unavailable. Run the same command interactively to prepare and review its replacement.' >&2
@@ -141,14 +145,42 @@ release_config_prepare_approval_images() {
 }
 
 load_release_config() {
-  local app="$1" mode="$2" status=0 configuration_change="" original_digest update_mode=update output_override=""
+  local app="$1" mode="$2" status=0 configuration_change="" update_mode=update output_override="" records=""
   if [[ -v OUTPUT_DIR ]]; then output_override="$OUTPUT_DIR"; fi
   local -a inputs
+  case "$mode" in
+    ui-artifact) if [[ -v UI_RECORDS ]]; then records="$UI_RECORDS"; fi ;;
+    contracts-artifact) if [[ -v CONTRACT_RECORDS ]]; then records="$CONTRACT_RECORDS"; fi ;;
+    cam-artifact|cam-publish) if [[ -v CAM_RECORDS ]]; then records="$CAM_RECORDS"; fi ;;
+  esac
+  if [[ -z "$records" ]]; then records="$output_override"; fi
+  if [[ -n "$records" && -f "$records/inputs/configuration.json" ]]; then
+    CONFIG="$records/inputs/configuration.json"
+  fi
   if [[ ! -v CONFIG || -z "$CONFIG" ]]; then return; fi
   require_release_config "$CONFIG"
   release_config_stage "$(dirname -- "$CONFIG")"
-  original_digest=$(sha256sum -- "$CONFIG")
+  release_config_credentials="$CONFIG"
+  release_config_input="$release_config_dir/configuration.json"
+  cp -- "$CONFIG" "$release_config_input"
+  compose_release_config run --rm --no-deps -T release-config credential-source "$app" "$source_commit"
+  read -r release_config_credentials < "$release_config_dir/credential-source"
+  require_release_config "$release_config_credentials"
+  if [[ "$mode" == cam-publish ]]; then
+    if [[ -v RELEASE_CAM_URI_FILE && -n "$RELEASE_CAM_URI_FILE" ]]; then
+      require_release_file "$RELEASE_CAM_URI_FILE" 'Retained publication URI'
+      cp -- "$RELEASE_CAM_URI_FILE" "$release_config_dir/publication-uri"
+    else
+      local -a terminal=(-T)
+      if [[ -t 0 && -t 1 ]]; then terminal=(-it); fi
+      compose_release_config run --rm --no-deps "${terminal[@]}" release-config publication-uri "$app" "$source_commit"
+    fi
+  fi
   compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit" || status=$?
+  if [[ "$status" == 3 && -f "$release_config_dir/retained-source" ]]; then
+    printf 'This operation uses source %s. Check out that commit to resume; its saved inputs were not changed.\n' "$(cat "$release_config_dir/retained-source")" >&2
+    return 2
+  fi
   if [[ "$status" == 3 ]]; then configuration_change=source; fi
   if [[ "$status" == 3 && ( ! -t 0 || ! -t 1 ) ]]; then return "$status"; fi
   if [[ ( "$status" == 0 || "$status" == 3 ) && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) ]]; then
@@ -199,13 +231,50 @@ load_release_config() {
     if [[ "$mode" == contracts-deploy ]]; then output_name=CONTRACT_RELEASE_OUTPUT_DIR; fi
     if [[ "$mode" == cam-publish ]]; then output_name=CAM_RELEASE_OUTPUT_DIR; fi
     if [[ "$configuration_change" == source ]]; then validate_new_release_output "${!output_name}" "$output_name"; fi
-    require_release_config "$CONFIG"
-    if [[ "$(sha256sum -- "$CONFIG")" != "$original_digest" ]]; then
-      printf '%s\n' 'The saved configuration changed during review; refusing to replace it.' >&2
-      return 2
-    fi
-    mv -T -- "$release_config_input" "$CONFIG"
-    unset release_config_input
-    printf 'Updated release configuration: %s\n' "$CONFIG"
+    printf '%s\n' 'Operation settings prepared; the saved configuration is unchanged.'
   fi
+  case "$mode" in
+    deploy|ui-deploy|contracts-deploy|cam-publish|cam-bundle)
+      local retained_source="$source_commit"
+      if [[ "$mode" == cam-bundle ]]; then retained_source="$CAM_RELEASE_SOURCE_COMMIT"; fi
+      compose_release_config run --rm --no-deps -T release-config retain "$app" "$retained_source" ;;
+  esac
+}
+
+release_config_retain() {
+  local records="$1"
+  mkdir -p --mode=0700 -- "$records/inputs"
+  release_config_save "$release_config_dir/operation-inputs.json" "$records/inputs/configuration.json"
+}
+
+release_config_capture() {
+  local CONFIG="$1" destination="$2" app="$3" release_config_credentials="$1" release_config_input="$release_config_dir/capture.json"
+  require_release_config "$CONFIG"
+  cp -- "$CONFIG" "$release_config_input"
+  rm -f -- "$release_config_dir/operation-inputs.json" "$release_config_dir/approval-pin"
+  compose_release_config run --rm --no-deps -T release-config approval-pin "$app" "$source_commit"
+  local pin
+  read -r pin < "$release_config_dir/approval-pin"
+  release_config_prepare_approval_images "$pin" || return
+  compose_release_config run --rm --no-deps -T release-config retain "$app" "$source_commit"
+  release_config_save "$release_config_dir/operation-inputs.json" "$destination" || return
+  rm -- "$release_config_dir/operation-inputs.json" "$release_config_input"
+}
+
+release_config_hosted_uri() {
+  local CONFIG="$1" destination="$2" app="$3" release_config_input="$1" release_config_credentials="$1"
+  local -a terminal=(-T)
+  if [[ -t 0 && -t 1 ]]; then terminal=(-it); fi
+  compose_release_config run --rm --no-deps "${terminal[@]}" release-config publication-uri "$app" "$source_commit"
+  release_config_save "$release_config_dir/publication-uri" "$destination" || return
+  rm -- "$release_config_dir/publication-uri"
+}
+
+release_config_save() {
+  local source="$1" destination="$2" temporary status=0
+  temporary=$(mktemp -- "$(dirname -- "$destination")/.operation-inputs-XXXXXXXX") || return
+  # Retained choices must survive a crash before a later transaction can be sent.
+  if cp -- "$source" "$temporary" && sync -f "$temporary" && ln -- "$temporary" "$destination" && sync -f "$(dirname -- "$destination")"; then :; else status=$?; fi
+  rm -- "$temporary" || return
+  return "$status"
 }

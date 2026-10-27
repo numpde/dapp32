@@ -29,7 +29,7 @@ release_instance() {
   stage=$(mktemp -d -- "$instance/.instance-command-XXXXXXXX")
   project="cam-instance-$(basename "$stage" | tr -cd 'a-zA-Z0-9' | tr '[:upper:]' '[:lower:]')"
   export RELEASE_INSTANCE_ROOT="$instance" RELEASE_INSTANCE_OPERATION="$operation"
-  export RELEASE_INSTANCE_DIR="$instance" RELEASE_CONFIG_FILE="$instance/config.json" RELEASE_CONFIG_STAGE_DIR="$stage"
+  export RELEASE_INSTANCE_DIR="$instance" RELEASE_CONFIG_FILE="$instance/config.json" RELEASE_CREDENTIAL_CONFIG="$instance/config.json" RELEASE_CONFIG_STAGE_DIR="$stage"
   local -a compose=(docker compose --env-file /dev/null -p "$project" -f compose/release/config.yml)
   retire_instance_selection() {
     if [[ ! -d "$stage" ]]; then return 0; fi

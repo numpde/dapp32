@@ -994,7 +994,7 @@ printf 'fixture input\\n' > "$release_config_dir/rpc-url"
                     self.assertIn("Release configuration teardown failed", stderr)
                     self.assertIn("retained mounted inputs", stderr)
 
-    def test_config_update_is_interactive_and_published_only_after_host_admission(self) -> None:
+    def test_operation_settings_are_admitted_without_replacing_instance_defaults(self) -> None:
         for outcome in ("update", "cancel", "bad-image", "bad-output", "changed", "noninteractive", "verify", "ui-override", "image-only"):
             with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -1012,6 +1012,9 @@ release_config_prepare_approval_images() { printf '%s\n' "sha256:$(printf 'a%.0s
 validate_new_release_output() { [[ "$OUTCOME" != bad-output && "$OUTCOME" != image-only && "$1" == "$CASE_ROOT/new-output" ]]; }
 docker() { [[ "$OUTCOME" != bad-image ]] || return 1; printf '%s\n' "$5"; }
 compose_release_config() {
+  if [[ " $* " == *' release-config credential-source '* ]]; then printf '%s\n' "$CONFIG" > "$release_config_dir/credential-source"; return; fi
+  if [[ " $* " == *' release-config retain '* ]]; then printf '{}\n' > "$release_config_dir/operation-inputs.json"; return; fi
+  if [[ " $* " == *' release-config publication-uri '* ]]; then return; fi
   if [[ " $* " == *' release-config approval-pin '* ]]; then
     local pin=a
     if [[ "$OUTCOME" == image-only ]]; then pin=b; fi
@@ -1023,7 +1026,7 @@ compose_release_config() {
     [[ "$OUTCOME" != cancel ]] || return 2
     printf updated > "$release_config_dir/release.json"
     if [[ "$OUTCOME" == changed ]]; then printf concurrent-edit > "$CONFIG"; fi
-  elif [[ -v release_config_input || "$OUTCOME" == image-only ]]; then
+  elif [[ -f "$release_config_dir/release.json" || "$OUTCOME" == image-only ]]; then
     if [[ "$OUTCOME" == image-only ]]; then
       printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0CAM_RELEASE_OUTPUT_DIR=%s/old-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
     elif [[ "$OUTCOME" == ui-override ]]; then
@@ -1051,8 +1054,8 @@ else load_release_config escrow "$mode"; fi
                         stdout=slave, stderr=slave,
                     )
                     process.wait(timeout=10)
-                    self.assertEqual(outcome in ("update", "ui-override", "image-only"), process.returncode == 0)
-                    expected = "updated" if outcome in ("update", "ui-override", "image-only") else "concurrent-edit" if outcome == "changed" else "original"
+                    self.assertEqual(outcome in ("update", "ui-override", "image-only", "changed"), process.returncode == 0)
+                    expected = "concurrent-edit" if outcome == "changed" else "original"
                     self.assertEqual(expected, config.read_text())
                     events = (root / "events").read_text()
                     self.assertEqual(outcome not in ("verify", "noninteractive"), "release-config update" in events)
@@ -1295,6 +1298,8 @@ require_release_file() { [[ -f "$1" && ! -L "$1" ]]; }
 reject_release_path_symlinks() { [[ ! -L "$1" ]]; }
 validate_new_release_output() { [[ "$1" == "$CASE_ROOT/"* && ! -e "$1" ]]; }
 release_full_read_uri_presence() { release_full_has_uri="$HAS_URI"; }
+release_config_capture() { cp -- "$1" "$2"; }
+release_config_hosted_uri() { printf 'https://hosted.example.test/main.json\n' > "$2"; }
 release_full_make() {
   printf '%s\0' "$@" >> "$CASE_ROOT/calls"
   printf '\0' >> "$CASE_ROOT/calls"
@@ -1386,8 +1391,8 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
                 self.assertEqual(0, result.returncode, result.stderr)
                 self.assertEqual([f"{app}/release/{phase}" for phase in
                                   ("contracts/deploy", "ui/deploy", "cam/bundle", "cam/publish")], [call[0] for call in calls])
-                self.assertIn(f"CONFIG={root / 'private files/ui.json'}", calls[1])
-                self.assertIn(f"CONFIG={root / 'private files/cam.json'}", calls[3])
+                self.assertIn(f"CONFIG={root / 'release/inputs/ui.json'}", calls[1])
+                self.assertIn(f"CONFIG={root / 'release/inputs/cam.json'}", calls[3])
                 original = (root / "release/cam/artifact/cam-publication.json").read_bytes()
                 result, calls = self.invoke(root, operation="full", uri=True, app=app)
                 self.assertEqual(0, result.returncode, result.stderr)
@@ -1442,10 +1447,15 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             self.assertEqual(3, len(calls))
             self.assertIn("upload or pin", result.stdout)
             self.assertFalse((root / "release/cam").exists())
-            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            saved = {name: (root / "release/inputs" / name).read_bytes() for name in ("business.json", "ui.json", "cam.json")}
+            for path in (root / "private files").glob("*.json"):
+                path.write_text("changed defaults\n")
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=False)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(["escrow/release/contracts/artifact", "escrow/release/ui/artifact", "escrow/release/cam/publish"],
                              [call[0] for call in calls])
+            self.assertEqual(saved, {name: (root / "release/inputs" / name).read_bytes() for name in saved})
+            self.assertEqual("https://hosted.example.test/main.json\n", (root / "release/inputs/publication-uri").read_text())
 
     def test_update_reuses_business_and_selects_only_ui_bundle_and_existing_root_publication(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -137,6 +137,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "RELEASE_RPC_OUTPUT_DIR": "/tmp/release-rpc-output",
     "RELEASE_CONFIG_STAGE_DIR": "/tmp/release-config-stage",
     "RELEASE_CONFIG_FILE": "/tmp/release-config.json",
+    "RELEASE_CREDENTIAL_CONFIG": "/tmp/release-config.json",
     "RELEASE_LOCAL_NETWORK": "dapps-release-local_anvil_internal",
     "RELEASE_VIEWER_PORT": "5174",
     "VIEWER_BIND_HOST": "127.0.0.1",

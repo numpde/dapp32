@@ -8,6 +8,7 @@ import pty
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -64,6 +65,98 @@ def complete_setup(app, source_commit, output):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_tool_preparation_cannot_change_the_defaults_captured_for_an_operation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "config.json"
+            original = configuration("escrow")
+            source.write_text(json.dumps(original))
+            changed = {**original, "settings": {**original["settings"], "EXPECTED_CHAIN_ID": "43113"}}
+            (root / "changed.json").write_text(json.dumps(changed))
+            (root / "stage").mkdir()
+            script = r'''
+source tools/release-config.sh
+source_commit="$SOURCE"
+release_config_dir="$CASE_ROOT/stage"
+require_release_config() { [[ -f "$1" ]]; }
+release_config_prepare_approval_images() {
+  cp -- "$CASE_ROOT/changed.json" "$CASE_ROOT/config.json"
+  printf '%s\n' "$1" > "$release_config_dir/approval-image"
+}
+compose_release_config() {
+  if [[ " $* " == *' release-config approval-pin '* ]]; then
+    printf '%s\n' "$IMAGE" > "$release_config_dir/approval-pin"
+  else
+    RELEASE_CREDENTIAL_CONFIG="$release_config_credentials" "$PYTHON" -I -B -c '
+import sys
+from pathlib import Path
+sys.path.insert(0, "tools")
+from release_config import retain_configuration
+retain_configuration(Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]))
+' "$release_config_input" "$source_commit" "$release_config_dir"
+  fi
+}
+release_config_capture "$CASE_ROOT/config.json" "$CASE_ROOT/captured.json" escrow
+'''
+            result = subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", script], cwd=ROOT, capture_output=True, text=True,
+                                    env={**os.environ, "CASE_ROOT": str(root), "SOURCE": COMMIT, "IMAGE": APPROVAL_IMAGE, "PYTHON": sys.executable}, timeout=10)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            retained = json.loads((root / "captured.json").read_text())
+            self.assertEqual("84532", retained["settings"]["EXPECTED_CHAIN_ID"])
+            self.assertEqual(str(source), retained["credentialConfig"])
+            self.assertEqual(changed, json.loads(source.read_text()))
+            self.assertNotIn(FIXTURE_KEY, (root / "captured.json").read_text())
+
+    def test_operation_inputs_keep_choices_but_read_current_credentials_without_copying_secrets(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                original = configuration(app)
+                source = root / "config.json"
+                source.write_text(json.dumps(original))
+                retained = root / "retained"
+                retained.mkdir()
+                with patch.dict(os.environ, {"RELEASE_CREDENTIAL_CONFIG": str(source)}):
+                    release_config.retain_configuration(source, "f" * 40, retained)
+                snapshot = retained / "operation-inputs.json"
+                saved = json.loads(snapshot.read_text())
+                self.assertNotIn(FIXTURE_KEY, snapshot.read_text())
+                self.assertNotIn(FIXTURE_RPC, snapshot.read_text())
+                self.assertNotIn("OUTPUT_DIR", saved["settings"])
+                self.assertEqual(str(source), saved["credentialConfig"])
+                changed = {**original, "sourceCommit": "b" * 40, "approvalImageId": "sha256:" + "bb" * 32,
+                           "rpcUrl": "https://replacement.example.test", "deployerPrivateKey": "0x" + "33" * 32,
+                           "settings": {**original["settings"], "EXPECTED_CHAIN_ID": "43113"}}
+                source.write_text(json.dumps(changed))
+                joined = release_config.read_configuration(snapshot, credentials=source)
+                self.assertEqual("f" * 40, joined["sourceCommit"])
+                self.assertEqual(APPROVAL_IMAGE, joined["approvalImageId"])
+                self.assertEqual("84532", joined["settings"]["EXPECTED_CHAIN_ID"])
+                self.assertEqual(changed["rpcUrl"], joined["rpcUrl"])
+                self.assertEqual(changed["deployerPrivateKey"], joined["deployerPrivateKey"])
+                self.assertEqual(changed, json.loads(source.read_text()))
+                again = root / "again"
+                again.mkdir()
+                with patch.dict(os.environ, {"RELEASE_CREDENTIAL_CONFIG": str(source)}):
+                    release_config.retain_configuration(snapshot, "c" * 40, again)
+                self.assertEqual(saved, json.loads((again / "operation-inputs.json").read_text()))
+
+    def test_hosting_uri_is_a_late_operation_input_without_mutating_defaults(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "config.json"
+            config = configuration("escrow")
+            config["settings"].pop("CAM_URI")
+            original = json.dumps(config)
+            source.write_text(original)
+            with patch.object(release_config.sys.stdin, "isatty", return_value=True), patch.object(release_config, "input", return_value="https://hosted.example.test/main.json", create=True):
+                release_config.publication_uri(source, root)
+            with patch.dict(os.environ, {"RELEASE_CREDENTIAL_CONFIG": str(source)}):
+                release_config.retain_configuration(source, COMMIT, root)
+            saved = json.loads((root / "operation-inputs.json").read_text())
+            self.assertEqual("https://hosted.example.test/main.json", saved["settings"]["CAM_URI"])
+            self.assertEqual(original, source.read_text())
+
     def test_cam_loader_clears_ambient_values_and_admits_override_before_an_interactive_update(self):
         script = r'''
 source tools/release-config.sh
@@ -82,6 +175,16 @@ docker() {
   printf '%s\n' "$5"
 }
 compose_release_config() {
+  if [[ " $* " == *' release-config credential-source '* ]]; then
+    printf '%s\n' "$CONFIG" > "$release_config_dir/credential-source"
+    if [[ "$MODE" == retained ]]; then printf saved-source > "$release_config_dir/retained-source"; fi
+    return
+  fi
+  if [[ " $* " == *' release-config retain '* ]]; then
+    if [[ "$MODE" == cam-bundle ]]; then [[ "${@: -1}" == authored ]]; fi
+    printf '{}\n' > "$release_config_dir/operation-inputs.json"; return
+  fi
+  if [[ " $* " == *' release-config publication-uri '* ]]; then return; fi
   if [[ " $* " == *' release-config approval-pin '* ]]; then
     printf '%s\n' "sha256:$(printf 'a%.0s' {1..64})" > "$release_config_dir/approval-pin"
     return
@@ -91,11 +194,13 @@ compose_release_config() {
     printf '{"settings":{"OUTPUT_DIR":"/tmp/saved-cam"}}' > "$release_config_dir/release.json"
     return
   fi
-  if [[ ( "$MODE" == update || "$MODE" == noninteractive ) && ! -v release_config_input ]]; then return 3; fi
+  if [[ ( "$MODE" == update || "$MODE" == noninteractive || "$MODE" == retained ) && ! -f "$release_config_dir/release.json" ]]; then return 3; fi
   printf 'rpc fixture\n' > "$release_config_dir/rpc-url"
   printf 'CAM_RELEASE_APP=escrow\0' > "$release_config_dir/inputs"
   if [[ "$MODE" != cam-artifact ]]; then
-    printf 'CAM_RELEASE_SOURCE_COMMIT=current\0CAM_RELEASE_EXPECTED_CHAIN_ID=84532\0CAM_RELEASE_OUTPUT_DIR=/tmp/saved-cam\0' >> "$release_config_dir/inputs"
+    selected_source=current
+    if [[ "$MODE" == cam-bundle ]]; then selected_source=authored; fi
+    printf 'CAM_RELEASE_SOURCE_COMMIT=%s\0CAM_RELEASE_EXPECTED_CHAIN_ID=84532\0CAM_RELEASE_OUTPUT_DIR=/tmp/saved-cam\0' "$selected_source" >> "$release_config_dir/inputs"
   fi
   if [[ "$MODE" == cam-publish || "$MODE" == update ]]; then
     printf 'CAM_RELEASE_SIGNER_ADDRESS=selected-signer\0CAM_RELEASE_URI=selected-uri\0CAM_RELEASE_INTENDED_OWNER=selected-owner\0RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0' >> "$release_config_dir/inputs"
@@ -109,7 +214,7 @@ CAM_RELEASE_OUTPUT_DIR=stale
 RELEASE_APPROVAL_IMAGE=stale
 DEPLOYER_PRIVATE_KEY_FILE=stale
 operation="$MODE"
-if [[ "$MODE" == update || "$MODE" == noninteractive ]]; then operation=cam-publish; fi
+if [[ "$MODE" == update || "$MODE" == noninteractive || "$MODE" == retained ]]; then operation=cam-publish; fi
 OUTPUT_DIR="$CASE_ROOT/selected-output"
 load_release_config escrow "$operation"
 [[ "$CAM_RELEASE_APP" == escrow && "$RPC_URL_FILE" == "$release_config_dir/rpc-url" ]]
@@ -124,7 +229,7 @@ if [[ "$MODE" == cam-artifact ]]; then [[ ! -v CAM_RELEASE_OUTPUT_DIR ]];
 else [[ "$CAM_RELEASE_OUTPUT_DIR" == "$CASE_ROOT/selected-output" ]]; fi
 printf continued > "$CASE_ROOT/continued"
 '''
-        for mode in ("cam-bundle", "cam-artifact", "cam-publish", "update", "noninteractive"):
+        for mode in ("cam-bundle", "cam-artifact", "cam-publish", "update", "noninteractive", "retained"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 config = root / "config.json"
@@ -140,15 +245,13 @@ printf continued > "$CASE_ROOT/continued"
                 finally:
                     os.close(master)
                     os.close(slave)
-                self.assertEqual(3 if mode == "noninteractive" else 0, result.returncode, result.stderr)
-                self.assertEqual(mode != "noninteractive", (root / "continued").exists())
+                self.assertEqual(3 if mode == "noninteractive" else 2 if mode == "retained" else 0, result.returncode, result.stderr)
+                self.assertEqual(mode not in ("noninteractive", "retained"), (root / "continued").exists())
                 self.assertEqual(mode in ("cam-publish", "update"), (root / "image-checked").exists())
                 self.assertEqual(mode == "update", (root / "output-checked").exists())
                 if mode == "update":
                     self.assertIn(" release-config update-cam ", (root / "events").read_text())
-                    self.assertEqual({"settings": {"OUTPUT_DIR": "/tmp/saved-cam"}}, json.loads(config.read_text()))
-                else:
-                    self.assertEqual("original", config.read_text())
+                self.assertEqual("original", config.read_text())
 
     def test_cam_bundle_preparation_uses_only_readonly_settings_before_a_uri_exists(self):
         for app in release_config.APP_FIELDS:
@@ -966,7 +1069,7 @@ printf continued > "$CASE_ROOT/continued"
                 if name == "release-instance":
                     expected |= {"/tool/release_instance.py", "/instance"}
                 if name == "release-config":
-                    expected.add("/run/release.json")
+                    expected |= {"/run/release.json", "/run/credentials.json"}
                 self.assertEqual(expected, {mount["target"] for mount in service["volumes"]})
                 for mount in service["volumes"]:
                     if mount["target"] not in ("/out", "/instance"):

@@ -43,6 +43,7 @@ APP_FIELDS = {
 KEY_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 MAX_CONFIG_BYTES = 65536
 CONFIG_VERSION = 3
+CREDENTIAL_FILE = Path("/run/credentials.json")
 
 
 class SourceCommitMismatch(ValueError):
@@ -192,7 +193,7 @@ def validate(config, app, source_commit, *, purpose):
         except ValueError as error:
             raise ValueError(f"Invalid {name}: {error}") from error
     if source_commit is not None and config["sourceCommit"] != source_commit:
-        raise SourceCommitMismatch("The configuration pins a different source commit; deploy interactively to update it, or use the saved commit.")
+        raise SourceCommitMismatch("The selected inputs use a different source commit.")
     return config
 
 
@@ -386,14 +387,66 @@ def read_json_file(source, label):
     return config
 
 
-def update_source(app, source_commit, source, output, *, purpose):
+def credential_source(config, selected):
+    """Retained operation inputs reference credentials without copying them."""
+    # silent-defaults: allow-default -- Ordinary configs own credentials; operation inputs reference that protected file.
+    return check_value(config.get("credentialConfig", selected), "path")
+
+
+def read_configuration(source, *, credentials):
     config = read_json_file(source, "configuration")
+    if "credentialConfig" not in config:
+        return config
+    if "rpcUrl" in config or "deployerPrivateKey" in config:
+        raise ValueError("Retained operation inputs must not contain RPC credentials or a signing key.")
+    credential_source(config, "")
+    supplied = read_json_file(credentials, "credential configuration")
+    return {**{name: value for name, value in config.items() if name != "credentialConfig"},
+            **{name: supplied[name] for name in ("rpcUrl", "deployerPrivateKey") if name in supplied}}
+
+
+def retain_configuration(source, source_commit, output):
+    """Capture defaults once; an existing operation keeps its selected source."""
+    config = read_json_file(source, "configuration")
+    if not isinstance(config.get("settings"), dict):
+        raise ValueError("Operation inputs require settings from the selected configuration.")
+    selected = credential_source(config, os.environ["RELEASE_CREDENTIAL_CONFIG"])
+    retained = {name: value for name, value in config.items()
+                if name not in ("rpcUrl", "deployerPrivateKey", "credentialConfig")}
+    if "credentialConfig" not in config:
+        retained["sourceCommit"] = source_commit
+        print(f"Operation source: {source_commit}. The saved configuration is unchanged.")
+    retained["credentialConfig"] = selected
+    retained["settings"] = {name: value for name, value in retained["settings"].items() if name != "OUTPUT_DIR"}
+    if (output / "publication-uri").is_file():
+        retained["settings"]["CAM_URI"] = (output / "publication-uri").read_text().strip()
+    if (output / "approval-image").is_file():
+        retained["approvalImageId"] = (output / "approval-image").read_text().strip()
+    write_private(output / "operation-inputs.json", (json.dumps(retained, indent=2) + "\n").encode())
+
+
+def publication_uri(source, output):
+    config = read_json_file(source, "configuration")
+    uri = config["settings"].get("CAM_URI")
+    local_uri = f"http://release-cam:8080/{config['app']}/main.json" if "localNetwork" in config else None
+    if not uri:
+        if not sys.stdin.isatty():
+            raise ValueError("Host the prepared CAM files, then run the same command interactively to enter their manifest URI.")
+        uri = ask("Hosted CAM manifest URI", "uri", "", secret=False, local_cam_uri=local_uri)
+    check_value(uri, "uri", local_cam_uri=local_uri)
+    write_private(output / "publication-uri", (uri + "\n").encode())
+
+
+def update_source(app, source_commit, source, output, *, purpose):
+    config = read_configuration(source, credentials=CREDENTIAL_FILE)
+    if purpose == "cam" and (output / "publication-uri").is_file():
+        config["settings"]["CAM_URI"] = (output / "publication-uri").read_text().strip()
     validate(config, app, None, purpose=purpose)
     if config["sourceCommit"] != source_commit:
         print(f"Saved source commit:   {config['sourceCommit']}\nCurrent source commit: {source_commit}")
     else:
         print(f"Source commit: {source_commit} (unchanged)")
-    print("Updating keeps your RPC, signing key, chain and contract settings. Existing deployment records are left untouched.")
+    print("These settings apply to this operation. Your saved configuration and existing deployment records will not change.")
     if "OUTPUT_DIR" in config["settings"]:
         print(f"Previous deployment records: {config['settings']['OUTPUT_DIR']} (left untouched)")
     config["sourceCommit"] = source_commit
@@ -409,14 +462,16 @@ def update_source(app, source_commit, source, output, *, purpose):
         if purpose == "cam" and name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR", "CAM_URI", "INTENDED_CAM_ROOT_OWNER"):
             continue
         print(f"{name}: {value}")
-    print("This replaces the saved configuration after validation, then continues deployment. Transactions still require operator approval.")
-    if input("Update configuration and continue? [update/cancel; default cancel]: ").strip().lower() != "update":
-        raise ValueError("Configuration update cancelled; the saved configuration is unchanged.")
+    print("The operation will retain these choices. Transactions still require operator approval.")
+    if input("Use these settings and continue? [update/cancel; default cancel]: ").strip().lower() != "update":
+        raise ValueError("Operation preparation cancelled; the saved configuration is unchanged.")
     write_private(output / "release.json", (json.dumps(config, indent=2) + "\n").encode())
 
 
 def unpack(app, source_commit, mode, source, output):
-    config = read_json_file(source, "configuration")
+    config = read_configuration(source, credentials=CREDENTIAL_FILE)
+    if mode == "cam-publish" and (output / "publication-uri").is_file():
+        config = {**config, "settings": {**config["settings"], "CAM_URI": (output / "publication-uri").read_text().strip()}}
     allocated_output = os.environ.get("RELEASE_CONFIG_OUTPUT_DIR")
     if allocated_output:
         check_value(allocated_output, "path")
@@ -550,15 +605,25 @@ def independent_plan_source(app, source, output, operation):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "approval-pin", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
+    parser.add_argument("mode", choices=("network", "setup", "credential-source", "retain", "publication-uri", "approval-pin", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
     try:
         if not re.fullmatch(r"[0-9a-f]{40}", args.source_commit):
             raise ValueError("Release setup requires one exact 40-character source commit.")
-        if args.mode == "approval-pin":
+        if args.mode == "credential-source":
             config = read_json_file(Path("/run/release.json"), "configuration")
+            selected = credential_source(config, os.environ["RELEASE_CREDENTIAL_CONFIG"])
+            write_private(Path("/out/credential-source"), (selected + "\n").encode())
+            if "credentialConfig" in config:
+                write_private(Path("/out/retained-source"), (config["sourceCommit"] + "\n").encode())
+        elif args.mode == "publication-uri":
+            publication_uri(Path("/run/release.json"), Path("/out"))
+        elif args.mode == "retain":
+            retain_configuration(Path("/run/release.json"), args.source_commit, Path("/out"))
+        elif args.mode == "approval-pin":
+            config = read_configuration(Path("/run/release.json"), credentials=CREDENTIAL_FILE)
             validate_identity(config, args.app)
             image = check_value(config["approvalImageId"], "approval-image")
             write_private(Path("/out/approval-pin"), (image + "\n").encode())

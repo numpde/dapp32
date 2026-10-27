@@ -198,6 +198,10 @@ def repair_bundle(root, request, action):
     saved = request["inputs"]
     # silent-defaults: allow-default -- Saved explicit inputs override the full operation's conventional phase paths.
     inputs = {"CONFIG": saved.get("CAM_CONFIG", saved["CONFIG"])}
+    for retained in (prepared / "inputs/configuration.json", action / "inputs/cam.json"):
+        if retained.is_file():
+            inputs["CONFIG"] = retained.relative_to(root).as_posix()
+            break
     # silent-defaults: allow-default -- Full deployment owns this phase path; UI updates retain an explicit external backing reference.
     inputs["CONTRACT_ARTIFACT"] = saved.get("CONTRACT_ARTIFACT", (action / "contracts/artifact/contract-deployment.json").relative_to(root).as_posix())
     # silent-defaults: allow-default -- New UI deployment owns this phase path; a reuse update retains its explicit UI reference.
@@ -310,7 +314,7 @@ def prepare(root, app, operation):
     if operation == "ui/update":
         print("To make the app use a replacement, this command prepares matching CAM files locally, then updates the existing CAM root's contract addresses and manifest URI/hash.")
         print("Upload or pin the prepared files yourself before approving CAM root changes.")
-        print("Omit settings.CAM_URI for a hosting pause, then set it after hosting and rerun to resume.")
+        print("Without a configured URI, the command pauses for hosting. Repeat it after hosting to enter the manifest URI.")
         print("A configured URI skips that pause, but each transaction still needs approval.")
         print(f"Use {app}/release/ui/deploy to create a UI contract without updating the CAM root.")
         choices = [("Deploy a new UI contract and make the app use it", "new"), ("Make the app use a saved UI contract", "reuse")]

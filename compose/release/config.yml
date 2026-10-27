@@ -46,12 +46,18 @@ services:
       RELEASE_CONFIG_FILE: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
       RELEASE_CONFIG_OUTPUT_DIR: "${OUTPUT_DIR:-}"
       RELEASE_SETUP_PURPOSE: "${RELEASE_SETUP_PURPOSE:-deployment}"
+      RELEASE_CREDENTIAL_CONFIG: "${RELEASE_CREDENTIAL_CONFIG:?missing_RELEASE_CREDENTIAL_CONFIG}"
     volumes:
       - *tool
       - *output
       - type: bind
         source: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
         target: /run/release.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_CREDENTIAL_CONFIG:?missing_RELEASE_CREDENTIAL_CONFIG}"
+        target: /run/credentials.json
         read_only: true
         bind: {create_host_path: false}
 

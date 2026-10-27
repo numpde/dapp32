@@ -285,7 +285,7 @@ mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUT
 planner_started=1
 mkdir --mode=0700 -- "$RELEASE_REHEARSAL_DIR/control/planner-config"
 RELEASE_CONFIG_STAGE_DIR="$RELEASE_REHEARSAL_DIR/control/planner-config" \
-  RELEASE_CONFIG_FILE="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_LOCAL_NETWORK="$RELEASE_REHEARSAL_NETWORK" \
+  RELEASE_CONFIG_FILE="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_CREDENTIAL_CONFIG="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_LOCAL_NETWORK="$RELEASE_REHEARSAL_NETWORK" \
   run_logged planner-config.log docker compose --project-name "$project-planner" -f compose/release/config.yml run --rm --no-deps -T release-config \
   contracts-deploy "$app" "$(git rev-parse HEAD)"
 mapfile -d '' -t planner_inputs < "$RELEASE_REHEARSAL_DIR/control/planner-config/inputs"
