@@ -174,12 +174,39 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
       assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `connection facts reflow at ${width}px`)
     }
+    const warning = `document.querySelector('[aria-label="UI integrity warnings"]')`
+    await open('unverified-held')
+    await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
+    assert(await evaluate(`!document.querySelector('.ui')&&document.querySelector('.panel')?.textContent.includes('Loading app')`), 'the root warning appears while later resources are still loading')
+    await evaluate('connectionFixture.releaseProtocol()')
+    await wait(`!!document.querySelector('.ui')`)
+    assert.equal(await evaluate(`document.querySelectorAll('[aria-label="UI integrity warnings"] [data-kind="warning"]').length`), 1, 'ready replaces progress without duplicating warnings')
+
+    await open('unverified-held')
+    await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
+    await evaluate('connectionFixture.state.failHeldProtocol=true;connectionFixture.releaseProtocol()')
+    await wait(`!!document.querySelector('.panel.error')`)
+    assert(await evaluate(`!!${warning}&&${warning}.textContent.includes('Unverified')`), 'a later download failure preserves already known warnings')
+    await evaluate(`connectionFixture.state.unverifiedRoot=false;[...document.querySelectorAll('button')].find(button=>button.textContent==='Retry loading').click()`)
+    await wait(`!!document.querySelector('.ui')`)
+    assert(await evaluate(`!${warning}`), 'retry clears prior-attempt warnings')
+
+    await open('unverified-held')
+    await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
+    await evaluate('connectionFixture.state.unverifiedRoot=false;connectionFixture.state.holdProtocol=false')
+    await editRPC('https://next.fixture.test')
+    await wait(`!!document.querySelector('.ui')&&!${warning}`)
+    await evaluate('connectionFixture.state.tamperHeldProtocol=true;connectionFixture.releaseProtocol()')
+    await wait('connectionFixture.state.protocolCompleted===2')
+    await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+    assert(await evaluate(`!!document.querySelector('.ui')&&!${warning}`), 'late warnings from the cancelled load cannot replace the new view')
+
     await open('unverified')
     await wait(`!!document.querySelector('.ui')`)
     assert(await evaluate(`!!document.querySelector('[aria-label="UI integrity warnings"] [role="status"][data-kind="warning"]')`), 'a zero verification hash produces a warning while the UI remains available')
     assert(await evaluate(`document.querySelector('[aria-label="UI integrity warnings"]').textContent.includes('Unverified')`), 'the unverified condition is stated explicitly')
     assert(await evaluate(`(()=>{const warning=document.querySelector('[aria-label="UI integrity warnings"] [role="status"]');const normal=document.createElement('div');normal.className='error-feedback';normal.dataset.kind='status';document.body.append(normal);const distinct=getComputedStyle(warning).backgroundColor!==getComputedStyle(normal).backgroundColor;normal.remove();return distinct})()`), 'unverified resources do not use the normal status treatment')
-    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, lateLoadDiscarded: true, unverifiedWarning: true, sends: 0 }
+    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, lateLoadDiscarded: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, sends: 0 }
   } catch (error) { failures.push(error) }
   finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
 }

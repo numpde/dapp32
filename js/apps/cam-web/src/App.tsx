@@ -78,9 +78,9 @@ import {
 
 type LoadState =
   | { readonly status: "setup" }
-  | { readonly status: "loading"; readonly startup?: ConnectionOptions }
+  | { readonly status: "loading"; readonly startup?: ConnectionOptions; readonly integrityWarnings: CamViewerLoadedSnapshot["integrityWarnings"] }
   | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerLoadedSnapshot }
-  | { readonly status: "failed"; readonly failure: FailureReport; readonly startup?: ConnectionOptions }
+  | { readonly status: "failed"; readonly failure: FailureReport; readonly startup?: ConnectionOptions; readonly integrityWarnings: CamViewerLoadedSnapshot["integrityWarnings"] }
 
 type AppRuntime = {
   viewingMode: "public" | "account"
@@ -144,7 +144,7 @@ export function App(): ReactElement {
   const gatewayRef = useRef(defaultIpfsGateway.template)
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
   const [loadRequest, setLoadRequest] = useState<ConnectionOptions | undefined>(undefined)
-  const [loadState, setLoadState] = useState<LoadState>(() => "failure" in viewerLink ? { status: "failed", failure: viewerLink.failure } : { status: "setup" })
+  const [loadState, setLoadState] = useState<LoadState>(() => "failure" in viewerLink ? { status: "failed", failure: viewerLink.failure, integrityWarnings: [] } : { status: "setup" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
   const [walletChainMatches, setWalletChainMatches] = useState(true)
   const [walletRefreshing, setWalletRefreshing] = useState(false)
@@ -196,13 +196,14 @@ export function App(): ReactElement {
     const controller = new AbortController()
     resourceLoadAbortRef.current = controller
     let loadedSession: CamViewerSession | undefined
+    const integrityWarnings: CamViewerLoadedSnapshot["integrityWarnings"][number][] = []
 
     async function load(): Promise<void> {
       try {
         const startup: StartupOptions = { ...requestedConnection, ...parseViewFragment(new URL(window.location.href).hash) }
         currentDownloadScope()
         const options = startup
-        readyRef.current = { status: "loading", startup }
+        readyRef.current = { status: "loading", startup, integrityWarnings: [] }
         setLoadState(readyRef.current)
         const publicClient = createPublicClient({
           transport: http(startup.rpcUrl),
@@ -222,6 +223,14 @@ export function App(): ReactElement {
           },
           inputs: options.inputs,
           ...(options.route === undefined ? {} : { route: options.route }),
+          onIntegrityWarning: warning => {
+            if (cancelled || controller.signal.aborted) return
+            integrityWarnings.push(warning)
+            setLoadState(current => {
+              if (cancelled || controller.signal.aborted || (current.status !== "loading" && current.status !== "failed")) return current
+              return { ...current, integrityWarnings: [...integrityWarnings] }
+            })
+          },
           loadResource: uri => createViewerResourceLoader(assertCurrentDownloadAllowed, gatewayRef.current, controller.signal)(uri),
         })
         const snapshot = await session.load()
@@ -246,6 +255,7 @@ export function App(): ReactElement {
             status: "failed",
             failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
             startup: requestedConnection,
+            integrityWarnings: [...integrityWarnings],
           })
         }
       }
@@ -769,7 +779,7 @@ export function App(): ReactElement {
     if (startup === undefined) return
     resourceLoadAbortRef.current?.abort()
     const request = { ...startup }
-    readyRef.current = { status: "loading", startup: request }
+    readyRef.current = { status: "loading", startup: request, integrityWarnings: [] }
     setLoadState(readyRef.current)
     setLoadRequest(request)
   }
@@ -886,7 +896,7 @@ export function App(): ReactElement {
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
       ) : <div className="connection connection-facts">{resourcePolicy}{gatewayControl}</div>}
 
-      {loadState.status === "ready" ? <IntegrityWarnings warnings={loadState.snapshot.integrityWarnings} /> : null}
+      {loadState.status === "setup" ? null : <IntegrityWarnings warnings={loadState.status === "ready" ? loadState.snapshot.integrityWarnings : loadState.integrityWarnings} />}
       {notice === undefined ? null : (
         <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}
