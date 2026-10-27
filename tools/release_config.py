@@ -384,6 +384,8 @@ def read_json_file(source, label):
         config = json.loads(raw, object_pairs_hook=unique_fields)
     except (json.JSONDecodeError, UnicodeError):
         raise ValueError(f"The {label} is not valid UTF-8 JSON; no inputs were loaded.") from None
+    if not isinstance(config, dict):
+        raise ValueError(f"The {label} must be a JSON object.")
     return config
 
 
@@ -627,6 +629,9 @@ def main():
             validate_identity(config, args.app)
             image = check_value(config["approvalImageId"], "approval-image")
             write_private(Path("/out/approval-pin"), (image + "\n").encode())
+            if "localNetwork" in config:
+                network = check_value(config["localNetwork"], "docker-network")
+                write_private(Path("/out/approval-network"), (network + "\n").encode())
         elif args.mode == "network":
             prepare_network(args.app, args.source_commit, Path("/out"))
         elif args.mode == "setup":

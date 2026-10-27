@@ -229,7 +229,7 @@ release_full() {
 
   if [[ ! -e "$cam" && ! -L "$cam" ]]; then
     release_full_read_uri_presence "$cam_config" "$app" || return
-    if [[ "$release_full_has_uri" == 0 ]]; then
+    if [[ "$release_full_has_uri" == 0 && "$prepared_before" == 0 && ! -f "$output/inputs/publication-uri" ]]; then
       printf '%s\n' 'CAM files are ready. Paused before CAM root transactions.'
       printf 'Business record: %s\nUI contract record: %s\nCAM files to upload or pin: %s/bundle\n' "$business_artifact" "$ui_artifact" "$prepared"
       printf '%s\n' 'After hosting these exact files, repeat the command to enter their manifest URI. Your instance configuration stays unchanged.'
@@ -238,7 +238,7 @@ release_full() {
       else
         printf 'Resume with the same CONFIG and OUTPUT_DIR; the existing phases will be reused.\n'
       fi
-      if [[ "$prepared_before" == 0 ]]; then return 0; fi
+      return 0
     fi
     if [[ ! -f "$output/inputs/publication-uri" ]]; then
       release_config_hosted_uri "$cam_config" "$output/inputs/publication-uri" "$app" || return

@@ -6,7 +6,7 @@ release_approval_is_entrypoint() {
 }
 
 release_approval_installed_images() {
-  local pinned="$1" image_list image_id observations observed_id tool_source entrypoint owner
+  local pinned="$1" network="$2" image_list image_id observations observed_id tool_source entrypoint owner
   local -a image_ids=()
   if ! image_list="$(docker image ls --all --filter label=org.opencontainers.image.revision --no-trunc --quiet)"; then
     printf '%s\n' 'Cannot discover installed approval-tool images: Docker image listing failed.' >&2
@@ -33,8 +33,7 @@ release_approval_installed_images() {
       if [[ ! "$tool_source" =~ ^[0-9a-f]{40}$ ]]; then continue; fi
       if ! release_approval_is_entrypoint "$entrypoint"; then continue; fi
       if [[ "$owner" != operator && "$owner" != '<no value>' && -n "$owner" ]]; then
-        if [[ "$observed_id" != "$pinned" || ! -v RELEASE_REHEARSAL_NETWORK ]]; then continue; fi
-        if [[ "$RELEASE_REHEARSAL_NETWORK" != "$owner-rehearsal" ]]; then continue; fi
+        if [[ "$observed_id" != "$pinned" || "$network" != "$owner-rehearsal" ]]; then continue; fi
       fi
       printf '%s\t%s\n' "$observed_id" "$tool_source"
     done <<< "$observations"

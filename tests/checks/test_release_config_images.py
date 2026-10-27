@@ -102,13 +102,43 @@ touch "$CASE_ROOT/continued"
             self.assertIn("Restore that exact image", result.stderr)
             self.assertFalse((root / "continued").exists())
 
-    def test_rehearsal_can_use_only_its_explicitly_pinned_fixture_image(self):
-        for network, admitted in (("cam-rehearsal-fixture-rehearsal", True), ("another-rehearsal", False)):
-            with self.subTest(network=network), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                result = self.run_shell(root, 'RELEASE_REHEARSAL_NETWORK=' + network + '\n' + r'''
+    def test_composition_preserves_a_retained_configurations_missing_tool(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("retained.json", "credentials.json"):
+                (root / name).write_text("{}")
+                (root / name).chmod(0o600)
+            result = self.run_shell(root, r'''
+source_commit="$TOOL_SOURCE"
 release_config_dir="$CASE_ROOT/stage"
 mkdir "$release_config_dir"
+compose_release_config() {
+  if [[ " $* " == *' release-config credential-source '* ]]; then
+    printf '%s\n' "$CASE_ROOT/credentials.json" > "$release_config_dir/credential-source"
+    printf '%s\n' "$TOOL_SOURCE" > "$release_config_dir/retained-source"
+  elif [[ " $* " == *' release-config approval-pin '* ]]; then
+    printf '%s\n' "$SAVED_IMAGE" > "$release_config_dir/approval-pin"
+  else
+    touch "$CASE_ROOT/unexpected-retention"
+  fi
+}
+release_config_capture "$CASE_ROOT/retained.json" "$CASE_ROOT/captured.json" escrow
+''', missing=True)
+            self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+            self.assertIn("Restore that exact image", result.stderr)
+            self.assertFalse((root / "captured.json").exists())
+            self.assertFalse((root / "unexpected-retention").exists())
+
+    def test_rehearsal_can_use_only_its_explicitly_pinned_fixture_image(self):
+        for network, ambient, admitted in (("cam-rehearsal-fixture-rehearsal", "another-rehearsal", True),
+                                           ("another-rehearsal", "cam-rehearsal-fixture-rehearsal", False)):
+            with self.subTest(network=network), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                result = self.run_shell(root, 'SELECTED_NETWORK=' + network + '\nAMBIENT_NETWORK=' + ambient + '\n' + r'''
+release_config_dir="$CASE_ROOT/stage"
+mkdir "$release_config_dir"
+RELEASE_REHEARSAL_NETWORK="$AMBIENT_NETWORK"
+printf '%s\n' "$SELECTED_NETWORK" > "$release_config_dir/approval-network"
 SAVED_IMAGE="sha256:$(printf 'd%.0s' {1..64})"
 release_config_prepare_approval_images "$SAVED_IMAGE"
 touch "$CASE_ROOT/continued"

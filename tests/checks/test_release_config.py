@@ -65,6 +65,14 @@ def complete_setup(app, source_commit, output):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_configuration_objects_are_admitted_before_credential_reference_access(self):
+        for value in (None, [], ["credentialConfig"], "credentialConfig", 42):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as directory:
+                source = Path(directory) / "config.json"
+                source.write_text(json.dumps(value))
+                with self.assertRaisesRegex(ValueError, "configuration must be a JSON object"):
+                    release_config.read_configuration(source, credentials=Path(directory) / "not-mounted.json")
+
     def test_tool_preparation_cannot_change_the_defaults_captured_for_an_operation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -84,7 +92,9 @@ release_config_prepare_approval_images() {
   printf '%s\n' "$1" > "$release_config_dir/approval-image"
 }
 compose_release_config() {
-  if [[ " $* " == *' release-config approval-pin '* ]]; then
+  if [[ " $* " == *' release-config credential-source '* ]]; then
+    printf '%s\n' "$CONFIG" > "$release_config_dir/credential-source"
+  elif [[ " $* " == *' release-config approval-pin '* ]]; then
     printf '%s\n' "$IMAGE" > "$release_config_dir/approval-pin"
   else
     RELEASE_CREDENTIAL_CONFIG="$release_config_credentials" "$PYTHON" -I -B -c '
@@ -249,6 +259,9 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(mode not in ("noninteractive", "retained"), (root / "continued").exists())
                 self.assertEqual(mode in ("cam-publish", "update"), (root / "image-checked").exists())
                 self.assertEqual(mode == "update", (root / "output-checked").exists())
+                if mode == "noninteractive":
+                    self.assertIn("Run this command interactively", result.stderr)
+                    self.assertIn("saved configuration will not change", result.stderr)
                 if mode == "update":
                     self.assertIn(" release-config update-cam ", (root / "events").read_text())
                 self.assertEqual("original", config.read_text())

@@ -26,7 +26,7 @@ release_config_teardown() {
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
-    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/configuration.json" "$release_config_dir/capture.json" "$release_config_dir/approval-images" "$release_config_dir/approval-pin" "$release_config_dir/approval-image" "$release_config_dir/approval-built" "$release_config_dir/credential-source" "$release_config_dir/retained-source" "$release_config_dir/operation-inputs.json" "$release_config_dir/publication-uri" \
+    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/configuration.json" "$release_config_dir/capture.json" "$release_config_dir/approval-images" "$release_config_dir/approval-pin" "$release_config_dir/approval-network" "$release_config_dir/approval-image" "$release_config_dir/approval-built" "$release_config_dir/credential-source" "$release_config_dir/retained-source" "$release_config_dir/operation-inputs.json" "$release_config_dir/publication-uri" \
       "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" "$release_config_dir/ui-source" "$release_config_dir/contract-source" "$release_config_dir/cam-source" "$release_config_dir/cam-uri-ready" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
@@ -111,11 +111,14 @@ require_release_local_network() {
 }
 
 release_config_prepare_approval_images() {
-  local pinned="" inventory image revision output
+  local pinned="" inventory image revision output network=""
+  if [[ -f "$release_config_dir/approval-network" ]]; then
+    read -r network < "$release_config_dir/approval-network"
+  fi
   if [[ $# == 1 ]]; then pinned="$1"; fi
   source tools/release_approval_images.sh
   if [[ -n "$pinned" ]]; then
-    inventory=$(release_approval_installed_images "$pinned") || return
+    inventory=$(release_approval_installed_images "$pinned" "$network") || return
     while IFS=$'\t' read -r image revision; do
       if [[ "$image" == "$pinned" ]]; then
         printf '%s\n' "$image" > "$release_config_dir/approval-image"
@@ -124,7 +127,7 @@ release_config_prepare_approval_images() {
     done <<< "$inventory"
   fi
   if [[ -n "$pinned" && -f "$release_config_dir/retained-source" ]]; then
-    printf 'This operation requires approval image %s, which is not installed. Restore that exact image to resume signing. Keyless verification remains available; starting a separate operation may create additional contracts.\n' "$pinned" >&2
+    printf 'This operation requires approval image %s, which is not available to this operation. Restore that exact image to resume signing. Rehearsal images must match the selected local network. Keyless verification remains available; starting a separate operation may create additional contracts.\n' "$pinned" >&2
     return 2
   fi
   if [[ -n "$pinned" && ( ! -t 0 || ! -t 1 ) ]]; then
@@ -142,6 +145,14 @@ release_config_prepare_approval_images() {
     return 2
   fi
   printf '%s\n' "$image" > "$release_config_dir/approval-image"
+}
+
+release_config_resolve_credentials() {
+  local app="$1"
+  rm -f -- "$release_config_dir/credential-source" "$release_config_dir/retained-source"
+  compose_release_config run --rm --no-deps -T release-config credential-source "$app" "$source_commit"
+  read -r release_config_credentials < "$release_config_dir/credential-source"
+  require_release_config "$release_config_credentials"
 }
 
 load_release_config() {
@@ -163,9 +174,7 @@ load_release_config() {
   release_config_credentials="$CONFIG"
   release_config_input="$release_config_dir/configuration.json"
   cp -- "$CONFIG" "$release_config_input"
-  compose_release_config run --rm --no-deps -T release-config credential-source "$app" "$source_commit"
-  read -r release_config_credentials < "$release_config_dir/credential-source"
-  require_release_config "$release_config_credentials"
+  release_config_resolve_credentials "$app"
   if [[ "$mode" == cam-publish ]]; then
     if [[ -v RELEASE_CAM_URI_FILE && -n "$RELEASE_CAM_URI_FILE" ]]; then
       require_release_file "$RELEASE_CAM_URI_FILE" 'Retained publication URI'
@@ -182,7 +191,10 @@ load_release_config() {
     return 2
   fi
   if [[ "$status" == 3 ]]; then configuration_change=source; fi
-  if [[ "$status" == 3 && ( ! -t 0 || ! -t 1 ) ]]; then return "$status"; fi
+  if [[ "$status" == 3 && ( ! -t 0 || ! -t 1 ) ]]; then
+    printf 'Run this command interactively to prepare a new operation from source %s. The saved configuration will not change.\n' "$source_commit" >&2
+    return "$status"
+  fi
   if [[ ( "$status" == 0 || "$status" == 3 ) && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) ]]; then
     compose_release_config run --rm --no-deps -T release-config approval-pin "$app" "$source_commit"
     local pinned prepared
@@ -251,7 +263,8 @@ release_config_capture() {
   local CONFIG="$1" destination="$2" app="$3" release_config_credentials="$1" release_config_input="$release_config_dir/capture.json"
   require_release_config "$CONFIG"
   cp -- "$CONFIG" "$release_config_input"
-  rm -f -- "$release_config_dir/operation-inputs.json" "$release_config_dir/approval-pin"
+  rm -f -- "$release_config_dir/operation-inputs.json" "$release_config_dir/approval-pin" "$release_config_dir/approval-network"
+  release_config_resolve_credentials "$app"
   compose_release_config run --rm --no-deps -T release-config approval-pin "$app" "$source_commit"
   local pin
   read -r pin < "$release_config_dir/approval-pin"

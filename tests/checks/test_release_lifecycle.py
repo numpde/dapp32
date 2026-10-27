@@ -1454,6 +1454,7 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(["escrow/release/contracts/artifact", "escrow/release/ui/artifact", "escrow/release/cam/publish"],
                              [call[0] for call in calls])
+            self.assertNotIn("Paused before", result.stdout)
             self.assertEqual(saved, {name: (root / "release/inputs" / name).read_bytes() for name in saved})
             self.assertEqual("https://hosted.example.test/main.json\n", (root / "release/inputs/publication-uri").read_text())
 
