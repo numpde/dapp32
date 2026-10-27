@@ -46,6 +46,15 @@ def configuration(app):
     }
 
 
+def unpack(app, source_commit, mode, source, output):
+    """Supply the ordinary phase's resolved output; legacy fixtures may name it explicitly."""
+    config = json.loads(source.read_text())
+    # silent-defaults: allow-default -- Fixtures without a legacy saved destination receive the same instance-allocated output port.
+    allocated = config.get("settings", {}).get("OUTPUT_DIR", "/tmp/new-release-output")
+    with patch.dict(release_config.os.environ, {"RELEASE_CONFIG_OUTPUT_DIR": allocated}):
+        release_config.unpack(app, source_commit, mode, source, output)
+
+
 def complete_setup(app, source_commit, output):
     """Run both offline phases with the fixed RPC reply supplied by this fixture."""
     release_config.prepare_network(app, source_commit, output)
@@ -150,7 +159,7 @@ printf continued > "$CASE_ROOT/continued"
                 before = source.read_bytes()
                 output = root / "stage"
                 output.mkdir()
-                release_config.unpack(app, "f" * 40, "cam-bundle", source, output)
+                unpack(app, "f" * 40, "cam-bundle", source, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual({"CAM_RELEASE_APP": app, "CAM_RELEASE_SOURCE_COMMIT": COMMIT,
                                   "CAM_RELEASE_EXPECTED_CHAIN_ID": "84532", "CAM_RELEASE_OUTPUT_DIR": "/tmp/cam-bundle",
@@ -196,7 +205,7 @@ printf continued > "$CASE_ROOT/continued"
                     before = source.read_bytes()
                     output = root / "stage"
                     output.mkdir()
-                    release_config.unpack(app, COMMIT, "cam-publish", source, output)
+                    unpack(app, COMMIT, "cam-publish", source, output)
                     inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                     self.assertEqual({"CAM_RELEASE_APP": app, "CAM_RELEASE_SOURCE_COMMIT": COMMIT,
                                       "CAM_RELEASE_EXPECTED_CHAIN_ID": "84532", "CAM_RELEASE_SIGNER_ADDRESS": FIXTURE_DEPLOYER_ADDRESS,
@@ -216,7 +225,7 @@ printf continued > "$CASE_ROOT/continued"
             source.write_text(json.dumps(config))
             output = root / "stage"
             output.mkdir()
-            release_config.unpack("escrow", COMMIT, "cam-publish", source, output)
+            unpack("escrow", COMMIT, "cam-publish", source, output)
             fields = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
             self.assertEqual(config["settings"]["CAM_HASH"], fields["CAM_RELEASE_HASH"])
 
@@ -236,7 +245,7 @@ printf continued > "$CASE_ROOT/continued"
                 output = root / "stage"
                 output.mkdir()
                 with self.assertRaises(error_type):
-                    release_config.unpack("escrow", source_commit, "cam-publish", source, output)
+                    unpack("escrow", source_commit, "cam-publish", source, output)
                 self.assertEqual([], list(output.iterdir()))
 
     def test_local_cam_publication_accepts_an_independent_signer_but_keeps_fixture_transport(self):
@@ -260,7 +269,7 @@ printf continued > "$CASE_ROOT/continued"
                 source.write_text(json.dumps({"schemaVersion": 3, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC}))
                 output = root / "stage"
                 output.mkdir()
-                release_config.unpack(app, "f" * 40, "cam-artifact", source, output)
+                unpack(app, "f" * 40, "cam-artifact", source, output)
                 self.assertEqual(f"CAM_RELEASE_APP={app}\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
                 plan = root / "plan.json"
@@ -299,7 +308,7 @@ printf continued > "$CASE_ROOT/continued"
                 source.write_text(json.dumps({"schemaVersion": 3, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC}))
                 output = root / "stage"
                 output.mkdir()
-                release_config.unpack(app, "f" * 40, "ui-artifact", source, output)
+                unpack(app, "f" * 40, "ui-artifact", source, output)
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
                 plan = root / "plan.json"
                 plan.write_text(json.dumps({"schema": "cam.ui-release-plan.v1", "app": app, "sourceCommit": "b" * 40}))
@@ -319,7 +328,7 @@ printf continued > "$CASE_ROOT/continued"
                 output = root / "stage"
                 output.mkdir()
                 with patch.dict("os.environ", {"RELEASE_CONFIG_FILE": str(source)}):
-                    release_config.unpack(app, COMMIT, "contracts-deploy", source, output)
+                    unpack(app, COMMIT, "contracts-deploy", source, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual(app, inputs["CONTRACT_RELEASE_APP"])
                 self.assertEqual(COMMIT, inputs["CONTRACT_RELEASE_SOURCE_COMMIT"])
@@ -343,15 +352,15 @@ printf continued > "$CASE_ROOT/continued"
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 config = configuration(app)
-                original_output = config["settings"]["OUTPUT_DIR"]
+                original_output = "/tmp/new-release-output"
                 config["settings"] = {name: config["settings"][name] for name in
-                                      ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR")}
+                                      ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS")}
                 source = root / "config.json"
                 source.write_text(json.dumps(config))
                 output = root / "stage"
                 output.mkdir()
                 with patch.dict("os.environ", {"RELEASE_CONFIG_FILE": str(source)}):
-                    release_config.unpack(app, COMMIT, "ui-deploy", source, output)
+                    unpack(app, COMMIT, "ui-deploy", source, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual(app, inputs["UI_RELEASE_APP"])
                 self.assertEqual(COMMIT, inputs["UI_RELEASE_SOURCE_COMMIT"])
@@ -385,11 +394,11 @@ printf continued > "$CASE_ROOT/continued"
                 source.write_text(json.dumps(config))
                 output = root / "stage"
                 output.mkdir()
-                release_config.unpack(app, "f" * 40, "artifact", source, output)
+                unpack(app, "f" * 40, "artifact", source, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 prefix = app.upper().replace("-", "_")
                 self.assertEqual(COMMIT, inputs[f"{prefix}_RELEASE_SOURCE_COMMIT"])
-                self.assertEqual(config["settings"]["OUTPUT_DIR"], inputs[f"{prefix}_RELEASE_OUTPUT_DIR"])
+                self.assertEqual("/tmp/new-release-output", inputs[f"{prefix}_RELEASE_OUTPUT_DIR"])
                 self.assertNotIn("RELEASE_APPROVAL_IMAGE", inputs)
                 self.assertNotIn(FIXTURE_KEY, (output / "inputs").read_text())
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
@@ -403,7 +412,7 @@ printf continued > "$CASE_ROOT/continued"
             source.write_text(json.dumps(config))
             output = root / "stage"
             output.mkdir()
-            release_config.unpack("bike-nft", "f" * 40, "artifact", source, output)
+            unpack("bike-nft", "f" * 40, "artifact", source, output)
             self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
             with self.assertRaises(ValueError):
                 release_config.validate(config, "bike-nft", COMMIT, purpose="deployment")
@@ -428,17 +437,14 @@ printf continued > "$CASE_ROOT/continued"
             output = root / "stage"
             output.mkdir()
             (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
-            with patch.object(release_config, "input", side_effect=["", "update"], create=True), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(release_config, "input", side_effect=["update"], create=True), contextlib.redirect_stdout(io.StringIO()):
                 release_config.update_source("escrow", "f" * 40, source, output, purpose="deployment")
             updated = json.loads((output / "release.json").read_text())
             self.assertEqual(APPROVAL_IMAGE, updated["approvalImageId"])
             original["sourceCommit"] = updated["sourceCommit"]
             original["approvalImageId"] = updated["approvalImageId"]
-            original["settings"]["OUTPUT_DIR"] = updated["settings"]["OUTPUT_DIR"]
             self.assertEqual(original, updated)
-            selected = Path(updated["settings"]["OUTPUT_DIR"])
-            self.assertEqual(Path("/tmp"), selected.parent)
-            self.assertRegex(selected.name, r"^[0-9]{8}T[0-9]{12}Z-deployment$")
+            self.assertNotIn("OUTPUT_DIR", updated["settings"])
 
     def test_update_rejects_invalid_configs_before_prompting_or_writing(self):
         for changes in ({"schemaVersion": 1}, {"sourceCommit": "main"}, {"app": "bike-nft"}, {"confirmDeploy": False}):
@@ -469,11 +475,11 @@ printf continued > "$CASE_ROOT/continued"
                     output.mkdir()
                     (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
                     transcript = io.StringIO()
-                    with patch.object(release_config, "input", side_effect=["/tmp/fresh-release", decision], create=True), contextlib.redirect_stdout(transcript):
+                    with patch.object(release_config, "input", side_effect=[decision], create=True), contextlib.redirect_stdout(transcript):
                         if decision == "update":
                             release_config.update_source(app, current, source, output, purpose="deployment")
                             updated = json.loads((output / "release.json").read_text())
-                            expected = dict(original, sourceCommit=current, settings=dict(original["settings"], OUTPUT_DIR="/tmp/fresh-release"))
+                            expected = dict(original, sourceCommit=current)
                             self.assertEqual(expected, updated)
                         else:
                             with self.assertRaisesRegex(ValueError, "cancelled"):
@@ -567,7 +573,7 @@ printf continued > "$CASE_ROOT/continued"
                 output = root / "unpacked"
                 output.mkdir()
                 with patch.dict(release_config.os.environ, {"RELEASE_APPROVAL_IMAGE": other_image}):
-                    release_config.unpack(app, COMMIT, "deploy", saved, output)
+                    unpack(app, COMMIT, "deploy", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual(APPROVAL_IMAGE, inputs["RELEASE_APPROVAL_IMAGE"])
 
@@ -617,7 +623,7 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(expected, json.loads(saved.read_text()))
                 output = root / "out"
                 output.mkdir()
-                release_config.unpack("bike-nft", COMMIT, "deploy", saved, output)
+                unpack("bike-nft", COMMIT, "deploy", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 for role in roles:
                     self.assertEqual(expected["settings"][role], inputs[f"BIKE_NFT_RELEASE_{role}"])
@@ -635,66 +641,55 @@ printf continued > "$CASE_ROOT/continued"
                     complete_setup(app, COMMIT, root)
                 self.assertEqual(expected, json.loads((root / "release.json").read_text()))
 
-    def test_output_directory_choices_use_the_host_config_path_without_creating_directories(self):
-        for app in release_config.APP_FIELDS:
-            temporary_proposals = set()
-            for choice in ("", "config", "temp", "temp", "custom", "direct"):
-                with self.subTest(app=app, choice=choice), tempfile.TemporaryDirectory() as temporary:
-                    root = Path(temporary)
-                    stage = root / "private-stage"
-                    stage.mkdir()
-                    host_config = root / "operator.release.json"
-                    expected = configuration(app)
-                    answers = ["public", *expected["settings"].values(), "save"]
-                    index = 1 + list(expected["settings"]).index("OUTPUT_DIR")
-                    answers[index] = choice
-                    if choice == "direct":
-                        answers[index] = str(root / "direct-deployment")
-                    elif choice == "custom":
-                        answers.insert(index + 1, str(root / "custom-deployment"))
-                    with patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": str(host_config)}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                        complete_setup(app, COMMIT, stage)
-                    config = json.loads((stage / "release.json").read_text())
-                    selected = Path(config["settings"]["OUTPUT_DIR"])
-                    if choice == "temp":
-                        self.assertEqual(Path("/tmp"), selected.parent)
-                        self.assertTrue(selected.name.startswith(f"{app}-release-"))
-                        self.assertNotIn(selected, temporary_proposals)
-                        temporary_proposals.add(selected)
-                    elif choice in ("", "config"):
-                        self.assertEqual(root, selected.parent)
-                        self.assertRegex(selected.name, r"^[0-9]{8}T[0-9]{12}Z-deployment$")
-                    else:
-                        self.assertEqual(root / f"{choice}-deployment", selected)
-                    self.assertFalse(selected.exists())
-                    expected["settings"]["OUTPUT_DIR"] = str(selected)
-                    self.assertEqual(expected, config)
-                    unpacked = root / "unpacked"
-                    unpacked.mkdir()
-                    release_config.unpack(app, COMMIT, "deploy", stage / "release.json", unpacked)
-                    inputs = dict(item.split("=", 1) for item in (unpacked / "inputs").read_text().split("\0") if item)
-                    self.assertEqual(str(selected), inputs[f"{app.upper().replace('-', '_')}_RELEASE_OUTPUT_DIR"])
-
-    def test_output_directory_keeps_the_selected_path_when_reviewing_settings(self):
+    def test_setup_has_no_output_directory_field_or_question(self):
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 expected = configuration(app)
-                initial = ["public", *expected["settings"].values(), "change"]
-                initial[1 + list(expected["settings"]).index("OUTPUT_DIR")] = "temp"
-                revised_settings = dict(expected["settings"], OUTPUT_DIR="")
-                revised = [value for name, value in revised_settings.items() if name != "EXPECTED_CHAIN_ID"]
+                answers = iter(["public", *expected["settings"].values(), "save"])
                 prompts = []
-                answers = iter([*initial, *revised, "save"])
                 def respond(prompt):
                     prompts.append(prompt)
                     return next(answers)
-                with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
                     complete_setup(app, COMMIT, root)
-                selected = json.loads((root / "release.json").read_text())["settings"]["OUTPUT_DIR"]
-                self.assertTrue(selected.startswith(f"/tmp/{app}-release-"))
-                self.assertTrue(any(f"[{selected}]" in prompt for prompt in prompts))
-                self.assertFalse(Path(selected).exists())
+                self.assertEqual(expected, json.loads((root / "release.json").read_text()))
+                self.assertFalse(any("directory" in prompt.lower() or "folder" in prompt.lower() for prompt in prompts))
+                self.assertNotIn("OUTPUT_DIR", expected["settings"])
+
+    def test_allocated_output_is_an_in_memory_input_not_a_saved_configuration_fact(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            config = configuration("escrow")
+            config["settings"]["OUTPUT_DIR"] = "/tmp/old-records"
+            source = root / "config.json"
+            source.write_text(json.dumps(config))
+            before = source.read_bytes()
+            with patch.dict(release_config.os.environ, {"RELEASE_CONFIG_OUTPUT_DIR": "/tmp/instance/deployments/one/contracts"}):
+                release_config.unpack("escrow", COMMIT, "contracts-deploy", source, root)
+            values = dict(item.split("=", 1) for item in (root / "inputs").read_text().split("\0") if item)
+            self.assertEqual("/tmp/instance/deployments/one/contracts", values["CONTRACT_RELEASE_OUTPUT_DIR"])
+            self.assertEqual(before, source.read_bytes())
+
+    def test_ui_and_cam_setup_collect_only_their_operation_settings(self):
+        for app in release_config.APP_FIELDS:
+            for purpose, names in (("ui", {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"}),
+                                   ("cam", {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "CAM_URI", "CAM_HASH"})):
+                with self.subTest(app=app, purpose=purpose), tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    expected = configuration(app)
+                    expected["settings"] = {name: value for name, value in expected["settings"].items() if name in names}
+                    prompts = []
+                    answers = iter(["public", *expected["settings"].values(), "save"])
+                    def respond(prompt):
+                        prompts.append(prompt)
+                        return next(answers)
+                    with patch.dict(release_config.os.environ, {"RELEASE_SETUP_PURPOSE": purpose}), patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
+                        complete_setup(app, COMMIT, root)
+                    saved = json.loads((root / "release.json").read_text())
+                    self.assertEqual(expected, saved)
+                    self.assertEqual(names, set(saved["settings"]))
+                    self.assertFalse(any("directory" in prompt.lower() or "collection" in prompt.lower() for prompt in prompts))
 
     def test_output_directory_requires_original_host_config_path_before_setup(self):
         with tempfile.TemporaryDirectory() as temporary, patch.dict(release_config.os.environ):
@@ -733,7 +728,7 @@ printf continued > "$CASE_ROOT/continued"
                     self.assertEqual(collection_answer, collection)
                 output = root / "out"
                 output.mkdir()
-                release_config.unpack("bike-nft", COMMIT, "deploy", saved, output)
+                unpack("bike-nft", COMMIT, "deploy", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertIn("BIKE_NFT_RELEASE_BASE_TOKEN_URI", inputs)
                 self.assertEqual(prefix, inputs["BIKE_NFT_RELEASE_BASE_TOKEN_URI"])
@@ -779,7 +774,7 @@ printf continued > "$CASE_ROOT/continued"
                 output.mkdir()
                 name = f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH"
                 with patch.dict(release_config.os.environ, {name: "0x" + "00" * 32}):
-                    release_config.unpack(app, COMMIT, "deploy", saved, output)
+                    unpack(app, COMMIT, "deploy", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual("auto", inputs[name])
                 self.assertNotIn("CAM_HASH", json.loads(saved.read_text())["settings"])
@@ -799,7 +794,7 @@ printf continued > "$CASE_ROOT/continued"
                     self.assertEqual(expected, json.loads(saved.read_text()))
                     output = root / "out"
                     output.mkdir()
-                    release_config.unpack(app, COMMIT, "deploy", saved, output)
+                    unpack(app, COMMIT, "deploy", saved, output)
                     self.assertIn(f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH={expected['settings']['CAM_HASH']}\0", (output / "inputs").read_text())
 
     def test_saved_configuration_does_not_accept_interactive_zero_shorthand(self):
@@ -829,7 +824,7 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertNotIn("RPC_SERVICE", saved.read_text())
                 output = directory / "unpacked"
                 output.mkdir()
-                release_config.unpack(app, COMMIT, "deploy", saved, output)
+                unpack(app, COMMIT, "deploy", saved, output)
                 prefix = app.upper().replace("-", "_")
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual("YES", inputs[f"CONFIRM_{prefix}_RELEASE_DEPLOY"])
@@ -848,7 +843,7 @@ printf continued > "$CASE_ROOT/continued"
                 source.write_text(json.dumps(configuration(app)))
                 output = root / "verify"
                 output.mkdir()
-                release_config.unpack(app, COMMIT, "verify", source, output)
+                unpack(app, COMMIT, "verify", source, output)
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
                 self.assertEqual(f"{app.upper().replace('-', '_')}_DEPLOYMENT_ARTIFACT_FILE=/tmp/new-release-output/artifact/deployment.json\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
 
@@ -910,7 +905,7 @@ printf continued > "$CASE_ROOT/continued"
                 output = root / "out"
                 output.mkdir()
                 with self.assertRaises(ValueError):
-                    release_config.unpack("pay-to-play", COMMIT, "deploy", source, output)
+                    unpack("pay-to-play", COMMIT, "deploy", source, output)
                 self.assertEqual([], list(output.iterdir()))
 
     def test_previous_configuration_shape_requires_setup_again(self):
@@ -964,12 +959,16 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(["ALL"], service["cap_drop"])
                 self.assertIn("no-new-privileges:true", service["security_opt"])
                 expected = {"/tool/release_config.py", "/out"}
+                if name == "release-instance":
+                    expected |= {"/tool/release_instance.py", "/instance"}
                 if name == "release-config":
                     expected.add("/run/release.json")
                 self.assertEqual(expected, {mount["target"] for mount in service["volumes"]})
                 for mount in service["volumes"]:
-                    if mount["target"] != "/out":
+                    if mount["target"] not in ("/out", "/instance"):
                         self.assertTrue(mount["read_only"])
+                    else:
+                        self.assertIsNot(mount.get("read_only"), True)
                     self.assertIn(mount["bind"], ({}, {"create_host_path": False}))
 
     def test_local_setup_records_complete_connection_and_uses_funded_test_account(self):
@@ -990,7 +989,7 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(1, len(set(bytes.fromhex(config["deployerPrivateKey"][2:]))), "Local fixture keys must be an obvious repeated byte pattern")
                 output = root / "verify"
                 output.mkdir()
-                release_config.unpack(app, COMMIT, "verify", root / "release.json", output)
+                unpack(app, COMMIT, "verify", root / "release.json", output)
                 inputs = (output / "inputs").read_text()
                 self.assertIn("RELEASE_REHEARSAL=1\0", inputs)
                 self.assertIn("RELEASE_REHEARSAL_NETWORK=local-release-test\0", inputs)

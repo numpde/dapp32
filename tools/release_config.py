@@ -1,14 +1,12 @@
 """Collect a self-contained release configuration and unpack it for existing release lanes."""
 
 import argparse
-from datetime import datetime, timezone
 import getpass
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
-import uuid
 from urllib.parse import quote, urlsplit
 
 
@@ -42,7 +40,6 @@ APP_FIELDS = {
         ("REGISTRARS", "Registrar addresses, separated by commas", "addresses"),
     ),
 }
-OUTPUT_FIELD = ("OUTPUT_DIR", "New deployment output directory (absolute, outside this checkout; parent must exist)", "path")
 KEY_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 MAX_CONFIG_BYTES = 65536
 CONFIG_VERSION = 3
@@ -60,7 +57,7 @@ LOCAL_RPC_URL = "http://release-anvil:8545"
 
 
 def fields(app):
-    return (*COMMON_FIELDS, *APP_FIELDS[app], OUTPUT_FIELD)
+    return (*COMMON_FIELDS, *APP_FIELDS[app])
 
 
 def check_value(value, kind, *, local_cam_uri=None):
@@ -140,6 +137,19 @@ def validate_identity(config, app):
         raise ValueError("The saved source commit must be an exact 40-character Git commit hash.")
 
 
+def required_settings(app, purpose):
+    if purpose == "deployment":
+        return {name for name, _, _ in fields(app)} - {"CAM_HASH"}
+    required = {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"}
+    if purpose == "contracts":
+        required |= {name for name, _, _ in APP_FIELDS[app]}
+    elif purpose == "cam":
+        required.add("CAM_URI")
+    elif purpose != "ui":
+        raise ValueError("Release configuration purpose must be deployment, contracts, ui or cam.")
+    return required
+
+
 def validate(config, app, source_commit, *, purpose):
     """Validate all saved inputs; None leaves source selection with the saved pin."""
     validate_identity(config, app)
@@ -156,14 +166,8 @@ def validate(config, app, source_commit, *, purpose):
     check_value(config["deployerPrivateKey"], "key")
     settings = config["settings"]
     names = {name for name, _, _ in fields(app)}
-    required = names - {"CAM_HASH"}
-    if purpose in ("ui", "contracts", "cam"):
-        required = {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR"}
-        if purpose == "contracts":
-            required |= {name for name, _, _ in APP_FIELDS[app]}
-        elif purpose == "cam":
-            required.add("CAM_URI")
-    if not isinstance(settings, dict) or not required <= settings.keys() <= names:
+    required = required_settings(app, purpose)
+    if not isinstance(settings, dict) or not required <= settings.keys() <= names | {"OUTPUT_DIR"}:
         raise ValueError("The release configuration settings are incomplete or unknown; run the release setup again.")
     local = "localNetwork" in config
     local_cam_uri = None
@@ -258,33 +262,6 @@ def ask_collection_uri(label, token_name, previous):
             print(f"Cannot use inline collection metadata: {error}", file=sys.stderr)
 
 
-def ask_output_directory(app, host_config_file, previous):
-    config_file = PurePosixPath(host_config_file)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    config_directory = str(config_file.parent / f"{stamp}-deployment")
-    temp_directory = f"/tmp/{app}-release-{uuid.uuid4().hex}"
-    print("Deployment creates this directory for plans, transaction records and deployed contract addresses.")
-    print("Keep it for verification, including after failures. Setup does not create or reserve it.")
-    print(f"config: {config_directory} (beside the configuration file)")
-    print(f"temp: {temp_directory} (host /tmp can be cleaned; keep the deployment records)")
-    print("custom: enter a new absolute path whose parent exists; you can also paste that path directly.")
-    default = previous
-    if not default:
-        default = "config"
-    while True:
-        choice = ask("Output directory (config/temp/custom or absolute path)", "text", default, secret=False)
-        if choice == "custom":
-            return ask("New deployment output directory", "path", previous, secret=False)
-        if choice == "config":
-            choice = config_directory
-        elif choice == "temp":
-            choice = temp_directory
-        try:
-            return check_value(choice, "path")
-        except ValueError as error:
-            print(error, file=sys.stderr)
-
-
 def print_authority_help(app):
     print("Changing addresses after deployment:")
     print("EXPECTED_DEPLOYER_ADDRESS: the expected signer before deployment; afterward its history is fixed. This field grants no ongoing role by itself.")
@@ -342,13 +319,20 @@ def read_setup_value(output, name, kind):
 
 
 def setup(app, source_commit, output):
-    host_config_file = setup_config_path()
+    setup_config_path()
+    # silent-defaults: allow-default -- The existing setup entrypoint collects a full deployment unless an instance selects a narrower purpose.
+    purpose = os.environ.get("RELEASE_SETUP_PURPOSE", "deployment")
+    requested = required_settings(app, purpose)
+    if purpose in ("deployment", "cam"):
+        requested.add("CAM_HASH")
+    setup_fields = tuple(field for field in fields(app) if field[0] in requested)
     approval_image = read_setup_value(output, "setup-approval-image", "approval-image")
     network = read_setup_value(output, "setup-network", "network")
     print("Enter the actual deployment values. RPC URL and signing key are stored in the protected configuration.")
     print("Saving records approval to deploy these settings later. Setup itself sends no transactions.")
-    config = {"schemaVersion": CONFIG_VERSION, "app": app, "sourceCommit": source_commit, "approvalImageId": approval_image, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in fields(app)}, "confirmDeploy": True}
-    config["settings"]["CAM_HASH"] = "auto"
+    config = {"schemaVersion": CONFIG_VERSION, "app": app, "sourceCommit": source_commit, "approvalImageId": approval_image, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in setup_fields}, "confirmDeploy": True}
+    if "CAM_HASH" in config["settings"]:
+        config["settings"]["CAM_HASH"] = "auto"
     local_cam_uri = None
     if network == "public":
         config["rpcUrl"] = read_setup_value(output, "setup-rpc-url", "rpc")
@@ -365,10 +349,12 @@ def setup(app, source_commit, output):
         config["localNetwork"] = check_value(os.environ["RELEASE_LOCAL_NETWORK"], "docker-network")
         config["rpcUrl"] = LOCAL_RPC_URL
         config["deployerPrivateKey"] = LOCAL_DEPLOYER_KEY
-        config["settings"].update(EXPECTED_CHAIN_ID="31338", EXPECTED_DEPLOYER_ADDRESS=LOCAL_DEPLOYER_ADDRESS, CAM_URI=local_cam_uri)
-        if app != "bike-nft":
+        config["settings"].update(EXPECTED_CHAIN_ID="31338", EXPECTED_DEPLOYER_ADDRESS=LOCAL_DEPLOYER_ADDRESS)
+        if "CAM_URI" in requested:
+            config["settings"]["CAM_URI"] = local_cam_uri
+        if app != "bike-nft" and "INTENDED_CAM_ROOT_OWNER" in requested:
             config["settings"]["INTENDED_CAM_ROOT_OWNER"] = LOCAL_DEPLOYER_ADDRESS
-        if app == "pay-to-play":
+        if app == "pay-to-play" and "INTENDED_PAYMENT_ADMIN" in requested:
             config["settings"]["INTENDED_PAYMENT_ADMIN"] = LOCAL_DEPLOYER_ADDRESS
         print(f"Local Docker network: {config['localNetwork']}")
         print(f"Local funded test account: {LOCAL_DEPLOYER_ADDRESS}")
@@ -377,13 +363,11 @@ def setup(app, source_commit, output):
     while True:
         if network == "public":
             config["deployerPrivateKey"] = ask("Funded deployer private key", "key", config["deployerPrivateKey"], secret=True)
-        print_authority_help(app)
-        for name, label, kind in fields(app):
+        if purpose in ("deployment", "contracts"):
+            print_authority_help(app)
+        for name, label, kind in setup_fields:
             if name == "EXPECTED_CHAIN_ID" or (network == "local" and name == "EXPECTED_DEPLOYER_ADDRESS"):
                 print(f"{name}: {config['settings'][name]}")
-                continue
-            if name == "OUTPUT_DIR":
-                config["settings"][name] = ask_output_directory(app, host_config_file, config["settings"][name])
                 continue
             previous = config["settings"][name]
             if network == "public" and kind == "delay":
@@ -396,12 +380,13 @@ def setup(app, source_commit, output):
                 config["settings"][name] = ask_collection_uri(label, config["settings"]["TOKEN_NAME"], previous)
             else:
                 config["settings"][name] = ask(label, kind, previous, secret=False, local_cam_uri=local_cam_uri)
-        validate(config, app, source_commit, purpose="deployment")
+        validate(config, app, source_commit, purpose=purpose)
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
         print(f"Approval image: {config['approvalImageId']}")
         for name, value in config["settings"].items():
             print(f"{name}: {value}")
-        print_authority_help(app)
+        if purpose in ("deployment", "contracts"):
+            print_authority_help(app)
         print("Deployment confirmation: YES")
         decision = input("Save this release configuration, change inputs, or cancel? [save/change/cancel]: ").strip().lower()
         while decision not in ("save", "change", "cancel"):
@@ -437,8 +422,6 @@ def update_source(app, source_commit, source, output, *, purpose):
     if config["approvalImageId"] not in {image for image, _ in installed_approval_images(output).values()}:
         print("The saved approval tool is no longer installed; select an installed build.")
         config["approvalImageId"] = ask_approval_image(output)
-    if purpose == "deployment":
-        config["settings"]["OUTPUT_DIR"] = ask_output_directory(app, setup_config_path(), "")
     validate(config, app, source_commit, purpose=purpose)
     print(f"App: {app}\nApproval image: {config['approvalImageId']}\nRPC URL and signing key: unchanged (hidden)")
     for name, value in config["settings"].items():
@@ -455,6 +438,14 @@ def update_source(app, source_commit, source, output, *, purpose):
 
 def unpack(app, source_commit, mode, source, output):
     config = read_json_file(source, "configuration")
+    allocated_output = os.environ.get("RELEASE_CONFIG_OUTPUT_DIR")
+    if allocated_output:
+        check_value(allocated_output, "path")
+        # silent-defaults: allow-default -- Keyless record completion needs no settings beyond the operation-allocated output.
+        settings = config.get("settings", {})
+        if not isinstance(settings, dict):
+            raise ValueError("The release configuration settings must be an object.")
+        config = {**config, "settings": {**settings, "OUTPUT_DIR": allocated_output}}
     if mode in ("artifact", "ui-artifact", "contracts-artifact", "cam-artifact", "cam-bundle"):
         # These keyless operations use the saved identity and RPC. Retired
         # signing settings and the current checkout do not govern their inputs.

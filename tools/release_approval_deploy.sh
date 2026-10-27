@@ -318,7 +318,11 @@ release_materialize_independent() {
   fi
   printf '%s verification did not complete. No transaction was sent by verification. Diagnostics: %s\n' "$label" "$log" >&2
   printf '%s\n' 'Do not repeat deployment to complete this record. Use the keyless artifact command:' >&2
-  printf '  make %q %q=%q CONFIG=%q\n' "${!app_name}/release/$operation/artifact" "$records_name" "$output" "$CONFIG" >&2
+  if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
+    printf '  make %q INSTANCE=%q\n' "${!app_name}/release/$operation/artifact" "$RELEASE_INSTANCE_ROOT" >&2
+  else
+    printf '  make %q %q=%q CONFIG=%q\n' "${!app_name}/release/$operation/artifact" "$records_name" "$output" "$CONFIG" >&2
+  fi
   return 1
 }
 
@@ -346,11 +350,19 @@ release_materialize_cam() {
   fi
   if [[ -f "$output/artifact/cam-attempt.json" && ! -L "$output/artifact/cam-attempt.json" ]]; then
     printf 'Confirmed partial CAM publication retained: %s/artifact/cam-attempt.json\n' "$output" >&2
-    printf 'Continue with a fresh approval: make %q CONFIG=<signing-config> CAM_BUNDLE=%q ROOT_ARTIFACT=%q OUTPUT_DIR=<new-records-directory>\n' "$CAM_RELEASE_APP/release/cam/publish" "$CAM_RELEASE_PREPARED_DIR" "$output/artifact/cam-attempt.json" >&2
+    if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
+      printf 'Resume with fresh approval: make %q INSTANCE=%q\n' "$CAM_RELEASE_APP/release/${RELEASE_INSTANCE_OPERATION:?}" "$RELEASE_INSTANCE_ROOT" >&2
+    else
+      printf 'Continue with a fresh approval using the retained CAM attempt and a new output directory.\n' >&2
+    fi
     return 3
   fi
   printf 'CAM publication records are incomplete. No transaction was sent by verification. Diagnostics: %s\n' "$log" >&2
-  printf 'Complete records keylessly: make %q CONFIG=%q CAM_RECORDS=%q CAM_BUNDLE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$CONFIG" "$output" "$CAM_RELEASE_PREPARED_DIR" >&2
+  if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
+    printf 'Complete records keylessly: make %q INSTANCE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$RELEASE_INSTANCE_ROOT" >&2
+  else
+    printf 'Complete records keylessly: make %q CONFIG=%q CAM_RECORDS=%q CAM_BUNDLE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$CONFIG" "$output" "$CAM_RELEASE_PREPARED_DIR" >&2
+  fi
   return 1
 }
 

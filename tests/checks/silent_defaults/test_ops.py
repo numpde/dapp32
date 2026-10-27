@@ -87,6 +87,23 @@ ALLOWED_DOCKER_DEFAULTS = {
     ("ENV", "containers/foundry/Dockerfile", "XDG_DATA_HOME", "/usr/local/share"),
 }
 ALLOWED_SHELL_DEFAULTS = {
+    # INSTANCE is optional for internal phase calls; present values enter the shared selector.
+    ("Makefile", "INSTANCE", "-", ""),
+    # OUTPUT_DIR is supplied by the instance or retained legacy phase configuration.
+    ("Makefile", "OUTPUT_DIR", "-", ""),
+    ("compose/release/config.yml", "OUTPUT_DIR", ":-", ""),
+    # Raw setup retains full-deployment purpose; the instance sets its chosen role explicitly.
+    ("Makefile", "RELEASE_SETUP_PURPOSE", ":-", "deployment"),
+    ("compose/release/config.yml", "RELEASE_SETUP_PURPOSE", ":-", "deployment"),
+    # Other config services render this unused selector with their existing narrow staging mount.
+    ("compose/release/config.yml", "RELEASE_INSTANCE_DIR", ":-", "${RELEASE_CONFIG_STAGE_DIR:?missing_RELEASE_CONFIG_STAGE_DIR"),
+    # Existing CAM records select continuation; omission means an ordinary fresh publication.
+    ("Makefile", "CAM_RECORDS", "-", ""),
+    # Instance context changes recovery instructions only; raw internal phase calls have none.
+    ("tools/release_full.sh", "RELEASE_INSTANCE_ROOT", "-", ""),
+    ("tools/release_approval_deploy.sh", "RELEASE_INSTANCE_ROOT", "-", ""),
+    # UI reuse is explicit; otherwise the existing UI deployment phase owns its artifact.
+    ("tools/release_full.sh", "UI_ARTIFACT", "-", ""),
     # Empty optional viewer inputs reach the guided setup or artifact-derived
     # resolution. Noninteractive mode must reject inputs it cannot resolve.
     ("Makefile", "APP", "-", ""),

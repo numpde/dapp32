@@ -35,6 +35,8 @@ services:
     environment:
       RELEASE_LOCAL_NETWORK: "${RELEASE_LOCAL_NETWORK:?missing_RELEASE_LOCAL_NETWORK}"
       RELEASE_CONFIG_FILE: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
+      RELEASE_CONFIG_OUTPUT_DIR: "${OUTPUT_DIR:-}"
+      RELEASE_SETUP_PURPOSE: "${RELEASE_SETUP_PURPOSE:-deployment}"
     stdin_open: true
     tty: true
     volumes: [*tool, *output]
@@ -42,6 +44,8 @@ services:
     <<: *config_runtime
     environment:
       RELEASE_CONFIG_FILE: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
+      RELEASE_CONFIG_OUTPUT_DIR: "${OUTPUT_DIR:-}"
+      RELEASE_SETUP_PURPOSE: "${RELEASE_SETUP_PURPOSE:-deployment}"
     volumes:
       - *tool
       - *output
@@ -49,4 +53,20 @@ services:
         source: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
         target: /run/release.json
         read_only: true
+        bind: {create_host_path: false}
+
+  release-instance:
+    <<: *config_runtime
+    entrypoint: [python3, -I, -B, /tool/release_instance.py]
+    volumes:
+      - *tool
+      - *output
+      - type: bind
+        source: ../../tools/release_instance.py
+        target: /tool/release_instance.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_INSTANCE_DIR:-${RELEASE_CONFIG_STAGE_DIR:?missing_RELEASE_CONFIG_STAGE_DIR}}"
+        target: /instance
         bind: {create_host_path: false}

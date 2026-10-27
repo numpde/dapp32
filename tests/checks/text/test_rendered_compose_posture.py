@@ -956,6 +956,9 @@ class RenderedComposePostureTest(unittest.TestCase):
                 (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
             })
         expected.update({
+            # The offline instance selector owns only its private folder and command staging output.
+            ("compose/release/config.yml", "release-instance", "/tmp/release-config-stage", "/instance"),
+            ("compose/release/config.yml", "release-instance", "/tmp/release-config-stage", "/out"),
             ("compose/release/cam-source.yml", "release-cam-source", "/tmp/component-artifacts", "/component-artifacts"),
             ("compose/release/cam-bundle.yml", "release-cam-inputs", "/tmp/cam-prepared/inputs", "/inputs"),
             ("compose/release/cam-bundle.yml", "release-cam-bundle", "/tmp/cam-prepared/bundle", "/bundle"),

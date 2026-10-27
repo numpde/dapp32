@@ -1054,7 +1054,7 @@ else load_release_config escrow "$mode"; fi
                     os.close(master)
                     os.close(slave)
 
-    def test_setup_completion_follows_link_and_prints_safe_next_commands_for_every_app(self) -> None:
+    def test_setup_publishes_configuration_only_after_the_link_for_every_app(self) -> None:
         for app in ("bike-nft", "escrow", "pay-to-play"):
             for fail_link in (False, True):
                 with self.subTest(app=app, fail_link=fail_link), tempfile.TemporaryDirectory() as directory:
@@ -1086,6 +1086,7 @@ compose_release_config() {
                         "$(LANE_GUARD)": ":", "$(patsubst %/release/setup,%,$@)": app,
                         "$(release_host_guard_functions)": guards.strip(), "$(release_config_compose)": composition.strip(),
                         "$(release_setup_rpc_compose)": "release_config_probe_chain() { :; }", "$(CURDIR)": str(ROOT),
+                        f"$(call release_instance_entry,{app},setup)": ":",
                     }.items():
                         script = script.replace(old, new)
                     if fail_link:
@@ -1103,17 +1104,9 @@ compose_release_config() {
                     self.assertIn("Saved release configuration:", stdout)
                     self.assertIn("No transactions", stdout)
                     self.assertIn("source commit", stdout)
-                    self.assertIn("make " + app + "/release/deploy", stdout)
                     self.assertNotIn('RELEASE_APPROVAL_IMAGE=', stdout)
-                    self.assertIn("make " + app + "/release/verify", stdout)
                     self.assertNotIn(env["RELEASE_APPROVAL_IMAGE"], stdout)
-                    if app == "pay-to-play":
-                        self.assertIn("payment admin", stdout)
-                    commands = [shlex.split(line) for line in stdout.splitlines() if line.startswith("  make ")]
-                    self.assertEqual([
-                        ["make", f"{app}/release/deploy", f"CONFIG={env['CONFIG']}"],
-                        ["make", f"{app}/release/verify", f"CONFIG={env['CONFIG']}"],
-                    ], commands)
+                    self.assertFalse(any(line.startswith("  make ") for line in stdout.splitlines()), "the instance owner prints operator next commands")
 
     def test_network_allocation_failure_prevents_approval_and_signer_start(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1537,13 +1530,13 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             marker = root / "unexpected-make-expansion"
             literal = f"{root}/config-$(shell touch {marker}).json"
             capture = root / "capture.mk"
-            capture.write_text(".PHONY: capture\ncapture:\n\t@printf '%s\\n' \"$$CONFIG\" \"$$UI_CONFIG\" \"$$CAM_CONFIG\"\n", encoding="utf-8")
+            capture.write_text(".PHONY: capture\ncapture:\n\t@printf '%s\\n' \"$$CONFIG\" \"$$UI_CONFIG\" \"$$CAM_CONFIG\" \"$$INSTANCE\"\n", encoding="utf-8")
             result = subprocess.run(["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(capture),
-                                     "capture", f"CONFIG={literal}", f"UI_CONFIG={literal}", f"CAM_CONFIG={literal}"],
+                                     "capture", f"CONFIG={literal}", f"UI_CONFIG={literal}", f"CAM_CONFIG={literal}", f"INSTANCE={literal}"],
                                     cwd=ROOT, capture_output=True, text=True, timeout=10)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertFalse(marker.exists(), "Configuration filenames must not execute Make expressions")
-            self.assertEqual([literal] * 3, result.stdout.splitlines())
+            self.assertEqual([literal] * 4, result.stdout.splitlines())
 
     def test_cam_root_selection_is_explicit_and_cannot_fall_back_to_an_ambient_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

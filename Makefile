@@ -3,6 +3,10 @@ SHELL := bash
 .DEFAULT_GOAL := help
 
 # Freeze literal release inputs before shell probes can export command-line values.
+ifneq ($(origin INSTANCE),undefined)
+override INSTANCE := $(value INSTANCE)
+export INSTANCE
+endif
 ifneq ($(origin CONFIG),undefined)
 override CONFIG := $(value CONFIG)
 export CONFIG
@@ -311,12 +315,19 @@ recheck_new_release_output() { \
 }; \
 source tools/release_process.sh; \
 release_process_init; \
-release_command_grace=15; \
 source tools/release-config.sh
 endef
 
 # These serial config runs are networkless --rm --no-deps one-shots. Only a
 # failed or interrupted run leaves resource removal unconfirmed.
+# INSTANCE is an operator selection boundary; child phase calls use resolved ports.
+define release_instance_entry
+if [[ -n "$${INSTANCE-}" ]]; then \
+  export RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" MAKE="$(MAKE)"; \
+  export -f reject_release_path_symlinks; exec bash tools/release_instance.sh "$(1)" "$(2)"; \
+fi
+endef
+
 define release_config_compose
 compose_release_config() { \
 	local config_input="$$CONFIG"; \
@@ -511,6 +522,7 @@ $(SOLDEER_DEPS_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
 $(call release_require_clean_source,independent business deployment); \
 $(release_host_guard_functions); \
+$(call release_instance_entry,$(patsubst %/release/contracts/deploy,%,$@),contracts/deploy); \
 $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Business deployment requires CONFIG with its chain, creator, RPC, signing key and output directory.' >&2; exit 2; fi; \
 load_release_config $(patsubst %/release/contracts/deploy,%,$@) contracts-deploy; \
@@ -534,6 +546,7 @@ $(SOLDEER_DEPS_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
 $(call release_require_clean_source,independent UI deployment); \
 $(release_host_guard_functions); \
+$(call release_instance_entry,$(patsubst %/release/ui/deploy,%,$@),ui/deploy); \
 $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'UI deployment requires CONFIG with its chain, creator, RPC, signing key and output directory.' >&2; exit 2; fi; \
 if [[ ! -v CONTRACT_ARTIFACT || -z "$$CONTRACT_ARTIFACT" ]]; then printf '%s\n' 'Set CONTRACT_ARTIFACT to the backing business deployment artifact.' >&2; exit 2; fi; \
@@ -558,6 +571,7 @@ $(LANE_GUARD); \
 $(SOLDEER_DEPS_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
 $(release_host_guard_functions); \
+$(call release_instance_entry,$(patsubst %/release/cam/bundle,%,$@),cam/bundle); \
 $(release_config_compose); \
 source_commit="$$(git rev-parse HEAD)"; \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM bundle preparation requires read-only CONFIG.' >&2; exit 2; fi; \
@@ -598,6 +612,7 @@ $(SOLDEER_DEPS_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
 $(call release_require_clean_source,CAM publication); \
 $(release_host_guard_functions); \
+$(call release_instance_entry,$(patsubst %/release/cam/publish,%,$@),cam/publish); \
 $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM publication requires CONFIG identifying its chain, current root signer, URI and output.' >&2; exit 2; fi; \
 load_release_config $(patsubst %/release/cam/publish,%,$@) cam-publish; \
@@ -605,6 +620,11 @@ if [[ ! -v CAM_BUNDLE || -z "$$CAM_BUNDLE" ]]; then printf '%s\n' 'Set CAM_BUNDL
 reject_release_path_symlinks "$$CAM_BUNDLE" CAM_BUNDLE; \
 require_release_file "$$CAM_BUNDLE/artifact/cam-bundle.json" 'Prepared CAM bundle artifact'; \
 export CAM_RELEASE_PREPARED_DIR="$$CAM_BUNDLE"; \
+if [[ -n "$${CAM_RECORDS-}" ]]; then \
+  release_full_make() { release_run_owned "$$release_make_cleanup_grace" $(MAKE) --no-print-directory "$$@"; }; \
+  source tools/release_full.sh; \
+  release_full_cam $(patsubst %/release/cam/publish,%,$@) "$$CONFIG" "$$CAM_BUNDLE" "$$CAM_RECORDS" publish; exit $$?; \
+fi; \
 source tools/release_cam.sh; release_cam_select_root; \
 chain_id="$$CAM_RELEASE_EXPECTED_CHAIN_ID"; require_release_rpc_input; \
 require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$$DEPLOYER_PRIVATE_KEY_FILE"; \
@@ -623,6 +643,7 @@ define release_independent_artifact
 $(LANE_GUARD); \
 $(SOLDEER_DEPS_GUARD); \
 $(release_host_guard_functions); \
+$(call release_instance_entry,$(patsubst %/release/$(2)/artifact,%,$@),$(2)/artifact); \
 if [[ "$(2)" == cam ]]; then \
   require_release_file "$${CAM_BUNDLE:?Set CAM_BUNDLE}/artifact/cam-bundle.json" 'Prepared CAM bundle artifact'; \
   export CAM_RELEASE_PREPARED_DIR="$$CAM_BUNDLE"; \
@@ -686,6 +707,7 @@ $(SOLDEER_DEPS_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
 $(call release_require_clean_source,release composition); \
 $(release_host_guard_functions); \
+$(call release_instance_entry,$(1),$(patsubst $(1)/release/%,%,$@)); \
 $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Release composition requires CONFIG.' >&2; exit 2; fi; \
 load_release_config $(1) cam-bundle; \
@@ -925,18 +947,17 @@ help:
 	  '    Open the printed URL in your browser. Loopback port defaults to 5174; set RELEASE_VIEWER_PORT to override.' \
 	  '    The fixture RPC endpoint permits local test transactions. No signing key is mounted.' \
 	  '  make network/local/viewer/down   Stop only that viewer; leave the chain running.' \
-	  '  make viewer/release/up           Open an existing public-chain release; deploys nothing.' \
-	  '    Interactive: select deployment.json, then choose its chain public RPC or enter another public URL.' \
+	  '  make viewer/release/up INSTANCE=/absolute/instance  Open a selected publication; deploys no contracts.' \
 	  '    App and default download prefix come from the artifact; IPFS defaults to IPFS only.' \
-	  '    Scripts: set DEPLOYMENT_ARTIFACT_FILE and PUBLIC_RPC_URL. Optional APP must agree.' \
+	  '    Choose the saved publication and a browser-public RPC; the private signing RPC is not exposed.' \
 	  '    RESOURCE_ORIGIN: artifact origin by default, * for HTTPS or IPFS, none for IPFS only, or a URL prefix.' \
 	  '    Download scope choices apply immediately; custom prefixes apply after typing pauses. URL parameters cannot set it. Quote RESOURCE_ORIGIN="*".' \
 	  '    Browser CORS and mixed-content restrictions still apply.' \
 	  '    PUBLIC_RPC_URL is visible in the browser link: use a public endpoint without credentials.' \
-	  '    No signing configuration or private key is read. RPC connectivity is checked when the browser loads.' \
+	  '    No signing key is staged for the viewer. RPC connectivity is checked when the browser loads.' \
 	  '    Defaults to http://127.0.0.1:5174. Connect your own wallet for transactions.' \
 	  '    Use RELEASE_VIEWER_COMPOSE_PROJECT_NAME and RELEASE_VIEWER_PORT for another viewer instance.' \
-	  '  make viewer/release/down         Stop only the public-release viewer.' \
+	  '  make viewer/release/down INSTANCE=/absolute/instance  Stop only this instance viewer.' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
 	  '  make rpc/indexer/up              Start a read-only RPC proxy for contract log indexing.' \
 	  '    Requires RPC_URL_FILE: an absolute, owner-only file outside the checkout, owned by LOCAL_UID.' \
@@ -974,68 +995,60 @@ help:
 	  '    Deployment uses public test keys, private HTTP transport, no host ports and no public network.' \
 	  '    Temporary services are removed; records remain at the printed path. Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR' \
 	  '    to keep them under an existing folder; otherwise ordinary rehearsals use /tmp/cam-release-rehearsal-*.' \
-	  '  make bike-nft/release/setup CONFIG=/absolute/private/release.json' \
-	  '  make escrow/release/setup CONFIG=/absolute/private/release.json' \
-	  '  make pay-to-play/release/setup CONFIG=/absolute/private/release.json' \
-	  '  make <app>/release/verify CONFIG=/absolute/private/readonly.json [OUTPUT_DIR=/absolute/release-records]' \
-	  '    Verify or complete retained business/UI/CAM artifacts through their ordinary keyless operations.' \
-	  '    Sends no transactions and never creates a missing phase. Ownership acceptance remains separate.' \
-	  '    Uses current js/node_modules by default; its installed dependencies must match the saved source commit.' \
-	  '    For older records, run make js/deps/install in a separate checkout at that commit, then set' \
-	  '    RELEASE_ARTIFACT_NODE_MODULES_DIR=/absolute/matching-checkout/js/node_modules on the artifact command.' \
-	  '    Full deploy composes contracts, UI, bundle and CAM publication in separate retained subdirectories.' \
-	  '    UI_CONFIG and CAM_CONFIG select independent actors; both default to CONFIG. Existing records are verified keylessly.' \
-	  '    Without settings.CAM_URI in CAM_CONFIG, full deploy stops after bundle preparation; host the bytes, set that URI, and rerun.' \
-	  '    CAM_BUNDLE selects a prepared directory when recovering an incomplete bundle export; selected input bytes must match.' \
-	  '  make bike-nft/release/ui/update CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/core.json ROOT_ARTIFACT=/absolute/latest-cam.json [CAM_CONFIG=/absolute/private/owner.json] [OUTPUT_DIR=/absolute/new-records]' \
-	  '  make escrow/release/ui/update CONFIG=... CONTRACT_ARTIFACT=... ROOT_ARTIFACT=...' \
-	  '  make pay-to-play/release/ui/update CONFIG=... CONTRACT_ARTIFACT=... ROOT_ARTIFACT=...' \
-	  '    Update creates only UI, bundle and CAM phases. Use the latest publication artifact for the live root baseline.' \
-	  '  make bike-nft/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
-	  '  make escrow/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
-	  '  make pay-to-play/release/contracts/deploy CONFIG=/absolute/private/business.json [OUTPUT_DIR=/absolute/new-records]' \
-	  '  make bike-nft/release/cam/bundle CONFIG=/absolute/readonly.json CONTRACT_ARTIFACT=/absolute/core.json UI_ARTIFACT=/absolute/ui.json ROOT=new [OUTPUT_DIR=/absolute/new-directory]' \
-	  '  make escrow/release/cam/bundle CONFIG=... CONTRACT_ARTIFACT=... UI_ARTIFACT=... ROOT=new' \
-	  '  make pay-to-play/release/cam/bundle CONFIG=... CONTRACT_ARTIFACT=... UI_ARTIFACT=... ROOT=new' \
-	  '  make bike-nft/release/cam/publish CONFIG=... CAM_BUNDLE=/absolute/prepared ROOT=new [OUTPUT_DIR=/absolute/new-records]' \
-	  '  make escrow/release/cam/publish CONFIG=... CAM_BUNDLE=... ROOT=new' \
-	  '  make pay-to-play/release/cam/publish CONFIG=... CAM_BUNDLE=... ROOT=new' \
-	  '    Publish verified component bindings and the chosen hosted URI/hash; existing roots use ROOT_ARTIFACT=latest-evidence instead of ROOT=new.' \
-	  '  make bike-nft/release/cam/artifact CONFIG=readonly.json CAM_RECORDS=/absolute/records CAM_BUNDLE=/absolute/prepared' \
-	  '  make escrow/release/cam/artifact CONFIG=... CAM_RECORDS=... CAM_BUNDLE=...' \
-	  '  make pay-to-play/release/cam/artifact CONFIG=... CAM_RECORDS=... CAM_BUNDLE=...' \
-	  '    Complete retained CAM records without a signing key or repeated root/component creation.' \
-	  '    Export a coherent bundle and original source/compiler evidence before hosting chooses a URI or CID; sends no transactions.' \
-	  '    Use ROOT_ARTIFACT=/absolute/latest-publication.json instead of ROOT=new for an existing root.' \
-	  '  make bike-nft/release/contracts/artifact CONFIG=/absolute/private/read-only.json CONTRACT_RECORDS=/absolute/records' \
-	  '  make escrow/release/contracts/artifact CONFIG=/absolute/private/read-only.json CONTRACT_RECORDS=/absolute/records' \
-	  '  make pay-to-play/release/contracts/artifact CONFIG=/absolute/private/read-only.json CONTRACT_RECORDS=/absolute/records' \
-	  '  make bike-nft/release/ui/deploy CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/contracts.json' \
-	  '  make escrow/release/ui/deploy CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/contracts.json' \
-	  '  make pay-to-play/release/ui/deploy CONFIG=/absolute/private/ui.json CONTRACT_ARTIFACT=/absolute/contracts.json' \
-	  '    Deploy and verify only the read-only UI for an existing business deployment. CAM publication is separate.' \
-	  '    Accepts a native business artifact or the original complete deployment.json; the original stays unchanged.' \
-	  '    UI CONFIG needs source, RPC, key, approval image, chain, creator and OUTPUT_DIR; business/root settings are unused.' \
-	  '    OUTPUT_DIR=/absolute/new-directory overrides the saved destination. Keep the chosen directory after failure.' \
-	  '    Repeating deployment with the same output is refused. Complete a created UI record with the keyless commands:' \
-	  '  make bike-nft/release/ui/artifact CONFIG=/absolute/private/ui.json UI_RECORDS=/absolute/ui-deployment' \
-	  '  make escrow/release/ui/artifact CONFIG=/absolute/private/ui.json UI_RECORDS=/absolute/ui-deployment' \
-	  '  make pay-to-play/release/ui/artifact CONFIG=/absolute/private/ui.json UI_RECORDS=/absolute/ui-deployment' \
-	  '    Uses the saved UI plan and creation transaction; verifies source/runtime/backing without sending transactions.' \
-	  '    Read-only CONFIG may omit the signing key and approval image. Existing final records are never overwritten.' \
+	  '  make bike-nft/release/setup INSTANCE=/absolute/instance' \
+	  '  make escrow/release/setup INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/setup INSTANCE=/absolute/instance' \
+	  '    Choose a configuration role; collect only its settings. Creates INSTANCE when needed.' \
+	  '  make bike-nft/release/deploy INSTANCE=/absolute/instance' \
+	  '  make escrow/release/deploy INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/deploy INSTANCE=/absolute/instance' \
+	  '    Deploy business, UI and CAM through the ordinary verified operations.' \
+	  '  make bike-nft/release/ui/update INSTANCE=/absolute/instance' \
+	  '  make escrow/release/ui/update INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/ui/update INSTANCE=/absolute/instance' \
+	  '    Choose replacement/reused UI or resume unfinished work; preserve existing business contracts.' \
+	  '  make bike-nft/release/verify INSTANCE=/absolute/instance' \
+	  '  make escrow/release/verify INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/verify INSTANCE=/absolute/instance' \
+	  '    Select saved work and verify or complete records without sending transactions.' \
+	  '  make bike-nft/release/contracts/deploy INSTANCE=/absolute/instance' \
+	  '  make escrow/release/contracts/deploy INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/contracts/deploy INSTANCE=/absolute/instance' \
+	  '    Deploy business contracts independently; the result is an available candidate, not a CAM binding.' \
+	  '  make bike-nft/release/ui/deploy INSTANCE=/absolute/instance' \
+	  '  make escrow/release/ui/deploy INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/ui/deploy INSTANCE=/absolute/instance' \
+	  '    Choose existing business records and deploy only their read-only UI.' \
+	  '  make bike-nft/release/cam/bundle INSTANCE=/absolute/instance' \
+	  '  make escrow/release/cam/bundle INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/cam/bundle INSTANCE=/absolute/instance' \
+	  '    Choose components/root and prepare exact CAM files without signing or requiring a hosted URI.' \
+	  '  make bike-nft/release/cam/publish INSTANCE=/absolute/instance' \
+	  '  make escrow/release/cam/publish INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/cam/publish INSTANCE=/absolute/instance' \
+	  '    Choose a prepared bundle and publish its root/bindings with transaction approval.' \
+	  '  make bike-nft/release/contracts/artifact INSTANCE=/absolute/instance' \
+	  '  make escrow/release/contracts/artifact INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/contracts/artifact INSTANCE=/absolute/instance' \
+	  '    Complete or verify retained business records without signing.' \
+	  '  make bike-nft/release/ui/artifact INSTANCE=/absolute/instance' \
+	  '  make escrow/release/ui/artifact INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/ui/artifact INSTANCE=/absolute/instance' \
+	  '    Complete or verify retained UI records without signing.' \
+	  '  make bike-nft/release/cam/artifact INSTANCE=/absolute/instance' \
+	  '  make escrow/release/cam/artifact INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/cam/artifact INSTANCE=/absolute/instance' \
+	  '    Complete or verify retained CAM records without signing.' \
+	  '    INSTANCE is an owned private directory outside the checkout (mode 0700).' \
+	  '    Commands allocate their records under deployments/ or updates/; no empty output directory is requested.' \
+	  '    instance.json stores configuration/record references and unfinished work; artifacts remain authoritative.' \
+	  '    Histories are offered as choices, never selected by newest timestamp. Resume uses its original saved inputs.' \
+	  '    Separate business, UI and CAM configurations can select different actors; each transaction still needs approval.' \
+	  '    Keep all records after failure; rerun the same INSTANCE command to reconcile and resume.' \
+	  '    Missing CAM_URI pauses after preparation. Host the printed files, set the saved CAM URI, then resume.' \
 	  '  make release/cam/check           Typecheck and test CAM component admission and publication tools.' \
 	  '  make release/contracts/check     Typecheck and test shared business deployment plans and approval recipes.' \
-	  '  make release/ui/check            Typecheck and test the shared UI deployment tools for all three apps.' \
-	  '    Walk through every input and save one ready-to-deploy configuration for bike-nft, escrow or pay-to-play.' \
-	  '    Choose public for an HTTPS RPC, or local for the running network/local/up infrastructure.' \
-	  '    Local setup saves its Docker network, exact RPC/CAM URLs and a funded public test key.' \
-	  '    Setup also asks for a new output directory for plans, transactions and deployed contract addresses.' \
-	  '    Keep that directory: contracts/, ui/, cam-bundle/ and cam/ retain their own plans, inputs and artifacts.' \
-	  '    CONFIG must be new, outside the checkout, with an existing parent and no symlink path components.' \
-	  '    Saves the concrete RPC URL, deployer key, source commit, app settings and deployment confirmation; mode 0600.' \
-	  '    Setup lists installed approval-tool images with their source commits; select one by number.' \
-	  '    The selected exact image ID is saved in CONFIG. Setup does not build, pull, relabel or substitute approval images.' \
-	  '    Deploy from a terminal with CONFIG. A missing saved approval image stops deployment; no image is substituted.' \
+	  '  make release/ui/check            Typecheck and test the shared UI deployment tools.' \
 	  '  make release/approval/image/build  (HEAD; dated records under ~/Documents; replaces old approval images)' \
 	  '    Build the approval tool image from that committed source and fresh locked dependencies.' \
 	  '    Two-minute deadline; allows up to 90 additional seconds for cleanup before forced termination.' \
@@ -1045,17 +1058,10 @@ help:
 	  '    Deployment checks that exact image ID is present locally; it does not establish image provenance.' \
 	  '    Each signed transaction is shown for approval; output retains the private audit and transaction records.' \
 	  '    A read-only CONFIG can verify retained records; it needs no signing key or approval image.' \
-	  '  make bike-nft/release/deploy      Send Bike NFT deployment transactions and save deployment records.' \
-	  '  make escrow/release/deploy        Send Escrow deployment transactions and save deployment records.' \
-	  '  make pay-to-play/release/deploy   Send Pay-to-Play deployment transactions and save deployment records.' \
-	  '    CONFIG selects protected, versioned settings; UI_CONFIG and CAM_CONFIG optionally select other phase actors.' \
-	  '    Requires a clean checkout, installed dependencies, funded signers and new off-repo records for each new phase.' \
-	  '    Retained phases are verified/completed keylessly when the full command is repeated; they are never redeployed.' \
+	  '    Signed operations require a clean checkout, installed dependencies and funded signers.' \
+	  '    Retained phases are verified/completed keylessly when resumed; they are never redeployed.' \
 	  '    Each nominated CAM owner or payment admin accepts ownership separately. Bike admins accept after their delays.' \
 	  '    Records retain authorities observed at their verification block; later acceptances do not rewrite those records.' \
-	  '  make bike-nft/release/verify CONFIG=/absolute/readonly.json [OUTPUT_DIR=/absolute/records]' \
-	  '  make escrow/release/verify CONFIG=/absolute/readonly.json [OUTPUT_DIR=/absolute/records]' \
-	  '  make pay-to-play/release/verify CONFIG=/absolute/readonly.json [OUTPUT_DIR=/absolute/records]' \
 	  '    Verifies the saved component and CAM records using their original sources, not current-role/pause expectations.' \
 	  '    Retain the complete records after partial failure. For historical monolithic records, use their original checkout.' \
 	  '    Workflow, authority handoffs and record layout: https://numpde.github.io/dapp32/deployment/.' \
@@ -1720,6 +1726,7 @@ endef
 .PHONY: viewer/release/up viewer/release/down
 viewer/release/up:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); $(release_host_guard_functions); \
+	$(call release_instance_entry,_,viewer/up); \
 	viewer_app="$${APP-}"; $(release_viewer_artifact); \
 	viewer_resource_origin="$${RESOURCE_ORIGIN-}"; viewer_rpc="$${PUBLIC_RPC_URL-}"; \
 	if [[ ! "$$RELEASE_VIEWER_PORT" =~ ^[1-9][0-9]{0,4}$$ || "$$RELEASE_VIEWER_PORT" -gt 65535 ]]; then printf '%s\n' 'RELEASE_VIEWER_PORT must be a TCP port in 1..65535.' >&2; exit 2; fi; \
@@ -1732,7 +1739,7 @@ viewer/release/up:
 	$(call public_release_viewer_compose,up --build --abort-on-container-exit cam-web browser-gateway)
 
 viewer/release/down:
-	@$(LANE_GUARD); viewer_app=unused; viewer_artifact=/dev/null; \
+	@$(LANE_GUARD); $(release_host_guard_functions); $(call release_instance_entry,_,viewer/down); viewer_app=unused; viewer_artifact=/dev/null; \
 	viewer_resource_origin=https://unused.invalid; viewer_rpc=https://unused.invalid; \
 	$(call public_release_viewer_compose,down --timeout 10)
 
@@ -2023,6 +2030,7 @@ define release_setup
 $(LANE_GUARD); \
 app="$(patsubst %/release/setup,%,$@)"; \
 $(release_host_guard_functions); \
+$(call release_instance_entry,$(patsubst %/release/setup,%,$@),setup); \
 validate_new_release_output "$${CONFIG:?Set CONFIG to a new absolute off-repo file}" CONFIG; \
 source_commit="$$(git rev-parse HEAD)"; \
 release_config_stage "$$(dirname -- "$$CONFIG")"; \
@@ -2036,32 +2044,19 @@ if [[ "$$setup_network" == public ]]; then release_config_probe_chain "$(CURDIR)
 compose_release_config run --rm --no-deps release-setup setup "$$app" "$$source_commit"; \
 release_config_input="$$release_config_dir/release.json"; \
 require_release_config "$$release_config_input"; \
-compose_release_config run --rm --no-deps -T release-config deploy "$$app" "$$source_commit"; \
+setup_mode=deploy; \
+case "$${RELEASE_SETUP_PURPOSE:-deployment}" in ui) setup_mode=ui-deploy ;; contracts) setup_mode=contracts-deploy ;; cam) setup_mode=cam-publish ;; esac; \
+compose_release_config run --rm --no-deps -T release-config "$$setup_mode" "$$app" "$$source_commit"; \
 mapfile -d '' -t inputs < "$$release_config_dir/inputs"; \
 export "$${inputs[@]}"; \
 release_approval_require_image; \
 if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then require_release_local_network; fi; \
-prefix="$${app^^}"; prefix="$${prefix//-/_}"; output_name="$${prefix}_RELEASE_OUTPUT_DIR"; \
-validate_new_release_output "$${!output_name}" "$$output_name"; \
+if [[ -n "$${OUTPUT_DIR-}" ]]; then validate_new_release_output "$$OUTPUT_DIR" OUTPUT_DIR; fi; \
 recheck_new_release_output "$$CONFIG" CONFIG; \
 ln -T -- "$$release_config_input" "$$CONFIG"; \
 printf 'Saved release configuration: %s\nNo transactions were sent.\n' "$$CONFIG"; \
-printf 'Run the next commands from a checkout at saved source commit %s.\n' "$$source_commit"; \
-printf '%s\n' 'If the checkout has changed, interactive deployment offers to update CONFIG for the new commit and a fresh deployment directory.'; \
-printf 'Approval image selected in CONFIG: %s\n' "$$RELEASE_APPROVAL_IMAGE"; \
-printf '  make %s/release/deploy CONFIG=%q\n' "$$app" "$$CONFIG"; \
-printf '%s\n' 'Deployment starts required handovers but does not finish them; selecting the deployer as owner/admin skips that handover.'; \
-if [[ "$$app" == bike-nft ]]; then \
-  printf '%s\n' 'After deployment, each nominated CAM owner must submit a separate ownership acceptance transaction; each nominated collection/manager admin must submit a separate admin acceptance transaction after the delay from nomination.'; \
-elif [[ "$$app" == pay-to-play ]]; then \
-  printf '%s\n' 'After deployment, each nominated CAM owner and payment admin must submit a separate ownership acceptance transaction.'; \
-else \
-  printf '%s\n' 'After deployment, the nominated CAM owner must submit a separate ownership acceptance transaction.'; \
-fi; \
-printf '%s\n' 'The deployer retains that ownership/admin authority until acceptance. Each release phase verifies its own artifact.'; \
-printf 'Keep the complete release directory: %s\n' "$${!output_name}"; \
-printf '%s\n' 'Recheck the retained records without sending transactions:'; \
-printf '  make %s/release/verify CONFIG=%q\n' "$$app" "$$CONFIG"
+printf 'Configuration pins source commit %s.\n' "$$source_commit"
+
 endef
 
 .PHONY: bike-nft/release/setup escrow/release/setup pay-to-play/release/setup

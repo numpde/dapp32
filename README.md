@@ -25,6 +25,24 @@ contracts. Current software supports CAM 1.3.0 with UI 1.0.0.
 
 Each app's README covers its contracts and local demo commands.
 
+## Deployment instances
+
+Point each operator command at one private instance directory:
+
+```sh
+make bike-nft/release/setup INSTANCE=/absolute/002-avalanche-fuji
+make bike-nft/release/deploy INSTANCE=/absolute/002-avalanche-fuji
+make bike-nft/release/ui/update INSTANCE=/absolute/002-avalanche-fuji
+make bike-nft/release/verify INSTANCE=/absolute/002-avalanche-fuji
+```
+
+Use `escrow` or `pay-to-play` for the other apps. Setup creates the directory
+and offers full, business, UI or CAM configuration. Commands create their own
+record folders; updates offer saved work and component choices. `instance.json`
+contains references, while the immutable artifacts retain deployment facts.
+Failed operations and hosting pauses remain resumable through the same command.
+Existing deployment directories are not renamed or migrated automatically.
+
 ## Development
 
 Use Docker with Compose and Make. Install the locked dependencies, then run

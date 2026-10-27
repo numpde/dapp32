@@ -49,7 +49,7 @@ release_full_cam() {
   if [[ "$operation" == verify || -e "$records/artifact/cam-publication.json" || -L "$records/artifact/cam-publication.json" ]]; then
     release_full_make "$app/release/cam/artifact" "CONFIG=$config" "CAM_RECORDS=$records" "CAM_BUNDLE=$prepared" || return
   elif [[ ! -e "$records" && ! -L "$records" ]]; then
-    release_full_make "$app/release/cam/publish" "CONFIG=$config" "CAM_BUNDLE=$prepared" "$@" "OUTPUT_DIR=$records" || return
+    release_full_make "$app/release/cam/publish" "CONFIG=$config" "CAM_BUNDLE=$prepared" CAM_RECORDS= "$@" "OUTPUT_DIR=$records" || return
   else
     attempt="$records/artifact/cam-attempt.json"
     if [[ ! -e "$attempt" && ! -L "$attempt" ]]; then
@@ -66,7 +66,7 @@ release_full_cam() {
     # Only a new invocation reaches this branch after a paid attempt failed.
     # Fresh publication owns receipt/state admission; the file is not a trust flag.
     continuation="$records/continuation"
-    release_full_make "$app/release/cam/publish" "CONFIG=$config" "CAM_BUNDLE=$prepared" ROOT= \
+    release_full_make "$app/release/cam/publish" "CONFIG=$config" "CAM_BUNDLE=$prepared" CAM_RECORDS= ROOT= \
       "ROOT_ARTIFACT=$attempt" "OUTPUT_DIR=$continuation" || return
     records="$continuation"
   fi
@@ -149,7 +149,9 @@ release_full() {
     if [[ -e "$contracts" || -L "$contracts" ]]; then
       release_full_make "$app/release/contracts/artifact" "CONFIG=$main_config" "CONTRACT_RECORDS=$contracts" || return
     fi
-    release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$ui" || return
+    local verify_ui="$ui"
+    if [[ -n "${UI_ARTIFACT-}" ]]; then verify_ui=$(dirname -- "$(dirname -- "$UI_ARTIFACT")"); fi
+    release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$verify_ui" || return
     release_full_cam "$app" "$cam_config" "$prepared" "$cam" verify
     return "$?"
   fi
@@ -162,12 +164,16 @@ release_full() {
     fi
     require_release_file "$business_artifact" 'Verified business artifact'
   fi
-  if [[ -e "$ui" || -L "$ui" ]]; then
-    release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$ui" || return
+  if [[ "$operation" == update && -n "${UI_ARTIFACT-}" ]]; then
+    ui_artifact="$UI_ARTIFACT"
   else
-    release_full_make "$app/release/ui/deploy" "CONFIG=$ui_config" "CONTRACT_ARTIFACT=$business_artifact" "OUTPUT_DIR=$ui" || return
+    if [[ -e "$ui" || -L "$ui" ]]; then
+      release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$ui" || return
+    else
+      release_full_make "$app/release/ui/deploy" "CONFIG=$ui_config" "CONTRACT_ARTIFACT=$business_artifact" "OUTPUT_DIR=$ui" || return
+    fi
+    ui_artifact="$ui/artifact/ui-deployment.json"
   fi
-  ui_artifact="$ui/artifact/ui-deployment.json"
   require_release_file "$ui_artifact" 'Verified UI artifact'
 
   if [[ -v CAM_BUNDLE && -n "$CAM_BUNDLE" ]]; then
@@ -180,7 +186,11 @@ release_full() {
   # component joins. An incomplete export must never be mistaken for a fresh lane.
   reject_release_path_symlinks "$prepared" 'Prepared CAM bundle'
   if [[ ! -e "$prepared/artifact/cam-bundle.json" && ! -L "$prepared/artifact/cam-bundle.json" ]]; then
-    printf 'Prepared CAM export is incomplete: %s. Keep the core/UI records, prepare a fresh bundle with the keyless cam/bundle command, then rerun with CAM_BUNDLE selecting that directory. No phase will be redeployed.\n' "$prepared" >&2
+    if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
+      printf 'Prepared CAM export is incomplete: %s. Repeat the same INSTANCE command and choose the keyless bundle rebuild. Core and UI records are retained.\n' "$prepared" >&2
+    else
+      printf 'Prepared CAM export is incomplete: %s. Keep the core/UI records, prepare a fresh bundle with the keyless cam/bundle command, then rerun with CAM_BUNDLE selecting that directory. No phase will be redeployed.\n' "$prepared" >&2
+    fi
     return 2
   fi
   require_release_file "$prepared/artifact/cam-bundle.json" 'Prepared CAM bundle artifact'
@@ -202,10 +212,12 @@ release_full() {
     release_full_read_uri_presence "$cam_config" "$app" || return
     if [[ "$release_full_has_uri" == 0 ]]; then
       printf 'Business artifact: %s\nUI artifact: %s\nPrepared CAM bytes to host or pin: %s/bundle\n' "$business_artifact" "$ui_artifact" "$prepared"
-      printf '%s\n' 'Set settings.CAM_URI in CAM_CONFIG (or CONFIG when no CAM_CONFIG was selected) to the hosted root URI, then rerun this command with the same output directory. Existing phases will be reused.'
-      printf 'Direct continuation: make %q CONFIG=%q CAM_BUNDLE=%q OUTPUT_DIR=%q' "$app/release/cam/publish" "$cam_config" "$prepared" "$cam"
-      printf ' %q' "${root_selection[@]}"
-      printf '\n'
+      printf '%s\n' 'Set settings.CAM_URI in the selected CAM configuration after hosting these exact files.'
+      if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
+        printf 'Resume: make %q INSTANCE=%q\n' "$app/release/${RELEASE_INSTANCE_OPERATION:?}" "$RELEASE_INSTANCE_ROOT"
+      else
+        printf 'Resume with the same CONFIG and OUTPUT_DIR; the existing phases will be reused.\n'
+      fi
       return 0
     fi
   fi

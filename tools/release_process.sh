@@ -11,6 +11,7 @@ release_process_init() {
   # These are internal lifecycle slots, not optional operator environment inputs.
   declare -g release_owned_pid=""
   release_owned_grace=15
+  release_command_grace=15
   # Nested release commands own several bounded teardowns before they can exit.
   release_make_cleanup_grace=330
   release_owned_reaped=0
