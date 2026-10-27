@@ -105,6 +105,7 @@ try {
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
+  assert(await evaluate('[...document.querySelectorAll(".contracts > div")].every(row => (row.querySelector("dt a")?.href ?? null) === (row.querySelector("dd a")?.href ?? null))'), 'Contract names and addresses must link to the same explorer page; unbound names must not link')
   assert.match(await evaluate('document.querySelector(".contracts").textContent'), /Not bound/)
   assert.equal(await evaluate('document.querySelector(".rpc-controls select").options.length'), 2, 'Key templates must not be selectable')
   assert.equal(await evaluate('document.querySelector(".rpc-controls select").selectedOptions[0].textContent'), 'rpc.fixture.test')

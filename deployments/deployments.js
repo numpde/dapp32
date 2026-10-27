@@ -18,11 +18,15 @@ function link(url, text, className) {
   return node;
 }
 
+function explorerAddress(explorer, address) {
+  return `${explorer.replace(/\/$/, '')}/address/${address}`;
+}
+
 function addressValue(address, name, explorer) {
   if (!/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Error(`Invalid address for ${name}.`);
   const value = element('span', undefined, 'address-value');
   const controls = element('span', undefined, 'address-controls');
-  const addressLink = link(`${explorer.replace(/\/$/, '')}/address/${address}`);
+  const addressLink = link(explorerAddress(explorer, address));
   const code = element('code');
   code.title = address;
   const middle = element('span', address.slice(6, -4), 'hex-middle');
@@ -96,7 +100,9 @@ function deploymentCard(deployment, viewer, catalog) {
     const row = element('div');
     const value = element('dd');
     value.append(address === null ? element('span', 'Not bound') : addressValue(address, name, network.explorer));
-    row.append(element('dt', name), value);
+    const label = element('dt');
+    label.append(address === null ? name : link(explorerAddress(network.explorer, address), name));
+    row.append(label, value);
     return row;
   }
   contracts.append(contractRow('CAM root', deployment.host));
