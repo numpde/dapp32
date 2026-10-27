@@ -34,6 +34,22 @@ export async function navigateBrowserDocument({ call, url, ready, description, t
   await waitForBrowserCondition(ready, description, deadline)
 }
 
+// Keyboard checks own a nonnested focus-emulation scope; release it even if setup lost its acknowledgement.
+export async function withBrowserFocus(call, operation) {
+  const failures = []
+  let result
+  try {
+    await call('Emulation.setFocusEmulationEnabled', { enabled: true })
+    result = await operation()
+  } catch (error) { failures.push(error) }
+  finally {
+    try { await call('Emulation.setFocusEmulationEnabled', { enabled: false }) } catch (error) { failures.push(error) }
+  }
+  if (failures.length === 1) throw failures[0]
+  if (failures.length > 1) throw new AggregateError(failures, 'Browser operation and focus release failed')
+  return result
+}
+
 export async function checkFixtureWalletToolbar({ call, evaluate }) {
   const scroll = await evaluate(`(() => { const app=document.getElementById('root');return {x:app.scrollLeft,y:app.scrollTop,hasFacts:!!document.getElementById('local-fixture-facts')} })()`)
   const failures = []

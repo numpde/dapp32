@@ -72,6 +72,34 @@ test('browser readiness times out even when its pending observation never return
   ), /Timed out waiting for the fixture script to initialize/)
 })
 
+test('browser keyboard focus is scoped to the operation', async () => {
+  let focused = false
+  await fixture.withBrowserFocus(async (method, { enabled }) => {
+    assert.equal(method, 'Emulation.setFocusEmulationEnabled')
+    focused = enabled
+  }, async () => assert(focused, 'the keyboard operation has browser focus'))
+  assert.equal(focused, false)
+})
+
+test('uncertain focus setup stops keyboard input and still releases focus', async () => {
+  const cause = new Error('focus acknowledgement lost')
+  const attempts = []
+  await assert.rejects(fixture.withBrowserFocus(async (_method, { enabled }) => {
+    attempts.push(enabled)
+    if (enabled) throw cause
+  }, async () => assert.fail('uncertain focus must not proceed to keyboard input')), error => error === cause)
+  assert.deepEqual(attempts, [true, false])
+})
+
+test('browser keyboard failure retains an independent focus-release failure', async () => {
+  const primary = new Error('keyboard operation failed')
+  const cleanup = new Error('focus release failed')
+  await assert.rejects(fixture.withBrowserFocus(async (_method, { enabled }) => {
+    if (!enabled) throw cleanup
+  }, async () => { throw primary }), error => error instanceof AggregateError
+    && error.errors[0] === primary && error.errors[1] === cleanup)
+})
+
 for (const failedPhase of ['preparation', 'deployment before signing', 'signing', 'deployment before broadcast', 'broadcast']) {
   test(`fixture ${failedPhase} failure reports the actual submission boundary and preserves its cause`, async () => {
     const cause = new Error('CAM manifest hash changed')

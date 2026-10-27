@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { requireHttpURL } from '@cam/protocol'
 import { awaitFixtureSocketOpen } from '../../../tools/browser-fixture-wallet.mjs'
-import { createCdpCommands } from './escrow-browser-fixture.mjs'
+import { createCdpCommands, withBrowserFocus } from './escrow-browser-fixture.mjs'
 import { checkViewerConnection } from './connection-browser-check.mjs'
 
 const local = (value, label) => {
@@ -56,7 +56,6 @@ try {
   session = (await commands.call('Target.attachToTarget', { targetId: target, flatten: true })).sessionId
   await call('Page.enable', {})
   await call('Runtime.enable', {})
-  await call('Emulation.setFocusEmulationEnabled', { enabled: true })
   const connection = await checkViewerConnection({ call, evaluate, viewerURL: viewer.href })
   console.log(JSON.stringify(connection))
   await call('Page.navigate', { url: new URL('/', viewer).href })
@@ -80,12 +79,15 @@ try {
   await evaluate(`(() => {const input=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Keep this draft');input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('.ipfs-gateway select').focus()})()`)
   const before = await evaluate('({href:location.href,requests:gatewayFixture.requests.length,account:document.querySelector(".connection").textContent})')
   const selectedBeforeKey = await evaluate('document.querySelector(".ipfs-gateway select").value')
-  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowUp', code: 'ArrowUp', windowsVirtualKeyCode: 38 })
-  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowUp', code: 'ArrowUp', windowsVirtualKeyCode: 38 })
-  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
-  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
-  assert(await evaluate('document.activeElement.tagName==="SELECT"'), 'keyboard gateway selection retains focus')
-  assert.notEqual(await evaluate('document.querySelector(".ipfs-gateway select").value'), selectedBeforeKey, 'arrow key changes the selected gateway')
+  await withBrowserFocus(call, async () => {
+    await evaluate('document.querySelector(".ipfs-gateway select").focus()')
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowUp', code: 'ArrowUp', windowsVirtualKeyCode: 38 })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowUp', code: 'ArrowUp', windowsVirtualKeyCode: 38 })
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+    assert(await evaluate('document.activeElement.tagName==="SELECT"'), 'keyboard gateway selection retains focus')
+    assert.notEqual(await evaluate('document.querySelector(".ipfs-gateway select").value'), selectedBeforeKey, 'arrow key changes the selected gateway')
+  })
   await select('pinata-public')
   assert.deepEqual(await evaluate('({href:location.href,requests:gatewayFixture.requests.length,account:document.querySelector(".connection").textContent})'), before)
   assert.equal(await evaluate('document.querySelector("input[name=draft]").value'), 'Keep this draft')

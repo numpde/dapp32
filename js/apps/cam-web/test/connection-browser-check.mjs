@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
+import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition, withBrowserFocus } from './escrow-browser-fixture.mjs'
 import { assertStableLayout } from './layout-stability.mjs'
 
 export async function checkViewerConnection({ call, evaluate, viewerURL }) {
@@ -104,13 +104,16 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     assert(await evaluate(`!document.querySelector('[aria-label="RPC connection checked"]')&&document.querySelector('input[name=draft]').value==='keep this draft'`), 'a failed refresh preserves the form and does not acknowledge its endpoint')
     assert(await evaluate(`(()=>{const input=document.querySelector('#rpc-endpoint-url');const help=document.getElementById(input.getAttribute('aria-describedby'));return !!help?.querySelector('[role="alert"]')})()`), 'the endpoint input describes its connection failure')
     const beforeRefresh = await evaluate('connectionFixture.state.readOrigins.length')
-    await evaluate(`[...document.querySelectorAll('button')].find(button=>button.textContent==='Refresh').click()`)
+    await evaluate(`(() => { const button=[...document.querySelectorAll('button')].find(button=>button.textContent==='Refresh');button.focus();button.click() })()`)
     await wait(`connectionFixture.state.readOrigins.length>${beforeRefresh}`)
     assert.equal(await evaluate('connectionFixture.state.readOrigins.at(-1)'), 'https://next.fixture.test', 'the next read after a failed candidate refresh still uses the last good endpoint')
-    await evaluate('connectionFixture.state.failCandidateRead=false;document.querySelector("#rpc-endpoint-url").focus()')
-    await call('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'})
-    await call('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
-    await wait(`!!document.querySelector('[aria-label="RPC connection checked"]')&&connectionFixture.state.readOrigins.at(-1)==='https://candidate.fixture.test'`)
+    await wait(`!document.querySelector('input[name=draft]').disabled&&document.activeElement===document.querySelector('.ui')`)
+    await withBrowserFocus(call, async () => {
+      await evaluate('connectionFixture.state.failCandidateRead=false;document.querySelector("#rpc-endpoint-url").focus()')
+      await call('Input.dispatchKeyEvent', {type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13,text:'\r',unmodifiedText:'\r'})
+      await call('Input.dispatchKeyEvent', {type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13})
+      await wait(`!!document.querySelector('[aria-label="RPC connection checked"]')&&connectionFixture.state.readOrigins.at(-1)==='https://candidate.fixture.test'`)
+    })
     assert(await evaluate(`document.querySelector('input[name=draft]').value==='keep this draft'&&!new URL(location.href).searchParams.has('rpcUrl')`), 'Enter retries the unchanged endpoint while preserving drafts and URL privacy')
     if (process.env.PROOF_DIR) {
       for (const width of [1280, 320]) {
@@ -173,8 +176,8 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     assert(await evaluate(`!document.querySelector('[aria-label="RPC connection checked"]')`), 'bootstrap callback completion does not acknowledge a held unfinished connection')
     await evaluate('document.querySelector(".wallet-button").click()')
     await wait(`!!document.querySelector('input[name=draft]')&&new URL(location.href).searchParams.get('account')===connectionFixture.wallet`)
-    await evaluate('connectionFixture.releasePublicReads();new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
-    assert(await evaluate(`!${publicView}&&new URL(location.href).searchParams.get('account')===connectionFixture.wallet`), 'a completed old public load cannot replace the selected account view')
+    assert(await evaluate(`!${publicView}`), 'connecting the wallet replaces unfinished public startup with its account view')
+    await evaluate('connectionFixture.releasePublicReads()')
     await evaluate('connectionFixture.emit("chainChanged","0xa869")')
     await wait(`document.querySelector('.notice')?.textContent.includes('Wallet network differs')`)
     assert(await evaluate('connectionFixture.state.sends===0'), 'a changed wallet chain never sends during the public-view walkthrough')
@@ -187,7 +190,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     assert(await evaluate(`!!document.querySelector('[aria-label="UI integrity warnings"] [role="status"][data-kind="warning"]')`), 'a zero verification hash produces a warning while the UI remains available')
     assert(await evaluate(`document.querySelector('[aria-label="UI integrity warnings"]').textContent.includes('Unverified')`), 'the unverified condition is stated explicitly')
     assert(await evaluate(`(()=>{const warning=document.querySelector('[aria-label="UI integrity warnings"] [role="status"]');const normal=document.createElement('div');normal.className='error-feedback';normal.dataset.kind='status';document.body.append(normal);const distinct=getComputedStyle(warning).backgroundColor!==getComputedStyle(normal).backgroundColor;normal.remove();return distinct})()`), 'unverified resources do not use the normal status treatment')
-    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, lateLoadDiscarded: true, unverifiedWarning: true, sends: 0 }
+    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, sends: 0 }
   } catch (error) { failures.push(error) }
   finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
+import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition, withBrowserFocus } from './escrow-browser-fixture.mjs'
 
 export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
   const fixtureURL = new URL('/test/timestamp-status-fixture.html', viewerURL)
@@ -34,7 +34,6 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode })
   }
   const failures = []
-  let focusAttempted = false
   try {
     await navigateBrowserDocument({ call, url: fixtureURL.href, description: 'the timestamp fixture',
       ready: () => evaluate(`!!document.querySelector('.timestamp-options')`) })
@@ -48,46 +47,43 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
       await evaluate(`(()=>{const button=document.querySelector('.timestamp-options');const target=${selector === null ? 'button' : `button.querySelector(${JSON.stringify(selector)})`};target.click()})()`)
       await wait(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')===${JSON.stringify(pressed)}`)
     }
-    focusAttempted = true
-    await call('Emulation.setFocusEmulationEnabled', { enabled: true })
-    await keyboard('Enter', 'Enter', 13)
-    await wait(`document.body.innerText.includes('In 20 seconds')&&window.timestampFixture.activeTimers()===1`)
-    assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.getAttribute('aria-label')==='Relative time for Deadline'&&[...b.querySelectorAll('[data-mode]')].every(s=>s.getAttribute('aria-hidden')==='true'&&s.title&&s.querySelector('svg'))&&!document.querySelector('.timestamp-status [aria-live],.timestamp-status [role="status"]')})()`))
-    assert(await evaluate(`(()=>{const row=document.querySelector('.timestamp-status'),control=row.querySelector('.timestamp-options'),value=row.querySelector('.timestamp-value'),id=control.getAttribute('aria-describedby'),hint=document.getElementById(id),r=hint?.getBoundingClientRect();return value.getAttribute('aria-describedby')===id&&hint.textContent==='Relative to your device clock.'&&r.width<=1&&r.height<=1})()`), 'relative clock help describes the value and control without a visible paragraph')
-    await evaluate(`window.timestampFixture.setClock(121)`)
-    await wait(`document.body.innerText.includes('1 second ago')`)
-    await evaluate(`window.timestampFixture.show('140','Deadline','No deadline')`)
-    await wait(`document.body.innerText.includes('In 19 seconds')&&window.timestampFixture.activeTimers()===1`)
-    await evaluate(`window.timestampFixture.show('140','Other deadline','No deadline')`)
-    await wait(`document.querySelector('.timestamp-options')?.getAttribute('aria-pressed')==='false'&&window.timestampFixture.activeTimers()===0`)
-    await keyboard('Enter', 'Enter', 13)
-    await wait(`window.timestampFixture.activeTimers()===1`)
-    await keyboard(' ', 'Space', 32)
-    await wait(`window.timestampFixture.activeTimers()===0`)
-    await keyboard('Enter', 'Enter', 13)
-    await wait(`window.timestampFixture.activeTimers()===1`)
-    await evaluate(`window.timestampFixture.show('0','Other deadline','No deadline')`)
-    await wait(`document.body.innerText.includes('No deadline')&&!document.querySelector('.timestamp-options')&&window.timestampFixture.activeTimers()===0`)
-    await evaluate(`window.timestampFixture.show('140','Other deadline','No deadline')`)
-    await wait(`document.body.innerText.includes('In 19 seconds')&&window.timestampFixture.activeTimers()===1`)
-    await evaluate(`window.timestampFixture.hide()`)
-    await wait(`!document.querySelector('.timestamp-options')&&window.timestampFixture.activeTimers()===0`)
-    await evaluate(`window.timestampFixture.show('0','Epoch',undefined)`)
-    await wait(`document.body.innerText.includes('1970-01-01')&&!!document.querySelector('.timestamp-options')`)
-    await evaluate(`window.timestampFixture.show('9007199254740993','Large timestamp',undefined)`)
-    await wait(`document.body.innerText.includes('9,007,199,254,740,993 Unix seconds')`)
-    await keyboard('Enter', 'Enter', 13)
-    await wait(`document.body.innerText.includes('In 104,249,991,374 days')`)
-    await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 740, deviceScaleFactor: 1, mobile: true })
-    await checkLayout(true)
-    assert(await evaluate(`innerWidth===320&&document.documentElement.scrollWidth<=innerWidth&&document.querySelector('input[name="draft"]').value==='unchanged'`))
-    return { wholePillToggles: true, clockUpdates: true, valueUpdateRetainsMode: true, identityChangeResetsMode: true, absenceAndUnmountCleanup: true, keyboard: true, width: 320 }
+    return await withBrowserFocus(call, async () => {
+      await keyboard('Enter', 'Enter', 13)
+      await wait(`document.body.innerText.includes('In 20 seconds')&&window.timestampFixture.activeTimers()===1`)
+      assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.getAttribute('aria-label')==='Relative time for Deadline'&&[...b.querySelectorAll('[data-mode]')].every(s=>s.getAttribute('aria-hidden')==='true'&&s.title&&s.querySelector('svg'))&&!document.querySelector('.timestamp-status [aria-live],.timestamp-status [role="status"]')})()`))
+      assert(await evaluate(`(()=>{const row=document.querySelector('.timestamp-status'),control=row.querySelector('.timestamp-options'),value=row.querySelector('.timestamp-value'),id=control.getAttribute('aria-describedby'),hint=document.getElementById(id),r=hint?.getBoundingClientRect();return value.getAttribute('aria-describedby')===id&&hint.textContent==='Relative to your device clock.'&&r.width<=1&&r.height<=1})()`), 'relative clock help describes the value and control without a visible paragraph')
+      await evaluate(`window.timestampFixture.setClock(121)`)
+      await wait(`document.body.innerText.includes('1 second ago')`)
+      await evaluate(`window.timestampFixture.show('140','Deadline','No deadline')`)
+      await wait(`document.body.innerText.includes('In 19 seconds')&&window.timestampFixture.activeTimers()===1`)
+      await evaluate(`window.timestampFixture.show('140','Other deadline','No deadline')`)
+      await wait(`document.querySelector('.timestamp-options')?.getAttribute('aria-pressed')==='false'&&window.timestampFixture.activeTimers()===0`)
+      await keyboard('Enter', 'Enter', 13)
+      await wait(`window.timestampFixture.activeTimers()===1`)
+      await keyboard(' ', 'Space', 32)
+      await wait(`window.timestampFixture.activeTimers()===0`)
+      await keyboard('Enter', 'Enter', 13)
+      await wait(`window.timestampFixture.activeTimers()===1`)
+      await evaluate(`window.timestampFixture.show('0','Other deadline','No deadline')`)
+      await wait(`document.body.innerText.includes('No deadline')&&!document.querySelector('.timestamp-options')&&window.timestampFixture.activeTimers()===0`)
+      await evaluate(`window.timestampFixture.show('140','Other deadline','No deadline')`)
+      await wait(`document.body.innerText.includes('In 19 seconds')&&window.timestampFixture.activeTimers()===1`)
+      await evaluate(`window.timestampFixture.hide()`)
+      await wait(`!document.querySelector('.timestamp-options')&&window.timestampFixture.activeTimers()===0`)
+      await evaluate(`window.timestampFixture.show('0','Epoch',undefined)`)
+      await wait(`document.body.innerText.includes('1970-01-01')&&!!document.querySelector('.timestamp-options')`)
+      await evaluate(`window.timestampFixture.show('9007199254740993','Large timestamp',undefined)`)
+      await wait(`document.body.innerText.includes('9,007,199,254,740,993 Unix seconds')`)
+      await keyboard('Enter', 'Enter', 13)
+      await wait(`document.body.innerText.includes('In 104,249,991,374 days')`)
+      await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 740, deviceScaleFactor: 1, mobile: true })
+      await checkLayout(true)
+      assert(await evaluate(`innerWidth===320&&document.documentElement.scrollWidth<=innerWidth&&document.querySelector('input[name="draft"]').value==='unchanged'`))
+      return { wholePillToggles: true, clockUpdates: true, valueUpdateRetainsMode: true, identityChangeResetsMode: true, absenceAndUnmountCleanup: true, keyboard: true, width: 320 }
+    })
   } catch (error) {
     failures.push(error)
   } finally {
-    if (focusAttempted) {
-      try { await call('Emulation.setFocusEmulationEnabled', { enabled: false }) } catch (error) { failures.push(error) }
-    }
     await finishDisplayFixture({ call, evaluate, viewerURL, failures })
   }
 }
