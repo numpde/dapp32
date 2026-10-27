@@ -114,6 +114,19 @@ class ReleaseRehearsalCancellationTest(unittest.TestCase):
             run.release()
             self.assertEqual(143, run.finish())
             run.assert_owned_cleanup(self)
+            lines = run.lines()
+            removed = next(line for line in lines if line.startswith("image-removed "))
+            self.assertGreater(lines.index(removed), max(i for i, line in enumerate(lines) if line.startswith("down-done ")))
+
+    def test_cached_operator_image_survives_rehearsal_cleanup(self) -> None:
+        with _ReleaseCommandHarness(
+            "rehearsal-full", block="builder-reuse", hold_down=False, down_status=0, child_status=0,
+        ) as run:
+            run.wait_for("child-ready ")
+            os.kill(run.process.pid, signal.SIGTERM)
+            self.assertEqual(143, run.finish())
+            run.assert_owned_cleanup(self)
+            self.assertFalse(any(line.startswith("image-removed ") for line in run.lines()))
 
     def test_failed_fixture_build_or_provenance_stops_before_approval(self) -> None:
         for fault in ("builder-fail", "builder-json"):
@@ -136,6 +149,7 @@ class ReleaseRehearsalCancellationTest(unittest.TestCase):
             lines = run.lines()
             self.assertLess(lines.index("child-stopped"), lines.index("down-start " + run.project))
             self.assertFalse(any(line.startswith("pty ") for line in lines))
+            self.assertTrue(any(line.startswith("image-removed ") for line in lines), "cleanup finds its tag before provenance is published")
 
     def test_approval_records_stay_under_the_build_folder_after_cancellation(self) -> None:
         with _ReleaseCommandHarness(

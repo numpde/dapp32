@@ -28,7 +28,7 @@ async function realEntry(path, kind) {
   if (kind === 'directory' && !stat.isDirectory()) throw new Error(`Build input must be a directory: ${path}`)
 }
 
-async function regularBelow(root, path) {
+export async function regularBelow(root, path) {
   const suffix = relative(root, path)
   if (suffix.startsWith(`..${sep}`) || suffix === '..' || suffix === '') {
     throw new Error(`Build input is outside its source directory: ${path}`)

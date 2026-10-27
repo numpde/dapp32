@@ -43,6 +43,12 @@ contains references, while the immutable artifacts retain deployment facts.
 Failed operations and hosting pauses remain resumable through the same command.
 Existing deployment directories are not renamed or migrated automatically.
 
+Setup and signed operations resolve the approval tool automatically. An installed
+saved image stays pinned. Otherwise the workflow reuses an image with matching
+tool inputs or builds one using the locked dependency stage, then asks you to
+review the configuration change. Operator images are retained for other instances;
+rehearsals remove only images owned by that run after their containers stop.
+
 `release/ui/deploy` creates a read-only Solidity UI contract and saves its
 verified record. `release/ui/update` also prepares matching CAM files locally
 and updates the existing CAM root to use the selected UI contract and manifest.

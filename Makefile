@@ -998,7 +998,7 @@ help:
 	  '  make bike-nft/release/setup INSTANCE=/absolute/instance' \
 	  '  make escrow/release/setup INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/setup INSTANCE=/absolute/instance' \
-	  '    Choose a configuration role; collect only its settings. Creates INSTANCE when needed.' \
+	  '    Choose a configuration role; prepare its approval tool automatically. Creates INSTANCE when needed.' \
 	  '  make bike-nft/release/deploy INSTANCE=/absolute/instance' \
 	  '  make escrow/release/deploy INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/deploy INSTANCE=/absolute/instance' \
@@ -1006,7 +1006,7 @@ help:
 	  '  make bike-nft/release/ui/update INSTANCE=/absolute/instance' \
 	  '  make escrow/release/ui/update INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/ui/update INSTANCE=/absolute/instance' \
-	  '    Deploy a new UI contract or select a saved one, then make the app use it through its existing CAM root.' \
+	  '    Deploy a new UI contract or select a saved one, then update the existing CAM root to use it.' \
 	  '    Matching CAM files are prepared locally; upload or pin them yourself before approving root changes.' \
 	  '  make bike-nft/release/verify INSTANCE=/absolute/instance' \
 	  '  make escrow/release/verify INSTANCE=/absolute/instance' \
@@ -1050,11 +1050,11 @@ help:
 	  '  make release/cam/check           Typecheck and test CAM component admission and publication tools.' \
 	  '  make release/contracts/check     Typecheck and test shared business deployment plans and approval recipes.' \
 	  '  make release/ui/check            Typecheck and test the shared UI deployment tools.' \
-	  '  make release/approval/image/build  (HEAD; dated records under ~/Documents; replaces old approval images)' \
-	  '    Build the approval tool image from that committed source and fresh locked dependencies.' \
+	  '  make release/approval/image/build  Prepare the approval tool from HEAD; reuse unchanged inputs.' \
+	  '    Reuse the image when tool inputs match; otherwise build with locked dependencies.' \
 	  '    Two-minute deadline; allows up to 90 additional seconds for cleanup before forced termination.' \
 	  '    Writes build records automatically; no approval file or image ID input is needed.' \
-	  '    Only after success, verbosely removes old approval-tool images without force; in-use images may prevent cleanup.' \
+	  '    Keeps existing operator images so other instances retain their exact pins.' \
 	  '    SOURCE_COMMIT and RELEASE_APPROVAL_IMAGE_OUTPUT_DIR are optional overrides.' \
 	  '    Deployment checks that exact image ID is present locally; it does not establish image provenance.' \
 	  '    Each signed transaction is shown for approval; output retains the private audit and transaction records.' \
@@ -1324,12 +1324,10 @@ release/approval/image/build:
 	if [[ "$${SOURCE_COMMIT+x}" == x ]]; then source_commit="$$SOURCE_COMMIT"; else source_commit="$$(git rev-parse HEAD)"; fi; \
 	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then printf '%s\n' 'SOURCE_COMMIT must be a full Git commit hash.' >&2; exit 2; fi; \
 	if [[ "$${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR+x}" == x ]]; then output_dir="$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"; else output_dir="$$(release_approval_default_output "$$source_commit")"; fi; \
-	old_images="$$(release_approval_installed_images)"; \
-	printf 'Building approval tools from %s; build records: %s\n' "$$source_commit" "$$output_dir"; \
+	printf 'Preparing approval tools from %s; build records: %s\n' "$$source_commit" "$$output_dir"; \
 	new_image="$$(release_approval_build_image "$$source_commit" "$$output_dir")"; \
-	if [[ ! "$$new_image" =~ ^sha256:[0-9a-f]{64}$$ ]]; then printf '%s\n' 'Approval-image build returned an invalid image identity; old images were not removed.' >&2; exit 2; fi; \
-	printf '%s\n' 'Retiring previous approval-tool images. Configurations pinned to removed images need setup again or image restoration.'; \
-	release_approval_retire_images "$$new_image" "$$old_images"
+	if [[ ! "$$new_image" =~ ^sha256:[0-9a-f]{64}$$ ]]; then printf '%s\n' 'Approval-image preparation returned an invalid image identity.' >&2; exit 2; fi; \
+	printf 'Approval tool ready: %s. Existing images and instance pins are preserved.\n' "$$new_image"
 
 bike-nft/release/check:
 	@$(LANE_GUARD); \

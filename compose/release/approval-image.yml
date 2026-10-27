@@ -1,4 +1,26 @@
 services:
+  release-approval-identity:
+    image: docker.io/library/node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 32
+    mem_limit: 128m
+    cpus: 1
+    volumes:
+      - type: bind
+        source: ${RELEASE_APPROVAL_SOURCE_DIR:?missing_RELEASE_APPROVAL_SOURCE_DIR}
+        target: /source
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../../containers/release-approval
+        target: /tool
+        read_only: true
+        bind: {create_host_path: false}
+    command: [node, /tool/approval-inputs.mjs, /source/js, /source/containers/release-approval]
   release-approval-context:
     image: docker.io/library/node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"

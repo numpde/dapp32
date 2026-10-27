@@ -38,12 +38,14 @@ umask 077
 export DAPP="$app"
 export RELEASE_REHEARSAL=1
 source "$(dirname "${BASH_SOURCE[0]}")/release_process.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/release_approval_images.sh"
 release_process_init
 release_process_report "Starting $app rehearsal ($action); simulation=$simulation"
 # Internal absence until allocation; export only the allocated fixture path.
 declare RELEASE_REHEARSAL_DIR=""
 infrastructure_started=0
 planner_started=0
+fixture_image_started=0
 
 cleanup() {
   local status=$? cleanup_failed=0
@@ -71,6 +73,13 @@ cleanup() {
     printf 'Rehearsal teardown failed; inspect %s/cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
     if (( status == 0 )); then status=1; fi
     cleanup_failed=1
+  fi
+  if [[ "$fixture_image_started" == 1 && "$cleanup_failed" == 0 ]]; then
+    if ! release_run_owned 30 bash -c 'source tools/release_approval_images.sh; release_approval_remove_fixture "$1"' bash "$project"; then
+      printf '%s\n' 'Rehearsal approval-image cleanup failed; its image and records were retained.' >&2
+      cleanup_failed=1
+      if (( status == 0 )); then status=1; fi
+    fi
   fi
   if [[ -n "$RELEASE_REHEARSAL_DIR" ]]; then
     # Snapshot scratch files are never mounted. Keep source and logs as evidence.
@@ -244,10 +253,11 @@ if [[ "$action" == waits || "$action" == ipc-waits ]]; then
   exit "$?"
 fi
 if [[ ! -v RELEASE_APPROVAL_IMAGE || -z "$RELEASE_APPROVAL_IMAGE" ]]; then
-  release_process_report 'Building the fixture approval image from the private candidate commit'
+  fixture_image_started=1
+  release_process_report 'Preparing the fixture approval tool from the private candidate commit'
   run_logged approval-image-build.log bash -c \
     'source tools/release_approval_images.sh; release_approval_build_image "$@"' bash \
-    "$(git rev-parse HEAD)" "$RELEASE_REHEARSAL_DIR/approval-image"
+    "$(git rev-parse HEAD)" "$RELEASE_REHEARSAL_DIR/approval-image" "$project"
   RELEASE_APPROVAL_IMAGE="$(python3 -I -B -c \
     'import json, sys; print(json.load(open(sys.argv[1]))["imageId"])' \
     "$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json")"

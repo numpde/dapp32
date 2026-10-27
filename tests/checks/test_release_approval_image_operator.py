@@ -18,8 +18,14 @@ STUBS = r'''
 docker() {
   printf '%s\n' "$*" >> "$CASE_ROOT/docker-calls"
   if [[ "$1 $2" == 'image ls' ]]; then
-    printf '%s\n' "$OLD_IMAGE" "$NEW_IMAGE" "$BUSY_IMAGE" "sha256:$(printf 'd%.0s' {1..64})"
+    if [[ "$FIXTURE_STATE" == absent ]]; then return 0; fi
+    printf '%s\n' "$BUSY_IMAGE"
   elif [[ "$1 $2 $3" == 'image inspect --format' ]]; then
+    if [[ "$4" == *io.cam.approval-owner* ]]; then
+      if [[ "$FIXTURE_STATE" == foreign ]]; then printf '%s operator\n' "$BUSY_IMAGE";
+      else printf '%s cam-rehearsal-fixture\n' "$BUSY_IMAGE"; fi
+      return 0
+    fi
     shift 4
     local image entrypoint
     for image in "$@"; do
@@ -29,7 +35,7 @@ docker() {
     done
   elif [[ "$1 $2" == 'image rm' ]]; then
     [[ "$#" == 4 && "$3" == --no-prune ]] || return 91
-    if [[ "$4" == "$BUSY_IMAGE" && "$REFUSE_BUSY" == 1 ]]; then
+    if [[ "$REFUSE_BUSY" == 1 ]]; then
       printf '%s\n' 'fixture: image is used by a running container' >&2
       return 1
     fi
@@ -42,7 +48,7 @@ docker() {
 class ApprovalImageOperatorTest(unittest.TestCase):
     def environment(self, root: Path, *, refuse_busy: bool) -> dict[str, str]:
         environment = {**os.environ, "CASE_ROOT": str(root), "NEW_IMAGE": NEW, "OLD_IMAGE": OLD,
-                       "BUSY_IMAGE": BUSY, "TEST_SOURCE": SOURCE, "REFUSE_BUSY": str(int(refuse_busy))}
+                       "BUSY_IMAGE": BUSY, "TEST_SOURCE": SOURCE, "REFUSE_BUSY": str(int(refuse_busy)), "FIXTURE_STATE": "owned"}
         for name in ("SOURCE_COMMIT", "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR", "MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES"):
             if name in environment:
                 del environment[name]
@@ -52,34 +58,18 @@ class ApprovalImageOperatorTest(unittest.TestCase):
         return subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", STUBS + script], cwd=ROOT,
                               env=environment, input="", capture_output=True, text=True, check=False, timeout=10)
 
-    def test_retirement_excludes_the_new_image_and_uses_nonforcing_removal(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            result = self.run_shell(r'''
-source tools/release_approval_images.sh
-old_images="$(printf '%s\t%s\n' "$OLD_IMAGE" "$TEST_SOURCE" "$NEW_IMAGE" "$TEST_SOURCE" "$BUSY_IMAGE" "$TEST_SOURCE")"
-release_approval_retire_images "$NEW_IMAGE" "$old_images"
-''', self.environment(root, refuse_busy=False))
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertEqual([f"image rm --no-prune {OLD}", f"image rm --no-prune {BUSY}"],
-                             (root / "docker-calls").read_text().splitlines())
-            self.assertIn(OLD, result.stdout + result.stderr)
-            self.assertIn(NEW, result.stdout + result.stderr)
+    def test_fixture_cleanup_removes_only_the_owned_tag_and_respects_native_refusal(self):
+        for state in ("owned", "absent", "foreign", "busy"):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                env = self.environment(root, refuse_busy=state == "busy")
+                env["FIXTURE_STATE"] = state
+                result = self.run_shell("source tools/release_approval_images.sh\nrelease_approval_remove_fixture cam-rehearsal-fixture", env)
+                removals = [line for line in (root / "docker-calls").read_text().splitlines() if line.startswith("image rm ")]
+                self.assertEqual(["image rm --no-prune cam-rehearsal-approval:cam-rehearsal-fixture"] if state in ("owned", "busy") else [], removals)
+                self.assertEqual(state in ("owned", "absent"), result.returncode == 0, result.stdout + result.stderr)
 
-    def test_retirement_keeps_in_use_images_and_reports_native_refusal(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            result = self.run_shell(r'''
-source tools/release_approval_images.sh
-old_images="$(printf '%s\t%s\n' "$BUSY_IMAGE" "$TEST_SOURCE" "$OLD_IMAGE" "$TEST_SOURCE")"
-release_approval_retire_images "$NEW_IMAGE" "$old_images"
-''', self.environment(root, refuse_busy=True))
-            self.assertNotEqual(0, result.returncode)
-            self.assertIn("image is used by a running container", result.stderr)
-            self.assertEqual([f"image rm --no-prune {BUSY}", f"image rm --no-prune {OLD}"],
-                             (root / "docker-calls").read_text().splitlines())
-
-    def test_operator_target_defaults_and_retires_only_after_success(self):
+    def test_operator_target_preserves_other_instance_images(self):
         for outcome in ("success", "build-failure", "publish-failure", "explicit"):
             with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
@@ -121,14 +111,16 @@ bash() {
                     if (root / "output").exists():
                         output = Path((root / "output").read_text().strip())
                     self.assertIsNotNone(output, result.stdout + result.stderr)
-                    calls = (root / "docker-calls").read_text().splitlines()
+                    calls = []
+                    if (root / "docker-calls").exists():
+                        calls = (root / "docker-calls").read_text().splitlines()
                     removals = [call for call in calls if call.startswith("image rm ")]
                     if outcome in ("build-failure", "publish-failure"):
                         self.assertNotEqual(0, result.returncode)
                         self.assertEqual([], removals)
                         continue
                     self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-                    self.assertEqual([f"image rm --no-prune {OLD}", f"image rm --no-prune {BUSY}"], removals)
+                    self.assertEqual([], removals)
                     expected_source = SOURCE
                     if outcome == "explicit":
                         expected_source = "e" * 40

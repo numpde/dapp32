@@ -216,33 +216,8 @@ def ask(label, kind, previous, *, secret, local_cam_uri=None):
             print(error, file=sys.stderr)
 
 
-def installed_approval_images(output):
-    with (output / "approval-images").open("rb") as source:
-        raw = source.read(MAX_CONFIG_BYTES + 1)
-    if len(raw) > MAX_CONFIG_BYTES:
-        raise ValueError("Checked approval-image choices exceed 65536 bytes.")
-    choices = {}
-    for index, line in enumerate(raw.decode("ascii").splitlines(), 1):
-        parts = line.split("\t")
-        if len(parts) != 2 or not re.fullmatch(r"[0-9a-f]{40}", parts[1]):
-            raise ValueError("Checked approval-image choices must contain an image ID and tool source commit.")
-        image = check_value(parts[0], "approval-image")
-        choices[str(index)] = (image, parts[1])
-    if not choices:
-        raise ValueError("No checked local approval images are available; build an approval-tool image before setup.")
-    return choices
-
-
-def ask_approval_image(output):
-    choices = installed_approval_images(output)
-    print("Select an installed approval-tool build:")
-    for index, (image, source_commit) in choices.items():
-        print(f"{index}: {image}  tool source commit: {source_commit}")
-    while True:
-        selected = input("Approval image number: ").strip()
-        if selected in choices:
-            return choices[selected][0]
-        print("Choose one of the listed approval image numbers.", file=sys.stderr)
+def prepared_approval_image(output):
+    return read_setup_value(output, "approval-image", "approval-image")
 
 
 def ask_collection_uri(label, token_name, previous):
@@ -297,7 +272,7 @@ def setup_config_path():
 def prepare_network(app, source_commit, output):
     setup_config_path()
     print(f"Release setup: {app}, source {source_commit}")
-    approval_image = ask_approval_image(output)
+    approval_image = prepared_approval_image(output)
     network = ask("Target network [public/local]", "network", "", secret=False)
     write_private(output / "setup-approval-image", (approval_image + "\n").encode())
     write_private(output / "setup-network", (network + "\n").encode())
@@ -414,14 +389,18 @@ def read_json_file(source, label):
 def update_source(app, source_commit, source, output, *, purpose):
     config = read_json_file(source, "configuration")
     validate(config, app, None, purpose=purpose)
-    print(f"Saved source commit:   {config['sourceCommit']}\nCurrent source commit: {source_commit}")
-    print("Updating keeps your RPC, signing key, chain and contract settings. It does not resume an earlier deployment.")
+    if config["sourceCommit"] != source_commit:
+        print(f"Saved source commit:   {config['sourceCommit']}\nCurrent source commit: {source_commit}")
+    else:
+        print(f"Source commit: {source_commit} (unchanged)")
+    print("Updating keeps your RPC, signing key, chain and contract settings. Existing deployment records are left untouched.")
     if "OUTPUT_DIR" in config["settings"]:
         print(f"Previous deployment records: {config['settings']['OUTPUT_DIR']} (left untouched)")
     config["sourceCommit"] = source_commit
-    if config["approvalImageId"] not in {image for image, _ in installed_approval_images(output).values()}:
-        print("The saved approval tool is no longer installed; select an installed build.")
-        config["approvalImageId"] = ask_approval_image(output)
+    approval_image = prepared_approval_image(output)
+    if config["approvalImageId"] != approval_image:
+        print("The saved approval tool is unavailable. Its replacement was prepared automatically.")
+        config["approvalImageId"] = approval_image
     validate(config, app, source_commit, purpose=purpose)
     print(f"App: {app}\nApproval image: {config['approvalImageId']}\nRPC URL and signing key: unchanged (hidden)")
     for name, value in config["settings"].items():
@@ -571,14 +550,19 @@ def independent_plan_source(app, source, output, operation):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
+    parser.add_argument("mode", choices=("network", "setup", "approval-pin", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
     try:
         if not re.fullmatch(r"[0-9a-f]{40}", args.source_commit):
             raise ValueError("Release setup requires one exact 40-character source commit.")
-        if args.mode == "network":
+        if args.mode == "approval-pin":
+            config = read_json_file(Path("/run/release.json"), "configuration")
+            validate_identity(config, args.app)
+            image = check_value(config["approvalImageId"], "approval-image")
+            write_private(Path("/out/approval-pin"), (image + "\n").encode())
+        elif args.mode == "network":
             prepare_network(args.app, args.source_commit, Path("/out"))
         elif args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))

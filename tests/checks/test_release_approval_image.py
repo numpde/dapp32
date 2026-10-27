@@ -199,7 +199,16 @@ block_child() {
 docker() {
   local project= argument previous=
   if [[ "$2" == ls && "$1" =~ ^(container|network|volume)$ ]]; then return 0; fi
-  if [[ "$1 $2" == 'image ls' ]]; then return 0; fi
+  if [[ "$1 $2" == 'image ls' ]]; then
+    if [[ "$*" == *cam-rehearsal-approval:* && -f "$TEST_EVENTS.image-owned" ]]; then printf '%s\n' "$TEST_IMAGE"; fi
+    return 0
+  fi
+  if [[ "$1 $2" == 'image rm' ]]; then
+    [[ "$3" == --no-prune && "$4" == "cam-rehearsal-approval:$TEST_PROJECT" ]] || return 90
+    event "image-removed $4"
+    rm "$TEST_EVENTS.image-owned"
+    return 0
+  fi
   if [[ "$1" == inspect ]]; then
     case "$*" in
       *NetworkSettings*) printf '172.20.0.2\n' ;;
@@ -211,8 +220,9 @@ docker() {
   if [[ "$1" == logs ]]; then printf 'inspectReleaseCamBundle\n'; return; fi
   if [[ "$1" == image && "$2" == inspect ]]; then
     case "$*" in
+      *org.opencontainers.image.revision*) printf '%s %s %s operator %s\n' "$TEST_IMAGE" "$TEST_COMMIT" "$(printf 'c%.0s' {1..64})" '["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]' ;;
+      *io.cam.approval-owner*) printf '%s %s\n' "$TEST_IMAGE" "$TEST_PROJECT" ;;
       *"{{.Id}}"*) printf '%s\n' "$TEST_IMAGE" ;;
-      *org.opencontainers.image.revision*) printf '%s\n' "$TEST_COMMIT" ;;
     esac
     return 0
   fi
@@ -230,6 +240,7 @@ docker() {
   case " $* " in
     *" down "*)
       event "down-start $project"
+      if [[ "$project" == *-identity ]]; then event "down-done $project"; return 0; fi
       if [[ "$TEST_HOLD_DOWN" == 1 ]]; then IFS= read -r reply; fi
       event "down-done $project"
       return "$TEST_DOWN_STATUS" ;;
@@ -249,6 +260,7 @@ docker() {
       case "$*" in
         *release-anvil|*release-plan) printf '%064d\n' 1 ;;
       esac ;;
+    *" release-approval-identity "*|*" release-approval-identity") printf '%s\n' "$(printf 'c%.0s' {1..64})" ;;
     *" run "*) : ;;
     *) event "unexpected compose $*"; return 90 ;;
   esac
@@ -256,6 +268,7 @@ docker() {
 fixture_image_build() {
   event "fixture-image-build $*"
   if [[ "$TEST_BLOCK" == builder-fail ]]; then return 1; fi
+  if [[ "$TEST_BLOCK" != builder-reuse ]]; then touch "$TEST_EVENTS.image-owned"; fi
   if [[ "$TEST_BLOCK" == builder ]]; then block_child; fi
   mkdir "$RELEASE_REHEARSAL_DIR/approval-image"
   if [[ "$TEST_BLOCK" == builder-json ]]; then
@@ -318,7 +331,10 @@ python3() {
             digest = hashlib.sha256(str(self.work).encode()).hexdigest()[:24]
             self.project = "cam-rehearsal-" + digest
         self.projects = [self.project]
-        if kind == "rehearsal-full" and block == "pty":
+        env["TEST_PROJECT"] = self.project
+        if kind in ("image", "image-target"):
+            self.projects.insert(0, self.project + "-identity")
+        if kind == "rehearsal-full" and block in ("pty", "builder-reuse"):
             self.projects.insert(0, self.project + "-planner")
         if kind in ("image-target", "rehearsal-target"):
             # Exercise the target's command with a shorter deadline; its lane

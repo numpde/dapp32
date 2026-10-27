@@ -995,7 +995,7 @@ printf 'fixture input\\n' > "$release_config_dir/rpc-url"
                     self.assertIn("retained mounted inputs", stderr)
 
     def test_config_update_is_interactive_and_published_only_after_host_admission(self) -> None:
-        for outcome in ("update", "cancel", "bad-image", "bad-output", "changed", "noninteractive", "verify", "ui-override"):
+        for outcome in ("update", "cancel", "bad-image", "bad-output", "changed", "noninteractive", "verify", "ui-override", "image-only"):
             with self.subTest(outcome=outcome), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 config = root / "config.json"
@@ -1008,17 +1008,25 @@ printf 'fixture input\\n' > "$release_config_dir/rpc-url"
 source_commit=current
 require_release_config() { [[ -f "$1" ]]; }
 release_config_stage() { [[ "$1" == "$CASE_ROOT" ]]; release_config_dir="$1/stage"; mkdir "$release_config_dir"; }
-release_config_prepare_approval_images() { :; }
-validate_new_release_output() { [[ "$OUTCOME" != bad-output && "$1" == "$CASE_ROOT/new-output" ]]; }
+release_config_prepare_approval_images() { printf '%s\n' "sha256:$(printf 'a%.0s' {1..64})" > "$release_config_dir/approval-image"; }
+validate_new_release_output() { [[ "$OUTCOME" != bad-output && "$OUTCOME" != image-only && "$1" == "$CASE_ROOT/new-output" ]]; }
 docker() { [[ "$OUTCOME" != bad-image ]] || return 1; printf '%s\n' "$5"; }
 compose_release_config() {
+  if [[ " $* " == *' release-config approval-pin '* ]]; then
+    local pin=a
+    if [[ "$OUTCOME" == image-only ]]; then pin=b; fi
+    printf '%s\n' "sha256:$(printf "$pin%.0s" {1..64})" > "$release_config_dir/approval-pin"
+    return
+  fi
   printf '%s\n' "$*" >> "$CASE_ROOT/events"
-  if [[ " $* " == *" release-config update "* || " $* " == *" release-config update-ui "* ]]; then
+  if [[ " $* " == *" release-config update "* || " $* " == *" release-config update-ui "* || " $* " == *" release-config update-cam "* ]]; then
     [[ "$OUTCOME" != cancel ]] || return 2
     printf updated > "$release_config_dir/release.json"
     if [[ "$OUTCOME" == changed ]]; then printf concurrent-edit > "$CONFIG"; fi
-  elif [[ -v release_config_input ]]; then
-    if [[ "$OUTCOME" == ui-override ]]; then
+  elif [[ -v release_config_input || "$OUTCOME" == image-only ]]; then
+    if [[ "$OUTCOME" == image-only ]]; then
+      printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0CAM_RELEASE_OUTPUT_DIR=%s/old-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
+    elif [[ "$OUTCOME" == ui-override ]]; then
       printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0UI_RELEASE_OUTPUT_DIR=%s/old-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
     else
       printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0ESCROW_RELEASE_OUTPUT_DIR=%s/new-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
@@ -1027,6 +1035,7 @@ compose_release_config() {
 }
 mode=deploy
 if [[ "$OUTCOME" == verify ]]; then mode=verify; fi
+if [[ "$OUTCOME" == image-only ]]; then mode=cam-publish; CAM_RECORDS="$CASE_ROOT/old-output"; fi
 if [[ "$OUTCOME" == ui-override ]]; then
   OUTPUT_DIR="$CASE_ROOT/new-output"
   load_release_config escrow ui-deploy
@@ -1042,8 +1051,8 @@ else load_release_config escrow "$mode"; fi
                         stdout=slave, stderr=slave,
                     )
                     process.wait(timeout=10)
-                    self.assertEqual(outcome in ("update", "ui-override"), process.returncode == 0)
-                    expected = "updated" if outcome in ("update", "ui-override") else "concurrent-edit" if outcome == "changed" else "original"
+                    self.assertEqual(outcome in ("update", "ui-override", "image-only"), process.returncode == 0)
+                    expected = "updated" if outcome in ("update", "ui-override", "image-only") else "concurrent-edit" if outcome == "changed" else "original"
                     self.assertEqual(expected, config.read_text())
                     events = (root / "events").read_text()
                     self.assertEqual(outcome not in ("verify", "noninteractive"), "release-config update" in events)
@@ -1069,7 +1078,7 @@ require_release_config() { [[ -f "$1" ]]; }
 release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
 '''
                     composition = '''
-release_config_prepare_approval_images() { :; }
+release_config_prepare_approval_images() { printf '%s\n' "sha256:$(printf 'a%.0s' {1..64})" > "$release_config_dir/approval-image"; }
 docker() { [[ "$1 $2 $3" == 'image inspect --format' && "$4" == '{{.Id}}' ]]; printf '%s\n' "$5"; }
 compose_release_config() {
   if [[ " $* " == *" release-setup network "* ]]; then

@@ -4,13 +4,19 @@ set -euo pipefail
 exec 3>&1
 exec 1>&2
 
-if [[ $# != 2 || ! $1 =~ ^[0-9a-f]{40}$ ]]; then
+if [[ ( $# != 2 && $# != 3 ) || ! $1 =~ ^[0-9a-f]{40}$ ]]; then
   printf '%s\n' 'Usage: release_approval_image_build.sh SOURCE_COMMIT NEW_OUTPUT_DIR' >&2
   exit 2
 fi
 
 source_commit=$1
 output_dir=$2
+image_owner=operator
+if [[ $# == 3 ]]; then image_owner="$3"; fi
+if [[ "$image_owner" != operator && ! "$image_owner" =~ ^cam-rehearsal-[a-z0-9]+$ ]]; then
+  printf '%s\n' 'Approval-image owner must be operator or the owning rehearsal project.' >&2
+  exit 2
+fi
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 if [[ $(id -u) == 0 ]]; then
   printf '%s\n' 'Build the approval image as a non-root operator.' >&2
@@ -54,15 +60,22 @@ if [[ $(git -C "$repo_root" cat-file -t "$source_commit" 2>/dev/null) != commit 
 fi
 
 source "$repo_root/tools/release_process.sh"
+source "$repo_root/tools/release_approval_images.sh"
 release_process_init
 # Internal allocation state; not an optional operator input.
 declare work_dir=""
 stage_started=0
+identity_started=0
 cleanup() {
   local status=$? cleanup_failed=0
   set +e
   if ! release_process_cleanup_begin; then
     printf '%s\n' 'Approval image launch command did not shut down cleanly; retaining its mounted inputs.' >&2
+    status=1
+    cleanup_failed=1
+  fi
+  if [[ $identity_started == 1 ]] && ! release_run_owned 60 "${identity_compose[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
+    printf 'Approval identity cleanup failed; inspect project %s-identity.\n' "$project_name" >&2
     status=1
     cleanup_failed=1
   fi
@@ -122,43 +135,70 @@ done
 export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) ALLOW_UPDATE=0
 export PACKAGE_INPUT_DIR=$manifest_dir
 export RELEASE_APPROVAL_SOURCE_DIR=$source_dir RELEASE_APPROVAL_CONTEXT_DIR=$context_dir
-for base in \
-  $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/release-approval/Dockerfile") \
-  $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/node-deps/Dockerfile") \
-  $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/https-egress-proxy/Dockerfile"); do
-  if ! docker image inspect "$base" >/dev/null 2>&1; then
-    printf 'Pinned image prerequisite is absent locally: %s\n' "$base" >&2
-    printf '%s\n' 'Acquire and review this base explicitly before running the approval image build.' >&2
-    exit 2
+
+identity_compose=(docker compose --env-file /dev/null -p "$project_name-identity" -f "$repo_root/compose/release/approval-image.yml")
+identity_started=1
+release_run_owned 15 "${identity_compose[@]}" run --pull never --rm --no-deps -T release-approval-identity > "$work_dir/input-digest"
+input_digest=$(<"$work_dir/input-digest")
+if [[ ! "$input_digest" =~ ^[0-9a-f]{64}$ ]]; then
+  printf '%s\n' 'Approval-input identification returned an invalid digest.' >&2
+  exit 2
+fi
+built=0
+cache_tag="cam-release-approval:$input_digest"
+image_id=$(docker image ls --filter "reference=$cache_tag" --quiet --no-trunc)
+if [[ -z "$image_id" ]]; then
+  built=1
+  if [[ "$image_owner" != operator ]]; then
+    source "$repo_root/tools/release_approval_images.sh"
+    cache_tag=$(release_approval_fixture_tag "$image_owner")
   fi
-done
+  for base in \
+    $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/release-approval/Dockerfile") \
+    $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/node-deps/Dockerfile") \
+    $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/https-egress-proxy/Dockerfile"); do
+    if ! docker image inspect "$base" >/dev/null 2>&1; then
+      printf 'Pinned image prerequisite is absent locally: %s\n' "$base" >&2
+      printf '%s\n' 'Acquire and review this base explicitly before running the approval image build.' >&2
+      exit 2
+    fi
+  done
 
-# The npm stage sees manifests through the registry-only proxy, not repository source.
-stage_started=1
-release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
-release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
-release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
+  # The npm stage sees manifests through the registry-only proxy, not repository source.
+  stage_started=1
+  release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
+  release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
+  release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
 
+  release_run_owned 15 docker build --network=none --pull=false --tag "$cache_tag" \
+  --label "org.opencontainers.image.revision=$source_commit" \
+  --label "io.cam.approval-inputs=$input_digest" --label "io.cam.approval-owner=$image_owner" \
+  --quiet "$context_dir" >"$work_dir/image-id"
+  image_id=$(<"$work_dir/image-id")
+fi
 lock_sha256=$(sha256sum "$source_dir/js/package-lock.json" | cut -d ' ' -f1)
 dockerfile_sha256=$(sha256sum "$source_dir/containers/release-approval/Dockerfile" | cut -d ' ' -f1)
-release_run_owned 15 docker build --network=none --pull=false --label "org.opencontainers.image.revision=$source_commit" --quiet "$context_dir" >"$work_dir/image-id"
-image_id=$(<"$work_dir/image-id")
 if [[ ! $image_id =~ ^sha256:[0-9a-f]{64}$ ]]; then
   printf 'Docker build returned an invalid image ID: %s\n' "$image_id" >&2
   exit 1
 fi
-observed_id=$(docker image inspect --format '{{.Id}}' "$image_id")
-observed_commit=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image_id")
-if [[ $observed_id != "$image_id" || $observed_commit != "$source_commit" ]]; then
-  printf '%s\n' 'The built image ID or source-commit label differs from the expected artifact.' >&2
+metadata=$(docker image inspect --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "io.cam.approval-inputs"}} {{index .Config.Labels "io.cam.approval-owner"}} {{json (index .Config "Entrypoint")}}' "$image_id")
+read -r observed_id observed_commit observed_digest observed_owner observed_entrypoint extra <<< "$metadata"
+if ! release_approval_is_entrypoint "$observed_entrypoint" || [[ "$built" == 1 && "$observed_commit" != "$source_commit" ]]; then
+  printf '%s\n' 'Approval image entrypoint or fresh-build source differs from the selected tool.' >&2
   exit 1
 fi
+if [[ "$observed_id" != "$image_id" || ! "$observed_commit" =~ ^[0-9a-f]{40}$ || "$observed_digest" != "$input_digest" || -n "$extra" || ( "$observed_owner" != operator && "$observed_owner" != "$image_owner" ) ]]; then
+  printf '%s\n' 'The approval image metadata differs from its selected input identity or owner.' >&2
+  exit 1
+fi
+if [[ "$built" == 0 ]]; then printf 'Reusing approval tool for unchanged inputs: %s\n' "$image_id" >&2; fi
 artifact_dir=$(mktemp -d "$output_dir.tmp.XXXXXX")
-printf '{"imageId":"%s","approvalToolSourceCommit":"%s","packageLockSha256":"%s","dockerfileSha256":"%s"}\n' \
-  "$image_id" "$source_commit" "$lock_sha256" "$dockerfile_sha256" > "$artifact_dir/approval-image.json"
+printf '{"imageId":"%s","approvalToolSourceCommit":"%s","packageLockSha256":"%s","dockerfileSha256":"%s","approvalInputSha256":"%s","imageOwner":"%s"}\n' \
+  "$image_id" "$observed_commit" "$lock_sha256" "$dockerfile_sha256" "$input_digest" "$observed_owner" > "$artifact_dir/approval-image.json"
 validate_output_path "$output_dir" "$output_parent"
 mv -T -- "$artifact_dir" "$output_dir"
 unset artifact_dir
-printf 'Built approval tool image %s from source commit %s. Build record: %s\n' \
-  "$image_id" "$source_commit" "$output_dir/approval-image.json"
+printf 'Approval tool image ready: %s (source %s). Build record: %s\n' \
+  "$image_id" "$observed_commit" "$output_dir/approval-image.json"
 printf '%s\n' "$image_id" >&3

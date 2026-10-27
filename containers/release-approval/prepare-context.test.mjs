@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import test from 'node:test'
 
 import { prepareContext, RUNTIME_SOURCES } from './prepare-context.mjs'
+import { approvalInputDigest } from './approval-inputs.mjs'
 
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'approval-image-test-'))
@@ -157,13 +158,23 @@ setsid() {
 docker() {
   printf '%s\\n' "$*" >> "$APPROVAL_TEST_DOCKER_LOG"
   if [[ "$1" == compose ]]; then
-    [[ "$2" == -p && "$3" =~ ^cam-approval-image-[a-z0-9]+$ ]] || return 91
+    local project
+    while [[ "$1" != -p ]]; do shift; done
+    project="$2"
+    [[ "$project" =~ ^cam-approval-image-[a-z0-9]+(-identity)?$ ]] || return 91
+    if [[ "$*" == *'release-approval-identity'* ]]; then printf '%s\\n' "$(printf 'c%.0s' {1..64})"; fi
+    return 0
+  fi
+  if [[ "$1 $2" == 'image ls' ]]; then
+    if [[ "\${APPROVAL_TEST_CACHED-0}" == 1 ]]; then printf '%s\\n' "$APPROVAL_TEST_IMAGE_ID"; fi
     return 0
   fi
   if [[ "$1" == build ]]; then printf '%s\\n' "$APPROVAL_TEST_IMAGE_ID"; return 0; fi
   if [[ "$1 $2" == 'image inspect' ]]; then
     if [[ "$*" == *org.opencontainers.image.revision* ]]; then
-      printf '%s\\n' "$APPROVAL_TEST_SOURCE_COMMIT"
+      local entrypoint='["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]'
+      if [[ "\${APPROVAL_TEST_BAD_ENTRYPOINT-0}" == 1 ]]; then entrypoint='["node","unrelated.js"]'; fi
+      printf '%s %s %s operator %s\\n' "$APPROVAL_TEST_IMAGE_ID" "$APPROVAL_TEST_SOURCE_COMMIT" "$(printf 'c%.0s' {1..64})" "$entrypoint"
     elif [[ "$*" == *--format* ]]; then
       printf '%s\\n' "$APPROVAL_TEST_IMAGE_ID"
     fi
@@ -210,9 +221,9 @@ exec bash "$@"
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   const composeCalls = (await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('compose '))
-  assert.equal(composeCalls.length, 4)
+  assert.equal(composeCalls.length, 6)
   for (const call of composeCalls) {
-    assert.match(call, /\s-p cam-approval-image-[a-z0-9]+\s/)
+    assert.match(call, /\s-p cam-approval-image-[a-z0-9]+(?:-identity)?\s/)
     assert.doesNotMatch(call, /\s-p [^ ]*[A-Z]/)
   }
   const artifact = JSON.parse(await readFile(join(output, 'new-image', 'approval-image.json'), 'utf8'))
@@ -220,6 +231,27 @@ exec bash "$@"
   assert.equal(artifact.approvalToolSourceCommit, sourceCommit)
   assert.match(composeCalls.at(-1), /\sdown(?:\s|$)/)
   assert.deepEqual(await readdir(workRoot), [])
+  await writeFile(log, '')
+  const reused = spawnSync('bash', ['-c', runner, 'approval-test', script, 'd'.repeat(40), join(output, 'reused-image')], {
+    encoding: 'utf8', env: { ...testEnv, APPROVAL_TEST_CACHED: '1' },
+  })
+  assert.equal(reused.status, 0, reused.stdout + reused.stderr)
+  const reusedCalls = await readFile(log, 'utf8')
+  assert.doesNotMatch(reusedCalls, /package-stage|package-egress-proxy|^build /m)
+  const reusedArtifact = JSON.parse(await readFile(join(output, 'reused-image', 'approval-image.json'), 'utf8'))
+  assert.equal(reusedArtifact.imageId, imageId)
+  assert.equal(reusedArtifact.approvalToolSourceCommit, sourceCommit, 'reuse retains the actual producing source')
+  for (const [name, env, commit] of [
+    ['wrong-entrypoint', { APPROVAL_TEST_CACHED: '1', APPROVAL_TEST_BAD_ENTRYPOINT: '1' }, sourceCommit],
+    ['wrong-fresh-source', { APPROVAL_TEST_CACHED: '0' }, 'd'.repeat(40)],
+  ]) {
+    const rejected = spawnSync('bash', ['-c', runner, 'approval-test', script, commit, join(output, name)], {
+      encoding: 'utf8', env: { ...testEnv, ...env },
+    })
+    assert.notEqual(rejected.status, 0)
+    assert.match(rejected.stderr, /entrypoint or fresh-build source/)
+    await assert.rejects(readFile(join(output, name, 'approval-image.json')))
+  }
 })
 
 test('real staged runtime loads without release preparers or workspace packages', async t => {
@@ -233,4 +265,29 @@ test('real staged runtime loads without release preparers or workspace packages'
   assert.equal(typeof runtime.startApprovalRuntime, 'function')
   assert.deepEqual((await readdir(join(output, 'tools', 'release-approval'))).sort(),
     RUNTIME_SOURCES.filter(path => path.startsWith('tools/release-approval/')).map(path => path.split('/').at(-1)).sort())
+})
+
+
+test('approval identity follows staged inputs rather than unrelated source changes', async t => {
+  const f = await fixture(t)
+  await writeFile(join(f.image, 'prepare-context.mjs'), `export const RUNTIME_SOURCES = ${JSON.stringify(RUNTIME_SOURCES)}`)
+  const original = await approvalInputDigest(f.source, f.image)
+  await writeFile(join(f.source, 'unrelated-notes.txt'), 'a different repository commit')
+  assert.equal(await approvalInputDigest(f.source, f.image), original)
+  const runtime = join(f.source, RUNTIME_SOURCES[0])
+  await chmod(runtime, 0o600)
+  assert.equal(await approvalInputDigest(f.source, f.image), original, 'instance umask does not change tool identity')
+  await chmod(runtime, 0o700)
+  const executable = await approvalInputDigest(f.source, f.image)
+  assert.notEqual(executable, original)
+  await chmod(runtime, 0o755)
+  assert.equal(await approvalInputDigest(f.source, f.image), executable, 'final image normalizes executable file modes')
+  await chmod(runtime, 0o644)
+  for (const path of [join(f.source, RUNTIME_SOURCES[0]), join(f.source, 'package-lock.json'),
+    join(f.image, 'Dockerfile'), join(f.image, '.dockerignore'), join(f.image, 'prepare-context.mjs')]) {
+    const bytes = await readFile(path)
+    await writeFile(path, Buffer.concat([bytes, Buffer.from('changed')]))
+    assert.notEqual(await approvalInputDigest(f.source, f.image), original)
+    await writeFile(path, bytes)
+  }
 })

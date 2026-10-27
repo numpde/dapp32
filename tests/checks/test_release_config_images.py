@@ -21,6 +21,7 @@ docker() {
     [[ " $* " == *' --all '* && " $* " == *' --filter label=org.opencontainers.image.revision '* && " $* " == *' --no-trunc '* && " $* " == *' --quiet '* ]] || return 90
     if [[ "$DISCOVERY_FAULT" == list-failure ]]; then return 1; fi
     if [[ "$DISCOVERY_FAULT" == empty ]]; then return 0; fi
+    if [[ "$IMAGE_MISSING" == 1 ]]; then return 0; fi
     printf '%s\n' "$SAVED_IMAGE" "$SAVED_IMAGE" "sha256:$(printf 'b%.0s' {1..64})" "sha256:$(printf 'c%.0s' {1..64})" "sha256:$(printf 'd%.0s' {1..64})"
     return
   fi
@@ -36,17 +37,17 @@ docker() {
   fi
   [[ "$4" == *'{{json (index .Config "Entrypoint")}}'* ]] || return 92
   shift 4
-  local image observed_id observed_source entrypoint
+  local image observed_id observed_source entrypoint owner
   for image in "$@"; do
-    observed_id="$image"; observed_source="$TOOL_SOURCE"
+    observed_id="$image"; observed_source="$TOOL_SOURCE"; owner=operator
     entrypoint='["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]'
     if [[ "$image" == "sha256:$(printf 'b%.0s' {1..64})" ]]; then entrypoint='["node","unrelated.js"]'; fi
     if [[ "$image" == "sha256:$(printf 'c%.0s' {1..64})" ]]; then observed_source=not-a-commit; fi
     if [[ "$image" == "sha256:$(printf 'd%.0s' {1..64})" ]]; then
-      entrypoint=null
+      owner=cam-rehearsal-fixture
       if [[ "$DISCOVERY_FAULT" == unknown-id ]]; then observed_id="sha256:$(printf 'e%.0s' {1..64})"; fi
     fi
-    printf '%s\t%s\t%s\n' "$observed_id" "$observed_source" "$entrypoint"
+    printf '%s\t%s\t%s\t%s\n' "$observed_id" "$observed_source" "$entrypoint" "$owner"
     if [[ "$DISCOVERY_FAULT" == batch-failure ]]; then return 1; fi
   done
 }
@@ -59,7 +60,7 @@ class ReleaseConfigImagesTest(unittest.TestCase):
             ["bash", "-eu", "-o", "pipefail", "-c", HOST_SETUP + script],
             cwd=ROOT, input="", capture_output=True, text=True, check=False, timeout=10,
             env={**os.environ, "CASE_ROOT": str(root), "SAVED_IMAGE": IMAGE, "TOOL_SOURCE": SOURCE,
-                 "IMAGE_MISSING": str(int(missing)), "RELEASE_APPROVAL_IMAGE": "sha256:" + "f" * 64},
+                 "IMAGE_MISSING": str(int(missing)), "DISCOVERY_FAULT": "none", "RELEASE_APPROVAL_IMAGE": "sha256:" + "f" * 64},
         )
 
     def test_installed_image_discovery_needs_no_input_and_filters_exact_metadata(self):
@@ -69,7 +70,7 @@ class ReleaseConfigImagesTest(unittest.TestCase):
                 result = self.run_shell(root, 'DISCOVERY_FAULT=' + fault + '\n' + r'''
 release_config_dir="$CASE_ROOT/stage"
 mkdir "$release_config_dir"
-release_config_prepare_approval_images
+release_config_prepare_approval_images "$SAVED_IMAGE"
 touch "$CASE_ROOT/continued"
 ''', missing=False)
                 if fault != "none":
@@ -79,7 +80,7 @@ touch "$CASE_ROOT/continued"
                         self.assertIn("listing failed", result.stderr)
                     continue
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-                self.assertEqual(f"{IMAGE}\t{SOURCE}\n", (root / "stage/approval-images").read_text())
+                self.assertEqual(f"{IMAGE}\n", (root / "stage/approval-image").read_text())
                 inspected = (root / "inspections").read_text().splitlines()
                 self.assertEqual(1, len(inspected), "Discover metadata in one batch instead of one Docker invocation per image")
                 self.assertEqual({"sha256:" + byte * 64 for byte in "abcd"}, set(inspected[0].split("\t")[-4:]))
@@ -98,6 +99,10 @@ CONFIG="$CASE_ROOT/release.json"
 source_commit="$TOOL_SOURCE"
 release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
 compose_release_config() {
+  if [[ "$*" == *' release-config approval-pin '* ]]; then
+    printf '%s\n' "$SAVED_IMAGE" > "$release_config_dir/approval-pin"
+    return
+  fi
   printf 'rpc fixture\n' > "$release_config_dir/rpc-url"
   if [[ "$*" == *' release-config deploy '* ]]; then
     printf 'RELEASE_APPROVAL_IMAGE=%s\0' "$SAVED_IMAGE" > "$release_config_dir/inputs"
@@ -114,7 +119,7 @@ touch "$CASE_ROOT/continued"
                 result = self.run_shell(root, script, missing=missing)
                 if mode == "deploy" and missing:
                     self.assertNotEqual(0, result.returncode)
-                    self.assertIn("not present locally", result.stderr)
+                    self.assertIn("interactively", result.stderr)
                     self.assertFalse((root / "continued").exists())
                 else:
                     self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -123,8 +128,10 @@ touch "$CASE_ROOT/continued"
                         expected = "unset"
                         self.assertFalse((root / "inspections").exists())
                     self.assertEqual(expected + "\n", (root / "loaded-image").read_text())
-                if mode == "deploy":
-                    self.assertEqual("{{.Id}}\t" + IMAGE + "\n", (root / "inspections").read_text())
+                if mode == "deploy" and not missing:
+                    inspected = (root / "inspections").read_text()
+                    self.assertIn("io.cam.approval-owner", inspected)
+                    self.assertTrue(inspected.endswith("{{.Id}}\t" + IMAGE + "\n"))
 
     def test_stage_cleanup_removes_installed_image_choices(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -136,7 +143,7 @@ release_process_cleanup_begin() { :; }
 compose_release_config() { return 94; }
 release_config_stage "$CASE_ROOT"
 printf '%s\n' "$release_config_dir" > "$CASE_ROOT/stage-path"
-for file in inputs rpc-url deployer-key release.json approval-images; do
+for file in inputs rpc-url deployer-key release.json approval-pin approval-image approval-built; do
   printf 'fixture\n' > "$release_config_dir/$file"
 done
 ''', missing=False)

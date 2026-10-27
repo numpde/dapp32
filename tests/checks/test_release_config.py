@@ -71,7 +71,7 @@ source_commit=current
 CONFIG="$CASE_ROOT/config.json"
 require_release_config() { [[ -f "$1" ]]; }
 release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
-release_config_prepare_approval_images() { :; }
+release_config_prepare_approval_images() { printf '%s\n' "sha256:$(printf 'a%.0s' {1..64})" > "$release_config_dir/approval-image"; }
 validate_new_release_output() {
   [[ "$1" == "$CASE_ROOT/selected-output" && "$2" == CAM_RELEASE_OUTPUT_DIR ]]
   printf checked > "$CASE_ROOT/output-checked"
@@ -82,6 +82,10 @@ docker() {
   printf '%s\n' "$5"
 }
 compose_release_config() {
+  if [[ " $* " == *' release-config approval-pin '* ]]; then
+    printf '%s\n' "sha256:$(printf 'a%.0s' {1..64})" > "$release_config_dir/approval-pin"
+    return
+  fi
   printf '%s\n' "$*" >> "$CASE_ROOT/events"
   if [[ " $* " == *' release-config update-cam '* ]]; then
     printf '{"settings":{"OUTPUT_DIR":"/tmp/saved-cam"}}' > "$release_config_dir/release.json"
@@ -294,7 +298,7 @@ printf continued > "$CASE_ROOT/continued"
             before = source.read_bytes()
             output = root / "stage"
             output.mkdir()
-            (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+            (output / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
             with patch.object(release_config, "input", return_value="update", create=True), contextlib.redirect_stdout(io.StringIO()):
                 release_config.update_source("bike-nft", "f" * 40, source, output, purpose="cam")
             self.assertEqual(dict(original, sourceCommit="f" * 40), json.loads((output / "release.json").read_text()))
@@ -436,7 +440,7 @@ printf continued > "$CASE_ROOT/continued"
             source.write_text(json.dumps(original))
             output = root / "stage"
             output.mkdir()
-            (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+            (output / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
             with patch.object(release_config, "input", side_effect=["update"], create=True), contextlib.redirect_stdout(io.StringIO()):
                 release_config.update_source("escrow", "f" * 40, source, output, purpose="deployment")
             updated = json.loads((output / "release.json").read_text())
@@ -473,7 +477,7 @@ printf continued > "$CASE_ROOT/continued"
                     before = source.read_bytes()
                     output = root / "stage"
                     output.mkdir()
-                    (output / "approval-images").write_text(f"{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+                    (output / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
                     transcript = io.StringIO()
                     with patch.object(release_config, "input", side_effect=[decision], create=True), contextlib.redirect_stdout(transcript):
                         if decision == "update":
@@ -550,7 +554,7 @@ printf continued > "$CASE_ROOT/continued"
         self.setup_environment = patch.dict(release_config.os.environ, {"RELEASE_CONFIG_FILE": "/tmp/fixture-release.json"})
         self.setup_environment.start()
         self.addCleanup(self.setup_environment.stop)
-        self.image_choice = patch.object(release_config, "ask_approval_image", return_value=APPROVAL_IMAGE, create=True)
+        self.image_choice = patch.object(release_config, "prepared_approval_image", return_value=APPROVAL_IMAGE, create=True)
         self.image_choice.start()
         self.addCleanup(self.image_choice.stop)
 
@@ -560,16 +564,16 @@ printf continued > "$CASE_ROOT/continued"
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
-                (root / "approval-images").write_text(f"{other_image}\t{'d' * 40}\n{APPROVAL_IMAGE}\t{APPROVAL_SOURCE}\n")
+                (root / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
                 expected = configuration(app)
-                answers = ["2", "public", *expected["settings"].values(), "save"]
+                answers = ["public", *expected["settings"].values(), "save"]
                 transcript = io.StringIO()
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
                     complete_setup(app, COMMIT, root)
                 saved = root / "release.json"
                 self.assertEqual(expected, json.loads(saved.read_text()))
                 self.assertIn(APPROVAL_IMAGE, transcript.getvalue())
-                self.assertIn(APPROVAL_SOURCE, transcript.getvalue())
+                self.assertNotIn("Approval image number", transcript.getvalue())
                 output = root / "unpacked"
                 output.mkdir()
                 with patch.dict(release_config.os.environ, {"RELEASE_APPROVAL_IMAGE": other_image}):

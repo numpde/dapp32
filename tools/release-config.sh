@@ -26,7 +26,7 @@ release_config_teardown() {
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
-    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" \
+    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/approval-images" "$release_config_dir/approval-pin" "$release_config_dir/approval-image" "$release_config_dir/approval-built" \
       "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" "$release_config_dir/ui-source" "$release_config_dir/contract-source" "$release_config_dir/cam-source" "$release_config_dir/cam-uri-ready" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
@@ -111,16 +111,37 @@ require_release_local_network() {
 }
 
 release_config_prepare_approval_images() {
+  local pinned="" inventory image revision output
+  if [[ $# == 1 ]]; then pinned="$1"; fi
   source tools/release_approval_images.sh
-  release_approval_installed_images > "$release_config_dir/approval-images"
-  if [[ ! -s "$release_config_dir/approval-images" ]]; then
-    printf '%s\n' 'No installed approval-tool builds were found. Build one with make release/approval/image/build; setup does not build, pull or substitute images.' >&2
+  if [[ -n "$pinned" ]]; then
+    inventory=$(release_approval_installed_images) || return
+    while IFS=$'\t' read -r image revision; do
+      if [[ "$image" == "$pinned" ]]; then
+        printf '%s\n' "$image" > "$release_config_dir/approval-image"
+        return 0
+      fi
+    done <<< "$inventory"
+  fi
+  if [[ -n "$pinned" && ( ! -t 0 || ! -t 1 ) ]]; then
+    printf '%s\n' 'The saved approval tool is unavailable. Run the same command interactively to prepare and review its replacement.' >&2
     return 2
   fi
+  output=$(release_approval_default_output "$source_commit") || return
+  printf 'Preparing the approval tool automatically; build record: %s\n' "$output"
+  release_run_owned "$release_make_cleanup_grace" bash -c \
+    'source tools/release_approval_images.sh; release_approval_build_image "$@"' bash \
+    "$source_commit" "$output" > "$release_config_dir/approval-built" || return
+  read -r image < "$release_config_dir/approval-built"
+  if [[ ! "$image" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    printf '%s\n' 'Approval-tool preparation returned an invalid image identity.' >&2
+    return 2
+  fi
+  printf '%s\n' "$image" > "$release_config_dir/approval-image"
 }
 
 load_release_config() {
-  local app="$1" mode="$2" status=0 updated=0 original_digest update_mode=update output_override=""
+  local app="$1" mode="$2" status=0 configuration_change="" original_digest update_mode=update output_override=""
   if [[ -v OUTPUT_DIR ]]; then output_override="$OUTPUT_DIR"; fi
   local -a inputs
   if [[ ! -v CONFIG || -z "$CONFIG" ]]; then return; fi
@@ -128,16 +149,28 @@ load_release_config() {
   release_config_stage "$(dirname -- "$CONFIG")"
   original_digest=$(sha256sum -- "$CONFIG")
   compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit" || status=$?
+  if [[ "$status" == 3 ]]; then configuration_change=source; fi
+  if [[ "$status" == 3 && ( ! -t 0 || ! -t 1 ) ]]; then return "$status"; fi
+  if [[ ( "$status" == 0 || "$status" == 3 ) && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) ]]; then
+    compose_release_config run --rm --no-deps -T release-config approval-pin "$app" "$source_commit"
+    local pinned prepared
+    read -r pinned < "$release_config_dir/approval-pin"
+    release_config_prepare_approval_images "$pinned"
+    read -r prepared < "$release_config_dir/approval-image"
+    if [[ "$status" == 0 && "$pinned" != "$prepared" ]]; then
+      rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key"
+      status=3
+      configuration_change=approval-image
+    fi
+  fi
   if [[ "$mode" == ui-deploy ]]; then update_mode=update-ui; fi
   if [[ "$mode" == contracts-deploy ]]; then update_mode=update-contracts; fi
   if [[ "$mode" == cam-publish ]]; then update_mode=update-cam; fi
   if [[ "$status" == 3 && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) && -t 0 && -t 1 ]]; then
-    release_config_prepare_approval_images
     compose_release_config run --rm --no-deps -it release-config "$update_mode" "$app" "$source_commit"
     release_config_input="$release_config_dir/release.json"
     require_release_config "$release_config_input"
     compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit"
-    updated=1
   elif [[ "$status" != 0 ]]; then
     return "$status"
   fi
@@ -158,14 +191,14 @@ load_release_config() {
     DEPLOYER_PRIVATE_KEY_FILE="$release_config_dir/deployer-key"
     export DEPLOYER_PRIVATE_KEY_FILE
   fi
-  if [[ "$updated" == 1 ]]; then
+  if [[ -n "$configuration_change" ]]; then
     local prefix="${app^^}" output_name
     prefix="${prefix//-/_}"
     output_name="${prefix}_RELEASE_OUTPUT_DIR"
     if [[ "$mode" == ui-deploy ]]; then output_name=UI_RELEASE_OUTPUT_DIR; fi
     if [[ "$mode" == contracts-deploy ]]; then output_name=CONTRACT_RELEASE_OUTPUT_DIR; fi
     if [[ "$mode" == cam-publish ]]; then output_name=CAM_RELEASE_OUTPUT_DIR; fi
-    validate_new_release_output "${!output_name}" "$output_name"
+    if [[ "$configuration_change" == source ]]; then validate_new_release_output "${!output_name}" "$output_name"; fi
     require_release_config "$CONFIG"
     if [[ "$(sha256sum -- "$CONFIG")" != "$original_digest" ]]; then
       printf '%s\n' 'The saved configuration changed during review; refusing to replace it.' >&2
