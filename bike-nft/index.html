@@ -25,7 +25,7 @@
     <div class="shell">
       <a class="brand" href="../">dapp32</a>
       <div class="topbar-actions">
-        <nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployment/">Deployment</a></nav>
+        <nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployment/">Deploy an app</a><a href="../deployments/">Deployments</a></nav>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
           <span class="theme-sun" aria-hidden="true">☀</span>
           <span class="theme-moon" aria-hidden="true">☾</span>
@@ -242,13 +242,13 @@ make bike-nft/local/demo/gui/up</code></pre>
             </tr>
           </thead>
           <tbody>
-<tr><td><code>deploymentHandovers</code></td><td>read</td><td><code>viewDeploymentHandovers(camHost, account)</code></td><td><code>ui.deploymentHandovers(view=$outputs.0)</code></td><td>Inspect independent CAM ownership and Components/Manager administrator handovers.</td></tr>
+<tr><td><code>deploymentHandovers</code></td><td>read</td><td><code>viewDeploymentHandovers(camHost, account)</code></td><td><code>ui.app(view={&#x27;screen&#x27;: &#x27;deploymentHandovers&#x27;, &#x27;task&#x27;: &#x27;$outputs.0&#x27;})</code></td><td>Inspect independent CAM ownership and Components/Manager administrator handovers.</td></tr>
 <tr><td><code>acceptCamOwnership</code></td><td>write</td><td><code>acceptOwnership()</code></td><td><code>routes.deploymentHandovers()</code></td><td>The nominated owner accepts ownership directly on the selected CAM host.</td></tr>
 <tr><td><code>acceptComponentsAdmin</code></td><td>write</td><td><code>acceptDefaultAdminTransfer()</code></td><td><code>routes.deploymentHandovers()</code></td><td>The nominated Components administrator accepts after its chain-time delay.</td></tr>
 <tr><td><code>acceptManagerAdmin</code></td><td>write</td><td><code>acceptDefaultAdminTransfer()</code></td><td><code>routes.deploymentHandovers()</code></td><td>The nominated Manager administrator accepts after its chain-time delay.</td></tr>
-<tr><td><code>entry</code></td><td>read</td><td><code>viewEntry(account)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Look up a component or edit the viewed account’s profile.</td></tr>
-<tr><td><code>component</code></td><td>read</td><td><code>viewComponent(serialNumber, account)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Read one component and its available actions.</td></tr>
-<tr><td><code>register</code></td><td>read</td><td><code>viewRegister(serialNumber, account)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Check whether a serial can be registered.</td></tr>
+<tr><td><code>entry</code></td><td>read</td><td><code>viewEntry(account)</code></td><td><code>ui.app(view={&#x27;screen&#x27;: &#x27;registry&#x27;, &#x27;task&#x27;: &#x27;$outputs.0&#x27;})</code></td><td>Look up a component or edit the viewed account’s profile.</td></tr>
+<tr><td><code>component</code></td><td>read</td><td><code>viewComponent(serialNumber, account)</code></td><td><code>ui.app(view={&#x27;screen&#x27;: &#x27;registry&#x27;, &#x27;task&#x27;: &#x27;$outputs.0&#x27;})</code></td><td>Read one component and its available actions.</td></tr>
+<tr><td><code>register</code></td><td>read</td><td><code>viewRegister(serialNumber, account)</code></td><td><code>ui.app(view={&#x27;screen&#x27;: &#x27;registry&#x27;, &#x27;task&#x27;: &#x27;$outputs.0&#x27;})</code></td><td>Check whether a serial can be registered.</td></tr>
 <tr><td><code>registerComponent</code></td><td>write</td><td><code>registerComponent(owner, serialNumber, tokenURI_)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Mint the component NFT and register its serial.</td></tr>
 <tr><td><code>setAccountInfo</code></td><td>write</td><td><code>setAccountInfo(infoURI)</code></td><td><code>routes.entry()</code></td><td>Set the sending account’s public information URI.</td></tr>
 <tr><td><code>updateComponentMetadata</code></td><td>write</td><td><code>setComponentMetadata(serialNumber, tokenURI_)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Update the component NFT’s metadata URI.</td></tr>
@@ -256,7 +256,7 @@ make bike-nft/local/demo/gui/up</code></pre>
 <tr><td><code>clearComponentMissing</code></td><td>write</td><td><code>clearComponentMissing(serialNumber, resolutionURI)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Resolve the missing report with a resolution URI.</td></tr>
 <tr><td><code>decommissionComponent</code></td><td>write</td><td><code>decommissionComponent(serialNumber)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner takes the component out of service without erasing missing reports.</td></tr>
 <tr><td><code>reactivateComponent</code></td><td>write</td><td><code>reactivateComponent(serialNumber)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner returns an out-of-service component to service.</td></tr>
-<tr><td><code>delegation</code></td><td>read</td><td><code>viewDelegation(serialNumber, delegate, account, duration)</code></td><td><code>ui.app(view=$outputs.0)</code></td><td>Inspect a workshop grant and preview its expiry.</td></tr>
+<tr><td><code>delegation</code></td><td>read</td><td><code>viewDelegation(serialNumber, delegate, account, duration)</code></td><td><code>ui.app(view={&#x27;screen&#x27;: &#x27;registry&#x27;, &#x27;task&#x27;: &#x27;$outputs.0&#x27;})</code></td><td>Inspect a workshop grant and preview its expiry.</td></tr>
 <tr><td><code>setComponentDelegate</code></td><td>write</td><td><code>setComponentDelegate(serialNumber, delegate, capabilities, validUntil)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner grants expiring, scoped workshop permissions.</td></tr>
 <tr><td><code>revokeComponentDelegate</code></td><td>write</td><td><code>revokeComponentDelegate(serialNumber, delegate)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner revokes workshop permissions.</td></tr>
 <tr><td><code>transferComponent</code></td><td>write</td><td><code>safeTransferFrom(address,address,uint256)(from, to, tokenId)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner transfers the NFT directly to its recipient.</td></tr>

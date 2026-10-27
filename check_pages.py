@@ -227,6 +227,8 @@ class PageParser(HTMLParser):
                 self.primary_links.append(attributes["href"])
             if self.in_app_guides:
                 self.app_guide_links.append(attributes["href"])
+        if tag == "script" and attributes.get("src"):
+            self.links.append(attributes["src"])
         if tag == "link" and attributes.get("href"):
             self.links.append(attributes["href"])
         if tag == "pre":
@@ -311,6 +313,32 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
                     raise AssertionError(f"UI example differs from source: {owner}")
 
 
+def check_deployments(root: Path, repo_root: Path) -> None:
+    import re
+    from datetime import date
+    from urllib.parse import urlsplit
+
+    page = root / "deployments"
+    data = json.loads((page / "deployments.json").read_text())
+    viewer = urlsplit(data["viewer"])
+    assert viewer.scheme == "https" and viewer.hostname and not viewer.username and not viewer.password
+    catalog = json.loads((repo_root / "js/packages/cam-viewer/src/rpc-catalog.json").read_text())
+    assert isinstance(data["deployments"], list)
+    identifiers = set()
+    for deployment in data["deployments"]:
+        identifier = deployment["id"]
+        assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", identifier) and identifier not in identifiers
+        identifiers.add(identifier)
+        assert deployment["name"] and deployment["network"] in catalog
+        guide = (page / deployment["guide"] / "index.html").resolve()
+        assert guide.is_relative_to(root.resolve()) and guide.is_file()
+        assert isinstance(deployment["bindings"], dict)
+        for address in [deployment["host"], *deployment["bindings"].values()]:
+            assert re.fullmatch(r"0x[0-9a-fA-F]{40}", address) and int(address, 16) != 0
+        date.fromisoformat(deployment["checkedOn"])
+        assert type(deployment["blockNumber"]) is int and deployment["blockNumber"] > 0
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -326,4 +354,5 @@ if __name__ == "__main__":
 
     main()
     check_local_links_and_examples(Path(__file__).resolve().parent, Path(os.environ["DAPP32_REPO_ROOT"]))
-    print("Pages checks passed: bike routes, local links, fragments, and source-backed JSON examples.")
+    check_deployments(Path(__file__).resolve().parent, Path(os.environ["DAPP32_REPO_ROOT"]))
+    print("Pages checks passed: bike routes, local links, fragments, source-backed examples and deployment data.")

@@ -1,0 +1,20 @@
+{
+  "viewer": "https://app.dapp32.com/",
+  "deployments": [
+    {
+      "id": "bike-nft-fuji",
+      "name": "Bicycle component registry",
+      "description": "Original Bike NFT deployment.",
+      "guide": "../bike-nft/",
+      "network": "avalanche-fuji",
+      "host": "0x7fa986f5b91782601368d15fb33494f50571a8b5",
+      "bindings": {
+        "BicycleComponentManager": "0x5f27a1c26f76f75d0012339fe00257617278727d",
+        "BicycleComponents": "0xcf741350ca7ce7bbd53257c126eb97c3ca2a1e39",
+        "BicycleComponentManagerUI": "0xaa5774cc1779b317d6ec2df31cbc222ced00d57b"
+      },
+      "checkedOn": "2026-10-27",
+      "blockNumber": 60098185
+    }
+  ]
+}
