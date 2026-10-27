@@ -216,7 +216,7 @@ release_approval_run "$CASE_ROOT/output"
                     process = self.launch(script, env)
                     stdout, stderr = process.communicate(timeout=10)
                     self.assertNotEqual(0, process.returncode, stdout + stderr)
-                    self.assertIn("No transaction was sent by verification", stderr)
+                    self.assertIn("Verification sent no transactions", stderr)
                     if phase != "cam":
                         self.assertIn("Do not repeat deployment", stderr)
                     diagnostics = "".join(path.read_text() for path in (root / "output").glob("*-verification-*/verification.log"))
@@ -426,7 +426,7 @@ release_make_cleanup_grace=420
                         command.append(f"CAM_BUNDLE={records / 'cam-bundle'}")
                     expected.append(command)
                 self.assertEqual(expected, calls)
-                self.assertIn("Verified CAM publication", stdout)
+                self.assertIn("Verified CAM root record", stdout)
 
     def test_public_viewer_inspection_failure_never_starts_or_cleans_a_project(self):
         for inspection in ("failed", "occupied", "setup-failed", "empty"):
@@ -1431,7 +1431,7 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             result, calls = self.invoke(root, app="escrow", operation="full", uri=False)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(3, len(calls))
-            self.assertIn("host or pin", result.stdout)
+            self.assertIn("upload or pin", result.stdout)
             self.assertFalse((root / "release/cam").exists())
             result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
             self.assertEqual(0, result.returncode, result.stderr)

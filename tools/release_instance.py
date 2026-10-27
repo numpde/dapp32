@@ -308,11 +308,16 @@ def prepare(root, app, operation):
         if not instance_path(root, relative).is_file():
             raise ValueError(f"Missing instance configuration: {relative}. Run release/setup for this instance.")
     if operation == "ui/update":
-        choices = [("Deploy a replacement UI and publish its matching CAM files", "new"), ("Reuse a saved UI and publish matching CAM files", "reuse")]
+        print("To make the app use a replacement, this command prepares matching CAM files locally, then updates the existing CAM root's contract addresses and manifest URI/hash.")
+        print("Upload or pin the prepared files yourself before approving CAM root changes.")
+        print("Omit settings.CAM_URI for a hosting pause, then set it after hosting and rerun to resume.")
+        print("A configured URI skips that pause, but each transaction still needs approval.")
+        print(f"Use {app}/release/ui/deploy to create a UI contract without updating the CAM root.")
+        choices = [("Deploy a new UI contract and make the app use it", "new"), ("Make the app use a saved UI contract", "reuse")]
         history = [(candidate, saved) for candidate, saved in actions if saved["operation"] == "ui/update"]
         if history:
             choices.append(("Resume or verify a saved update", "history"))
-        choice = choose("Update this deployment", choices)
+        choice = choose("Replace the app's UI contract", choices)
         if choice == "history":
             return select_saved_work(root, selection, history)
         inputs["ROOT_ARTIFACT"] = select_artifact(root, records, "publication", selection.get("publication"))

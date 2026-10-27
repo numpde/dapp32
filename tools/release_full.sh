@@ -57,7 +57,7 @@ release_full_cam() {
       release_full_make "$app/release/cam/artifact" "CONFIG=$config" "CAM_RECORDS=$records" "CAM_BUNDLE=$prepared" || status=$?
       if [[ "$status" == 0 ]]; then
         require_release_file "$records/artifact/cam-publication.json" 'Verified CAM publication'
-        printf 'Verified CAM publication: %s/artifact/cam-publication.json\n' "$records"
+        printf 'Verified CAM root record: %s/artifact/cam-publication.json\n' "$records"
         return
       fi
       if [[ ! -e "$attempt" && ! -L "$attempt" ]]; then return "$status"; fi
@@ -71,7 +71,7 @@ release_full_cam() {
     records="$continuation"
   fi
   require_release_file "$records/artifact/cam-publication.json" 'Verified CAM publication'
-  printf 'Verified CAM publication: %s/artifact/cam-publication.json\n' "$records"
+  printf 'Verified CAM root record: %s/artifact/cam-publication.json\n' "$records"
 }
 
 # The Make caller supplies an admitted base output and the ordinary make runner.
@@ -211,7 +211,8 @@ release_full() {
   if [[ ! -e "$cam" && ! -L "$cam" ]]; then
     release_full_read_uri_presence "$cam_config" "$app" || return
     if [[ "$release_full_has_uri" == 0 ]]; then
-      printf 'Business artifact: %s\nUI artifact: %s\nPrepared CAM bytes to host or pin: %s/bundle\n' "$business_artifact" "$ui_artifact" "$prepared"
+      printf '%s\n' 'CAM files are ready. Paused before CAM root transactions.'
+      printf 'Business record: %s\nUI contract record: %s\nCAM files to upload or pin: %s/bundle\n' "$business_artifact" "$ui_artifact" "$prepared"
       printf '%s\n' 'Set settings.CAM_URI in the selected CAM configuration after hosting these exact files.'
       if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
         printf 'Resume: make %q INSTANCE=%q\n' "$app/release/${RELEASE_INSTANCE_OPERATION:?}" "$RELEASE_INSTANCE_ROOT"

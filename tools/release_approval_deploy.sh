@@ -316,7 +316,7 @@ release_materialize_independent() {
     printf '%s deployment verified. Artifact: %s/artifact/%s-deployment.json\n' "$label" "$output" "$native"
     return 0
   fi
-  printf '%s verification did not complete. No transaction was sent by verification. Diagnostics: %s\n' "$label" "$log" >&2
+  printf '%s verification did not complete. Verification sent no transactions. Diagnostics: %s\n' "$label" "$log" >&2
   printf '%s\n' 'Do not repeat deployment to complete this record. Use the keyless artifact command:' >&2
   if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
     printf '  make %q INSTANCE=%q\n' "${!app_name}/release/$operation/artifact" "$RELEASE_INSTANCE_ROOT" >&2
@@ -339,17 +339,17 @@ release_materialize_cam() {
   CAM_RELEASE_CANDIDATE_DIR=$(mktemp -d -- "$output/cam-verification-XXXXXXXX")
   export CAM_RELEASE_CANDIDATE_DIR
   log="$CAM_RELEASE_CANDIDATE_DIR/verification.log"
-  printf 'Verifying CAM publication without a signing key. Diagnostics: %s\n' "$log"
+  printf 'Verifying saved CAM root records without signing. Diagnostics: %s\n' "$log"
   if compose_release run --rm --no-deps -T release-artifact-dependencies > "$log" 2>&1 &&
       compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy >> "$log" 2>&1 &&
       compose_release run --rm --no-deps -T release-artifact >> "$log" 2>&1 &&
       compose_release run --rm --no-deps -T -e CAM_RELEASE_PHASE=verify-block release-artifact >> "$log" 2>&1 &&
       compose_release run --rm --no-deps -T release-cam-publish >> "$log" 2>&1; then
-    printf 'Verified CAM publication: %s/artifact/cam-publication.json\n' "$output"
+    printf 'Verified CAM root record: %s/artifact/cam-publication.json\n' "$output"
     return 0
   fi
   if [[ -f "$output/artifact/cam-attempt.json" && ! -L "$output/artifact/cam-attempt.json" ]]; then
-    printf 'Confirmed partial CAM publication retained: %s/artifact/cam-attempt.json\n' "$output" >&2
+    printf 'Saved recovery evidence for the unfinished CAM operation: %s/artifact/cam-attempt.json\n' "$output" >&2
     if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
       printf 'Resume with fresh approval: make %q INSTANCE=%q\n' "$CAM_RELEASE_APP/release/${RELEASE_INSTANCE_OPERATION:?}" "$RELEASE_INSTANCE_ROOT" >&2
     else
@@ -357,7 +357,7 @@ release_materialize_cam() {
     fi
     return 3
   fi
-  printf 'CAM publication records are incomplete. No transaction was sent by verification. Diagnostics: %s\n' "$log" >&2
+  printf 'CAM root records are incomplete. Verification sent no transactions. Diagnostics: %s\n' "$log" >&2
   if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
     printf 'Complete records keylessly: make %q INSTANCE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$RELEASE_INSTANCE_ROOT" >&2
   else

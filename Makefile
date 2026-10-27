@@ -1002,11 +1002,12 @@ help:
 	  '  make bike-nft/release/deploy INSTANCE=/absolute/instance' \
 	  '  make escrow/release/deploy INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/deploy INSTANCE=/absolute/instance' \
-	  '    Deploy business, UI and CAM through the ordinary verified operations.' \
+	  '    Deploy business and UI contracts, prepare CAM files, then configure a new CAM root on chain.' \
 	  '  make bike-nft/release/ui/update INSTANCE=/absolute/instance' \
 	  '  make escrow/release/ui/update INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/ui/update INSTANCE=/absolute/instance' \
-	  '    Choose replacement/reused UI or resume unfinished work; preserve existing business contracts.' \
+	  '    Deploy a new UI contract or select a saved one, then make the app use it through its existing CAM root.' \
+	  '    Matching CAM files are prepared locally; upload or pin them yourself before approving root changes.' \
 	  '  make bike-nft/release/verify INSTANCE=/absolute/instance' \
 	  '  make escrow/release/verify INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/verify INSTANCE=/absolute/instance' \
@@ -1018,15 +1019,15 @@ help:
 	  '  make bike-nft/release/ui/deploy INSTANCE=/absolute/instance' \
 	  '  make escrow/release/ui/deploy INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/ui/deploy INSTANCE=/absolute/instance' \
-	  '    Choose existing business records and deploy only their read-only UI.' \
+	  '    Create and verify a read-only UI contract, leaving the existing CAM root unchanged.' \
 	  '  make bike-nft/release/cam/bundle INSTANCE=/absolute/instance' \
 	  '  make escrow/release/cam/bundle INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/cam/bundle INSTANCE=/absolute/instance' \
-	  '    Choose components/root and prepare exact CAM files without signing or requiring a hosted URI.' \
+	  '    Prepare matching CAM files locally. Hosting is a separate step; no transaction is sent.' \
 	  '  make bike-nft/release/cam/publish INSTANCE=/absolute/instance' \
 	  '  make escrow/release/cam/publish INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/cam/publish INSTANCE=/absolute/instance' \
-	  '    Choose a prepared bundle and publish its root/bindings with transaction approval.' \
+	  '    Create or update the CAM root'\''s contract addresses and manifest URI/hash. Approve each required transaction.' \
 	  '  make bike-nft/release/contracts/artifact INSTANCE=/absolute/instance' \
 	  '  make escrow/release/contracts/artifact INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/contracts/artifact INSTANCE=/absolute/instance' \
@@ -1045,7 +1046,7 @@ help:
 	  '    Histories are offered as choices, never selected by newest timestamp. Resume uses its original saved inputs.' \
 	  '    Separate business, UI and CAM configurations can select different actors; each transaction still needs approval.' \
 	  '    Keep all records after failure; rerun the same INSTANCE command to reconcile and resume.' \
-	  '    Missing CAM_URI pauses after preparation. Host the printed files, set the saved CAM URI, then resume.' \
+	  '    Full deployment and UI update pause for hosting when CAM_URI is unset. Set it after hosting, then resume.' \
 	  '  make release/cam/check           Typecheck and test CAM component admission and publication tools.' \
 	  '  make release/contracts/check     Typecheck and test shared business deployment plans and approval recipes.' \
 	  '  make release/ui/check            Typecheck and test the shared UI deployment tools.' \

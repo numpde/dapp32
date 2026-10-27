@@ -43,6 +43,15 @@ contains references, while the immutable artifacts retain deployment facts.
 Failed operations and hosting pauses remain resumable through the same command.
 Existing deployment directories are not renamed or migrated automatically.
 
+`release/ui/deploy` creates a read-only Solidity UI contract and saves its
+verified record. `release/ui/update` also prepares matching CAM files locally
+and updates the existing CAM root to use the selected UI contract and manifest.
+Upload or pin the files yourself before approving root changes. To pause after
+preparation, omit `settings.CAM_URI` from the CAM configuration, host the files,
+set their manifest URI, then resume. `release/cam/bundle` prepares files only;
+`release/cam/publish` configures contract addresses and the manifest URI/hash
+on chain. Neither command uploads files.
+
 ## Development
 
 Use Docker with Compose and Make. Install the locked dependencies, then run
