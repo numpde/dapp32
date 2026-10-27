@@ -6,6 +6,34 @@ import { viewerErrorMessage } from '@cam/viewer'
 
 export class BrowserFixtureError extends Error {}
 
+export async function waitForBrowserCondition(check, description, deadline = Date.now() + 10000) {
+  const expired = new BrowserFixtureError(`Timed out waiting for ${description}.`)
+  while (Date.now() < deadline) {
+    let timer
+    try {
+      const satisfied = await Promise.race([check(), new Promise((_, reject) => {
+        timer = setTimeout(() => reject(expired), deadline - Date.now())
+      })])
+      if (Date.now() >= deadline) throw expired
+      if (satisfied) return
+    } finally { clearTimeout(timer) }
+    await new Promise(resolve => setTimeout(resolve, Math.min(50, deadline - Date.now())))
+  }
+  throw expired
+}
+
+export async function navigateBrowserDocument({ call, url, ready, description, timeoutMs = 10000 }) {
+  const deadline = Date.now() + timeoutMs
+  const navigation = await call('Page.navigate', { url })
+  if (navigation.errorText) throw new BrowserFixtureError(`Cannot open ${description}: ${navigation.errorText}`, { cause: navigation })
+  if (!navigation.loaderId) throw new BrowserFixtureError(`Cannot open ${description}: navigation did not create a new document.`, { cause: navigation })
+  await waitForBrowserCondition(async () => {
+    const { frameTree } = await call('Page.getFrameTree', {})
+    return frameTree.frame.loaderId === navigation.loaderId
+  }, `the new document for ${description}`, deadline)
+  await waitForBrowserCondition(ready, description, deadline)
+}
+
 export async function checkFixtureWalletToolbar({ call, evaluate }) {
   const scroll = await evaluate(`(() => { const app=document.getElementById('root');return {x:app.scrollLeft,y:app.scrollTop,hasFacts:!!document.getElementById('local-fixture-facts')} })()`)
   const failures = []
@@ -48,24 +76,13 @@ export async function finishDisplayFixture({ call, evaluate, viewerURL, failures
   const errors = [...failures]
   try { await call('Emulation.clearDeviceMetricsOverride', {}) } catch (error) { errors.push(error) }
   try {
-    const navigation = await call('Page.navigate', { url: viewerURL })
-    if (navigation?.errorText) throw new BrowserFixtureError('CDP Page.navigate rejected viewer restoration', { cause: navigation })
-  } catch (error) { errors.push(error) }
-  try {
     const expected = new URL(viewerURL)
-    const deadline = Date.now() + 10000
-    let restored = false
-    while (Date.now() < deadline) {
+    await navigateBrowserDocument({ call, url: viewerURL, description: 'the restored viewer', ready: async () => {
       const document = await evaluate('({ href: location.href, readyState: document.readyState })')
       const actual = new URL(document.href)
-      if (actual.origin === expected.origin && actual.pathname === expected.pathname
-          && actual.searchParams.toString() === expected.searchParams.toString() && document.readyState === 'complete') {
-        restored = true
-        break
-      }
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
-    if (!restored) throw new BrowserFixtureError('Viewer restoration did not reach the expected complete document')
+      return actual.origin === expected.origin && actual.pathname === expected.pathname
+        && actual.searchParams.toString() === expected.searchParams.toString() && document.readyState === 'complete'
+    } })
   } catch (error) { errors.push(error) }
   if (errors.length === 1) throw errors[0]
   if (errors.length > 1) throw new AggregateError(errors, 'Display fixture and app restoration failures')

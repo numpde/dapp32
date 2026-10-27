@@ -1,23 +1,16 @@
 import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
 import { assertStableLayout } from './layout-stability.mjs'
 
 export async function checkViewerConnection({ call, evaluate, viewerURL }) {
-  async function wait(expression) {
-    const deadline = Date.now() + 15000
-    while (Date.now() < deadline) {
-      if (await evaluate(expression)) return
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
-    assert.fail(`Connection fixture did not reach: ${expression}; ${await evaluate('document.body.innerText.slice(0,1500)')}`)
-  }
+  const wait = expression => waitForBrowserCondition(() => evaluate(expression), `connection fixture: ${expression}`, Date.now() + 15000)
   async function open(scenario) {
     const url = new URL('/test/connection-fixture.html', viewerURL)
     url.searchParams.set('scenario', scenario)
-    await call('Page.navigate', { url: url.href })
-    await wait('!!window.connectionFixture')
+    await navigateBrowserDocument({ call, url: url.href, description: 'the connection fixture', timeoutMs: 15000,
+      ready: () => evaluate('!!window.connectionFixture') })
   }
   async function editRPC(value) {
     await evaluate(`(()=>{const input=document.querySelector('#rpc-endpoint-url');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)

@@ -9,6 +9,69 @@ import { checkViewerConnection } from './connection-browser-check.mjs'
 import { checkStartupErrors } from './error-reporting-browser-check.mjs'
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 
+test('fixture navigation cannot accept readiness from the previous document', async () => {
+  const oldObserved = Promise.withResolvers()
+  const committed = Promise.withResolvers()
+  let frames = 0
+  let evaluations = 0
+  const pending = fixture.navigateBrowserDocument({
+    call: async method => {
+      if (method === 'Page.navigate') return { loaderId: 'new-document' }
+      assert.equal(method, 'Page.getFrameTree')
+      if (frames++ === 0) {
+        oldObserved.resolve()
+        return { frameTree: { frame: { loaderId: 'previous-document' } } }
+      }
+      return committed.promise
+    },
+    url: 'http://fixture.test/scenario',
+    ready: async () => { evaluations++; return true },
+    description: 'connection fixture',
+  })
+  try {
+    await Promise.race([oldObserved.promise, pending.then(() => assert.fail('accepted the old document'))])
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(evaluations, 0, 'readiness must not be evaluated in the old document')
+  } finally { committed.resolve({ frameTree: { frame: { loaderId: 'new-document' } } }) }
+  await pending
+  assert.equal(evaluations, 1)
+})
+
+test('fixture navigation reports rejection before probing document readiness', async () => {
+  for (const reply of [{ errorText: 'net::ERR_FAILED' }, { frameId: 'unchanged-document' }]) {
+    const calls = []
+    await assert.rejects(fixture.navigateBrowserDocument({
+      call: async method => { calls.push(method); return reply },
+      url: 'http://fixture.test/scenario',
+      ready: async () => assert.fail('navigation failed before readiness'),
+      description: 'connection fixture',
+    }), error => error instanceof fixture.BrowserFixtureError && error.cause === reply)
+    assert.deepEqual(calls, ['Page.navigate'])
+  }
+})
+
+test('browser readiness checks preserve genuine command and script failures', async () => {
+  for (const phase of ['navigation', 'frame', 'readiness']) {
+    const cause = new Error(`${phase} failed`)
+    await assert.rejects(fixture.navigateBrowserDocument({
+      call: async method => {
+        if (method === 'Page.navigate') { if (phase === 'navigation') throw cause; return { loaderId: 'new' } }
+        if (phase === 'frame') throw cause
+        return { frameTree: { frame: { loaderId: 'new' } } }
+      },
+      url: 'http://fixture.test/scenario',
+      ready: async () => { throw cause },
+      description: 'connection fixture',
+    }), error => error === cause)
+  }
+})
+
+test('browser readiness times out even when its pending observation never returns', async () => {
+  await assert.rejects(fixture.waitForBrowserCondition(
+    () => new Promise(() => {}), 'the fixture script to initialize', Date.now() + 20,
+  ), /Timed out waiting for the fixture script to initialize/)
+})
+
 for (const failedPhase of ['preparation', 'deployment before signing', 'signing', 'deployment before broadcast', 'broadcast']) {
   test(`fixture ${failedPhase} failure reports the actual submission boundary and preserves its cause`, async () => {
     const cause = new Error('CAM manifest hash changed')
@@ -180,6 +243,7 @@ for (const check of [checkActionStyles, checkTimestampStatus, checkNftMetadata, 
       viewerURL,
       call: async (method, params) => {
         if (method === 'Page.navigate' && params.url !== viewerURL) throw primary
+        if (method === 'Page.getFrameTree') return { frameTree: { frame: { loaderId: 'restored-viewer' } } }
         return { loaderId: 'restored-viewer' }
       },
       evaluate: async () => {
@@ -228,6 +292,8 @@ test('timestamp keyboard focus is released even when enabling it has an uncertai
     call: async (method, params) => {
       calls.push([method, params])
       if (method === 'Emulation.setFocusEmulationEnabled' && params.enabled) throw uncertain
+      if (method === 'Page.navigate') return { loaderId: 'document' }
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { loaderId: 'document' } } }
     },
     evaluate: async expression => expression.includes('count:rows.length')
       ? { count: 3, aligned: true, fullWidth: true, pill: true, overflow: false }

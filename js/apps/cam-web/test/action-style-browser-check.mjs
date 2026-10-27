@@ -1,23 +1,16 @@
 import assert from 'node:assert/strict'
 import { assertStableLayout } from './layout-stability.mjs'
-import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
 import { assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery, assertNumericValidationPresentation } from './display-contracts.mjs'
 
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/action-style-fixture.html', viewerURL)
   fixture.search = new URL(viewerURL).search
-  async function wait(expression) {
-    const deadline = Date.now() + 10000
-    while (Date.now() < deadline) {
-      if (await evaluate(expression)) return
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
-    assert.fail(`Action fixture did not reach: ${expression}`)
-  }
+  const wait = expression => waitForBrowserCondition(() => evaluate(expression), `action fixture: ${expression}`)
   const failures = []
   try {
-    await call('Page.navigate', { url: fixture.href })
-    await wait(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`)
+    await navigateBrowserDocument({ call, url: fixture.href, description: 'the action fixture',
+      ready: () => evaluate(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`) })
     await evaluate(`document.querySelector('.nft-row .resource-load').click()`)
     await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
     assert(await evaluate(`(() => {

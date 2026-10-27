@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
 import { assertStableLayout } from './layout-stability.mjs'
 
 export async function checkNftMetadata({ call, evaluate, viewerURL }) {
@@ -7,14 +7,7 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
   fixture.search = new URL(viewerURL).search
   const editor = '.nft-editor'
   const json = `${editor} textarea[name="tokenURI.metadata.json"]`
-  async function wait(expression) {
-    const deadline = Date.now() + 10000
-    while (Date.now() < deadline) {
-      if (await evaluate(expression)) return
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
-    assert.fail(`NFT fixture did not reach: ${expression}`)
-  }
+  const wait = expression => waitForBrowserCondition(() => evaluate(expression), `NFT fixture: ${expression}`)
   async function click(selector, text) {
     // silent-defaults: allow-default -- Controls with icon-only labels are located by aria-label; text labels identify the others.
     assert(await evaluate(`(() => { const button = [...document.querySelectorAll(${JSON.stringify(selector)})].find(node => (node.getAttribute('aria-label')??node.textContent) === ${JSON.stringify(text)}); if (!button) return false; button.click(); return true })()`), `control exists: ${text}`)
@@ -24,8 +17,8 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
   }
   const failures = []
   try {
-    await call('Page.navigate', { url: fixture.href })
-    await wait(`!!window.nftFixture&&document.querySelectorAll('.nft-editor').length===2`)
+    await navigateBrowserDocument({ call, url: fixture.href, description: 'the NFT fixture',
+      ready: () => evaluate(`!!window.nftFixture&&document.querySelectorAll('.nft-editor').length===2`) })
     assert(await evaluate(`document.querySelector('.nft-editor [role="tablist"]').children.length===2`), 'metadata offers hosted and embedded preparation tabs')
     const selectedURI = await evaluate('window.nftFixture.uri()')
     await click(`${editor} [role="tab"]`, 'Embed JSON')

@@ -1,15 +1,7 @@
 import assert from 'node:assert/strict'
-import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+import { finishDisplayFixture, navigateBrowserDocument } from './escrow-browser-fixture.mjs'
 
 export async function checkStartupErrors({ call, evaluate, viewerURL }) {
-  async function wait(expression) {
-    const deadline = Date.now() + 10000
-    while (Date.now() < deadline) {
-      if (await evaluate(expression)) return
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
-    assert.fail(`Startup error did not reach: ${expression}`)
-  }
   const failures = []
   try {
     const missing = new URL(viewerURL)
@@ -19,8 +11,8 @@ export async function checkStartupErrors({ call, evaluate, viewerURL }) {
     const longAddress = new URL(viewerURL)
     longAddress.searchParams.set('host', 'x'.repeat(3000))
     for (const [url, expected] of [[missing, /chainId/], [credentials, /credential|username|password/i], [longAddress, /address/i]]) {
-      await call('Page.navigate', { url: url.href })
-      await wait(`!!document.querySelector('.error .error-feedback')`)
+      await navigateBrowserDocument({ call, url: url.href, description: 'the startup error view',
+        ready: () => evaluate(`!!document.querySelector('.error .error-feedback')`) })
       assert(await evaluate(`!document.querySelector('.error .error-feedback details')&&!document.querySelector('.prepared-call')`), 'a failure is shown directly without disclosure or transaction controls')
       const primary = await evaluate(`document.querySelector('.error .feedback-message').innerText`)
       assert.match(primary, /could not be loaded/)

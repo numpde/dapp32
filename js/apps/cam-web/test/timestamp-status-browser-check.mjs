@@ -1,17 +1,10 @@
 import assert from 'node:assert/strict'
-import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
+import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
 
 export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
   const fixtureURL = new URL('/test/timestamp-status-fixture.html', viewerURL)
   fixtureURL.search = new URL(viewerURL).search
-  async function wait(expression) {
-    const deadline = Date.now() + 10000
-    while (Date.now() < deadline) {
-      if (await evaluate(expression)) return
-      await new Promise(resolve => setTimeout(resolve, 50))
-    }
-    assert.fail(`Timestamp fixture did not reach: ${expression}`)
-  }
+  const wait = expression => waitForBrowserCondition(() => evaluate(expression), `timestamp fixture: ${expression}`)
   async function checkLayout(narrow) {
     const layout = await evaluate(`(()=>{const rows=[...document.querySelectorAll('.elements > .key-value')],values=rows.map(row=>row.lastElementChild.getBoundingClientRect()),row=rows[1],control=row?.querySelector('.timestamp-options');let pill=true;if(control){const parts=[...control.querySelectorAll('[data-mode]')].map(p=>p.getBoundingClientRect()),r=control.getBoundingClientRect();pill=parts.length===2&&Math.abs(parts[0].right-parts[1].left)<=2&&r.width>=56&&r.height>=28&&!!control.getAttribute('aria-describedby')&&getComputedStyle(control).overflowX!=='hidden'&&getComputedStyle(control).overflowY!=='hidden'}return {count:rows.length,aligned:values.every(v=>Math.abs(v.left-values[0].left)<1),fullWidth:values.every((v,i)=>v.width>=rows[i].getBoundingClientRect().width-2),pill,overflow:document.documentElement.scrollWidth>innerWidth}})()`)
     assert.equal(layout.count, 3, 'timestamp layout is measured between ordinary Status rows')
@@ -43,8 +36,8 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
   const failures = []
   let focusAttempted = false
   try {
-    await call('Page.navigate', { url: fixtureURL.href })
-    await wait(`!!document.querySelector('.timestamp-options')`)
+    await navigateBrowserDocument({ call, url: fixtureURL.href, description: 'the timestamp fixture',
+      ready: () => evaluate(`!!document.querySelector('.timestamp-options')`) })
     assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.tagName==='BUTTON'&&!b.querySelector('button,input,a')&&b.getAttribute('aria-label')==='Relative time for Deadline'&&b.getAttribute('aria-pressed')==='false'})()`), 'one native button owns the entire timestamp pill')
     assert(await evaluate(`window.timestampFixture.activeTimers()===0`))
     await checkNeighborAlignment()
