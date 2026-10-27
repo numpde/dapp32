@@ -315,7 +315,6 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
 
 def check_deployments(root: Path, repo_root: Path) -> None:
     import re
-    from datetime import date
     from urllib.parse import urlsplit
 
     page = root / "deployments"
@@ -332,11 +331,14 @@ def check_deployments(root: Path, repo_root: Path) -> None:
         assert deployment["name"] and deployment["network"] in catalog
         guide = (page / deployment["guide"] / "index.html").resolve()
         assert guide.is_relative_to(root.resolve()) and guide.is_file()
-        assert isinstance(deployment["bindings"], dict)
-        for address in [deployment["host"], *deployment["bindings"].values()]:
-            assert re.fullmatch(r"0x[0-9a-fA-F]{40}", address) and int(address, 16) != 0
-        date.fromisoformat(deployment["checkedOn"])
-        assert type(deployment["blockNumber"]) is int and deployment["blockNumber"] > 0
+        address = deployment["host"]
+        assert re.fullmatch(r"0x[0-9a-fA-F]{40}", address) and int(address, 16) != 0
+        contracts = deployment["contracts"]
+        assert isinstance(contracts, list) and all(isinstance(name, str) and name for name in contracts)
+        assert len(set(contracts)) == len(contracts)
+        if "rpcUrl" in deployment:
+            rpc = urlsplit(deployment["rpcUrl"])
+            assert rpc.scheme in {"http", "https"} and rpc.hostname and not rpc.username and not rpc.password
 
 
 if __name__ == "__main__":

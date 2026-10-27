@@ -11,8 +11,12 @@
     .deployment { scroll-margin-top: 100px; }
     .deployment h2 { margin: 0; }
     .deployment h3 { margin: 28px 0 8px; }
-    .network, .snapshot, .sources { color: var(--muted); }
+    .network, .sources { color: var(--muted); }
     .deployment-jump { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+    .rpc-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 12px; }
+    .rpc-controls select, .rpc-controls input { box-sizing: border-box; max-width: 100%; min-width: 0; padding: 8px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; }
+    .rpc-controls input { flex: 1 1 18rem; }
+    .rpc-controls input[aria-invalid="true"] { border-color: #b42318; }
     .contracts { margin: 0; }
     .contracts > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; padding-block: 10px; }
     .contracts dt { overflow-wrap: anywhere; }
@@ -27,7 +31,6 @@
     .copy-address:disabled { cursor: progress; }
     .copy-recovery { display: block; max-width: 28rem; margin-top: 8px; }
     .copy-recovery input { display: block; box-sizing: border-box; width: 100%; font: .85rem monospace; padding: 8px; }
-    .snapshot { font-size: .9rem; margin-bottom: 0; }
     .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     :focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
     [hidden] { display: none !important; }
