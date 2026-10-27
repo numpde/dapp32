@@ -107,6 +107,7 @@ try {
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
   assert.match(await evaluate('document.querySelector(".contracts").textContent'), /Not bound/)
   assert.equal(await evaluate('document.querySelector(".rpc-controls select").options.length'), 2, 'Key templates must not be selectable')
+  assert.equal(await evaluate('document.querySelector(".rpc-controls select").selectedOptions[0].textContent'), 'rpc.fixture.test')
   for (const width of [1280, 320]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false })
     assert(await evaluate('document.documentElement.scrollWidth<=document.documentElement.clientWidth'), `Overflow at ${width}`)

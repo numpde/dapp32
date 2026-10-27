@@ -103,18 +103,17 @@ function deploymentCard(deployment, viewer, catalog) {
   const rpcControls = element('div', undefined, 'rpc-controls');
   const rpcSelect = element('select');
   rpcSelect.setAttribute('aria-label', 'RPC endpoint');
-  const endpoints = Object.entries(network.services)
-    .filter(([, url]) => !/[{}]/u.test(url));
-  if (deployment.rpcUrl && !endpoints.some(([, url]) => url === deployment.rpcUrl)) endpoints.unshift(['Configured RPC', deployment.rpcUrl]);
-  for (const [name, url] of endpoints) {
-    const option = element('option', name);
+  const endpoints = Object.values(network.services).filter(url => !/[{}]/u.test(url));
+  if (deployment.rpcUrl && !endpoints.includes(deployment.rpcUrl)) endpoints.unshift(deployment.rpcUrl);
+  for (const url of endpoints) {
+    const option = element('option', new URL(url).hostname);
     option.value = url;
     rpcSelect.append(option);
   }
   const customOption = element('option', 'Custom RPC');
   customOption.value = '';
   rpcSelect.append(customOption);
-  rpcSelect.value = deployment.rpcUrl ?? endpoints[0]?.[1] ?? '';
+  rpcSelect.value = deployment.rpcUrl ?? endpoints[0] ?? '';
   const customRPC = element('input');
   customRPC.type = 'url';
   customRPC.placeholder = 'https://rpc.example/';
