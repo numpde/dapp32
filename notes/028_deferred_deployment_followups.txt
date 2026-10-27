@@ -1,4 +1,4 @@
-# Deferred
+Deferred deployment follow-ups
 
 This note keeps follow-ups outside the current composable deployment delivery.
 Ordinary CAM preparation/publication/recovery, full-release and update reuse,

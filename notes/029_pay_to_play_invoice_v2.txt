@@ -1,4 +1,4 @@
-# PayToPlay invoice-bearing vouchers (v2)
+PayToPlay invoice-bearing vouchers (v2)
 
 Later design decision (2026-10-20): [restart pending withdrawal waits on funding](022_pay_to_play_withdrawal_wait_on_funding.txt)
 supersedes the ordinary-withdrawal baseline retained by this invoice-v2 change.

@@ -1,0 +1,340 @@
+Gasless transactions and Bike operation allowances
+Research and design discussion: 2026-10-26
+
+Status: proposal, not implemented or qualified against a live deployment.
+The initial smart-account recommendation has been superseded for the specific
+Bike experience below. No provider has been selected or deployment authorized
+by this note.
+
+Intended experience
+
+A user receives an access key, enters it like a password, and performs a
+limited set of operations. No wallet extension, user-funded address or
+separately deployed user smart account should be required.
+
+Example: change the metadata of component #42 three times before an expiry.
+Show "2 updates remaining", rather than an allowance denominated in wei.
+Use a randomly generated, high-entropy credential; "like a password" describes
+the interaction, not permission to derive a private key from a guessable word.
+
+Separate three facts:
+- Authority: which actions this key may perform, enforced onchain.
+- Sponsorship: which authorized actions someone agrees to pay for.
+- Delivery: signing the gas-paying transaction, submitting it and tracking it.
+
+Gasless means someone else pays the network fee. It does not fund deposits,
+collateral or other native value required by the application. An allowance
+does not itself guarantee funding or service availability. Reserved or
+guaranteed sponsorship would need its own explicit mechanism.
+
+What the PoC already demonstrated
+
+The local poc and origin/poc refs inspected both pointed to d270560.
+poc/opengsn-playground/scripts/capture.ts creates a fresh unfunded key and
+uses OpenGSN relaying with a paymaster. CaptureThatFlag.sol uses
+ERC2771Recipient to recover the signer. The old ContractUI.tsx has a sponsored
+submission path, but that frontend path still obtains a browser-wallet signer.
+
+No counted-operation allowance or password-like key entry was found in the
+branch's source. Treat the PoC as evidence of the earlier mechanism, not a
+production dependency or an instruction to copy its code into main.
+
+Recommended mechanism for this experience
+
+The browser signs a narrowly scoped operation using the access key. A backend
+relay or independent bounty-seeking submitter pays to submit the request.
+The receiving contract verifies the
+signature, current permission, replay protection and quota, then performs the
+operation and consumes one use atomically.
+
+For metadata updates, bind authorization to the chain, verifying contract,
+allowance identity, component identity, exact new metadata URI, request nonce
+and deadline. The allowance binds the key, grantor, permitted operation,
+expiry and ownership generation. Grant replacement/revocation must make old
+signed requests unusable; resetting a quota must not resurrect old signatures.
+
+A reverted update must roll back its quota consumption. A repeated submission
+of the same signed request must not execute or consume a second use. Whether
+a new request setting an unchanged URI counts is a separate product decision;
+replay protection alone does not define that behavior.
+
+Use OpenZeppelin EIP712 and signature utilities. EIP-712 standardizes signed
+structured messages, but does not provide replay protection, revocation or
+operation quotas. A dedicated signed metadata-update entrypoint is sufficient
+for an initial implementation; no generic arbitrary-call engine is needed.
+
+Backend scope and established components
+
+Public API:
+- POST /operations accepts a signed request and returns a stable operation ID.
+- GET /operations/:id reports delivery/execution state and transaction hash.
+
+The backend needs the chain/RPC, approved target addresses, request format,
+allowed actions, signed request, sponsorship limits, payer signing access and
+durable submission records. It can read permission/quota state and simulate
+the exact call before paying. State can change after simulation; execution
+must recheck everything onchain.
+
+It needs no user private keys, password database, duplicate quota ledger or
+blockchain indexer for this flow. The payer should hold gas funds but no Bike
+ownership or administrative privileges. Contract business rules stay onchain;
+gas/fee caps, rate limits and a sponsor spending ceiling still protect the
+backend's own funds. Rejected or raced transactions can still cost gas.
+
+OpenZeppelin Relayer is the private transaction service, distinct from the
+onchain ERC2771Forwarder. It manages payer nonces, signing, fees, submission
+and tracking. The checked stable documentation was v1.8.x. Put a narrow
+application API in front; do not expose its general signing/submission API or
+API credentials to browsers. Persistent operation uses its Redis storage;
+in-memory storage loses transaction state on restart.
+
+A smaller alternative is one application process with SQLite and viem, but
+then we own nonce serialization, persistence before broadcast, replacement
+and recovery of uncertain submissions. Prefer established delivery machinery
+over an apparently small sender that loses these responsibilities.
+
+Deduplicate by signed-request identity, persist the submission association,
+and track replacements. A timeout is uncertain submission, not a reason to
+blindly send another transaction. Restrict target, function, native value,
+input size, gas and fees; allowing only a forwarder's address is insufficient
+when the forwarded destination and calldata remain unrestricted.
+
+Standard associated onchain components:
+- ERC2771Forwarder verifies signed forward requests, nonces and deadlines.
+- ERC2771Context lets a compatible recipient recover the original signer.
+- EIP712 and ECDSA/SignatureChecker support dedicated signed-operation paths.
+- The application owns quota, scope, expiry and revocation semantics.
+
+These are alternatives to combine deliberately, not a mandatory set of
+separately deployed contracts. Stock forwarding does not grant NFT authority
+or implement "three metadata updates". Dedicated signed entrypoints do not
+require ERC-2771 recipient support.
+
+Bike option 1: integrate counted allowances into the manager
+
+BicycleComponentManager already owns per-component owner/delegate authority.
+Extend that model with counted grants and signed execution. The manager checks
+the access key, consumes a use and reuses its existing metadata-update rules.
+
+All uses of a counted grant must consume its quota, including ordinary direct
+calls by that key. Otherwise it could bypass the signed/sponsored entrypoint.
+Direct owner authority remains a separate authority from the counted grant.
+
+Advantages: one permission owner, one revocation model, existing ownership
+generation protection, and events can identify the signing key as actor.
+Costs: manager changes, corresponding UI/ABI/tests, and an explicit deployment
+and registry migration decision. The current contracts are not upgradeable;
+publishing a new manager address does not move existing registry state.
+
+Put this policy in the manager, not the ERC-721 collection or read-only UI.
+
+Bike option 2: a separate BikeActionAllowance contract
+
+Use the existing per-component delegation seam:
+1. The current owner delegates CAP_UPDATE_METADATA to the flow contract.
+2. The owner grants a particular access key a quota inside that contract.
+3. The key signs an exact update; the backend submits it to the flow.
+4. The flow verifies/consumes the allowance and calls the manager's ordinary
+   setComponentMetadata(serialNumber, tokenURI).
+
+The manager still enforces its delegation, registration and pause rules.
+Give the flow no administrator, registrar or collection-wide URI-setter role,
+no arbitrary-call facility and no NFT custody. Delegate to the flow contract,
+not directly to the key: direct key delegation would bypass the wrapper quota.
+
+The flow must bind allowances to the recorded collection/token and ownership
+generation. A transfer away and back must not revive an old allowance, even
+if the owner later reauthorizes the flow. Read the component's recorded token
+contract, not the manager's collection setting for future registrations.
+
+Advantages: independent deployment and no manager replacement for compatible
+existing deployments. Qualify the exact target manager/collection interfaces
+and behavior before claiming compatibility with a live deployment.
+
+Costs: two grant layers; the manager records the flow contract as actor, so
+the flow must emit the signing key and allowance identity. CAM must query both
+permission layers. Binding the flow in CamRoot provides discovery, not rights.
+
+Revocation has two meanings. Revoking the manager's delegation blocks the
+whole flow but does not delete its stored key allowances. Regranting it could
+restore unexpired allowances unless separately revoked. The UI and contract
+must expose an explicit allowance-revocation operation; do not promise that
+manager revocation permanently erases all nested grants.
+
+Owner setup requires the current owner's authorization. Registrar/admin
+status and paying for gas do not authorize owner actions. An issuer can do
+the setup through their existing account; the access-key recipient need not
+install or fund a wallet.
+
+Current preference: option 2 for extending existing Bike, initially metadata
+only. Option 1 fits a deliberate new manager version where counted delegation
+is a native capability. This is a recommendation, not a selected implementation.
+
+Other Bike allowance types
+
+Near existing capabilities, with new quota enforcement:
+- Missing report: report this component missing once before expiry.
+- Report resolution: clear one missing report for this component.
+- Workshop visit: two metadata updates and one resolution within seven days,
+  with separate counters rather than three interchangeable operations.
+- Fleet maintenance: one metadata update for each component in an explicit
+  list, with authorization from each component's owner.
+- Recurring maintenance: one update per six-month period, four total.
+
+These require new application operations or narrower authorization paths:
+- Inspection certificate: append one attributed certificate without replacing
+  previous metadata/documents. External mutable documents would weaken that
+  append-only promise; define the stored reference/content semantics.
+- Service history: append up to five attributed workshop records.
+- Registration batch: register up to ten components, minting only to a named
+  recipient. Requires registrar authority; owner metadata delegation cannot
+  grant it, and the quota must not be bypassable through unrestricted calls.
+- Handover: one transfer to a fixed recipient before expiry. Existing manager
+  workshop capabilities grant no transfer permission. This needs an explicit
+  ERC-721 authorization design, not merely another wrapper action.
+
+Common restrictions: explicit component scope, separate action counters,
+expiry, revocation, ownership-generation binding and fixed recipients where
+applicable. A visit may instead be one bounded atomic bundle; define which
+successful business operation consumes the use before implementing it.
+
+Workshop visits, fleet maintenance and append-only service records are useful
+next product examples. Do not prebuild a general policy language for them.
+
+Frontend confirmation and proof
+
+Review the exact prepared signed request, decoding its target and arguments.
+Show the component, old/new metadata preview and URI, action, allowance change,
+network, expiry, and "You pay 0 AVAX; sponsored by ..." when actually offered.
+Expose the contract addresses and exact call under technical details. CAM
+labels explain the operation but cannot override the actual encoded request.
+
+Prepare once, review/sign that request, simulate the same signer/permission,
+then track submission separately from successful execution. After receipt,
+verify the executed request and refresh application state and remaining uses.
+Do not silently switch a sponsored request to user-paid execution.
+
+If the website both holds the key and renders confirmation, compromised page
+code can lie and sign something else. Contract scope/quota bounds its authority;
+independent confirmation requires a separate signer. Sponsorship does not
+remove this trust boundary.
+
+Alternative: permissionless execution bounty
+
+A tiny application-specific OpenGSN-like flow could replace the privileged
+delivery service with an open offer: anyone executing a valid signed Bike
+operation receives a bounded reward from an onchain sponsor pool. This is a
+potential design, not an implemented protocol or guaranteed delivery service.
+
+Owner grants authority -> access key signs exact operation -> any submitter
+fronts gas -> contract executes successfully -> sponsor pool pays submitter.
+
+BikeActionAllowance could expose grant/revoke, executeSignedMetadata, payable
+funding and authorized withdrawal of unused sponsor funds. Use AVAX on Fuji,
+or the destination chain's native asset. Option 2's manager delegation and
+ownership-generation checks still apply; no submitter receives Bike authority.
+
+Start with a fixed, capped reward per successful operation, rather than exact
+gas reimbursement. Bind the signed request to the allowance and a defined
+reward policy/maximum, with sponsor-controlled funding limits. The NFT owner
+granting permission must not thereby gain unrestricted spending authority over
+someone else's sponsor pool. Bound eligible actions, inputs and sponsored uses.
+
+Verify signature, grant, nonce, expiry, ownership generation and funding; reserve
+quota, nonce and reward before external calls, then call the manager and pay
+the submitter under reentrancy protection. Any manager failure rolls back the
+operation, reservations and reward. Define payout failure behavior explicitly.
+Failed transactions still cost the submitter gas and receive no reward.
+
+The client can send the same signed request to a few configured independent
+relay endpoints. Each simulates and submits only when the reward exceeds its
+estimated cost and margin. No registration, privileged relayer or staking is
+needed for basic authorization safety. Submitters still need funded accounts
+and durable nonce/submission recovery; offchain delivery does not disappear.
+
+Competition is costly: concurrent submissions can both pass simulation; only
+one succeeds and competing mined transactions may pay gas and revert. Public
+requests can also be copied/front-run for the reward. Neither changes the signed
+Bike action, but both affect relayer incentives. Multiple endpoints do not
+guarantee execution; sequential failover may avoid unnecessary races initially.
+
+Cheap gas may overpay; expensive gas or an empty pool may leave requests
+unexecuted. A sponsor balance alone is not a reservation for every outstanding
+allowance. Relayers need no trust to preserve action integrity, but availability
+and economics remain separate assumptions. Qualify duplicate races, pool
+exhaustion, payout reentrancy/failure and sponsor-budget abuse before adoption.
+
+Without a relay: funding and two-key limits
+
+A browser can sign ordinary transactions using a dedicated, lightly funded
+access-key account. No extension or user setup is needed if the issuer funds
+it, although the address technically remains an ordinary blockchain account.
+
+Separate operation and payer keys are possible: the operation key signs the
+limited request; the payer key signs the outer transaction. Exposing an ordinary
+payer private key exposes its whole native balance. Application quotas cannot
+block a transfer that never calls the application. A contract cannot keep a
+private key secret or initiate its own transactions.
+
+A small claimGas transaction can withdraw a capped sponsorship amount from
+a funded contract, then a second transaction performs the larger operation.
+The account needs gas upfront for the claim. Bind claims to issued permissions,
+recipient, amount, expiry and replay protection; one claim per freely generated
+address is not an abuse boundary. Claimed AVAX can be transferred elsewhere.
+
+A contract reimbursing gas during a transaction does not remove the sender's
+upfront balance requirement for the entire transaction. A basic transfer starts
+at 21,000 gas; a meaningful claim/trigger costs more and needs actual estimation.
+A cheap trigger cannot switch gas payers midway through ordinary EVM execution.
+
+Broader modern account options
+
+ERC-4337 uses smart accounts, EntryPoint, bundlers and optional paymasters.
+It remains an option for broader wallet functionality, but is not necessary for
+the scoped Bike credential design. A new smart account has a different address:
+Bike assets/roles and Pay-to-Play positions do not automatically follow it.
+Pay-to-Play's registered voucher key is currently ECDSA-only.
+
+EIP-7702 can preserve an existing address through delegated code where supported.
+Delegation persists until changed/cleared; the original owner key remains
+powerful. Current Avalanche documentation says C-Chain rejects EIP-7702
+transactions; ACP-209 is proposed. Verify exact network support before use.
+
+ERC-5792 supplies wallet capability discovery, sendCalls and calls status;
+ERC-7677 defines a paymaster-service capability and was under review when
+checked. Neither capability discovery nor batching guarantees sponsorship.
+These are relevant to a future wallet path, not prerequisites for access keys.
+
+First qualification for the revised proposal
+
+One access key, one component, three metadata updates; no AVAX held by the key.
+Demonstrate exact request execution, payer identity, correct actor attribution,
+three successes and refusal of a fourth. Cover forged/modified signatures,
+replay, revoked/replaced grants, expiry, transfer away/back, both pause states,
+failed updates leaving quota unchanged, sponsorship refusal and restart/timeout
+recovery without duplicate execution. For option 2 include both revocation layers
+and manager delegation expiry. Preserve existing owner/delegate workflows.
+
+Sources and repository owners
+
+Local: dapps/bike-nft/src/BicycleComponentManager.sol,
+BicycleComponents.sol, BicycleComponentManagerUI.sol, and
+dapps/bike-nft/notes/001_permissions.txt. Recheck their current behavior when
+implementing; these are design observations, not live deployment proof.
+
+https://eips.ethereum.org/EIPS/eip-712
+https://eips.ethereum.org/EIPS/eip-2771
+https://docs.openzeppelin.com/contracts/5.x/api/metatx
+https://docs.openzeppelin.com/contracts/5.x/api/utils/cryptography
+https://docs.openzeppelin.com/relayer/1.8.x
+https://docs.openzeppelin.com/relayer/1.8.x/evm
+https://docs.openzeppelin.com/relayer/1.8.x/configuration/signers
+https://docs.openzeppelin.com/relayer/1.8.x/configuration/storage
+https://eips.ethereum.org/EIPS/eip-1559
+https://ethereum.org/developers/docs/transactions/
+https://ercs.ethereum.org/ERCS/erc-4337
+https://eips.ethereum.org/EIPS/eip-7702
+https://build.avax.network/docs/primary-network/exchange-integration
+https://build.avax.network/docs/acps/209-eip7702-style-account-abstraction
+https://eips.ethereum.org/EIPS/eip-5792
+https://eips.ethereum.org/EIPS/eip-7677

@@ -337,7 +337,7 @@ Sources: [contract](src/PayToPlay.sol), [ABI](cam/abi/PayToPlay.json),
 [CAM routes](cam/main.json), [UI](cam/ui.json),
 [design record](../../notes/020_service_payment_channels.txt),
 [invoice codec and signing helpers](../../js/tools/pay-to-play-vouchers/README.md),
-[v2 migration record](../../notes/pay_to_play_invoice_v2.md), and
+[v2 migration record](../../notes/029_pay_to_play_invoice_v2.txt), and
 [CAM protocol](https://numpde.github.io/dapp32/reference/cam/1.3.0/).
 
 ### Locate and verify the payment contract

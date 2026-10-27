@@ -6,7 +6,7 @@ Status: accepted design; not yet implemented in PayToPlay.sol.
 
 This note supersedes the ordinary-withdrawal treatment of positive deposits
 and incoming moves in 020_service_payment_channels.txt. That note remains the
-historical baseline. pay_to_play_invoice_v2.md preserves the invoice-v2 change;
+historical baseline. 029_pay_to_play_invoice_v2.txt preserves the invoice-v2 change;
 its statement that ordinary withdrawals are unchanged predates this decision.
 
 Decision
