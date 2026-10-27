@@ -84,7 +84,6 @@ function deploymentCard(deployment, viewer, catalog) {
   card.append(element('h2', deployment.name));
   const mainnet = catalog[network.mainnet];
   card.append(element('p', `${network.name}${mainnet ? ` (${mainnet.name} testnet)` : ''} · Chain ${network.chainId}`, 'network'));
-  card.append(element('p', deployment.description));
   const viewerURL = new URL(viewer);
   viewerURL.searchParams.set('chainId', `eip155:${network.chainId}`);
   viewerURL.searchParams.set('host', deployment.host);
@@ -100,7 +99,7 @@ function deploymentCard(deployment, viewer, catalog) {
     row.append(element('dt', name), value);
     contracts.append(row);
   }
-  card.append(contracts, element('p', `Bindings checked ${deployment.checkedOn} at block ${deployment.blockNumber.toLocaleString('en-US')}. Open the app or explorer for current state.`, 'snapshot'));
+  card.append(contracts, element('p', `Bindings checked ${deployment.checkedOn} at block ${deployment.blockNumber.toLocaleString('en-US')}.`, 'snapshot'));
   return card;
 }
 

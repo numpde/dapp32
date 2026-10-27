@@ -4,7 +4,6 @@
     {
       "id": "bike-nft-fuji",
       "name": "Bicycle component registry",
-      "description": "Original Bike NFT deployment.",
       "guide": "../bike-nft/",
       "network": "avalanche-fuji",
       "host": "0x7fa986f5b91782601368d15fb33494f50571a8b5",
