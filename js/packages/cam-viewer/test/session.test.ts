@@ -96,6 +96,37 @@ test("viewer renders changed or unpinned CAM resources and retains their integri
   assert.deepEqual(loaded.integrityWarnings.map(warning => warning.status), ["unverified"])
 })
 
+test("integrity warnings are delivered during loading without exposing mutable session state", async () => {
+  const resources = bikeResourceBytes({})
+  let reachedUI!: () => void
+  let releaseUI!: () => void
+  const atUI = new Promise<void>(resolve => { reachedUI = resolve })
+  const heldUI = new Promise<void>(resolve => { releaseUI = resolve })
+  const reported: string[] = []
+  const session = createCamViewerSession({
+    ...sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ camHash: BIKE_ZERO_BYTES32 })) }),
+    host,
+    account: { address: userAddress },
+    inputs: {},
+    onIntegrityWarning: warning => {
+      reported.push(warning.uri)
+      mutableRecord(warning).uri = "changed by observer"
+    },
+    loadResource: async uri => {
+      if (uri === BIKE_UI_URI) { reachedUI(); await heldUI }
+      return resources[uri]
+    },
+  })
+  const loading = session.load()
+  await atUI
+  assert.deepEqual(reported, [camURI])
+  assert.equal(session.snapshot().resolvedUi, undefined)
+  releaseUI()
+  const loaded = await loading
+  assert.deepEqual(loaded.integrityWarnings.map(warning => warning.uri), [camURI])
+  assert.equal(reported.length, 1)
+})
+
 test("zero resource hashes warn while malformed hashes and JSON still fail at their boundaries", async () => {
   for (const resource of ["protocol", "ui", "contracts.BicycleComponentManager"] as const) {
     for (const integrity of [`sha256:${BIKE_ZERO_BYTES32}`, "sha256:not-a-digest"]) {

@@ -20,6 +20,8 @@ export type CreateCamViewerSessionOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
+  /** Reports resource warnings when checked; does not commit a loaded view. */
+  readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
   readonly account?: CamViewerAccount
   readonly inputs: InertRecord
   /** Omit to load the contract-anchored manifest entry. */
