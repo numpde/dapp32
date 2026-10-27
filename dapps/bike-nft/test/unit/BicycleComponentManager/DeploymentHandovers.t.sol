@@ -7,6 +7,14 @@ import {BicycleComponentManager} from "../../../src/BicycleComponentManager.sol"
 import {BicycleComponentManagerUI} from "../../../src/BicycleComponentManagerUI.sol";
 
 contract DeploymentHandoversTest is Test {
+    // The deployed handover ABI predates the two appended pause fields.
+    struct PublishedDeploymentHandovers {
+        BicycleComponentManagerUI.AuthorityHandover cam;
+        BicycleComponentManagerUI.AuthorityHandover components;
+        BicycleComponentManagerUI.AuthorityHandover manager;
+        string[] actions;
+    }
+
     CamRoot root;
     BicycleComponents components;
     BicycleComponentManager manager;
@@ -22,6 +30,30 @@ contract DeploymentHandoversTest is Test {
         ui = new BicycleComponentManagerUI(address(manager));
         root.setContractAddress("BicycleComponents", address(components));
         root.setContractAddress("BicycleComponentManager", address(manager));
+    }
+
+    function test_publishedDecoderReadsNewHandoverReturnBeforeResourcePublication() public {
+        root.transferOwnership(NOMINEE);
+        components.beginDefaultAdminTransfer(NOMINEE);
+        manager.beginDefaultAdminTransfer(OTHER);
+        manager.pause();
+        (bool success, bytes memory encoded) = address(ui)
+            .staticcall(abi.encodeCall(BicycleComponentManagerUI.viewDeploymentHandovers, (address(root), NOMINEE)));
+        assertTrue(success);
+        PublishedDeploymentHandovers memory published = abi.decode(encoded, (PublishedDeploymentHandovers));
+        assertEq(published.cam.target, address(root));
+        assertEq(published.cam.pending, NOMINEE);
+        assertTrue(published.cam.canAccept);
+        assertEq(published.components.target, address(components));
+        assertEq(published.components.readyAt, 1100);
+        assertEq(published.manager.target, address(manager));
+        assertEq(published.manager.pending, OTHER);
+        assertEq(published.actions.length, 1);
+        assertEq(published.actions[0], "acceptCamOwnership");
+        BicycleComponentManagerUI.DeploymentHandovers memory current =
+            abi.decode(encoded, (BicycleComponentManagerUI.DeploymentHandovers));
+        assertTrue(current.paused);
+        assertFalse(current.componentTokenPaused);
     }
 
     function test_pauseFactsFollowHostBindingsIndependentlyOfUiRegistryAndItsCollection() public {
