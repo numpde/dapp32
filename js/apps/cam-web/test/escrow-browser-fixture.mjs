@@ -22,6 +22,7 @@ export async function waitForBrowserCondition(check, description, deadline = Dat
   throw expired
 }
 
+// silent-defaults: allow-default -- New-document detection and readiness share a ten-second deadline unless the caller supplies an operation-specific timeout.
 export async function navigateBrowserDocument({ call, url, ready, description, timeoutMs = 10000 }) {
   const deadline = Date.now() + timeoutMs
   const navigation = await call('Page.navigate', { url })
