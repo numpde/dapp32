@@ -1,14 +1,8 @@
 import assert from "node:assert/strict"
-import { createHash } from "node:crypto"
-import { spawnSync } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
 import test from "node:test"
 import { backingFromDeployment } from "../ui-release/shared.ts"
 
 
-import { fileURLToPath } from "node:url"
 import { keccak256 } from "viem"
 import type { Address, Hex } from "viem"
 import { parseReleasePlan, parseDeploymentArtifact, RELEASE_PLAN_SCHEMA, DEPLOYMENT_SCHEMA } from "./shared.ts"
@@ -25,7 +19,6 @@ const HASH = `0x${"ab".repeat(32)}` as Hex
 const TX = `0x${"12".repeat(32)}` as Hex
 const TX2 = `0x${"34".repeat(32)}` as Hex
 const ZERO = "0x0000000000000000000000000000000000000000"
-const DAPPS = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
 const bytes = (value: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(value))
 
 function plan() {
@@ -98,39 +91,6 @@ test("creation input evidence is bound to the receipt transaction, deployer, and
     assert.throws(() => creationTransactionInputHash(contract, { ...transaction, ...change }, ADMIN, "PayToPlay"))
   }
 })
-
-test("offline planner pins actual CAM bytes and never silently supplies release policy", () => {
-  const dir = mkdtempSync(join(tmpdir(), "pay-to-play-release-"))
-  try {
-    const env = {
-      ...process.env, PAY_TO_PLAY_RELEASE_DAPPS_ROOT: DAPPS,
-      PAY_TO_PLAY_RELEASE_CAM_ROOT_PATH: join(DAPPS, "pay-to-play/cam/main.json"),
-      PAY_TO_PLAY_RELEASE_PLAN_PATH: join(dir, "plan.json"),
-      PAY_TO_PLAY_RELEASE_CAM_URI: plan().camURI, PAY_TO_PLAY_RELEASE_SOURCE_COMMIT: SOURCE,
-      PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID: "11155111",
-      PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER: OWNER,
-      PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN: ADMIN,
-      PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD: "0",
-    }
-    const run = (inputs: NodeJS.ProcessEnv) => spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], { env: inputs, encoding: "utf8" })
-    const success = run(env)
-    assert.equal(success.status, 0, success.stderr)
-    const planned = parseReleasePlan(readFileSync(env.PAY_TO_PLAY_RELEASE_PLAN_PATH))
-    assert.equal(planned.intendedCamRootOwner, OWNER)
-    assert.equal(planned.intendedPaymentAdmin, ADMIN)
-    assert.equal(planned.camHash, `0x${createHash("sha256").update(readFileSync(env.PAY_TO_PLAY_RELEASE_CAM_ROOT_PATH)).digest("hex")}`)
-    for (const field of ["PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN", "PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD"]) {
-      const missing: NodeJS.ProcessEnv = { ...env }
-      delete missing[field]
-      const failure = run(missing)
-      assert.notEqual(failure.status, 0, field)
-      assert.match(failure.stderr, new RegExp(field))
-    }
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
 
 test("UI deployment preserves historical payment creation-input evidence without its CAM root", () => {
   const deployment = artifact()

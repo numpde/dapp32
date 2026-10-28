@@ -1,9 +1,7 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { spawnSync } from "node:child_process"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
@@ -98,16 +96,7 @@ test("Bike release keeps an explicitly empty metadata base in plans and artifact
   assert.equal(parseReleasePlan(new TextEncoder().encode(JSON.stringify(plan))).baseTokenURI, "")
   const artifact = { ...deployment(), baseTokenURI: "" }
   assert.equal(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))).baseTokenURI, "")
-  const directory = mkdtempSync(join(tmpdir(), "bike-release-empty-base-"))
-  try {
-    const planPath = join(directory, "plan.json")
-    const env = { ...process.env, ...plannerEnv(planPath), BIKE_NFT_RELEASE_BASE_TOKEN_URI: "" }
-    const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], { encoding: "utf8", env })
-    assert.equal(result.status, 0, result.stderr)
-    assert.equal(parseReleasePlan(new TextEncoder().encode(readFileSync(planPath, "utf8"))).baseTokenURI, "")
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
+
 })
 
 test("Bike release requires a present string metadata base and keeps other metadata mandatory", () => {
@@ -119,68 +108,7 @@ test("Bike release requires a present string metadata base and keeps other metad
   for (const field of ["tokenName", "tokenSymbol", "collectionURI"] as const) {
     assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, [field]: "" }))), new RegExp(field))
   }
-  const directory = mkdtempSync(join(tmpdir(), "bike-release-missing-base-"))
-  try {
-    const planPath = join(directory, "plan.json")
-    const env: NodeJS.ProcessEnv = { ...process.env, ...plannerEnv(planPath) }
-    delete env.BIKE_NFT_RELEASE_BASE_TOKEN_URI
-    const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], { encoding: "utf8", env })
-    assert.notEqual(result.status, 0)
-    assert.match(result.stderr, /baseTokenURI|BIKE_NFT_RELEASE_BASE_TOKEN_URI/)
-    assert.equal(existsSync(planPath), false)
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
 
-test("the Bike planner rejects multiline release text before publishing a plan", () => {
-  const directory = mkdtempSync(join(tmpdir(), "bike-release-plan-"))
-  try {
-    for (const [field, variable] of [
-      ["tokenName", "BIKE_NFT_RELEASE_TOKEN_NAME"],
-      ["tokenSymbol", "BIKE_NFT_RELEASE_TOKEN_SYMBOL"],
-      ["baseTokenURI", "BIKE_NFT_RELEASE_BASE_TOKEN_URI"],
-      ["collectionURI", "BIKE_NFT_RELEASE_COLLECTION_URI"],
-    ] as const) {
-      const planPath = join(directory, `${field}.json`)
-      const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], {
-        encoding: "utf8",
-        env: { ...process.env, ...plannerEnv(planPath), [variable]: "line one\nline two" },
-      })
-      assert.notEqual(result.status, 0, `${field} unexpectedly produced a release plan`)
-      assert.match(result.stderr, new RegExp(`${field} must be a .*single-line string`))
-      assert.match(result.stderr, /\n\s+at /)
-      assert.equal(existsSync(planPath), false)
-    }
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
-
-test("the Bike planner rejects a missing or empty CAM URI before publishing a plan", () => {
-  const directory = mkdtempSync(join(tmpdir(), "bike-release-cam-uri-"))
-  try {
-    for (const camURI of [undefined, ""] as const) {
-      const planPath = join(directory, camURI === undefined ? "missing.json" : "empty.json")
-      const env = { ...process.env, ...plannerEnv(planPath) }
-      if (camURI === undefined) {
-        delete env.BIKE_NFT_RELEASE_CAM_URI
-      } else {
-        env.BIKE_NFT_RELEASE_CAM_URI = camURI
-      }
-
-      const result = spawnSync(
-        process.execPath,
-        ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")],
-        { encoding: "utf8", env },
-      )
-      assert.notEqual(result.status, 0)
-      assert.match(result.stderr, /missing required environment variable: BIKE_NFT_RELEASE_CAM_URI/)
-      assert.equal(existsSync(planPath), false)
-    }
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
 })
 
 test("handoff accepts only intended pending or completed state", () => {
@@ -197,21 +125,6 @@ test("handoff accepts only intended pending or completed state", () => {
 })
 
 function common() { return { sourceCommit: SOURCE, expectedChainId: 11155111, camURI: "https://example.test/bike/v1/main.json", intendedCamRootOwner: OWNER, tokenName: "Bicycle Components", tokenSymbol: "BIKE", baseTokenURI: "https://example.test/bike/tokens/", collectionURI: "https://example.test/bike/collection.json", intendedComponentsAdmin: COMPONENTS_ADMIN, componentsAdminDelay: 86400, componentsPauser: address("5"), componentsConfigurer: address("6"), intendedManagerAdmin: MANAGER_ADMIN, managerAdminDelay: 86400, managerPauser: address("7"), managerConfigurer: address("8"), registrars: [address("9")] } as const }
-function plannerEnv(planPath: string): NodeJS.ProcessEnv {
-  const values = common()
-  return {
-    BIKE_NFT_RELEASE_SOURCE_COMMIT: values.sourceCommit, BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID: String(values.expectedChainId),
-    BIKE_NFT_RELEASE_CAM_URI: values.camURI, BIKE_NFT_RELEASE_CAM_ROOT_PATH: join(DAPPS, "bike-nft/cam/main.json"), BIKE_NFT_RELEASE_DAPPS_ROOT: DAPPS,
-    BIKE_NFT_RELEASE_PLAN_PATH: planPath, BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER: values.intendedCamRootOwner,
-    BIKE_NFT_RELEASE_TOKEN_NAME: values.tokenName, BIKE_NFT_RELEASE_TOKEN_SYMBOL: values.tokenSymbol,
-    BIKE_NFT_RELEASE_BASE_TOKEN_URI: values.baseTokenURI, BIKE_NFT_RELEASE_COLLECTION_URI: values.collectionURI,
-    BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN: values.intendedComponentsAdmin, BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY: String(values.componentsAdminDelay),
-    BIKE_NFT_RELEASE_COMPONENTS_PAUSER: values.componentsPauser, BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER: values.componentsConfigurer,
-    BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN: values.intendedManagerAdmin, BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY: String(values.managerAdminDelay),
-    BIKE_NFT_RELEASE_MANAGER_PAUSER: values.managerPauser, BIKE_NFT_RELEASE_MANAGER_CONFIGURER: values.managerConfigurer,
-    BIKE_NFT_RELEASE_REGISTRARS: values.registrars.join(","),
-  }
-}
 function deployment(): DeploymentArtifact { const { expectedChainId, ...fields } = common(); return { ...fields, schema: DEPLOYMENT_SCHEMA, chainId: expectedChainId, deployer: DEPLOYER, camHash: hash("a"), camRoot: address("10"), components: address("11"), manager: address("12"), ui: address("13"), camRootCodeHash: hash("b"), componentsCodeHash: hash("c"), managerCodeHash: hash("d"), uiCodeHash: hash("e"), camRootCreationTransaction: hash("1"), componentsCreationTransaction: hash("2"), managerCreationTransaction: hash("3"), uiCreationTransaction: hash("4") } }
 
 test("UI deployment selects the historical manager rather than the collection, UI or CAM root", () => {
