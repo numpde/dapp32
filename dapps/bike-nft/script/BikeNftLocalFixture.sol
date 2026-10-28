@@ -20,6 +20,7 @@ contract BikeNftLocalFixture {
     string internal constant SEEDED_FRAME_SERIAL = "DEMO-FRAME-001";
     string internal constant SEEDED_BATTERY_SERIAL = "DEMO-BATTERY-001";
     string internal constant SEEDED_MOTOR_SERIAL = "DEMO-MOTOR-001";
+    string internal constant SEEDED_BIKE_SERIAL = "DEMO-BIKE-001";
 
     struct Deployment {
         CamRoot camRoot;
@@ -97,5 +98,6 @@ contract BikeNftLocalFixture {
             owner, SEEDED_BATTERY_SERIAL, string.concat(metadataDirectory, "demo-battery-001.json")
         );
         manager.registerComponent(owner, SEEDED_MOTOR_SERIAL, string.concat(metadataDirectory, "demo-motor-001.json"));
+        manager.registerComponent(owner, SEEDED_BIKE_SERIAL, string.concat(metadataDirectory, "demo-bike-001.json"));
     }
 }

@@ -28,12 +28,20 @@ account. A write button prepares and simulates a call; **Send with wallet** requ
 its submission after review. On-chain roles and ownership determine
 whether the transaction can execute.
 
-The demo seeds `DEMO-FRAME-001`, `DEMO-BATTERY-001` and `DEMO-MOTOR-001`.
-Their NFT metadata and distinct PNG illustrations are served locally from
-`cam/components/`. Open a component, choose **Load metadata**, then **Load image**.
+The demo seeds `DEMO-FRAME-001`, `DEMO-BATTERY-001`, `DEMO-MOTOR-001` and
+`DEMO-BIKE-001`. Their NFT metadata, PNG illustrations and bicycle WebP photo
+are served locally from `cam/components/`. Open a component and choose **Load preview**.
 The fixture derives these URLs from its `CAM_URI`, which must end in
 `/main.json`; the JSON uses relative image filenames so the same files work
 through the browser gateway and the internal resource server.
+
+For manual registration, use `cam/components/demo-bike-001.json` from the
+same resource server as the demo's CAM manifest. Enter its full URL in **JSON
+URL** when registering an unused serial. `DEMO-BIKE-001` is already registered
+in seeded demos; use a new serial and edit the metadata's serial-number
+attribute to match. Alternatively, load the JSON in **Embed JSON** and replace
+its relative `image` value with the image's full URL. The supplied image is
+`demo-bike-001.webp` (768×768); the metadata describes a test record.
 
 To use the shared local fixture wallet in an existing CDP browser tab, keep this
 foreground attachment running alongside the demo:

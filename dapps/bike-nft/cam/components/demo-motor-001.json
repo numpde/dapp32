@@ -4,7 +4,7 @@
   "image": "demo-motor-001.png",
   "attributes": [
     {
-      "trait_type": "Kind",
+      "trait_type": "Component",
       "value": "Motor"
     },
     {

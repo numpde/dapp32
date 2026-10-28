@@ -91,6 +91,7 @@ contract BikeNftLocalFixtureTest is Test {
         assertFalse(
             deployment.manager.componentBySerial("DEMO-MOTOR-001").exists, "clean fixture should not seed motor"
         );
+        assertFalse(deployment.manager.componentBySerial("DEMO-BIKE-001").exists, "clean fixture should not seed bike");
 
         address seedOwner = makeAddr("seed owner");
         deployment = harness.deploySeededForTest(seedOwner, "file:///work/dapps/bike-nft/cam/main.json");
@@ -116,6 +117,13 @@ contract BikeNftLocalFixtureTest is Test {
             "DEMO-MOTOR-001",
             "file:///work/dapps/bike-nft/cam/components/demo-motor-001.json"
         );
+        assertSeededComponent(
+            deployment,
+            seedOwner,
+            address(harness),
+            "DEMO-BIKE-001",
+            "file:///work/dapps/bike-nft/cam/components/demo-bike-001.json"
+        );
     }
 
     function test_seedMetadataUsesTheLaneResourceDirectory() external {
@@ -129,8 +137,8 @@ contract BikeNftLocalFixtureTest is Test {
                 deployment,
                 owner,
                 address(harness),
-                "DEMO-BATTERY-001",
-                string.concat(directories[i], "components/demo-battery-001.json")
+                "DEMO-BIKE-001",
+                string.concat(directories[i], "components/demo-bike-001.json")
             );
         }
     }

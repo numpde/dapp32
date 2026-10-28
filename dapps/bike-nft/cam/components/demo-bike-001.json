@@ -1,0 +1,15 @@
+{
+  "name": "Cannondale Scalpel HT Carbon 4 (2022)",
+  "description": "Purchased new in 2022. Significant upgrades since.",
+  "image": "demo-bike-001.webp",
+  "attributes": [
+    {
+      "trait_type": "Component",
+      "value": "Bicycle"
+    },
+    {
+      "trait_type": "Serial number",
+      "value": "DEMO-BIKE-001"
+    }
+  ]
+}
