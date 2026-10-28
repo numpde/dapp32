@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deployments · dapp32</title>
+  <meta name="description" content="Open deployed dapp32 apps and inspect their contract addresses on a block explorer.">
+  <link rel="stylesheet" href="../site.css">
+  <style>
+    .deployment-list { display: grid; gap: 28px; margin-block: 24px 40px; }
+    .deployment { scroll-margin-top: 100px; }
+    .deployment h2 { margin: 0; }
+    .deployment h3 { margin: 28px 0 8px; }
+    .network, .sources { color: var(--muted); }
+    .deployment-jump { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+    .rpc-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 12px; }
+    .rpc-controls select, .rpc-controls input { box-sizing: border-box; max-width: 100%; min-width: 0; padding: 8px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; }
+    .rpc-controls input { flex: 1 1 18rem; }
+    .rpc-controls input[aria-invalid="true"] { border-color: #b42318; }
+    .contracts { margin: 0; }
+    .contracts > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; padding-block: 10px; }
+    .contracts dt { overflow-wrap: anywhere; }
+    .contracts dd { margin: 0; min-width: 0; }
+    .address-value { display: inline-grid; max-width: 100%; }
+    .address-controls { display: inline-flex; align-items: center; gap: 6px; }
+    .address-controls code { white-space: nowrap; }
+    .hex-middle { display: inline-block; inline-size: 3ch; overflow: hidden; position: relative; text-indent: -9999px; vertical-align: bottom; }
+    .hex-ellipsis::after { content: "..."; position: absolute; inset-inline-start: 0; text-indent: 0; }
+    .copy-address { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; padding: 5px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); color: var(--muted); cursor: pointer; }
+    .copy-address svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+    .copy-address:disabled { cursor: progress; }
+    .copy-recovery { display: block; max-width: 28rem; margin-top: 8px; }
+    .copy-recovery input { display: block; box-sizing: border-box; width: 100%; font: .85rem monospace; padding: 8px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    :focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) { .contracts > div { grid-template-columns: minmax(0, 1fr); gap: 4px; } .deployment { padding: 20px 16px; } }
+    @media (pointer: coarse) { .copy-address { width: 44px; height: 44px; } }
+  </style>
+<script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("dapp32-theme")
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute("data-theme")
+      }
+    })()
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="topbar"><div class="shell">
+    <a class="brand" href="../">dapp32</a>
+    <nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="./" aria-current="page">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
+        <span class="theme-sun" aria-hidden="true">☀</span>
+        <span class="theme-moon" aria-hidden="true">☾</span>
+      </button>
+  </div></div>
+  <header class="shell document-header">
+    <h1>Deployments</h1>
+  </header>
+  <main id="main" class="shell document">
+    <nav id="deployment-jump" class="deployment-jump" aria-label="Listed deployments" hidden></nav>
+    <p id="load-status" role="status">Loading deployments…</p>
+    <button id="retry" class="button" type="button" hidden>Retry loading</button>
+    <div id="deployments" class="deployment-list"></div>
+    <noscript><p>Enable JavaScript to show the deployments, or open the <a href="deployments.json">deployment data</a>.</p></noscript>
+    <p class="sources">Sources: <a href="deployments.json">deployment data</a> · <a href="../deployment/networks/">RPC network catalog</a>.</p>
+  </main>
+  <script type="module" src="deployments.js"></script>
+<script>
+    (function () {
+      var key = "dapp32-theme"
+      var button = document.getElementById("theme-toggle")
+      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+      if (!button) return
+
+      function storedTheme() {
+        try {
+          var value = localStorage.getItem(key)
+          return value === "light" || value === "dark" ? value : null
+        } catch (error) {
+          return null
+        }
+      }
+
+      function applyTheme(value) {
+        document.documentElement.dataset.theme = value
+        try {
+          localStorage.setItem(key, value)
+        } catch (error) {
+          return
+        }
+      }
+
+      function effectiveTheme() {
+        return storedTheme() || (systemTheme.matches ? "dark" : "light")
+      }
+
+      function updateButton() {
+        var currentTheme = effectiveTheme()
+        var nextTheme = currentTheme === "dark" ? "light" : "dark"
+        button.dataset.themeState = currentTheme
+        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
+        button.setAttribute("title", "Switch to " + nextTheme + " mode")
+      }
+
+      button.addEventListener("click", function () {
+        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
+        updateButton()
+      })
+
+      systemTheme.addEventListener("change", function () {
+        if (!storedTheme()) updateButton()
+      })
+
+      updateButton()
+    })()
+  </script>
+</body>
+</html>
