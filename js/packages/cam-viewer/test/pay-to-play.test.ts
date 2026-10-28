@@ -105,7 +105,7 @@ test("empty numeric actions identify their own fields before any RPC, while expl
     assert(action)
     const before = readCalls.length
     for (let retry = 0; retry < 2; retry++) {
-      await assert.rejects(() => session.dispatchAction({ ...action, directStateBindings: {} }), error => {
+      await assert.rejects(() => session.dispatchAction({ ...action, directStateBindings: {}, stateDependencies: [] }), error => {
         assert(error instanceof CamViewerInputError)
         assert(!Object.keys(error).includes("snapshot"), "exception logging must not enumerate form contents")
         assert.equal(error.snapshot.state[field], null)

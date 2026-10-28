@@ -6,6 +6,7 @@ import { editAmountDraft, projectAmountDraft, sameAmountUnit } from "./amount.ts
 import { editIntegerDraft, projectIntegerDraft, integerBound, compareUnsignedDigits } from "./numeric.ts"
 import {
   createStringMap,
+  collectExpressionReferences,
   hasOwn,
   isAbiAddressValue,
   isExpressionIdentifier,
@@ -538,12 +539,17 @@ function resolveAction(node: ButtonNode, context: UiRuntimeContext, path: string
     const reference = parseExpressionReference(value, { numericSegments: true })
     if (reference?.root === "state" && reference.segments.length === 1) directStateBindings[input] = reference.segments[0]!
   }
+  const stateDependencies = new Set<string>()
+  for (const { reference } of collectExpressionReferences(node.call.args, { numericSegments: true })) {
+    if (reference?.root === "state" && reference.segments.length === 1) stateDependencies.add(reference.segments[0]!)
+  }
   return {
     element: "Button",
     ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`),
     props: resolveProps(node.element, node.props, context, `${path}.props`),
     call: resolveCall(node.call, context, `${path}.call`),
     ...(Object.keys(directStateBindings).length === 0 ? {} : { directStateBindings }),
+    ...(stateDependencies.size === 0 ? {} : { stateDependencies: [...stateDependencies] }),
   }
 }
 

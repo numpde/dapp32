@@ -54,6 +54,19 @@ test("rendered actions retain only their own direct state bindings through Inclu
   assert.deepEqual(toInertValue(JSON.parse(JSON.stringify(action))), toInertValue(action))
 })
 
+test("action input dependencies include nested arguments without guessing from equal values", () => {
+  const ui = parseUi({ ui: UI_VERSION, nodes: { app: {
+    requires: [], element: "Button", props: { label: "Create" }, call: {
+      namespace: "routes", function: "create", args: { params: {
+        amount: "$state.amount", parts: ["$state.duration", "$state.amount", "$$state.literal"], other: null,
+      } },
+    },
+  } } })
+  const action = resolvedUiButtons(resolveUiNode(ui, "app", {}, { ...context, state: { amount: null, duration: null, unrelated: null } }))[0]!
+  assert.equal(action.directStateBindings, undefined, "generation tools retain their top-level binding contract")
+  assert.deepEqual(action.stateDependencies, ["amount", "duration"])
+})
+
 test("NonNegativeIntegerField keeps one exact canonical integer while preserving declared lexical defaults", () => {
   for (const value of ["", "0", "0000", "00042", "9007199254740993", "18446744073709551615", (2n ** 256n - 1n).toString()]) {
     const ui = parseUi({ ui: UI_VERSION, nodes: { counter: {
@@ -308,20 +321,20 @@ function amountFieldUi(defaultValue: unknown) {
 }
 
 test("Status value labels preserve exact raw facts and reject unknown states", () => {
-  const declaration = (value: unknown, valueLabels: unknown, extra = {}) => ({ ui: UI_VERSION, nodes: {
+  const declaration = (value: unknown, valueLabels: unknown, extra: Record<string, unknown>) => ({ ui: UI_VERSION, nodes: {
     app: { requires: [], element: "Status", props: { label: "State", value, valueLabels, ...extra } },
   } })
   for (const [value, text] of [["0", "Operating"], [1, "Settling"], [false, "No"]] as const) {
-    const node = resolveUiNode(parseUi(declaration(value, { "0": "Operating", "1": "Settling", false: "No" })), "app", {}, context)
+    const node = resolveUiNode(parseUi(declaration(value, { "0": "Operating", "1": "Settling", false: "No" }, {})), "app", {}, context)
     assert.equal(node.element, "Status")
     assert.equal("formattedValue" in node && node.formattedValue, text)
     assert.equal(node.props.value, value)
   }
   for (const value of ["2", "toString", "01", null, [], {}, 1.5]) {
-    assert.throws(() => resolveUiNode(parseUi(declaration(value, { "0": "Operating" })), "app", {}, context), UiError)
+    assert.throws(() => resolveUiNode(parseUi(declaration(value, { "0": "Operating" }, {})), "app", {}, context), UiError)
   }
   for (const labels of [{}, [], "$view.labels", { "0": "" }, { "0": "$view.name" }, { "0": 1 }]) {
-    assert.throws(() => parseUi(declaration("0", labels)), UiError)
+    assert.throws(() => parseUi(declaration("0", labels, {})), UiError)
   }
   assert.throws(() => parseUi(declaration("0", { "0": "Operating" }, { format: "bytes" })), UiError)
 })

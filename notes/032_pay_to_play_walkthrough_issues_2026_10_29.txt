@@ -34,8 +34,9 @@ P2: make repeated and channel-specific tasks understandable and usable.
 P3: improve navigation and routine input ergonomics.
 
 Items retain the original finding numbers so earlier references remain usable.
-Shared work has one owner in the Escrow checklist; cross-references below are
-integration requirements, not separate implementations. Check a task only after
+Shared findings refer back to the Escrow note; their code belongs to shared
+viewer owners. Cross-references are integration requirements, not separate
+implementations. Check a task only after
 its behavior is implemented and verified in the rendered app. The audit evidence
 below establishes the starting problems, not completion of these tasks.
 
@@ -326,21 +327,23 @@ overflow. This is not rendered proof of all three live recovery phases.
 Implementation update — required numeric fields
 ------------------------------------------------
 The shared session now marks an empty numeric field only when the attempted
-action directly uses it. Amount, integer and duration editors show an invalid
+action’s authored arguments reference it, including nested objects and arrays. Amount, integer and duration editors show an invalid
 border with an associated hidden required reason. Other empty fields remain
 neutral. Edits clear the marker; explicit zero remains valid. Validation uses
 the current rendered action, not caller-supplied binding metadata, and happens
-before navigation, write preparation or RPC. This covers direct state bindings,
-not arbitrary nested/aliased expression provenance.
+before navigation, write preparation or RPC. This covers explicit $state.field references, not Include-parameter aliases or
+inferred relationships between equal values. Generation tools retain their
+separate top-level binding metadata unchanged.
 
-Proof: make js/tests passed 1,023 tests, including repeated missing-input
+Proof: make js/tests passed 1,026 tests, including nested argument references,
+refresh staging, repeated missing-input
 attempts, unchanged RPC counts, forged association metadata, zero and the
 existing parser/IME/history suites. Direct Chromium checks on disposable port
 5294 exercised all three editor types, editing to zero, a simulated zero deposit
 (discarded, not sent), status on balance/recovery and narrow amount layout.
 The rendered required amount border was red; the unrelated withdrawal editor
-remained neutral; narrow width had no horizontal overflow. No QA transaction
-was sent.
+remained neutral; narrow width had no horizontal overflow. No application transaction
+was sent during these focused checks.
 
 The maintained Pay-to-Play browser campaign has new empty-deposit/status
 assertions, but did not reach them: attempts stopped in shared startup/clipboard
@@ -358,3 +361,42 @@ Generic decoded events alone would expose a positive payment or actual created
 ID, but would not establish semantic zero payment, current-payee preview or
 a receipt-bound Open channel action. Never substitute a simulated ID or a
 post-transaction balance comparison for authoritative execution evidence.
+
+Local viewer refresh
+--------------------
+Editing CAM resources exposed a local lifecycle gap: an older running viewer
+cannot parse a new UI-profile feature, while restarting the full demo would
+redeploy contracts. Added one shared refresh implementation with app-scoped
+<app>/local/demo/gui/refresh targets for Bike, Escrow and Pay-to-Play.
+Use the same project name and GUI settings used to start the demo, then reload
+the browser after the build. The operation executes in the existing viewer,
+restages source while preserving directory inodes and node_modules, builds
+packages through the existing graph gate, and triggers Vite's internal env-file
+reload. Stale staged files are removed. Source updates are not atomic; a failed
+build remains an operator error to fix and retry.
+
+Pay-to-Play live proof: the original port-5194 app rendered readable Operating
+status after refresh, with chain height still 32 and payment custody still
+100 wei. No contract deployment, binding or payment transaction occurred.
+The original manifest hash remains on chain, so the warning about changed local
+resource bytes remains accurate; refresh does not rewrite publication authority.
+Ordinary fresh staging and all 1,026 JS tests passed after the helper changes.
+A maintained real-helper regression checks the preserved viewer-directory inode,
+unchanged node_modules, removed stale source/build files and unnested sources.
+An invalid GUI origin was rejected before container execution.
+
+Escrow cross-app proof: refreshed its existing viewer, reproduced the original
+technical error for nested tuple inputs, then verified the corrected amount and
+duration required reasons in the real creation form. No review was prepared or
+transaction sent. Returned to accountCredit with credit still 1000000000000000
+wei and chain height still 19. The disposable QA project/tab/wallet were removed;
+both original walkthrough projects remain running. Bike refresh has the same
+shared implementation and rendered Make recipe, but no separate live Bike
+refresh campaign was run.
+
+Final source gate: make tests/checks ran 518 tests with seven preexisting
+failures. Compared every failure identity and its underlying findings against
+the earlier detailed baseline, ignoring line numbers and set ordering: no new
+findings remain. The source gate itself is not green; unrelated prior work and
+its known failures were preserved. The full browser campaign remains limited
+by its shared clipboard fixture as described above.

@@ -12,7 +12,7 @@ import {
   createCamViewerSession,
   viewerErrorMessage,
 } from "../src/index.ts"
-import { CamViewerError } from "../src/errors.ts"
+import { CamViewerError, CamViewerInputError } from "../src/errors.ts"
 import type {
   CamHost,
   CamPublicClient,
@@ -926,7 +926,7 @@ test("integer direct patches normalize exact values and never retain the previou
     const action = resolvedUiButtons(invalid.resolvedUi).find((button) => button.call.function === "payment")
     assert.ok(action)
     await assert.rejects(() => session.dispatchAction(action),
-      (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+      (error: unknown) => text === "" ? error instanceof CamViewerInputError : error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
   }
 })
 
@@ -1671,6 +1671,26 @@ function amountEditingSession(decimals: number, defaultValue?: string, disabled?
     } }, state: { key: "amount", defaultValue: initialAmount }, ...(disabled === true ? { enabledWhen: { member: "pay", in: [] } } : {}),
   })
 }
+
+test("required amounts nested in tuple arguments fail locally, survive refresh and accept explicit zero", async () => {
+  const { session, publicClient } = amountEditingSession(18, "")
+  const opened = await session.load()
+  const action = resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === "payment")!
+  assert.equal(action.directStateBindings, undefined)
+  assert.deepEqual(action.stateDependencies, ["amount"])
+  const readsBefore = publicClient.calls.length
+  await assert.rejects(() => session.dispatchAction({ ...action, stateDependencies: [] }), error => {
+    assert(error instanceof CamViewerInputError)
+    assert.equal(amountDraft(error.snapshot).issue, "required")
+    assert.equal(error.snapshot.state.amount, null)
+    return true
+  })
+  assert.equal(publicClient.calls.length, readsBefore)
+  assert.equal(amountDraft(await session.refresh()).issue, "required")
+  const valid = editAmount(session, "base", "0")
+  assert.equal(amountDraft(valid).status, "valid")
+  assert.equal((await session.dispatchAction(resolvedUiButtons(valid.resolvedUi).find(button => button.call.function === "payment")!)).type, "contractCall")
+})
 
 function editAmount(session: ReturnType<typeof createSession>, representation: "base" | "display", text: string, options?: { composing?: boolean }): CamViewerLoadedSnapshot {
   return session.editAmount("amount", representation, text, options)

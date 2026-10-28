@@ -280,6 +280,8 @@ export type ResolvedButtonNode = {
   readonly call: ResolvedUiCall
   /** Non-authoritative provenance for generation tools; only direct state references, not Include parameter flow. */
   readonly directStateBindings?: Readonly<Record<string, string>>
+  /** Authored state references in arguments, including tuples/arrays; excludes Include parameter flow. */
+  readonly stateDependencies?: readonly string[]
 }
 
 export type ResolvedUiCall = {

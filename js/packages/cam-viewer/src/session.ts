@@ -429,7 +429,8 @@ export function createCamViewerSession({
   }
 
   function requireActionInputs(view: CurrentView, action: ResolvedButtonNode): void {
-    const bindings = new Set(Object.values(action.directStateBindings ?? {}))
+    if (action.stateDependencies === undefined) return
+    const bindings = new Set(action.stateDependencies)
     const numericDrafts = { ...view.numericDrafts }
     const missing: string[] = []
     forEachResolvedUiNode(view.resolvedUi, node => {
