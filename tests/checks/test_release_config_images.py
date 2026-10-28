@@ -39,16 +39,17 @@ docker() {
   shift 4
   local image observed_id observed_source entrypoint owner
   for image in "$@"; do
+    if [[ "$DISCOVERY_FAULT" == unrelated-failure && "$image" != "$SAVED_IMAGE" ]]; then return 1; fi
     observed_id="$image"; observed_source="$TOOL_SOURCE"; owner=operator
     entrypoint='["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]'
     if [[ "$image" == "sha256:$(printf 'b%.0s' {1..64})" ]]; then entrypoint='["node","unrelated.js"]'; fi
     if [[ "$image" == "sha256:$(printf 'c%.0s' {1..64})" ]]; then observed_source=not-a-commit; fi
     if [[ "$image" == "sha256:$(printf 'd%.0s' {1..64})" ]]; then
       owner=cam-rehearsal-fixture
-      if [[ "$DISCOVERY_FAULT" == unknown-id ]]; then observed_id="sha256:$(printf 'e%.0s' {1..64})"; fi
     fi
+    if [[ "$DISCOVERY_FAULT" == unknown-id && "$image" == "$SAVED_IMAGE" ]]; then observed_id="sha256:$(printf 'e%.0s' {1..64})"; fi
     printf '%s\t%s\t%s\t%s\n' "$observed_id" "$observed_source" "$entrypoint" "$owner"
-    if [[ "$DISCOVERY_FAULT" == batch-failure ]]; then return 1; fi
+    if [[ "$DISCOVERY_FAULT" == inspect-failure ]]; then return 1; fi
   done
 }
 '''
@@ -63,8 +64,8 @@ class ReleaseConfigImagesTest(unittest.TestCase):
                  "IMAGE_MISSING": str(int(missing)), "DISCOVERY_FAULT": "none", "RELEASE_APPROVAL_IMAGE": "sha256:" + "f" * 64},
         )
 
-    def test_installed_image_discovery_needs_no_input_and_filters_exact_metadata(self):
-        for fault in ("none", "list-failure", "batch-failure", "unknown-id", "empty"):
+    def test_saved_image_lookup_needs_no_input_and_checks_exact_metadata(self):
+        for fault in ("none", "list-failure", "inspect-failure", "unknown-id", "empty"):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 result = self.run_shell(root, 'DISCOVERY_FAULT=' + fault + '\n' + r'''
@@ -82,10 +83,35 @@ touch "$CASE_ROOT/continued"
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertEqual(f"{IMAGE}\n", (root / "stage/approval-image").read_text())
                 inspected = (root / "inspections").read_text().splitlines()
-                self.assertEqual(1, len(inspected), "Discover metadata in one batch instead of one Docker invocation per image")
-                self.assertEqual({"sha256:" + byte * 64 for byte in "abcd"}, set(inspected[0].split("\t")[-4:]))
+                self.assertEqual([IMAGE], inspected[0].split("\t")[1:])
                 self.assertNotIn("unrelated.js", result.stdout + result.stderr)
                 self.assertNotIn("record file", result.stdout + result.stderr)
+
+    def test_unrelated_image_inspection_cannot_block_the_saved_pin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            result = self.run_shell(root, r'''
+DISCOVERY_FAULT=unrelated-failure
+release_config_dir="$CASE_ROOT/stage"
+mkdir "$release_config_dir"
+release_config_prepare_approval_images "$SAVED_IMAGE"
+''', missing=False)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(IMAGE + "\n", (root / "stage/approval-image").read_text())
+
+    def test_saved_image_must_have_approval_entrypoint_and_source_identity(self):
+        for byte in ("b", "c"):
+            with self.subTest(image=byte), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                result = self.run_shell(root, 'SAVED_IMAGE=sha256:' + byte * 64 + '\n' + r'''
+release_config_dir="$CASE_ROOT/stage"
+mkdir "$release_config_dir"
+release_config_prepare_approval_images "$SAVED_IMAGE"
+touch "$CASE_ROOT/continued"
+''', missing=False)
+                self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                self.assertFalse((root / "continued").exists())
+                self.assertFalse((root / "stage/approval-image").exists())
 
     def test_saved_operation_cannot_substitute_current_tooling_for_its_missing_image(self):
         with tempfile.TemporaryDirectory() as temporary:

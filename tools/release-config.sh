@@ -111,20 +111,18 @@ require_release_local_network() {
 }
 
 release_config_prepare_approval_images() {
-  local pinned="" inventory image revision output network=""
+  local pinned="" image output network=""
   if [[ -f "$release_config_dir/approval-network" ]]; then
     read -r network < "$release_config_dir/approval-network"
   fi
   if [[ $# == 1 ]]; then pinned="$1"; fi
   source tools/release_approval_images.sh
   if [[ -n "$pinned" ]]; then
-    inventory=$(release_approval_installed_images "$pinned" "$network") || return
-    while IFS=$'\t' read -r image revision; do
-      if [[ "$image" == "$pinned" ]]; then
-        printf '%s\n' "$image" > "$release_config_dir/approval-image"
-        return 0
-      fi
-    done <<< "$inventory"
+    image=$(release_approval_pinned_image "$pinned" "$network") || return
+    if [[ "$image" == "$pinned" ]]; then
+      printf '%s\n' "$image" > "$release_config_dir/approval-image"
+      return 0
+    fi
   fi
   if [[ -n "$pinned" && -f "$release_config_dir/retained-source" ]]; then
     printf 'This operation requires approval image %s, which is not available to this operation. Restore that exact image to resume signing. Rehearsal images must match the selected local network. Keyless verification remains available; starting a separate operation may create additional contracts.\n' "$pinned" >&2

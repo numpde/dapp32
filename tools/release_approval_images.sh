@@ -5,9 +5,8 @@ release_approval_is_entrypoint() {
   [[ "$1" == '["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]' ]]
 }
 
-release_approval_installed_images() {
+release_approval_pinned_image() {
   local pinned="$1" network="$2" image_list image_id observations observed_id tool_source entrypoint owner
-  local -a image_ids=()
   if ! image_list="$(docker image ls --all --filter label=org.opencontainers.image.revision --no-trunc --quiet)"; then
     printf '%s\n' 'Cannot discover installed approval-tool images: Docker image listing failed.' >&2
     return 2
@@ -18,26 +17,23 @@ release_approval_installed_images() {
       printf '%s\n' 'Docker image listing returned an invalid image ID.' >&2
       return 2
     fi
-    image_ids+=("$image_id")
-  done < <(printf '%s\n' "$image_list" | sort -u)
-  if [[ "${#image_ids[@]}" -gt 0 ]]; then
-    if ! observations="$(docker image inspect --format '{{.Id}}{{printf "\t"}}{{index .Config.Labels "org.opencontainers.image.revision"}}{{printf "\t"}}{{json (index .Config "Entrypoint")}}{{printf "\t"}}{{index .Config.Labels "io.cam.approval-owner"}}' "${image_ids[@]}")"; then
-      printf '%s\n' 'Cannot inspect the local image inventory; Docker batch inspection failed.' >&2
+    if [[ "$image_id" != "$pinned" ]]; then continue; fi
+    if ! observations="$(docker image inspect --format '{{.Id}}{{printf "\t"}}{{index .Config.Labels "org.opencontainers.image.revision"}}{{printf "\t"}}{{json (index .Config "Entrypoint")}}{{printf "\t"}}{{index .Config.Labels "io.cam.approval-owner"}}' "$image_id")"; then
+      printf '%s\n' 'Cannot inspect the saved approval-tool image; Docker inspection failed.' >&2
       return 2
     fi
     while IFS=$'\t' read -r observed_id tool_source entrypoint owner; do
-      if [[ ! "$observed_id" =~ ^sha256:[0-9a-f]{64}$ || " ${image_ids[*]} " != *" $observed_id "* ]]; then
-        printf '%s\n' 'Docker inspection returned an image ID outside the requested inventory.' >&2
+      if [[ "$observed_id" != "$pinned" ]]; then
+        printf '%s\n' 'Docker inspection returned an image ID different from the saved pin.' >&2
         return 2
       fi
       if [[ ! "$tool_source" =~ ^[0-9a-f]{40}$ ]]; then continue; fi
       if ! release_approval_is_entrypoint "$entrypoint"; then continue; fi
-      if [[ "$owner" != operator && "$owner" != '<no value>' && -n "$owner" ]]; then
-        if [[ "$observed_id" != "$pinned" || "$network" != "$owner-rehearsal" ]]; then continue; fi
-      fi
-      printf '%s\t%s\n' "$observed_id" "$tool_source"
+      if [[ "$owner" != operator && "$owner" != '<no value>' && -n "$owner" && "$network" != "$owner-rehearsal" ]]; then continue; fi
+      printf '%s\n' "$observed_id"
     done <<< "$observations"
-  fi
+    return 0
+  done <<< "$image_list"
 }
 
 release_approval_build_image() {
