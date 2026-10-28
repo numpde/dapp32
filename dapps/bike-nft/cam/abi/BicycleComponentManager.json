@@ -1,1886 +1,1886 @@
 [
   {
-    "type": "constructor",
     "inputs": [
       {
+        "internalType": "address",
         "name": "admin",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "uint48",
         "name": "adminDelay",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       },
       {
+        "internalType": "address",
         "name": "componentsAddress_",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "constructor"
   },
   {
-    "type": "fallback",
-    "stateMutability": "payable"
+    "stateMutability": "payable",
+    "type": "fallback"
   },
   {
-    "type": "receive",
-    "stateMutability": "payable"
+    "stateMutability": "payable",
+    "type": "receive"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "CAP_CLEAR_MISSING",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint64",
         "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "CAP_MARK_MISSING",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint64",
         "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "CAP_UPDATE_METADATA",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint64",
         "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "CONFIGURER_ROLE",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "bytes32",
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "DEFAULT_ADMIN_ROLE",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "bytes32",
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "DEFAULT_MAX_DELEGATION_DURATION",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint48",
         "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "PAUSER_ROLE",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "bytes32",
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "REGISTRAR_ROLE",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "bytes32",
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "VALID_CAPABILITY_MASK",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint64",
         "name": "",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "acceptDefaultAdminTransfer",
-    "inputs": [],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "accountInfo",
     "inputs": [
       {
+        "internalType": "address",
         "name": "account",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
     ],
+    "name": "accountInfo",
     "outputs": [
       {
+        "internalType": "string",
         "name": "",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "beginDefaultAdminTransfer",
     "inputs": [
       {
+        "internalType": "address",
         "name": "newAdmin",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
     ],
+    "name": "beginDefaultAdminTransfer",
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "canClearMissing",
-    "inputs": [
-      {
-        "name": "actor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "canMarkMissing",
-    "inputs": [
-      {
-        "name": "actor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
+      }
+    ],
     "name": "canRegister",
-    "inputs": [
-      {
-        "name": "actor",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "canUpdateMetadata",
-    "inputs": [
-      {
-        "name": "actor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "cancelDefaultAdminTransfer",
     "inputs": [],
+    "name": "cancelDefaultAdminTransfer",
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "changeDefaultAdminDelay",
     "inputs": [
       {
+        "internalType": "uint48",
         "name": "newDelay",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
+    "name": "changeDefaultAdminDelay",
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "clearComponentMissing",
     "inputs": [
       {
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       },
       {
+        "internalType": "string",
         "name": "resolutionURI",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       }
     ],
+    "name": "clearComponentMissing",
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "componentBySerial",
     "inputs": [
       {
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       }
     ],
+    "name": "componentBySerial",
     "outputs": [
       {
-        "name": "view_",
-        "type": "tuple",
-        "internalType": "struct IBicycleComponentManagerView.ComponentView",
         "components": [
           {
+            "internalType": "bool",
             "name": "exists",
-            "type": "bool",
-            "internalType": "bool"
+            "type": "bool"
           },
           {
+            "internalType": "bytes32",
             "name": "serialHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "type": "bytes32"
           },
           {
+            "internalType": "address",
             "name": "tokenContract",
-            "type": "address",
-            "internalType": "address"
+            "type": "address"
           },
           {
+            "internalType": "uint256",
             "name": "tokenId",
-            "type": "uint256",
-            "internalType": "uint256"
+            "type": "uint256"
           },
           {
+            "internalType": "address",
             "name": "owner",
-            "type": "address",
-            "internalType": "address"
+            "type": "address"
           },
           {
+            "internalType": "address",
             "name": "registrar",
-            "type": "address",
-            "internalType": "address"
+            "type": "address"
           },
           {
+            "internalType": "enum IBicycleComponentManagerView.ComponentStatus",
             "name": "status",
-            "type": "uint8",
-            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+            "type": "uint8"
           },
           {
+            "internalType": "string",
             "name": "tokenURI",
-            "type": "string",
-            "internalType": "string"
+            "type": "string"
           },
           {
+            "internalType": "string",
             "name": "missingReportURI",
-            "type": "string",
-            "internalType": "string"
+            "type": "string"
           },
           {
+            "internalType": "uint48",
             "name": "registeredAt",
-            "type": "uint48",
-            "internalType": "uint48"
+            "type": "uint48"
           },
           {
+            "internalType": "uint48",
             "name": "updatedAt",
-            "type": "uint48",
-            "internalType": "uint48"
+            "type": "uint48"
           },
           {
+            "internalType": "string",
             "name": "serialNumber",
-            "type": "string",
-            "internalType": "string"
+            "type": "string"
           }
-        ]
+        ],
+        "internalType": "struct IBicycleComponentManagerView.ComponentView",
+        "name": "view_",
+        "type": "tuple"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "delegate",
+        "type": "address"
+      }
+    ],
     "name": "componentDelegation",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "delegate",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "address",
         "name": "grantor",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "uint64",
         "name": "capabilities",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       },
       {
+        "internalType": "uint48",
         "name": "validUntil",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       },
       {
+        "internalType": "bool",
         "name": "active",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "serialHash",
+        "type": "bytes32"
+      }
+    ],
     "name": "componentRecord",
-    "inputs": [
-      {
-        "name": "serialHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "exists",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       },
       {
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "uint256",
         "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint256"
       },
       {
+        "internalType": "address",
         "name": "registrar",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus",
         "name": "status",
-        "type": "uint8",
-        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+        "type": "uint8"
       },
       {
+        "internalType": "uint48",
         "name": "registeredAt",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       },
       {
+        "internalType": "uint48",
         "name": "updatedAt",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       },
       {
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "componentStatus",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus",
         "name": "",
-        "type": "uint8",
-        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+        "type": "uint8"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "componentTokenPaused",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "componentURI",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "string",
         "name": "",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "componentsAddress",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "address",
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "decommissionComponent",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "defaultAdmin",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "address",
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "defaultAdminDelay",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint48",
         "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "defaultAdminDelayIncreaseWait",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint48",
         "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      }
+    ],
     "name": "getRoleAdmin",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bytes32",
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
     "name": "grantRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
     "name": "hasRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "inactiveStatus",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "isRegistered",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "reportURI",
+        "type": "string"
+      }
+    ],
     "name": "markComponentMissing",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "reportURI",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "maxDelegationDuration",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint48",
         "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "missingStatus",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "owner",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "address",
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "ownerOf",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "address",
         "name": "",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "pause",
-    "inputs": [],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "paused",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "pendingDefaultAdmin",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "address",
         "name": "newAdmin",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "uint48",
         "name": "schedule",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "pendingDefaultAdminDelay",
-    "inputs": [],
     "outputs": [
       {
+        "internalType": "uint48",
         "name": "newDelay",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       },
       {
+        "internalType": "uint48",
         "name": "schedule",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "permissionsOf",
-    "inputs": [
-      {
-        "name": "actor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "uint64",
         "name": "capabilities",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "reactivateComponent",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "tokenURI_",
+        "type": "string"
+      }
+    ],
     "name": "registerComponent",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "tokenURI_",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "uint256",
         "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint256"
       }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
     "name": "renounceRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "delegate",
+        "type": "address"
+      }
+    ],
     "name": "revokeComponentDelegate",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "delegate",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
     "name": "revokeRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "rollbackDefaultAdminDelay",
-    "inputs": [],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "serialHashOf",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "bytes32",
         "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "pure",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "infoURI",
+        "type": "string"
+      }
+    ],
     "name": "setAccountInfo",
-    "inputs": [
-      {
-        "name": "infoURI",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      },
+      {
+        "internalType": "address",
+        "name": "delegate",
+        "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "capabilities",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint48",
+        "name": "validUntil",
+        "type": "uint48"
+      }
+    ],
     "name": "setComponentDelegate",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "delegate",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "capabilities",
-        "type": "uint64",
-        "internalType": "uint64"
-      },
-      {
-        "name": "validUntil",
-        "type": "uint48",
-        "internalType": "uint48"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "setComponentMetadata",
     "inputs": [
       {
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       },
       {
+        "internalType": "string",
         "name": "tokenURI_",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       }
     ],
+    "name": "setComponentMetadata",
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenContract",
+        "type": "address"
+      }
+    ],
     "name": "setComponentsAddress",
-    "inputs": [
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "setMaxDelegationDuration",
     "inputs": [
       {
+        "internalType": "uint48",
         "name": "duration",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
+    "name": "setMaxDelegationDuration",
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "supportsInterface",
     "inputs": [
       {
+        "internalType": "bytes4",
         "name": "interfaceId",
-        "type": "bytes4",
-        "internalType": "bytes4"
+        "type": "bytes4"
       }
     ],
+    "name": "supportsInterface",
     "outputs": [
       {
+        "internalType": "bool",
         "name": "",
-        "type": "bool",
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      }
+    ],
     "name": "tokenIdOf",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
     "outputs": [
       {
+        "internalType": "uint256",
         "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint256"
       }
     ],
-    "stateMutability": "pure"
+    "stateMutability": "pure",
+    "type": "function"
   },
   {
-    "type": "function",
-    "name": "tokenReference",
     "inputs": [
       {
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
+        "type": "string"
       }
     ],
+    "name": "tokenReference",
     "outputs": [
       {
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "uint256",
         "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint256"
       }
     ],
-    "stateMutability": "view"
+    "stateMutability": "view",
+    "type": "function"
   },
   {
-    "type": "function",
+    "inputs": [],
     "name": "unpause",
-    "inputs": [],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "function"
   },
   {
-    "type": "event",
-    "name": "AccountInfoSet",
+    "anonymous": false,
     "inputs": [
       {
-        "name": "account",
-        "type": "address",
         "indexed": true,
-        "internalType": "address"
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "infoURI",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       }
     ],
-    "anonymous": false
+    "name": "AccountInfoSet",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "ComponentDelegationSet",
+    "anonymous": false,
     "inputs": [
       {
-        "name": "serialHash",
-        "type": "bytes32",
         "indexed": true,
-        "internalType": "bytes32"
+        "internalType": "bytes32",
+        "name": "serialHash",
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "grantor",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "delegate",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       },
       {
+        "indexed": false,
+        "internalType": "uint64",
         "name": "capabilities",
-        "type": "uint64",
-        "indexed": false,
-        "internalType": "uint64"
+        "type": "uint64"
       },
       {
-        "name": "validUntil",
-        "type": "uint48",
         "indexed": false,
-        "internalType": "uint48"
+        "internalType": "uint48",
+        "name": "validUntil",
+        "type": "uint48"
       }
     ],
-    "anonymous": false
+    "name": "ComponentDelegationSet",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "ComponentLifecycleUpdated",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "serialHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "owner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "bool",
         "name": "inactive",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
+        "type": "bool"
       }
     ],
-    "anonymous": false
+    "name": "ComponentLifecycleUpdated",
+    "type": "event"
   },
   {
-    "type": "event",
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "serialHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "tokenContract",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "serialNumber",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "tokenURI",
+        "type": "string"
+      }
+    ],
     "name": "ComponentMetadataUpdated",
-    "inputs": [
-      {
-        "name": "serialHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "actor",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "tokenURI",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "ComponentRegistered",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "serialHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "uint256",
         "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
+        "type": "uint256"
       },
       {
+        "indexed": false,
+        "internalType": "address",
         "name": "owner",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "address",
         "name": "registrar",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "tokenURI",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       }
     ],
-    "anonymous": false
+    "name": "ComponentRegistered",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "ComponentReportResolved",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "serialHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "resolver",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "uint256",
         "name": "tokenId",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        "type": "uint256"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "resolutionURI",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       }
     ],
-    "anonymous": false
+    "name": "ComponentReportResolved",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "ComponentReported",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "serialHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "reporter",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "uint256",
         "name": "tokenId",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        "type": "uint256"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "reportURI",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       }
     ],
-    "anonymous": false
+    "name": "ComponentReported",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "ComponentStatusUpdated",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "serialHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "uint256",
         "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
+        "type": "uint256"
       },
       {
-        "name": "actor",
-        "type": "address",
         "indexed": false,
-        "internalType": "address"
+        "internalType": "address",
+        "name": "actor",
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "string",
         "name": "serialNumber",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
+        "type": "string"
       },
       {
+        "indexed": false,
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus",
         "name": "oldStatus",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+        "type": "uint8"
       },
       {
+        "indexed": false,
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus",
         "name": "newStatus",
-        "type": "uint8",
-        "indexed": false,
-        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+        "type": "uint8"
       }
     ],
-    "anonymous": false
+    "name": "ComponentStatusUpdated",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "ComponentsAddressSet",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "oldTokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "newTokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       }
     ],
-    "anonymous": false
+    "name": "ComponentsAddressSet",
+    "type": "event"
   },
   {
-    "type": "event",
+    "anonymous": false,
+    "inputs": [],
     "name": "DefaultAdminDelayChangeCanceled",
-    "inputs": [],
-    "anonymous": false
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "DefaultAdminDelayChangeScheduled",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint48",
         "name": "newDelay",
-        "type": "uint48",
-        "indexed": false,
-        "internalType": "uint48"
+        "type": "uint48"
       },
       {
+        "indexed": false,
+        "internalType": "uint48",
         "name": "effectSchedule",
-        "type": "uint48",
-        "indexed": false,
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "anonymous": false
+    "name": "DefaultAdminDelayChangeScheduled",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "DefaultAdminTransferCanceled",
+    "anonymous": false,
     "inputs": [],
-    "anonymous": false
+    "name": "DefaultAdminTransferCanceled",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "DefaultAdminTransferScheduled",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
         "name": "newAdmin",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "indexed": false,
+        "internalType": "uint48",
         "name": "acceptSchedule",
-        "type": "uint48",
-        "indexed": false,
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "anonymous": false
+    "name": "DefaultAdminTransferScheduled",
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "MaxDelegationDurationSet",
+    "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint48",
         "name": "oldDuration",
-        "type": "uint48",
-        "indexed": false,
-        "internalType": "uint48"
+        "type": "uint48"
       },
       {
+        "indexed": false,
+        "internalType": "uint48",
         "name": "newDuration",
-        "type": "uint48",
-        "indexed": false,
-        "internalType": "uint48"
+        "type": "uint48"
       }
     ],
-    "anonymous": false
+    "name": "MaxDelegationDurationSet",
+    "type": "event"
   },
   {
-    "type": "event",
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
     "name": "Paused",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "RoleAdminChanged",
+    "anonymous": false,
     "inputs": [
       {
-        "name": "role",
-        "type": "bytes32",
         "indexed": true,
-        "internalType": "bytes32"
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "previousAdminRole",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "type": "bytes32"
       },
       {
+        "indexed": true,
+        "internalType": "bytes32",
         "name": "newAdminRole",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
     ],
-    "anonymous": false
+    "name": "RoleAdminChanged",
+    "type": "event"
   },
   {
-    "type": "event",
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
     "name": "RoleGranted",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "sender",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
+    "type": "event"
   },
   {
-    "type": "event",
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
     "name": "RoleRevoked",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "sender",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
+    "type": "event"
   },
   {
-    "type": "event",
-    "name": "Unpaused",
+    "anonymous": false,
     "inputs": [
       {
-        "name": "account",
-        "type": "address",
         "indexed": false,
-        "internalType": "address"
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
       }
     ],
-    "anonymous": false
+    "name": "Unpaused",
+    "type": "event"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "AccessControlBadConfirmation",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "AccessControlEnforcedDefaultAdminDelay",
     "inputs": [
       {
+        "internalType": "uint48",
         "name": "schedule",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
-    ]
+    ],
+    "name": "AccessControlEnforcedDefaultAdminDelay",
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "AccessControlEnforcedDefaultAdminRules",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "AccessControlInvalidDefaultAdmin",
     "inputs": [
       {
+        "internalType": "address",
         "name": "defaultAdmin",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       }
-    ]
+    ],
+    "name": "AccessControlInvalidDefaultAdmin",
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "AccessControlUnauthorizedAccount",
     "inputs": [
       {
+        "internalType": "address",
         "name": "account",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "bytes32",
         "name": "neededRole",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
-    ]
+    ],
+    "name": "AccessControlUnauthorizedAccount",
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "serialHash",
+        "type": "bytes32"
+      }
+    ],
     "name": "ComponentAlreadyRegistered",
-    "inputs": [
-      {
-        "name": "serialHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ]
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "ComponentManagerMissingTokenRole",
     "inputs": [
       {
+        "internalType": "address",
         "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "bytes32",
         "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       }
-    ]
+    ],
+    "name": "ComponentManagerMissingTokenRole",
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "serialHash",
+        "type": "bytes32"
+      }
+    ],
     "name": "ComponentNotRegistered",
-    "inputs": [
-      {
-        "name": "serialHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ]
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenContract",
+        "type": "address"
+      }
+    ],
     "name": "ComponentsHasNoCode",
-    "inputs": [
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "tokenContract",
+        "type": "address"
+      }
+    ],
     "name": "ComponentsUnsupported",
-    "inputs": [
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "DoesNotAcceptPayments",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "EmptyLifecycleURI",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "EmptySerialNumber",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "EmptyTokenURI",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "EnforcedPause",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "ExpectedPause",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "InvalidCapabilityMask",
     "inputs": [
       {
+        "internalType": "uint64",
         "name": "capabilities",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       }
-    ]
+    ],
+    "name": "InvalidCapabilityMask",
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "InvalidDelegationExpiry",
     "inputs": [
       {
+        "internalType": "uint48",
         "name": "validUntil",
-        "type": "uint48",
-        "internalType": "uint48"
+        "type": "uint48"
       }
-    ]
+    ],
+    "name": "InvalidDelegationExpiry",
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "InvalidStatus",
     "inputs": [
       {
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus",
         "name": "status",
-        "type": "uint8",
-        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+        "type": "uint8"
       }
-    ]
+    ],
+    "name": "InvalidStatus",
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "SafeCastOverflowedUintDowncast",
     "inputs": [
       {
+        "internalType": "uint8",
         "name": "bits",
-        "type": "uint8",
-        "internalType": "uint8"
+        "type": "uint8"
       },
       {
+        "internalType": "uint256",
         "name": "value",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint256"
       }
-    ]
+    ],
+    "name": "SafeCastOverflowedUintDowncast",
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "TimestampOutOfRange",
     "inputs": [
       {
+        "internalType": "uint256",
         "name": "timestamp",
-        "type": "uint256",
-        "internalType": "uint256"
+        "type": "uint256"
       }
-    ]
+    ],
+    "name": "TimestampOutOfRange",
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "Unauthorized",
     "inputs": [
       {
+        "internalType": "address",
         "name": "actor",
-        "type": "address",
-        "internalType": "address"
+        "type": "address"
       },
       {
+        "internalType": "bytes32",
         "name": "serialHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "type": "bytes32"
       },
       {
+        "internalType": "uint64",
         "name": "requiredCapability",
-        "type": "uint64",
-        "internalType": "uint64"
+        "type": "uint64"
       }
-    ]
+    ],
+    "name": "Unauthorized",
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "UnknownFunction",
     "inputs": [
       {
+        "internalType": "bytes4",
         "name": "selector",
-        "type": "bytes4",
-        "internalType": "bytes4"
+        "type": "bytes4"
       }
-    ]
+    ],
+    "name": "UnknownFunction",
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "ZeroAddress",
-    "inputs": []
+    "type": "error"
   }
 ]

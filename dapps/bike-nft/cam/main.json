@@ -9,17 +9,17 @@
     "contracts.ICamRootOwnership": {
       "type": "contract",
       "abiURI": "./abi/ICamRootOwnership.json",
-      "integrity": "sha256:0xa33fcedfa63189578f590f027518c7690deccdc308cf13da073030e1d039427e"
+      "integrity": "sha256:0x7c3876efa534dc0329621312dda95c58535188475f56f1a1af4313cedfee5a0d"
     },
     "contracts.BicycleComponentManagerUI": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManagerUI.json",
-      "integrity": "sha256:0xd49b4cfd1f9bfb5fd9b3b02b36af1f1243ff696cfbd35acd9dc35cd688d89a03"
+      "integrity": "sha256:0xc9a39bb6265fc2c8b55c2d458f56b0c4d43a6b89eb9656cda4e6d2f490001080"
     },
     "contracts.BicycleComponentManager": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManager.json",
-      "integrity": "sha256:0xd606d2efaf24d73345d28130a3be5cd72fddc6ce16cdc4b5a22f90185d3094ad"
+      "integrity": "sha256:0x1181d95acd8589516f1938f460a70e5d34f502463e00ec01af1598d8409468df"
     },
     "routes": {
       "type": "routes"
@@ -27,12 +27,12 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x9230af0359866966bf823c582295cf6acca1b94a46d0354554413bb0a6454d47"
+      "integrity": "sha256:0x18fdb2bbfa1dc6bf40c369feb76ec4cced00745017a0c14986e57ef1ffabe8a6"
     },
     "contracts.BicycleComponents": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponents.json",
-      "integrity": "sha256:0xcce561123ad1fbd72e4e9bb5ac1019d0ec7b00147873b05abb0d2e1801056e53"
+      "integrity": "sha256:0x5200a7499f92e89027c331550625c32ce8225aac8a6f3f4c54a516db0ac8bbc0"
     }
   },
   "routes": {
@@ -139,7 +139,7 @@
         "function": "app",
         "args": {
           "view": {
-            "screen": "registry",
+            "screen": "$outputs.0.viewId",
             "task": "$outputs.0"
           }
         }
@@ -163,7 +163,7 @@
         "function": "app",
         "args": {
           "view": {
-            "screen": "registry",
+            "screen": "$outputs.0.viewId",
             "task": "$outputs.0"
           }
         }
@@ -187,7 +187,7 @@
         "function": "app",
         "args": {
           "view": {
-            "screen": "registry",
+            "screen": "$outputs.0.viewId",
             "task": "$outputs.0"
           }
         }
@@ -363,7 +363,7 @@
         "function": "app",
         "args": {
           "view": {
-            "screen": "registry",
+            "screen": "$outputs.0.viewId",
             "task": "$outputs.0"
           }
         }

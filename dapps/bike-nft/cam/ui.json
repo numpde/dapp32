@@ -1,46 +1,6 @@
 {
   "ui": "1.0.0",
   "nodes": {
-    "registry": {
-      "element": "Fragment",
-      "requires": [
-        "view"
-      ],
-      "children": [
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "$view.viewId",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Screen",
-          "props": {
-            "title": "Contract status"
-          },
-          "children": [
-            {
-              "element": "Status",
-              "props": {
-                "label": "Registry paused",
-                "value": "$view.paused"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Component token paused",
-                "value": "$view.componentTokenPaused"
-              }
-            }
-          ]
-        }
-      ]
-    },
     "deploymentHandovers": {
       "element": "Screen", "requires": ["view"], "props": {"title": "Deployment handovers"},
       "children": [
@@ -95,10 +55,45 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
+            "function": "contractStatus",
+            "args": {
+              "view": "$view.task"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
             "function": "$view.screen",
             "args": {
               "view": "$view.task"
             }
+          }
+        }
+      ]
+    },
+    "contractStatus": {
+      "element": "Screen",
+      "requires": [
+        "view"
+      ],
+      "props": {
+        "title": "Contract status"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Registry paused",
+            "value": "$view.paused"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Component token paused",
+            "value": "$view.componentTokenPaused"
           }
         }
       ]
