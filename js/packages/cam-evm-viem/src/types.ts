@@ -28,6 +28,7 @@ export type CamHost = {
 export type ResourceLoader = (uri: string) => Promise<Uint8Array>
 
 export type CamIntegrityWarning = {
+  readonly hashSource: "contract" | "manifest"
   readonly status: "mismatch" | "unverified"
   readonly uri: string
   readonly expectedHash: string

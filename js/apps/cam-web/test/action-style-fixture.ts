@@ -94,7 +94,7 @@ function render(): void {
     }),
     createElement(UiView, props),
     createElement(Feedback, { report: { message: "Ready to continue." }, kind: "status", className: "notice" }),
-    createElement(IntegrityWarnings, { warnings: [{ status: "unverified", uri: "https://example.test/manifest.json", expectedHash: `0x${"00".repeat(32)}`, actualHash: fixtureDigest }, { status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
+    createElement(IntegrityWarnings, { warnings: [{ hashSource: "contract", status: "unverified", uri: "https://example.test/manifest.json", expectedHash: `0x${"00".repeat(32)}`, actualHash: fixtureDigest }, { hashSource: "manifest", status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
     prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy && !sending, sending, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
     transactionReport === undefined ? null : createElement("section", { className: "transaction-feedback" }, createElement(TransactionFeedback, {
       report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },

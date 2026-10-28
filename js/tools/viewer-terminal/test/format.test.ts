@@ -18,14 +18,15 @@ test("formatValue bounds human terminal display text", () => {
 test("terminal shows integrity warnings beside usable UI without exposing URI credentials", () => {
   const output = statusTerminalOutput([], "Usable app", undefined, undefined, undefined, {
     integrityWarnings: [
-      { status: "mismatch", uri: "https://example.test/main.json?token=secret-value", expectedHash: `0x${"1".repeat(64)}`, actualHash: `0x${"2".repeat(64)}` },
-      { status: "unverified", uri: "https://example.test/ui.json", expectedHash: `0x${"0".repeat(64)}`, actualHash: `0x${"3".repeat(64)}` },
+      { hashSource: "contract", status: "mismatch", uri: "https://example.test/main.json?token=secret-value", expectedHash: `0x${"1".repeat(64)}`, actualHash: `0x${"2".repeat(64)}` },
+      { hashSource: "manifest", status: "unverified", uri: "https://example.test/ui.json", expectedHash: `0x${"0".repeat(64)}`, actualHash: `0x${"3".repeat(64)}` },
     ],
   })
   assert.match(output, /WARNING: file hash mismatch/)
   assert.match(output, /Notice: no verification hash/)
   assert.match(output, /Usable app/)
-  assert.match(output, /expected: 0x1{64}/)
+  assert.match(output, /expected \(contract\): 0x1{64}/)
+  assert.match(output, /expected \(app manifest\): 0x0{64}/)
   assert.match(output, /downloaded: 0x2{64}/)
   assert.doesNotMatch(output, /secret-value/)
 })

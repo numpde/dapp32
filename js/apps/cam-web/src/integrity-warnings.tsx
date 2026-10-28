@@ -10,12 +10,15 @@ export function IntegrityWarnings({ warnings, reloadDisabled }: {
 }): ReactElement | null {
   if (warnings.length === 0) return null
   return <section aria-label="UI integrity warnings">
-    {warnings.map((warning, index) => <FeedbackBox key={`${index}:${warning.uri}`} kind={warning.status === "mismatch" ? "error" : "warning"}
-      message={warning.status === "mismatch" ? "File hash mismatch. This file differs from its published hash." : "Unverified file. Its published verification hash is zero."}>
-      <p>{viewerErrorMessage(warning.uri)}</p>
-      <PropertyRow label="Expected hash" value={warning.expectedHash} />
-      <PropertyRow label="Downloaded hash" value={warning.actualHash} />
-    </FeedbackBox>)}
+    {warnings.map((warning, index) => {
+      const hashLocation = warning.hashSource === "contract" ? "stored in the contract" : "specified in the app manifest"
+      return <FeedbackBox key={`${index}:${warning.uri}`} kind={warning.status === "mismatch" ? "error" : "warning"}
+        message={warning.status === "mismatch" ? `This file does not match the verification hash ${hashLocation}.` : `This file could not be verified. The verification hash ${hashLocation} is zero.`}>
+        <p>{viewerErrorMessage(warning.uri)}</p>
+        <PropertyRow label="Expected hash" value={warning.expectedHash} />
+        <PropertyRow label="Downloaded hash" value={warning.actualHash} />
+      </FeedbackBox>
+    })}
     <button className="button-quiet" type="button" disabled={reloadDisabled} onClick={() => window.location.reload()}>Reload page</button>
   </section>
 }

@@ -218,7 +218,7 @@ function render(snapshot: CamViewerSnapshot): void {
   if (snapshot.integrityWarnings !== undefined) {
     for (const warning of snapshot.integrityWarnings) {
       output.write(`${warning.status === "mismatch" ? "WARNING: file hash mismatch" : "Notice: no verification hash (zero)"}: ${formatValue(viewerErrorMessage(warning.uri))}\n`)
-      output.write(`expected: ${formatValue(warning.expectedHash)}\ndownloaded: ${formatValue(warning.actualHash)}\n`)
+      output.write(`expected (${warning.hashSource === "contract" ? "contract" : "app manifest"}): ${formatValue(warning.expectedHash)}\ndownloaded: ${formatValue(warning.actualHash)}\n`)
     }
   }
   if (snapshot.integrityWarnings !== undefined && snapshot.integrityWarnings.length > 0) output.write("UI displayed without confirmed integrity. Matching other file hashes does not authenticate an unverified CAM manifest.\n")

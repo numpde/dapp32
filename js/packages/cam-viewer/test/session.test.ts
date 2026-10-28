@@ -83,6 +83,7 @@ test("viewer renders changed or unpinned CAM resources and retains their integri
     assert.equal(warnings.length, 1)
     assert.equal(warnings[0].status, "mismatch")
     assert.equal(warnings[0].uri, uri)
+    assert.equal(warnings[0].hashSource, uri === camURI ? "contract" : "manifest")
     assert.notEqual(warnings[0].expectedHash, warnings[0].actualHash)
     assert.equal(reads.filter(value => value === uri).length, 1)
     assert.deepEqual((await session.refresh()).integrityWarnings, warnings)
@@ -94,6 +95,7 @@ test("viewer renders changed or unpinned CAM resources and retains their integri
   const loaded = await session.load()
   assert.ok(loaded.resolvedUi)
   assert.deepEqual(loaded.integrityWarnings.map(warning => warning.status), ["unverified"])
+  assert.deepEqual(loaded.integrityWarnings.map(warning => warning.hashSource), ["contract"])
 })
 
 test("integrity warnings are delivered during loading without exposing mutable session state", async () => {
@@ -143,6 +145,7 @@ test("zero resource hashes warn while malformed hashes and JSON still fail at th
         const loaded = await session.load()
         assert.ok(loaded.resolvedUi)
         assert.deepEqual(loaded.integrityWarnings.map(warning => warning.status), ["unverified"])
+        assert.deepEqual(loaded.integrityWarnings.map(warning => warning.hashSource), ["manifest"])
       } else {
         await assert.rejects(() => session.load(), error => /integrity|digest/i.test(viewerErrorMessage(error)))
         assert.equal(session.snapshot().resolvedUi, undefined)
