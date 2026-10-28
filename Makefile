@@ -11,6 +11,10 @@ ifneq ($(origin SOURCE_ARTIFACT),undefined)
 override SOURCE_ARTIFACT := $(value SOURCE_ARTIFACT)
 export SOURCE_ARTIFACT
 endif
+ifneq ($(origin SOURCE_CATALOG),undefined)
+override SOURCE_CATALOG := $(value SOURCE_CATALOG)
+export SOURCE_CATALOG
+endif
 ifneq ($(origin CONFIG),undefined)
 override CONFIG := $(value CONFIG)
 export CONFIG
@@ -366,10 +370,8 @@ ceremony_source="$$ceremony_root/source"
 endef
 
 define release_snapshot_archive
-mkdir --mode=0700 -- "$$ceremony_source"; \
-GIT_NO_REPLACE_OBJECTS=1 git archive --format=tar --output="$$ceremony_root/source.tar" "$$source_commit"; \
-tar --extract --file="$$ceremony_root/source.tar" --directory="$$ceremony_source"; \
-rm -f -- "$$ceremony_root/source.tar"
+source tools/release_source_files.sh; \
+release_archive_source "$(CURDIR)" "$$source_commit" "$$ceremony_source"
 endef
 
 define release_snapshot_populate
@@ -2126,8 +2128,10 @@ bike-nft/release/source/publish escrow/release/source/publish pay-to-play/releas
 	$(SOLDEER_DEPS_GUARD); \
 	$(release_host_guard_functions); \
 	$(call release_instance_entry,$(patsubst %/release/source/publish,%,$@),source/publish); \
-	require_release_file "$${SOURCE_ARTIFACT:?Select saved records with INSTANCE}" SOURCE_ARTIFACT; \
+	if [[ -v SOURCE_CATALOG ]]; then require_release_file "$$SOURCE_CATALOG" SOURCE_CATALOG; \
+	else require_release_file "$${SOURCE_ARTIFACT:?Select saved records with INSTANCE}" SOURCE_ARTIFACT; fi; \
 	export LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)"; \
+	export -f reject_release_path_symlinks; \
 	exec bash tools/release_source.sh "$(patsubst %/release/source/publish,%,$@)"
 
 # Disposable payment-channel fixture. Its scenario and browser projects are isolated.

@@ -270,10 +270,11 @@ def prepare(root, app, operation):
         return selection, {"operation": operation, "configurationRole": key, "purpose": purpose, "inputs": {"CONFIG": config}}, action
     records = inventory(root, app)
     if operation == "source/publish":
-        choices = [(f"{relative} · chain {artifact['chainId']}", relative)
-                   for kind, relative, artifact in records if kind != "bundle"]
-        selected = choose("Choose deployed contracts whose source to publish", choices, automatic=True)
-        return selection, {"operation": operation, "inputs": {"SOURCE_ARTIFACT": selected}}, root
+        sources = [{"path": relative, "artifact": artifact} for kind, relative, artifact in records if kind != "bundle"]
+        if not sources:
+            raise ValueError("No deployed contract records are available in this instance.")
+        return selection, {"operation": operation, "inputs": {}, "sourceCatalog": {
+            "selectedPublication": selection.get("publication"), "records": sources}}, root
     actions = saved_actions(root)
     if operation in RECORD_PORTS or operation == "verify":
         eligible = []
@@ -377,9 +378,7 @@ def arguments(root, app, request, action, host_root):
     # silent-defaults: allow-default -- Artifact/verify selection overrides execution; ordinary resume retains the original operation.
     operation = request.get("requestedOperation", request["operation"])
     if operation == "source/publish":
-        relative = request["inputs"]["SOURCE_ARTIFACT"]
-        instance_path(root, relative)
-        return [f"{app}/release/source/publish", "INSTANCE=", "MAKEOVERRIDES=", f"SOURCE_ARTIFACT={Path(host_root) / relative}"]
+        return [f"{app}/release/source/publish", "INSTANCE=", "MAKEOVERRIDES="]
     if operation.startswith("viewer/"):
         project = "cam-viewer-" + hashlib.sha256(host_root.encode()).hexdigest()[:12]
         args = [operation.replace("viewer/", "viewer/release/"), "INSTANCE=", "MAKEOVERRIDES=", f"RELEASE_VIEWER_COMPOSE_PROJECT_NAME={project}"]
@@ -508,8 +507,12 @@ def main():
             raise ValueError("Cannot identify the instance app from its selected publication or configuration.")
     if options.mode == "prepare":
         selection, request, action = prepare(root, app, options.operation)
+        if options.operation == "source/publish":
+            write_json(Path("/out/source-catalog.json"), request.pop("sourceCatalog"))
         write_json(Path("/out/selection.json"), {"request": request, "action": action.relative_to(root).as_posix()})
         args = arguments(root, app, request, action, options.host_root)
+        if options.operation == "source/publish":
+            args.append(f"SOURCE_CATALOG={os.environ['RELEASE_INSTANCE_COMMAND_DIR']}/source-catalog.json")
         Path("/out/arguments").write_bytes(b"\0".join(value.encode() for value in args) + (b"\0" if args else b""))
         Path("/out/operation").write_text(request["operation"] + "\n")
     else:

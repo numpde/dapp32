@@ -1,5 +1,10 @@
 # Original-source preparation is offline; only public requests reach the networked submitter.
 services:
+  source-state-import:
+    extends: {service: source-submit}
+    network_mode: none
+    command: [import-state]
+
   source-prepare:
     extends: {file: ../fragments/node-workspace.yml, service: offline-node-workspace}
     build: !reset null
@@ -47,7 +52,7 @@ services:
     ulimits: {core: 0}
     logging: {driver: none}
     network_mode: bridge
-    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=16m]
+    tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m"]
     entrypoint: [python3, -I, -B, /tool/release_source.py]
     volumes:
       - ../../tools/release_source.py:/tool/release_source.py:ro

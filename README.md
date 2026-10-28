@@ -71,8 +71,17 @@ Completed instance deployment commands also submit their contracts' original
 sources to Sourcify for public verification. This runs after deployment cleanup,
 without an RPC credential or signing key. Rehearsals do not submit public sources.
 An external service failure leaves the completed deployment intact; retry with
-`release/source/publish`. This command offers saved business, UI, CAM-root and
-historical full-deployment records, and never deploys or changes bindings.
+`release/source/publish`. Its menu lists individual contracts across the saved
+records, deduplicated by chain and address. Each entry shows the address, network,
+recorded source revision, explorer and creation transaction links, and current
+Sourcify publication status. A failed lookup stays unknown. Enter selects all
+contracts in the deployment selected by `instance.json`; individual or
+comma-separated numbers can select other contracts, including an original UI
+that was replaced. Deployment membership comes from the saved CAM record, not a
+fresh on-chain binding lookup. The command never deploys or changes bindings.
+The Sourcify status reports that provider's source verification; the recorded
+Git revision is deployment provenance. Existing published source is checked
+against the recorded compiler metadata when selected for publication.
 
 Public verification uses the selected deployment's retained compiler artifacts
 and original Git revision, not today's source. Installed dependency source must
@@ -81,12 +90,16 @@ not. Missing history or compiler artifacts fails before submission. Only the
 metadata-listed source files and compiler settings are sent to Sourcify.
 The chain must be supported by Sourcify.
 
-Requests and resumable job/results records live beside the selected deployment
-under `source-publication/<deployment-artifact-sha256>/`. A retry resumes pending
-jobs and keeps failed attempts. Output distinguishes exact matches from matches
+Prepared requests stay beside their deployment records under
+`source-publication/<deployment-artifact-sha256>/`. Manual and automatic instance
+publication share per-chain/address jobs under `source-publication/state/`.
+Existing per-operation jobs are imported against their retained requests,
+preserving their job IDs and history. A retry resumes
+pending jobs and keeps failed attempts. Output distinguishes exact matches from matches
 with differing compiler metadata. An already-verified response is accepted only
 when both bytecodes match exactly and the stored metadata equals our original
-compiler metadata. Original deployment artifacts remain unchanged.
+compiler metadata. Previously successful jobs are checked against Sourcify again
+before being reported as published. Original deployment artifacts remain unchanged.
 
 `release/verify` checks our deployment evidence against the chain; it does not
 submit sources externally. Public source verification does not guarantee wallet

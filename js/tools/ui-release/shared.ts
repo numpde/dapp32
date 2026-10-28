@@ -9,6 +9,7 @@ import { businessFromDeployment } from "../contract-release/shared.ts"
 import {
   checkedReleaseChainId, parseJsonRecord, requireExactKeys, requiredBytes32, requiredJsonRecord,
   requiredNonzeroAddress, requiredNonzeroBytes32, requiredSafeInteger, requiredSourceCommit,
+  requiredTransactionHash,
 } from "../release-values.ts"
 
 export type UIBackingReference = ContractIdentityReference & {
@@ -55,6 +56,22 @@ export function backingFromDeployment(app: ReleaseApp, bytes: Uint8Array): UIBac
   const role = app === "bike-nft" ? "manager" : app === "escrow" ? "escrow" : "payments"
   return { sourceCommit: deployment.sourceCommit, chainId: deployment.chainId, creator: deployment.creator,
     artifactSha256: deployment.artifactSha256, ...deployment.contracts[role]! }
+}
+
+/** Historical full releases predate independent UI artifacts; v1 PayToPlay had no UI contract. */
+export function uiFromLegacyDeployment(app: ReleaseApp, bytes: Uint8Array) {
+  const artifact = parseJsonRecord(bytes, "historical UI deployment")
+  if (artifact.schema !== `${app}.deployment.v1` && artifact.schema !== `${app}.deployment.v2`) {
+    throw new Error("UI source selection requires a known historical full deployment")
+  }
+  if (artifact.schema === "pay-to-play.deployment.v1") return undefined
+  const field = app === "escrow" ? "camEscrowUI" : app === "pay-to-play" ? "payToPlayUI" : "ui"
+  return { sourceCommit: requiredSourceCommit(artifact.sourceCommit),
+    chainId: checkedReleaseChainId(requiredSafeInteger(artifact.chainId, "historical UI chain ID")), identity: {
+      address: requiredNonzeroAddress(artifact[field], "deployed UI"),
+      creationTransaction: requiredTransactionHash(artifact[`${field}CreationTransaction`], "UI creation transaction"),
+      codeHash: requiredNonzeroBytes32(artifact[`${field}CodeHash`], "UI runtime hash"),
+    } }
 }
 
 export function uiDeploymentReference(plan: UIReleasePlan, independentCreator: string): UIDeploymentReference {

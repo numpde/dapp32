@@ -15,6 +15,7 @@ from release_instance import read_json, write_json
 
 API = "https://sourcify.dev/server"
 MAX_RESPONSE = 1024 * 1024
+MATCH_LABELS = {"exact_match": "exact match", "match": "code matches; metadata differs"}
 
 
 def request_json(method, path, body=None):
@@ -41,17 +42,115 @@ def verification_contract(result, contract):
     return observed
 
 
-def publish_contract(contract, state_path, *, request, pause, clock):
-    request_hash = hashlib.sha256(json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    if state_path.exists():
-        state = read_json(state_path)
-        if state["requestSha256"] != request_hash:
+def source_job_key(contract):
+    return f"{contract['chainId']}-{contract['identity']['address'].lower()}"
+
+
+def source_request_hash(contract):
+    claim = {"chainId": contract["chainId"], "address": contract["identity"]["address"].lower(),
+             "body": contract["body"], "metadata": contract["metadata"]}
+    return hashlib.sha256(json.dumps(claim, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def read_publication_state(contract, path):
+    state = read_json(path)
+    expected = source_request_hash(contract)
+    if state["requestSha256"] != expected:
+        # Old per-operation jobs hashed bookkeeping too. Admit them only against their retained exact request.
+        old_hash = hashlib.sha256(json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if state["requestSha256"] != old_hash:
             raise ValueError("Prepared source request changed; keep the old record and use a separate publication directory.")
+        state["requestSha256"] = expected
+    return state
+
+
+def lookup_public_contract(contract, *, request, metadata):
+    suffix = "?fields=metadata" if metadata else ""
+    try:
+        observed = request("GET", f"/v2/contract/{contract['chainId']}/{contract['identity']['address']}{suffix}")
+        verification_contract({"contract": observed}, contract)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
+    return observed
+
+
+def public_source_status(contract, *, request):
+    observed = lookup_public_contract(contract, request=request, metadata=False)
+    if observed is None:
+        return "Not published"
+    if observed.get("runtimeMatch") not in MATCH_LABELS:
+        return "No verified runtime source"
+    if observed.get("creationMatch") not in MATCH_LABELS:
+        return f"Published — runtime: {MATCH_LABELS[observed['runtimeMatch']]}; creation unverified"
+    return f"Published — creation: {MATCH_LABELS[observed['creationMatch']]}; runtime: {MATCH_LABELS[observed['runtimeMatch']]}"
+
+
+def choose_contracts(catalog, *, request, answer, output):
+    contracts = catalog["contracts"]
+    output("Checking public source verification on Sourcify…")
+    statuses = []
+    limited = False
+    for contract in contracts:
+        try:
+            statuses.append(public_source_status(contract, request=request))
+        except (urllib.error.URLError, TimeoutError, ValueError) as error:
+            statuses.append(f"Status unavailable ({error})")
+            statuses.extend("Status not checked (lookup unavailable)" for _ in contracts[len(statuses):])
+            limited = isinstance(error, urllib.error.HTTPError) and error.code == 429
+            break
+    group = [contract["key"] for contract in contracts if contract["selected"]] if catalog["hasSelectedDeployment"] else [contract["key"] for contract in contracts]
+    output("Publish contract sources")
+    output("Public source status comes from Sourcify; selected deployment comes from the saved CAM record.")
+    label = "selected deployment" if catalog["hasSelectedDeployment"] else "saved records"
+    output(f"  1. All contracts in {label} ({len(group)})")
+    for number, (contract, status) in enumerate(zip(contracts, statuses), 2):
+        membership = "selected deployment" if contract["selected"] else "not in selected deployment" if catalog["hasSelectedDeployment"] else "saved contract"
+        output(f"  {number}. {contract['location']['contract']} — {membership}")
+        output(f"     Address: {contract['identity']['address']}")
+        network = contract.get("network")
+        network_name = f"{network['name']} · " if network is not None else ""
+        output(f"     Network: {network_name}chain {contract['chainId']}")
+        output(f"     Sourcify: {status}")
+        output(f"     Recorded source: https://github.com/numpde/dapp32/blob/{contract['sourceCommit']}/dapps/{contract['location']['source']}")
+        explorer = network.get("explorer") if network is not None else None
+        if explorer is not None:
+            output(f"     Explorer: {explorer}/address/{contract['identity']['address']}#code")
+            output(f"     Creation: {explorer}/tx/{contract['identity']['creationTransaction']}")
+        else:
+            output(f"     Creation transaction: {contract['identity']['creationTransaction']}")
+    output("  0. Cancel")
+    if limited:
+        raise ValueError("Sourcify is rate-limiting requests. Retry later; no sources were submitted.")
+    while True:
+        choice = answer("Choose contracts (comma-separated numbers; Enter for 1): ").strip()
+        if choice == "0":
+            return []
+        numbers = ["1"] if choice == "" else [part.strip() for part in choice.split(",")]
+        if all(number.isdecimal() and 1 <= int(number) <= len(contracts) + 1 for number in numbers):
+            keys = []
+            for number in numbers:
+                for key in group if int(number) == 1 else [contracts[int(number) - 2]["key"]]:
+                    if key not in keys:
+                        keys.append(key)
+            return keys
+        output("Enter listed contract numbers, or 0 to cancel.")
+
+
+def publish_contract(contract, state_path, *, request, pause, clock):
+    if state_path.exists():
+        state = read_publication_state(contract, state_path)
+        write_json(state_path, state)
     else:
-        state = {"requestSha256": request_hash, "attempts": []}
+        state = {"requestSha256": source_request_hash(contract), "attempts": []}
     attempts = state["attempts"]
     if attempts and attempts[-1].get("verified") is True:
-        return attempts[-1]["result"]["contract"]
+        observed = lookup_public_contract(contract, request=request, metadata=True)
+        if observed is not None:
+            if observed.get("metadata") != contract["metadata"] or observed.get("creationMatch") not in MATCH_LABELS or observed.get("runtimeMatch") not in MATCH_LABELS:
+                raise ValueError("Current public verification differs from the saved source verification; no success was recorded.")
+            return observed
     if not attempts or ("result" in attempts[-1] and attempts[-1]["result"]["isJobCompleted"] is True):
         try:
             ticket = request("POST", f"/v2/verify/{contract['chainId']}/{contract['identity']['address']}", contract["body"])
@@ -60,7 +159,9 @@ def publish_contract(contract, state_path, *, request, pause, clock):
             if error.code != 409:
                 raise
             # A verification by someone else must describe our original compiler metadata.
-            observed = request("GET", f"/v2/contract/{contract['chainId']}/{contract['identity']['address']}?fields=metadata")
+            observed = lookup_public_contract(contract, request=request, metadata=True)
+            if observed is None:
+                raise ValueError("The verifier reported existing source but its lookup is missing. Retry later.")
             existing = {"isJobCompleted": True, "contract": observed}
             attempts.append({"alreadyVerified": True, "result": existing})
             write_json(state_path, state)
@@ -98,17 +199,37 @@ def publish_contract(contract, state_path, *, request, pause, clock):
 
 def main():
     requests = Path("/requests")
+    if len(sys.argv) > 1 and sys.argv[1] == "import-state":
+        for path in sorted(requests.glob("*.request.json")):
+            contract = read_json(path)
+            key = source_job_key(contract)
+            if path.name != f"{key}.request.json":
+                raise ValueError("Legacy verification request does not match its selected contract")
+            target = Path("/state") / f"{key}.json"
+            if not target.exists():
+                state = read_publication_state(contract, requests / f"{key}.state.json")
+                write_json(target, state)
+        return 0
+    if len(sys.argv) > 1 and sys.argv[1] == "menu":
+        if not sys.stdin.isatty():
+            raise ValueError("Run source/publish in an interactive terminal to choose contracts; no sources were submitted.")
+        keys = choose_contracts(read_json(requests / "catalog.json"), request=request_json, answer=input, output=lambda message: print(message, flush=True))
+        (Path("/state") / "selected-keys").write_bytes(b"".join((key + "\0").encode() for key in keys))
+        return 0
     contracts = json.loads((requests / "contracts.json").read_text())
     failures = 0
     for contract in contracts:
-        role = contract["role"]
+        role = contract["key"] if "key" in contract else contract["role"]
         prepared = read_json(requests / f"{role}.json")
+        job = source_job_key(prepared)
+        if job != source_job_key(contract) or prepared["location"] != contract["location"] or prepared["sourceCommit"] != contract["sourceCommit"]:
+            raise ValueError("Prepared source request differs from the selected contract; no source was submitted for this entry.")
         print(f"Publishing {prepared['location']['contract']} on chain {prepared['chainId']} at {prepared['identity']['address']}", flush=True)
         try:
-            observed = publish_contract(prepared, Path("/state") / f"{role}.json", request=request_json, pause=time.sleep, clock=time.monotonic)
+            observed = publish_contract(prepared, Path("/state") / f"{job}.json", request=request_json, pause=time.sleep, clock=time.monotonic)
         except urllib.error.HTTPError as error:
             excerpt = error.read(2048).decode("utf-8", errors="replace")
-            write_json(Path("/state") / f"{role}-http-error.json", {"status": error.code, "responseExcerpt": excerpt})
+            write_json(Path("/state") / f"{job}-http-error.json", {"status": error.code, "responseExcerpt": excerpt})
             print(f"Public source verification incomplete: HTTP {error.code}. Response excerpt: {excerpt}", file=sys.stderr, flush=True)
             failures += 1
             if error.code == 429:
@@ -119,11 +240,17 @@ def main():
             print(f"Public source verification incomplete: {error}", file=sys.stderr, flush=True)
             failures += 1
             continue
-        labels = {"exact_match": "exact match", "match": "code matches; metadata differs"}
-        print(f"Creation: {labels[observed['creationMatch']]}. Runtime: {labels[observed['runtimeMatch']]}.", flush=True)
+        print(f"Creation: {MATCH_LABELS[observed['creationMatch']]}. Runtime: {MATCH_LABELS[observed['runtimeMatch']]}.", flush=True)
         print(f"https://repo.sourcify.dev/{prepared['chainId']}/{prepared['identity']['address']}", flush=True)
     return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except EOFError:
+        print("Contract selection closed; no sources were submitted.", file=sys.stderr)
+        sys.exit(2)
+    except (ValueError, urllib.error.URLError, TimeoutError) as error:
+        print(f"Cannot publish contract sources: {error}", file=sys.stderr)
+        sys.exit(2)

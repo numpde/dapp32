@@ -18,7 +18,7 @@ release_instance() {
     printf '%s\n' 'INSTANCE must be owned by the current user with mode 0700. Secure the directory before using it.' >&2; return 2
   fi
   local selector
-  for selector in CONFIG UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE CAM_RECORDS OUTPUT_DIR CONTRACT_RECORDS UI_RECORDS DEPLOYMENT_ARTIFACT_FILE SOURCE_ARTIFACT; do
+  for selector in CONFIG UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE CAM_RECORDS OUTPUT_DIR CONTRACT_RECORDS UI_RECORDS DEPLOYMENT_ARTIFACT_FILE SOURCE_ARTIFACT SOURCE_CATALOG; do
     if [[ -n "${!selector-}" ]]; then printf 'Use INSTANCE alone for record selection; remove %s.\n' "$selector" >&2; return 2; fi
   done
   command -v flock >/dev/null || { printf '%s\n' 'Instance commands require flock (util-linux), alongside setsid.' >&2; return 2; }
@@ -53,7 +53,7 @@ release_instance() {
   mapfile -d '' -t arguments < "$stage/arguments"
   read -r RELEASE_INSTANCE_OPERATION < "$stage/operation"
   export RELEASE_INSTANCE_OPERATION
-  clear_inputs=(CONFIG UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE CAM_RECORDS OUTPUT_DIR CONTRACT_RECORDS UI_RECORDS INSTANCE MAKEFLAGS MFLAGS MAKEOVERRIDES)
+  clear_inputs=(CONFIG UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE CAM_RECORDS OUTPUT_DIR CONTRACT_RECORDS UI_RECORDS SOURCE_ARTIFACT SOURCE_CATALOG INSTANCE MAKEFLAGS MFLAGS MAKEOVERRIDES)
   if [[ "$operation" == viewer/* ]]; then
     retire_instance_selection || exit "$?"
     flock --unlock "$lock"

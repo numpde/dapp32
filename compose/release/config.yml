@@ -64,6 +64,8 @@ services:
   release-instance:
     <<: *config_runtime
     entrypoint: [python3, -I, -B, /tool/release_instance.py]
+    environment:
+      RELEASE_INSTANCE_COMMAND_DIR: "${RELEASE_CONFIG_STAGE_DIR:?missing_RELEASE_CONFIG_STAGE_DIR}"
     volumes:
       - *tool
       - *output

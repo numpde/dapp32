@@ -78,7 +78,7 @@ CAM_RELEASE_APP=escrow
 # Ambient selections must not bypass the original-context image admission.
 CAM_COMPONENT_FOUNDRY_IMAGE=mutable:ambient
 CAM_COMPONENT_CHECKS_IMAGE=mutable:ambient
-release_cam_archive() { mkdir -p "$2/dapps"; }
+release_archive_source() { mkdir -p "$3/dapps"; }
 release_run_owned() { shift; "$@"; }
 git() {
   [[ "$1" == -C && "$2" == "$release_repository" && "$3" == rev-parse ]]

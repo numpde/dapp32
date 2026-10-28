@@ -25,13 +25,7 @@ release_cam_sources_cleanup() {
   return "$failed"
 }
 
-release_cam_archive() {
-  local commit="$1" destination="$2" archive="$ceremony_root/component-source.tar"
-  mkdir --mode=0700 -- "$destination"
-  GIT_NO_REPLACE_OBJECTS=1 git archive --format=tar --output="$archive" "$commit"
-  tar --extract --file="$archive" --directory="$destination"
-  rm -- "$archive"
-}
+source "$(dirname -- "${BASH_SOURCE[0]}")/release_source_files.sh"
 
 release_cam_export() {
   local class="$1" commit="$2" purpose="$3" project="$ceremony_project-source-$1"
@@ -41,7 +35,7 @@ release_cam_export() {
   CAM_COMPONENT_FOUNDRY_IMAGE=$(release_tool_image "$release_repository" "$commit" foundry)
   CAM_COMPONENT_CHECKS_IMAGE=$(release_tool_image "$release_repository" "$commit" checks)
   export CAM_COMPONENT_FOUNDRY_IMAGE CAM_COMPONENT_CHECKS_IMAGE
-  release_cam_archive "$commit" "$CAM_COMPONENT_SOURCE_DIR"
+  release_archive_source "$release_repository" "$commit" "$CAM_COMPONENT_SOURCE_DIR"
   cp -a -- "$release_repository/dapps/dependencies" "$CAM_COMPONENT_SOURCE_DIR/dapps/dependencies"
   release_cam_source_projects+=("$project")
   COMPOSE_PROJECT_NAME="$project" ALLOW_UPDATE=0 release_run_owned "$release_command_grace" \
@@ -59,7 +53,7 @@ release_cam_prepare_sources() {
   if [[ "$CAM_RELEASE_APP" == bike-nft || "$CAM_RELEASE_ROOT" == existing ]]; then
     release_cam_export root "$CAM_ROOT_SOURCE_COMMIT" source-root
   fi
-  release_cam_archive "$CAM_AUTHORING_SOURCE_COMMIT" "$CAM_RELEASE_PREPARED_DIR/sources/authoring"
+  release_archive_source "$release_repository" "$CAM_AUTHORING_SOURCE_COMMIT" "$CAM_RELEASE_PREPARED_DIR/sources/authoring"
 }
 
 release_cam_prepare_root_proof() {

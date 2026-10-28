@@ -254,6 +254,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         services = rendered_compose_config("compose/release/source-publication.yml")["services"]
         prepare = services["source-prepare"]
         submit = services["source-submit"]
+        importer = services["source-state-import"]
+        self.assertEqual("none", importer["network_mode"])
+        self.assertEqual(submit["volumes"], importer["volumes"])
         self.assertEqual("none", prepare["network_mode"])
         self.assertEqual("bridge", submit["network_mode"])
         self.assertNotIn("ports", submit)
@@ -263,6 +266,8 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertNotIn("environment", submit)
         self.assertNotIn("secrets", submit)
         self.assertNotIn("depends_on", submit)
+        with self.assertRaises(AssertionError):
+            self.assert_hardened({**submit, "tmpfs": ["/tmp:rw", "size=16m"]})
 
     def test_production_viewer_serves_only_a_prebuilt_image_without_source_mounts(self) -> None:
         config = rendered_compose_config("compose/viewer.yml", env={
@@ -575,6 +580,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertNotEqual("0:0", config_service["user"])
         self.assertIn("pids_limit", config_service)
         self.assertIn("mem_limit", config_service)
+        for mount in compose_sequence_or_empty(config_service, "tmpfs"):
+            self.assertIsInstance(mount, str)
+            self.assertTrue(mount.split(":", 1)[0].startswith("/"), f"tmpfs target must be an absolute container path: {mount}")
 
     def assert_explicit_network_posture(self, config_service: dict[str, Any]) -> None:
         # Docker attaches services with neither field to an implicit default
@@ -992,6 +1000,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             # The offline instance selector owns only its private folder and command staging output.
             ("compose/release/source-publication.yml", "source-prepare", "/tmp/source-requests", "/requests"),
             ("compose/release/source-publication.yml", "source-submit", "/tmp/source-state", "/state"),
+            ("compose/release/source-publication.yml", "source-state-import", "/tmp/source-state", "/state"),
             ("compose/release/config.yml", "release-instance", "/tmp/release-config-stage", "/instance"),
             ("compose/release/config.yml", "release-instance", "/tmp/release-config-stage", "/out"),
             ("compose/release/cam-source.yml", "release-cam-source", "/tmp/component-artifacts", "/component-artifacts"),
