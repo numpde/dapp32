@@ -3,6 +3,8 @@ set -eu
 
 source_dir="${1:?missing source JS workspace directory}"
 target_dir="${2:?missing target JS workspace directory}"
+staging_mode="${3-fresh}"
+case "$staging_mode" in fresh | refresh) ;; *) printf '%s\n' 'JS staging mode must be fresh or refresh.' >&2; exit 2 ;; esac
 
 if [ "$source_dir" != "/input/js" ] || [ "$target_dir" != "/work/js" ]; then
   printf '%s\n' "stage-js-workspace only supports /input/js -> /work/js" >&2
@@ -21,7 +23,12 @@ reject_symlink() {
 reject_symlink "$source_dir"
 reject_symlink "$target_dir"
 test -d "$target_dir"
-find "$target_dir" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +
+if [ "$staging_mode" = refresh ]; then
+  # Keep the running viewer's working-directory inode while removing stale code.
+  find "$target_dir" -name node_modules -prune -o ! -type d -exec rm -f -- {} +
+else
+  find "$target_dir" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +
+fi
 
 reject_tree_symlinks() {
   path="${1:?missing path}"
@@ -119,7 +126,8 @@ for pattern in $workspace_patterns; do
     fi
     reject_tree_symlinks "$workspace_dir"
 
-    rm -rf "$target_workspace_dir"
+    reject_symlink "$target_workspace_dir"
+    if [ "$staging_mode" = fresh ]; then rm -rf "$target_workspace_dir"; fi
     mkdir -p "$target_workspace_dir"
     cp -a "$manifest" "$target_workspace_dir/package.json"
 
@@ -132,7 +140,7 @@ for pattern in $workspace_patterns; do
           ;;
       esac
       reject_symlink "$child"
-      cp -a "$child" "$target_workspace_dir/$child_name"
+      cp -a "$child" "$target_workspace_dir/"
     done
   done
 

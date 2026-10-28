@@ -935,6 +935,13 @@ help:
 	  '    Select the same Docker context for build and start. Rootless resource limits need cgroup v2/systemd delegation.' \
 	  '    Forward an existing HTTPS proxy to the selected listener. The browser needs a chain/host/account/RPC link.' \
 	  '' \
+	  'Refresh a running local demo viewer (keeps its chain and records):' \
+	  '  make bike-nft/local/demo/gui/refresh' \
+	  '  make escrow/local/demo/gui/refresh' \
+	  '  make pay-to-play/local/demo/gui/refresh' \
+	  '    Use the same COMPOSE_PROJECT_NAME and GUI settings as gui/up. Reload the tab after the build.' \
+	  '    Source changes are applied in place; fix any build error and repeat the refresh.' \
+	  '' \
 	  'Prepare CAM publication (validate local files; no upload or contract deployment):' \
 	  '  make bike-nft/cam/publication/preflight CAM_URI=URI      Print CAM_HASH for the local Bike NFT bundle.' \
 	  '  make escrow/cam/publication/preflight CAM_URI=URI        Print CAM_HASH for the local Escrow bundle.' \
@@ -1518,6 +1525,29 @@ viewer/browser/check:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -p "$(COMPOSE_PROJECT_NAME)-viewer-browser-check" -f $(COMPOSE_DIR)/browser-ui-check.yml run --build --rm --no-deps -T browser-ui-check
+
+# Deliver current helpers to older running images without recreating the viewer.
+# Interpret them with sh because /tmp is noexec. Vite watches env-file changes
+# even if config loading failed while the source tree was being restaged.
+define refresh_demo_viewer
+	@$(LANE_GUARD); $(3); $(PACKAGE_DEPS_GUARD); \
+	for helper in stage-js-workspace run-js-workspace; do \
+	  $(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) exec -T cam-web \
+	    sh -eu -c 'mkdir -p /tmp/viewer-refresh; cat > "/tmp/viewer-refresh/$$1"' sh "$$helper" \
+	    < "containers/node-deps/$$helper"; \
+	done; \
+	$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) exec -T cam-web \
+	  sh /tmp/viewer-refresh/run-js-workspace --refresh sh -eu -c \
+	  'npm run build:packages; touch apps/cam-web/.env.local'
+endef
+
+.PHONY: bike-nft/local/demo/gui/refresh escrow/local/demo/gui/refresh pay-to-play/local/demo/gui/refresh
+bike-nft/local/demo/gui/refresh:
+	$(call refresh_demo_viewer,$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV),$(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES),$(BIKE_NFT_GUI_BIND_GUARD))
+escrow/local/demo/gui/refresh:
+	$(call refresh_demo_viewer,$(ESCROW_VIEWER_GUI_COMPOSE_ENV),$(ESCROW_VIEWER_GUI_COMPOSE_FILES),$(ESCROW_GUI_BIND_GUARD))
+pay-to-play/local/demo/gui/refresh:
+	$(call refresh_demo_viewer,$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV),$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES),$(PAY_TO_PLAY_GUI_BIND_GUARD))
 
 cam/integrity/refresh:
 	@$(LANE_GUARD); \
