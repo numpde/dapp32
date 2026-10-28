@@ -1,0 +1,307 @@
+Pay-to-Play walkthrough: prioritized implementation checklist
+============================================================
+
+Date: 2026-10-29 (local date).
+Status: four exploratory cycles completed; all checklist work remains open.
+Attribution: findings in this note are agent-identified, not user reports.
+
+Context
+-------
+Isolated local demo at http://127.0.0.1:5194/, chain 31337.
+The existing Escrow demo at port 5193 and its wallet/tab remain intact.
+The local demos use deterministic addresses; their separate RPC origins are
+part of this evidence. Matching addresses do not mean they share chain state.
+Only the public local-fixture accounts and fake funds are used.
+
+Exploratory cycles
+------------------
+1. Entry, reserve-channel behavior, invalid lookups and channel creation.
+2. Funded balance, actor changes, voucher signing context, partial collection
+   and repeated/exhausted voucher authority.
+3. Ordinary withdrawal/replacement, movement between channels, draft/history
+   behavior and the relationship between owner and signing wallet.
+4. Recovery, refund destination, collector configuration, channel retirement,
+   and representative narrow/keyboard states.
+
+The results below identify executed coverage and limits. Shared viewer findings
+already recorded in the Escrow note are cross-referenced when reproduced,
+not counted as unrelated bugs.
+
+Implementation order
+--------------------
+P1: explain financial decisions and outcomes; unblock completed setup.
+P2: make repeated and channel-specific tasks understandable and usable.
+P3: improve navigation and routine input ergonomics.
+
+Items retain the original finding numbers so earlier references remain usable.
+Shared work has one owner in the Escrow checklist; cross-references below are
+integration requirements, not separate implementations. Check a task only after
+its behavior is implemented and verified in the rendered app. The audit evidence
+below establishes the starting problems, not completion of these tasks.
+
+P1 — Financial decisions, outcomes and completed setup
+-----------------------------------------------------
+[ ] Show what collection will pay and what it actually paid. (Finding 7)
+    Review should identify the current payee and expected payment, with the
+    limits of the estimate clear. Confirmation should distinguish payment from
+    a successful zero-payment call, using authoritative mined evidence.
+    Evidence: one cumulative voucher paid 10, 20, 30, then 0 wei. The exhausted
+    replay showed the same ordinary confirmation; review listed signed inputs
+    but no payment amount or payee. Zero payment emitted no payment-contract log.
+    Preserve zero-payment behavior. Do not infer a mined amount from a stale
+    preview or a concurrent balance difference. Coordinate with Escrow issue 21
+    at the shared transaction-review boundary.
+
+[ ] Explain both consequences of the channel wait before creation. (Finding 4)
+    Explain what a channel is, that the payee receives payments, and that the
+    collector submits vouchers. Explain that the immutable wait governs both
+    ordinary withdrawals and the final voucher-claim window during wind-down.
+    Make the zero-wait consequence explicit before the admin commits.
+    Evidence: 60-second and zero-wait channels exercised both uses; zero wait
+    made wind-down immediately refund-only. Creation currently leads with a
+    maximum-duration constraint and labels the value only Withdrawal wait.
+    Retain the admin-only indication, 30-day maximum and zero-collector pause
+    rule. No collector rename or new contract parameter is needed.
+
+[ ] Show current recovery status near the balance and recovery tasks. (Finding 9)
+    Use readable phase names and relevant settlement/refund deadlines, so a user
+    can understand why funding or renewal is unavailable on the current screen.
+    Evidence: Recovery displays raw 0/1/2 with a legend in the label; the balance
+    omits the phase/deadlines and offers only a generic explanation when Deposit
+    becomes disabled. Operating, settling and refund-only were exercised.
+    Use the existing position facts; do not invent a global pause flag or add
+    contract fields. The rendering mechanism remains to be selected.
+
+[ ] Give channel creation a usable next step with its actual channel ID.
+    (Finding 1)
+    After confirmation, show the created ID and offer to open that channel.
+    Evidence: creation opens Find a channel ID with a blank field and refers to
+    an event the visible receipt does not show. A channel count and the debug
+    wallet's deployment list do not complete the ordinary app workflow.
+    Derive the ID from the actual mined creation event or another authoritative
+    read. Do not guess from the count or a simulated return under concurrency.
+    No receipt framework or protocol change has been selected.
+
+[ ] Fix blank-amount validation through the shared input/action owner.
+    (Finding 3; Escrow issue 16)
+    Reviewing an empty deposit should identify the missing amount at its field,
+    mark it invalid and avoid a technical uint256 error as the main explanation.
+    Evidence: untouched Deposit was enabled; review failed with
+    "CAM transaction value must be a decimal uint256: fund" while the field
+    retained aria-invalid=false. No transaction was sent.
+    Implement once at the shared boundary and verify both apps.
+
+P2 — Complete the task flow
+--------------------------
+[ ] Make the external-signing handoff followable. (Finding 5)
+    Link to the referenced guide and make its exact schema/signing instructions
+    reachable from Voucher signing details. Preserve the distinction between
+    the digest and a signature.
+    Evidence: actual domain, payment verifier, chain, registered key, message
+    fields and digest are present and readable by a non-collector customer;
+    the named guide has no link. The old missing-context problem is resolved.
+    Do not add a bespoke signer or protocol join merely to link documentation.
+
+[ ] Offer intentional reuse after partial collection. (Finding 6)
+    Let a collector continue with the same voucher and adjust its limit without
+    re-entering every field. Each further review/send must remain deliberate.
+    Evidence: collecting 10 from a signed total of 60 clears the total, invoice
+    hash, limit and signature despite unchanged collector, owner and channel.
+    Keep wallet/owner-change clearing meaningful; do not retain all successful
+    forms indiscriminately or automatically resubmit. Preserve voucher law.
+
+[ ] Distinguish initial withdrawal from replacement. (Finding 8)
+    Present one clear initial-request action when no request exists, and a clear
+    replacement action when one does. Explain the full-wait restart and
+    non-cancellation rules before replacement.
+    Evidence: with requested amount 0, Request and Replace are both enabled
+    against the same amount field; Replace successfully creates the first
+    request. The contract's setter behavior is valid; the competing UI intents
+    need revision, not a business-contract change.
+
+[ ] Give reserve-channel tasks appropriate prominence. (Finding 2)
+    Make reserve funding/movement/withdrawal easy to find without full voucher
+    forms that can never apply to channel 0. Keep an understandable explanation
+    of the reserve's limits and access to relevant help.
+    Evidence: key registration, signing and collection are correctly disabled
+    but their forms/prose remain, alongside ordinary descriptions of zero payee
+    and collector values. Retain useful headings and identity facts.
+    Distinguish permanent channel restrictions from temporary actor restrictions;
+    do not hide every disabled control or introduce a role framework.
+
+[ ] Identify retained confirmations when preparing the next transaction.
+    (Shared: Escrow issue 31)
+    Name the confirmed operation and distinguish its receipt from the current
+    review, preserving evidence needed for reconciliation.
+    Evidence: the previous confirmation remains beside the next preparation
+    without clear operation or previous/latest context.
+
+[ ] Use readable monetary facts alongside exact transaction values.
+    (Shared: Escrow issues 21/30)
+    Apply shared amount formatting and business summaries to Pay-to-Play review
+    and read-only facts while preserving exact units/values. Coordinate with
+    finding 7 above; do not count collection outcomes as a second implementation.
+
+P3 — Navigation and input ergonomics
+------------------------------------
+[ ] Provide a complete screen/task TOC and useful section navigation.
+    (Shared app-authoring convention; Escrow issue 8)
+    Preserve owner/channel context and existing task headings. Put current facts
+    and tasks ahead of generic explanation where appropriate.
+    Evidence: contextual links exist, but no complete TOC/local navigation;
+    the sampled narrow balance body measured about 7,505 CSS pixels.
+    This is an authoring convention, not a CAM conformance requirement.
+
+[ ] Offer known-address suggestions across address fields.
+    (Shared: Escrow issue 7)
+    Include the active wallet and valid addresses entered elsewhere, with clear
+    provenance and an explicit choice to insert. Apply to owner, payee,
+    collector, signing key and refund recipient without guessing their roles.
+    Evidence: no such picker was offered in these tasks.
+
+[ ] Make Enter submit a valid balance lookup.
+    (Shared: Escrow issue 20)
+    Preserve native keyboard behavior and visible focus.
+    Evidence: Enter in Channel ID does nothing; Tab to Open balance followed by
+    Enter succeeds. This is an ergonomic gap, not keyboard inaccessibility.
+
+Cycle 1 results
+---------------
+Completed initial entry as customer, invalid channel 9999, reserve channel 0,
+blank deposit review, role switch and real admin creation of a 60-second-wait
+channel with the fixture recipient as payee and relayer as collector.
+Creation confirmed in block 6. No native value was attached.
+
+Positive observations: home lookup and admin creation are peer tasks; admin
+creation names its authority restriction before controls. Customer fields are
+disabled there. Explicit lookup owner selection exists, unlike the independent
+account-selection gap observed in Escrow. Switching customer to admin kept the
+already-open customer/channel pinned. ChannelNotFound(9999) was decoded without
+unknown-reason/RPC noise, and the original chooser/value survived the failure.
+New channel address fields start empty rather than with all-zero values.
+
+Cycle 2 results
+---------------
+Registered the public local customer's existing ECDSA address as the permanent
+key, funded 1000 fake wei, inspected authoritative signing details, and returned
+with Back. Back retained the unsigned total/hash before the wallet change.
+The unregistered-key view had signing controls disabled; the attempt to click
+that disabled control did not navigate and is not counted as a signing read.
+After registration the non-collector customer could read signing context.
+Changing to the configured collector kept the owner/channel pinned and cleared
+entries, as the existing page warning explains.
+
+Used pay-to-play/local/voucher/sign with its fixed public local key, chain
+31337, the actual payment verifier, channel 1, total 60 and a synthetic bytes32
+invoice reference. Its output went directly to the browser input, not a log or
+file. A comparison digest, not a second raw signature copy, tracks voucher
+identity during reuse tests. This verifies protocol-shaped payment authority;
+it does not claim acceptance of a commercial invoice or proof of delivery.
+
+Limited collection results: 10 + 20 + 30 = 60 wei paid from the same authority;
+the fourth, exhausted replay paid zero. The voucher fingerprint stayed the
+same across all four attempts without exposing its contents. The zero replay confirmed in
+block 12 with no payment-contract logs. Position balance is 940, paid = 60.
+This cycle exercised six local transactions: registration, funding and four
+collections. With the earlier channel creation, seven transactions total
+occurred through block 12.
+
+Cycle 3 results
+---------------
+Created a 120-wei request via the initially enabled Replace action, then
+replaced it with 900 wei. The ready time moved forward, restarting the full
+configured wait. Used a newly signed cumulative total of 200 (not the old
+60-wei authority) to pay a further 140 while the ordinary request remained
+unexecuted. Balance became 800; requested remained 900; paid became 200.
+The prior UI snapshot was not yet mature, while the collection's newly mined
+block moved chain time forward naturally. No manual clock advancement occurred;
+this does not claim that execution happened before the ready deadline.
+
+Executed the mature withdrawal as the fixture recipient/payee, who was neither
+the balance owner nor this channel's collector. Collection and movement were
+disabled for that actor while withdrawal was available. The balance owner
+received exactly 800 wei, with no owner gas charge for that relayed call.
+The ordinary request cleared and lifetime voucher-paid stayed 200.
+
+Deposited 250, requested 100, inspected recovery and renewed the annual cycle.
+The ordinary ready time still equaled its original request block timestamp
+plus 60 seconds after renewal. Once naturally mature, moved 100 into the same
+owner's reserve channel 0; source balance became 150 and the request cleared.
+The final independent reserve lookup confirmed the destination balance = 100.
+
+These results support the existing warnings: a request reserves no money,
+replacement restarts its wait, relayers do not choose the withdrawal target,
+and renewal is distinct from ordinary withdrawal timing. Eight transactions
+were exercised in this cycle, through block 20.
+
+Cycle 4 results
+---------------
+Admin set channel 1's collector to zero: the previous collector lost its
+collection action. Rotated to admin: the new collector gained it and the
+former collector remained blocked. Restored the original relayer afterward.
+These were per-channel changes; owner/channel stayed pinned across actors.
+
+As owner, configured the main full-refund recipient and began position-only
+wind-down. It entered phase 1 immediately, disabling renewal and funding.
+The recipient editor correctly reflected its updated current value. While
+waiting, created a separate zero-wait channel 2 with a different collector
+(admin), funded it with 40, configured its refund recipient, and wound it down.
+It entered phase 2 immediately. The relayer, who was not channel 2's collector,
+refunded exactly 40 to the configured recipient. Refunded position returned
+to operating/no-cycle while the channel remained open.
+
+Retired only channel 2 as admin after refund. Its channel escrow was zero,
+phase became refund-only and repeat retirement was disabled. The channel-wide
+irreversible warning and separate position/channel task groups preceded their
+actions; these are meaningful boundaries to retain.
+
+Returned to channel 1 after its final claim window had passed naturally.
+Admin, independently of collector, refunded its remaining 150 to the configured
+recipient. Direct balance checks confirmed both refunds. Its permanent key and
+lifetime paid = 200 remained; request/balance cleared, and funding became
+available again because that channel is still open. Twelve transactions were
+exercised in this cycle, through block 32.
+
+Rendered and keyboard coverage
+-------------------------------
+Used the existing debug Chromium with normal and temporary 320px device
+viewports. Its existing zoom yielded about 291 CSS pixels of layout width.
+The sampled narrow balance had no document-level horizontal overflow; viewed
+the captured rendered image. It still makes the user scroll past substantial
+generic explanation before reaching current balance/tasks. Existing task
+headings, identity pinning, focus styling and shared controls worked.
+No physical mobile, full assistive-technology or other-browser proof is claimed.
+Screenshots/logs did not capture the voucher signature or encoded signed calldata.
+
+Qualification
+-------------
+Started through pay-to-play/local/demo/gui/up with an isolated project and
+port 5194. Opened its printed URL in the existing debug browser and attached
+the supported fixture wallet through viewer/local/fixture-wallet/attach using
+the same project. No public deployment, Fuji action or UI code change.
+
+Final receipt inventory: independently read all local blocks/receipts 6-32.
+All 27 transactions succeeded, all targeted the selected payment contract,
+and all senders matched the four fixture accounts. Three deposits attached
+1290 wei in total; all other calls attached zero. Native transaction signatures
+and voucher calldata were not included in the inventory output.
+
+Value accounting: 200 paid by vouchers, 800 withdrawn to the owner, 100 moved
+to reserve and still held, 150 refunded from channel 1, and 40 refunded from
+channel 2. Sum = 1290. Contract balance and the owner's reserve balance are
+both 100 wei. This is local payment/accounting evidence, not service delivery
+or commercial invoice verification.
+
+Final state: customer selected, reserve channel 0 open with balance 100 and
+no ordinary request; channel 1 remains open and its customer position is
+refunded with key retained and paid = 200; channel 2 is retired and its
+position refunded. No prepared transaction, raw signature in the form
+or viewport override remains. The demo and supported wallet attachment stay
+running. The earlier Escrow tab/demo were not reset; its client refund credit
+remains 1000000000000000 wei. Temporary audit comparison values were removed.
+
+This was four manual exploratory cycles through the rendered app and supported
+Make entrypoints, not a claim that the entire maintained Pay-to-Play browser
+campaign or repository test suite was rerun. No implementation was made;
+all implementation checklist items remain open. No new component, protocol rule,
+schema extension or check framework was introduced by this audit.
