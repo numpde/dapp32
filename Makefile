@@ -493,11 +493,7 @@ if [[ "$$release_operation" != cam ]]; then release_approval_require_terminal; f
 release_approval_require_image; \
 release_phase_overlays=(-f "$$ceremony_source/compose/release/reference.yml"); \
 if [[ "$$release_operation" == cam ]]; then release_phase_overlays+=(-f "$$ceremony_source/compose/release/cam.yml"); fi; \
-approval_prefix="$(1)"; approval_prefix="$${approval_prefix%_RELEASE_OUTPUT_DIR}"; \
-expected_deployer_name="$${approval_prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"; \
-approval_app="$${approval_prefix,,}"; approval_app="$${approval_app//_/-}"; \
-if [[ -n "$(2)" ]]; then approval_app="$(2)"; fi; \
-if [[ -n "$(3)" ]]; then expected_deployer_name="$(3)"; fi; \
+approval_app="$(2)"; expected_deployer_name="$(3)"; \
 if [[ ! -v $$expected_deployer_name ]]; then printf 'Missing required release input: %s\n' "$$expected_deployer_name" >&2; exit 2; fi; \
 expected_deployer="$${!expected_deployer_name}"; \
 release_approval_require_deployer "$$expected_deployer_name" "$$expected_deployer"; \
@@ -514,8 +510,7 @@ release_approval_run "$$output_dir"; \
 if [[ "$$release_operation" == ui ]]; then \
   printf 'Verified UI artifact: %s/artifact/ui-deployment.json\n' "$$output_dir"; \
 elif [[ "$$release_operation" == cam ]]; then printf 'Verified CAM artifact: %s/artifact/cam-publication.json\n' "$$output_dir"; \
-elif [[ "$$release_operation" == contracts ]]; then printf 'Verified business artifact: %s/artifact/contract-deployment.json\n' "$$output_dir"; \
-else printf 'Release artifact: %s/artifact/deployment.json\n' "$$output_dir"; fi
+elif [[ "$$release_operation" == contracts ]]; then printf 'Verified business artifact: %s/artifact/contract-deployment.json\n' "$$output_dir"; fi
 endef
 
 define release_contracts_deploy
