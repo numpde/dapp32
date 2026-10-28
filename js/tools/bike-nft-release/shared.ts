@@ -13,15 +13,7 @@ import {
   requiredTransactionHash,
 } from "../release-values.ts"
 
-export const RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v2"
 export const DEPLOYMENT_SCHEMA = "bike-nft.deployment.v2"
-
-const PLAN_KEYS = [
-  "schema", "sourceCommit", "expectedChainId", "camURI", "camHash", "intendedCamRootOwner",
-  "tokenName", "tokenSymbol", "baseTokenURI", "collectionURI", "intendedComponentsAdmin",
-  "componentsAdminDelay", "componentsPauser", "componentsConfigurer", "intendedManagerAdmin",
-  "managerAdminDelay", "managerPauser", "managerConfigurer", "registrars",
-] as const
 
 const DEPLOYMENT_KEYS = [
   "schema", "sourceCommit", "chainId", "deployer", "camURI", "camHash", "intendedCamRootOwner",
@@ -49,16 +41,11 @@ export type ContractSettings = {
   readonly registrars: readonly CamHost["address"][]
 }
 
-export type ReleasePlan = ContractSettings & {
-  readonly schema: typeof RELEASE_PLAN_SCHEMA
+export type DeploymentArtifact = ContractSettings & {
   readonly sourceCommit: string
-  readonly expectedChainId: number
   readonly camURI: string
   readonly camHash: `0x${string}`
   readonly intendedCamRootOwner: CamHost["address"]
-}
-
-export type DeploymentArtifact = Omit<ReleasePlan, "schema" | "expectedChainId"> & {
   readonly schema: typeof DEPLOYMENT_SCHEMA
   readonly chainId: number
   readonly deployer: CamHost["address"]
@@ -99,19 +86,16 @@ export function requiredBaseTokenURI(value: unknown): string {
   return value
 }
 
-export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
-  const value = parseJsonRecord(bytes, "release plan")
-  requireExactKeys(value, PLAN_KEYS, "Bike release plan")
-  if (value.schema !== RELEASE_PLAN_SCHEMA) throw new Error(`unsupported release plan schema: ${String(value.schema)}`)
-  return parsePlanFields(value)
-}
-
 export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   const value = parseJsonRecord(bytes, "deployment artifact")
   requireExactKeys(value, DEPLOYMENT_KEYS, "Bike deployment artifact")
   if (value.schema !== DEPLOYMENT_SCHEMA) throw new Error(`unsupported deployment artifact schema: ${String(value.schema)}`)
   const artifact: DeploymentArtifact = {
-    ...parseCommonFields(value),
+    sourceCommit: requiredSourceCommit(value.sourceCommit),
+    camURI: requiredSingleLineString(value.camURI, "camURI"),
+    camHash: requiredBytes32(value.camHash, "camHash"),
+    intendedCamRootOwner: addressField(value, "intendedCamRootOwner"),
+    ...parseContractSettings(value),
     schema: DEPLOYMENT_SCHEMA,
     chainId: checkedReleaseChainId(requiredSafeInteger(value.chainId, "deployment chainId")),
     deployer: requiredNonzeroAddress(value.deployer, "deployment deployer"),
@@ -129,24 +113,6 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   const transactions = [artifact.camRootCreationTransaction, artifact.componentsCreationTransaction, artifact.managerCreationTransaction, artifact.uiCreationTransaction]
   requireDistinctHexValues(transactions, "deployment creation transaction hashes")
   return artifact
-}
-
-function parsePlanFields(value: Record<string, unknown>): ReleasePlan {
-  return {
-    ...parseCommonFields(value),
-    schema: RELEASE_PLAN_SCHEMA,
-    expectedChainId: checkedReleaseChainId(requiredSafeInteger(value.expectedChainId, "release plan expectedChainId")),
-  }
-}
-
-function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "schema" | "expectedChainId"> {
-  return {
-    sourceCommit: requiredSourceCommit(value.sourceCommit),
-    camURI: requiredSingleLineString(value.camURI, "camURI"),
-    camHash: requiredBytes32(value.camHash, "camHash"),
-    intendedCamRootOwner: addressField(value, "intendedCamRootOwner"),
-    ...parseContractSettings(value),
-  }
 }
 
 function addressField(value: Record<string, unknown>, key: string): CamHost["address"] { return requiredNonzeroAddress(value[key], key) }

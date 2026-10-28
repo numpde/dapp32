@@ -1,7 +1,6 @@
 import type { Address, Hex } from "viem"
 import { checkedReleaseChainId, parseJsonRecord, requireDistinctHexValues, requireExactKeys, requiredBytes32, requiredNonemptyString, requiredNonzeroAddress, requiredNonzeroBytes32, requiredSafeInteger, requiredSourceCommit, requiredTransactionHash } from "../release-values.ts"
 
-export const RELEASE_PLAN_SCHEMA = "pay-to-play.release-plan.v1"
 export const DEPLOYMENT_SCHEMA = "pay-to-play.deployment.v2"
 
 export type ContractSettings = {
@@ -9,19 +8,11 @@ export type ContractSettings = {
   readonly nullClaimPeriod: number
 }
 
-type ReleaseSettings = ContractSettings & {
+export type DeploymentArtifact = ContractSettings & {
   readonly sourceCommit: string
   readonly camURI: string
   readonly camHash: Hex
   readonly intendedCamRootOwner: Address
-}
-
-export type ReleasePlan = ReleaseSettings & {
-  readonly schema: typeof RELEASE_PLAN_SCHEMA
-  readonly expectedChainId: number
-}
-
-export type DeploymentArtifact = ReleaseSettings & {
   readonly schema: typeof DEPLOYMENT_SCHEMA
   readonly chainId: number
   readonly deployer: Address
@@ -46,26 +37,6 @@ export function checkedClaimPeriod(value: unknown): number {
   return period
 }
 
-function settings(value: Record<string, unknown>): ReleaseSettings {
-  return {
-    sourceCommit: requiredSourceCommit(value.sourceCommit),
-    camURI: requiredNonemptyString(value.camURI, "CAM URI"),
-    camHash: requiredBytes32(value.camHash, "CAM hash"),
-    intendedCamRootOwner: requiredNonzeroAddress(value.intendedCamRootOwner, "intended CAM root owner"),
-    ...parseContractSettings(value),
-  }
-}
-
-export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
-  const value = parseJsonRecord(bytes, "PayToPlay release plan")
-  requireExactKeys(value, ["schema", "expectedChainId", ...SETTINGS_KEYS], "PayToPlay release plan")
-  if (value.schema !== RELEASE_PLAN_SCHEMA) throw new Error(`unsupported release plan schema: ${String(value.schema)}`)
-  return {
-    ...settings(value), schema: RELEASE_PLAN_SCHEMA,
-    expectedChainId: checkedReleaseChainId(requiredSafeInteger(value.expectedChainId, "expected chain ID")),
-  }
-}
-
 export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   const value = parseJsonRecord(bytes, "PayToPlay deployment artifact")
   requireExactKeys(value, [
@@ -76,7 +47,11 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   ], "PayToPlay deployment artifact")
   if (value.schema !== DEPLOYMENT_SCHEMA) throw new Error(`unsupported deployment artifact schema: ${String(value.schema)}`)
   const artifact: DeploymentArtifact = {
-    ...settings(value), schema: DEPLOYMENT_SCHEMA,
+    sourceCommit: requiredSourceCommit(value.sourceCommit),
+    camURI: requiredNonemptyString(value.camURI, "CAM URI"),
+    camHash: requiredBytes32(value.camHash, "CAM hash"),
+    intendedCamRootOwner: requiredNonzeroAddress(value.intendedCamRootOwner, "intended CAM root owner"),
+    ...parseContractSettings(value), schema: DEPLOYMENT_SCHEMA,
     chainId: checkedReleaseChainId(requiredSafeInteger(value.chainId, "deployment chain ID")),
     deployer: requiredNonzeroAddress(value.deployer, "deployment deployer"),
     camRoot: requiredNonzeroAddress(value.camRoot, "CamRoot address"),

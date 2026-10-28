@@ -22,8 +22,6 @@ import {
 import {
   DEPLOYMENT_SCHEMA,
   parseDeploymentArtifact,
-  parseReleasePlan,
-  RELEASE_PLAN_SCHEMA,
 } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 import {
@@ -50,10 +48,6 @@ const DAPPS_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps
 const CHECKED_IN_CAM_HASH = `0x${createHash("sha256").update(readFileSync(join(DAPPS_ROOT, "escrow/cam/main.json"))).digest("hex")}` as Hex
 
 test("release parsing rejects the old Keccak commitment schemas", () => {
-  assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({
-    schema: "escrow.release-plan.v1", sourceCommit: SOURCE_COMMIT, expectedChainId: 11155111,
-    camURI: "https://example.test/escrow/cam/main.json", camHash: CAM_HASH, intendedCamRootOwner: OWNER,
-  }))), /unsupported release plan schema/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
     ...deploymentArtifact(), schema: "escrow.deployment.v1",
   }))), /unsupported deployment artifact schema/)
@@ -75,28 +69,21 @@ test("release identity fields reject silent or malformed authority", () => {
 })
 
 test("escrow release parsing preserves shared identity rules and nonempty text", () => {
-  const plan = {
-    schema: RELEASE_PLAN_SCHEMA,
-    sourceCommit: SOURCE_COMMIT,
-    expectedChainId: 11155111,
-    camURI: "https://example.test/escrow/cam/main.json\nmirror",
-    camHash: CAM_HASH,
-    intendedCamRootOwner: OWNER,
-  }
+  const artifact = { ...deploymentArtifact(), camURI: "https://example.test/escrow/cam/main.json\nmirror" }
   assert.equal(
-    parseReleasePlan(new TextEncoder().encode(JSON.stringify(plan))).camURI,
-    plan.camURI,
+    parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))).camURI,
+    artifact.camURI,
   )
   assert.throws(
-    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, sourceCommit: "HEAD" }))),
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, sourceCommit: "HEAD" }))),
     /40 lowercase hexadecimal/,
   )
   assert.throws(
-    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, expectedChainId: 31337 }))),
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, chainId: 31337 }))),
     /rejects local fixture chain ID/,
   )
   assert.throws(
-    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, intendedCamRootOwner: ZERO }))),
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, intendedCamRootOwner: ZERO }))),
     /must not be the zero address/,
   )
 })

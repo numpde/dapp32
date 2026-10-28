@@ -16,17 +16,7 @@ import {
   requiredTransactionHash,
 } from "../release-values.ts"
 
-export const RELEASE_PLAN_SCHEMA = "escrow.release-plan.v2"
 export const DEPLOYMENT_SCHEMA = "escrow.deployment.v2"
-
-const RELEASE_PLAN_KEYS = [
-  "schema",
-  "sourceCommit",
-  "expectedChainId",
-  "camURI",
-  "camHash",
-  "intendedCamRootOwner",
-] as const
 
 const DEPLOYMENT_KEYS = [
   "schema",
@@ -49,15 +39,6 @@ const DEPLOYMENT_KEYS = [
   "camEscrowUICreationTransaction",
 ] as const
 
-export type ReleasePlan = {
-  readonly schema: typeof RELEASE_PLAN_SCHEMA
-  readonly sourceCommit: string
-  readonly expectedChainId: number
-  readonly camURI: string
-  readonly camHash: `0x${string}`
-  readonly intendedCamRootOwner: CamHost["address"]
-}
-
 export type DeploymentArtifact = {
   readonly schema: typeof DEPLOYMENT_SCHEMA
   readonly sourceCommit: string
@@ -77,26 +58,6 @@ export type DeploymentArtifact = {
   readonly camRootCreationTransaction: `0x${string}`
   readonly camEscrowCreationTransaction: `0x${string}`
   readonly camEscrowUICreationTransaction: `0x${string}`
-}
-
-export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
-  const value = parseJsonRecord(bytes, "release plan")
-  requireExactKeys(value, RELEASE_PLAN_KEYS, "escrow release plan")
-  if (value.schema !== RELEASE_PLAN_SCHEMA) {
-    throw new Error(`unsupported release plan schema: ${String(value.schema)}`)
-  }
-
-  return {
-    schema: RELEASE_PLAN_SCHEMA,
-    sourceCommit: requiredSourceCommit(value.sourceCommit),
-    expectedChainId: checkedReleaseChainId(requiredSafeInteger(value.expectedChainId, "release plan expectedChainId")),
-    camURI: requiredNonemptyString(value.camURI, "release plan camURI"),
-    camHash: requiredBytes32(value.camHash, "release plan camHash"),
-    intendedCamRootOwner: requiredNonzeroAddress(
-      value.intendedCamRootOwner,
-      "release plan intendedCamRootOwner",
-    ),
-  }
 }
 
 export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {

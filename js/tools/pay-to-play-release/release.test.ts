@@ -5,7 +5,7 @@ import { backingFromDeployment } from "../ui-release/shared.ts"
 
 import { keccak256 } from "viem"
 import type { Address, Hex } from "viem"
-import { parseReleasePlan, parseDeploymentArtifact, RELEASE_PLAN_SCHEMA, DEPLOYMENT_SCHEMA } from "./shared.ts"
+import { parseContractSettings, parseDeploymentArtifact, DEPLOYMENT_SCHEMA } from "./shared.ts"
 import { creationTransactionInputHash } from "../release-provenance.ts"
 
 const SOURCE = "0123456789abcdef0123456789abcdef01234567"
@@ -21,18 +21,10 @@ const TX2 = `0x${"34".repeat(32)}` as Hex
 const ZERO = "0x0000000000000000000000000000000000000000"
 const bytes = (value: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(value))
 
-function plan() {
-  return {
-    schema: RELEASE_PLAN_SCHEMA, sourceCommit: SOURCE, expectedChainId: 11155111,
-    camURI: "https://example.test/pay-to-play/cam/main.json", camHash: HASH,
-    intendedCamRootOwner: OWNER, intendedPaymentAdmin: ADMIN, nullClaimPeriod: 0,
-  }
-}
-
 function artifact() {
   return {
     schema: DEPLOYMENT_SCHEMA, sourceCommit: SOURCE, chainId: 11155111,
-    camURI: plan().camURI, camHash: HASH, deployer: ADMIN,
+    camURI: "https://example.test/pay-to-play/cam/main.json", camHash: HASH, deployer: ADMIN,
     intendedCamRootOwner: OWNER, intendedPaymentAdmin: ADMIN, nullClaimPeriod: 0,
     camRoot: ROOT, payToPlay: PAYMENTS, camRootCodeHash: HASH, payToPlayCodeHash: HASH,
     camRootCreationTransaction: TX, payToPlayCreationTransaction: TX2,
@@ -42,23 +34,23 @@ function artifact() {
   }
 }
 
-test("release plan requires explicit nonzero authorities and bounded claim periods, including zero", () => {
+test("business settings and stored deployment evidence require explicit authorities and bounded claim periods", () => {
   for (const period of [0, 1, 2592000]) {
-    assert.equal(parseReleasePlan(bytes({ ...plan(), nullClaimPeriod: period })).nullClaimPeriod, period)
+    assert.equal(parseContractSettings({ intendedPaymentAdmin: ADMIN, nullClaimPeriod: period }).nullClaimPeriod, period)
   }
   for (const period of [-1, 0.5, 2592001, "60", null]) {
-    assert.throws(() => parseReleasePlan(bytes({ ...plan(), nullClaimPeriod: period })), /claim period/i)
+    assert.throws(() => parseContractSettings({ intendedPaymentAdmin: ADMIN, nullClaimPeriod: period }), /claim period/i)
   }
   for (const field of ["intendedCamRootOwner", "intendedPaymentAdmin"]) {
     for (const value of [ZERO, "", null]) {
-      assert.throws(() => parseReleasePlan(bytes({ ...plan(), [field]: value })))
+      assert.throws(() => parseDeploymentArtifact(bytes({ ...artifact(), [field]: value })))
     }
-    const missing: Record<string, unknown> = { ...plan() }
+    const missing: Record<string, unknown> = { ...artifact() }
     delete missing[field]
-    assert.throws(() => parseReleasePlan(bytes(missing)), /fields disagree/)
+    assert.throws(() => parseDeploymentArtifact(bytes(missing)), /fields disagree/)
   }
   for (const chain of [1337, 31337]) {
-    assert.throws(() => parseReleasePlan(bytes({ ...plan(), expectedChainId: chain })), /fixture chain/)
+    assert.throws(() => parseDeploymentArtifact(bytes({ ...artifact(), chainId: chain })), /fixture chain/)
   }
 })
 

@@ -10,7 +10,7 @@ import { backingFromDeployment } from "../ui-release/shared.ts"
 
 
 import { ownershipState } from "../release-ownership.ts"
-import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseReleasePlan, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
+import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseContractSettings, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
@@ -21,9 +21,6 @@ const CHECKED_IN_CAM_HASH = `0x${createHash("sha256").update(readFileSync(join(D
 const DEPLOYER = address("1"), OWNER = address("2"), COMPONENTS_ADMIN = address("3"), MANAGER_ADMIN = address("4")
 
 test("Bike release parsing rejects the old Keccak commitment schemas", () => {
-  assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({
-    ...common(), camHash: hash("a"), schema: "bike-nft.release-plan.v1",
-  }))), /unsupported release plan schema/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
     ...deployment(), schema: "bike-nft.deployment.v1",
   }))), /unsupported deployment artifact schema/)
@@ -61,27 +58,26 @@ test("deployment artifact parsing rejects malformed evidence and preserves selec
 })
 
 test("Bike release parsing uses shared identity rules", () => {
-  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a") }
+  const artifact = deployment()
   assert.throws(
-    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, sourceCommit: "HEAD" }))),
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, sourceCommit: "HEAD" }))),
     /40 lowercase hexadecimal/,
   )
   assert.throws(
-    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, expectedChainId: 31337 }))),
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, chainId: 31337 }))),
     /rejects local fixture chain ID/,
   )
   assert.throws(
-    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, intendedCamRootOwner: address("0") }))),
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, intendedCamRootOwner: address("0") }))),
     /must not be the zero address/,
   )
 })
 
-test("release plans and deployment artifacts share the single-line text domain", () => {
-  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a") }
+test("business settings and deployment artifacts share the single-line text domain", () => {
   const artifact = deployment()
   for (const field of ["tokenName", "tokenSymbol", "baseTokenURI", "collectionURI"] as const) {
     assert.throws(
-      () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, [field]: "line one\nline two" }))),
+      () => parseContractSettings({ ...artifact, [field]: "line one\nline two" }),
       new RegExp(`${field} must be a .*single-line string`),
     )
     assert.throws(
@@ -91,24 +87,20 @@ test("release plans and deployment artifacts share the single-line text domain",
   }
 })
 
-test("Bike release keeps an explicitly empty metadata base in plans and artifacts", () => {
-  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a"), baseTokenURI: "" }
-  assert.equal(parseReleasePlan(new TextEncoder().encode(JSON.stringify(plan))).baseTokenURI, "")
+test("Bike business settings and artifacts keep an explicitly empty metadata base", () => {
+  assert.equal(parseContractSettings({ ...deployment(), baseTokenURI: "" }).baseTokenURI, "")
   const artifact = { ...deployment(), baseTokenURI: "" }
   assert.equal(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))).baseTokenURI, "")
-
 })
 
 test("Bike release requires a present string metadata base and keeps other metadata mandatory", () => {
-  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a") }
   for (const invalid of [undefined, null, 0, "line\nbreak", "line\rbreak"]) {
-    assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, baseTokenURI: invalid }))), /baseTokenURI/)
+    assert.throws(() => parseContractSettings({ ...deployment(), baseTokenURI: invalid }), /baseTokenURI/)
     assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...deployment(), baseTokenURI: invalid }))), /baseTokenURI/)
   }
   for (const field of ["tokenName", "tokenSymbol", "collectionURI"] as const) {
-    assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, [field]: "" }))), new RegExp(field))
+    assert.throws(() => parseContractSettings({ ...deployment(), [field]: "" }), new RegExp(field))
   }
-
 })
 
 test("handoff accepts only intended pending or completed state", () => {
