@@ -156,7 +156,7 @@ release_config_resolve_credentials() {
 }
 
 load_release_config() {
-  local app="$1" mode="$2" status=0 configuration_change="" update_mode=update output_override="" records=""
+  local app="$1" mode="$2" status=0 configuration_change="" update_mode output_override="" records=""
   if [[ -v OUTPUT_DIR ]]; then output_override="$OUTPUT_DIR"; fi
   local -a inputs
   case "$mode" in

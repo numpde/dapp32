@@ -542,7 +542,7 @@ printf continued > "$CASE_ROOT/continued"
             output.mkdir()
             (output / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
             with patch.object(release_config, "input", side_effect=["update"], create=True), contextlib.redirect_stdout(io.StringIO()):
-                release_config.update_source("escrow", "f" * 40, source, output, purpose="deployment")
+                release_config.update_source("escrow", "f" * 40, source, output, purpose="contracts")
             updated = json.loads((output / "release.json").read_text())
             self.assertEqual(APPROVAL_IMAGE, updated["approvalImageId"])
             original["sourceCommit"] = updated["sourceCommit"]
@@ -560,7 +560,7 @@ printf continued > "$CASE_ROOT/continued"
                 output.mkdir()
                 with patch.object(release_config, "input", create=True) as prompt:
                     with self.assertRaises(ValueError):
-                        release_config.update_source("escrow", "f" * 40, source, output, purpose="deployment")
+                        release_config.update_source("escrow", "f" * 40, source, output, purpose="contracts")
                 prompt.assert_not_called()
                 self.assertEqual([], list(output.iterdir()))
 
@@ -581,19 +581,46 @@ printf continued > "$CASE_ROOT/continued"
                     transcript = io.StringIO()
                     with patch.object(release_config, "input", side_effect=[decision], create=True), contextlib.redirect_stdout(transcript):
                         if decision == "update":
-                            release_config.update_source(app, current, source, output, purpose="deployment")
+                            release_config.update_source(app, current, source, output, purpose="contracts")
                             updated = json.loads((output / "release.json").read_text())
                             expected = dict(original, sourceCommit=current)
                             self.assertEqual(expected, updated)
                         else:
                             with self.assertRaisesRegex(ValueError, "cancelled"):
-                                release_config.update_source(app, current, source, output, purpose="deployment")
+                                release_config.update_source(app, current, source, output, purpose="contracts")
                             self.assertFalse((output / "release.json").exists())
                     self.assertEqual(before, source.read_bytes())
                     for secret in (FIXTURE_RPC, FIXTURE_KEY):
                         self.assertNotIn(secret, transcript.getvalue())
                     self.assertIn(COMMIT, transcript.getvalue())
                     self.assertIn(current, transcript.getvalue())
+
+    def test_operation_review_uses_only_its_inputs_and_shows_cam_commitment(self):
+        for purpose in ("contracts", "cam"):
+            with self.subTest(purpose=purpose), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                original = configuration("bike-nft")
+                original["settings"].update(CAM_HASH="0x" + "00" * 32, OUTPUT_DIR="/tmp/previous-release")
+                source = root / "config.json"
+                source.write_text(json.dumps(original))
+                before = source.read_bytes()
+                output = root / "stage"
+                output.mkdir()
+                transcript = io.StringIO()
+                with patch.object(release_config, "input", return_value="update", create=True), contextlib.redirect_stdout(transcript):
+                    release_config.update_source("bike-nft", "f" * 40, source, output, purpose=purpose)
+                visible = {line.split(":", 1)[0] for line in transcript.getvalue().splitlines()
+                           if line.split(":", 1)[0] in original["settings"]}
+                expected = {"EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"}
+                if purpose == "contracts":
+                    expected |= {name for name, _, _ in release_config.APP_FIELDS["bike-nft"]}
+                else:
+                    expected |= {"CAM_URI", "CAM_HASH", "INTENDED_CAM_ROOT_OWNER"}
+                    self.assertIn(f"CAM_HASH: {original['settings']['CAM_HASH']}", transcript.getvalue())
+                self.assertEqual(expected, visible)
+                self.assertIn("Previous deployment records: /tmp/previous-release", transcript.getvalue())
+                self.assertEqual(before, source.read_bytes())
+                self.assertEqual(dict(original, sourceCommit="f" * 40), json.loads((output / "release.json").read_text()))
 
     def test_endpoint_selection_collects_no_signing_key_and_detected_chain_is_confirmed(self):
         with tempfile.TemporaryDirectory() as temporary:

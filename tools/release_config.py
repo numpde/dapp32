@@ -1,4 +1,4 @@
-"""Collect a self-contained release configuration and unpack it for existing release lanes."""
+"""Collect release settings and stage phase-specific operation inputs."""
 
 import argparse
 import getpass
@@ -151,6 +151,13 @@ def required_settings(app, purpose):
     return required
 
 
+def operation_setting_names(app, purpose, settings):
+    names = required_settings(app, purpose)
+    if purpose == "cam":
+        names |= {"INTENDED_CAM_ROOT_OWNER", "CAM_HASH"} & settings.keys()
+    return names
+
+
 def validate(config, app, source_commit, *, purpose):
     """Validate all saved inputs; None leaves source selection with the saved pin."""
     validate_identity(config, app)
@@ -182,7 +189,7 @@ def validate(config, app, source_commit, *, purpose):
             raise ValueError("Local releases require the fixture chain, RPC and funded deployer account.")
     else:
         check_value(config["rpcUrl"], "rpc")
-    checked = required | ({"INTENDED_CAM_ROOT_OWNER", "CAM_HASH"} & settings.keys() if purpose == "cam" else set())
+    checked = operation_setting_names(app, purpose, settings)
     for name, _, kind in fields(app):
         if purpose != "deployment" and name not in checked:
             continue
@@ -458,12 +465,10 @@ def update_source(app, source_commit, source, output, *, purpose):
         config["approvalImageId"] = approval_image
     validate(config, app, source_commit, purpose=purpose)
     print(f"App: {app}\nApproval image: {config['approvalImageId']}\nRPC URL and signing key: unchanged (hidden)")
+    selected = operation_setting_names(app, purpose, config["settings"])
     for name, value in config["settings"].items():
-        if purpose == "ui" and name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS"):
-            continue
-        if purpose == "cam" and name not in ("EXPECTED_CHAIN_ID", "EXPECTED_DEPLOYER_ADDRESS", "OUTPUT_DIR", "CAM_URI", "INTENDED_CAM_ROOT_OWNER"):
-            continue
-        print(f"{name}: {value}")
+        if name in selected:
+            print(f"{name}: {value}")
     print("The operation will retain these choices. Transactions still require operator approval.")
     if input("Use these settings and continue? [update/cancel; default cancel]: ").strip().lower() != "update":
         raise ValueError("Operation preparation cancelled; the saved configuration is unchanged.")
@@ -585,7 +590,7 @@ def independent_plan_source(app, source, output, operation):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "credential-source", "retain", "publication-uri", "approval-pin", "update", "update-ui", "update-contracts", "ui-deploy", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
+    parser.add_argument("mode", choices=("network", "setup", "credential-source", "retain", "publication-uri", "approval-pin", "update-ui", "update-contracts", "ui-deploy", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
@@ -614,9 +619,9 @@ def main():
             prepare_network(args.app, args.source_commit, Path("/out"))
         elif args.mode == "setup":
             setup(args.app, args.source_commit, Path("/out"))
-        elif args.mode in ("update", "update-ui", "update-contracts", "update-cam"):
+        elif args.mode in ("update-ui", "update-contracts", "update-cam"):
             update_source(args.app, args.source_commit, Path("/run/release.json"), Path("/out"),
-                          purpose="ui" if args.mode == "update-ui" else "contracts" if args.mode == "update-contracts" else "cam" if args.mode == "update-cam" else "deployment")
+                          purpose={"update-ui": "ui", "update-contracts": "contracts", "update-cam": "cam"}[args.mode])
         elif args.mode in ("ui-plan-source", "contracts-plan-source", "cam-plan-source"):
             independent_plan_source(args.app, Path("/run/release.json"), Path("/out"),
                                     {"ui-plan-source": "ui", "contracts-plan-source": "contract", "cam-plan-source": "cam"}[args.mode])
