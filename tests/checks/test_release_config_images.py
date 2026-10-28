@@ -147,7 +147,7 @@ touch "$CASE_ROOT/continued"
                 self.assertEqual(admitted, (root / "continued").exists())
 
     def test_saved_image_overrides_ambient_and_missing_exact_image_blocks_deploy_only(self):
-        for mode, missing in (("deploy", False), ("deploy", True), ("verify", True)):
+        for mode, missing in (("contracts-deploy", False), ("contracts-deploy", True), ("contracts-artifact", True)):
             with self.subTest(mode=mode, missing=missing), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 config = root / "release.json"
@@ -165,11 +165,11 @@ compose_release_config() {
     return
   fi
   printf 'rpc fixture\n' > "$release_config_dir/rpc-url"
-  if [[ "$*" == *' release-config deploy '* ]]; then
+  if [[ "$*" == *' release-config contracts-deploy '* ]]; then
     printf 'RELEASE_APPROVAL_IMAGE=%s\0' "$SAVED_IMAGE" > "$release_config_dir/inputs"
     printf 'key fixture\n' > "$release_config_dir/deployer-key"
   else
-    printf 'BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=/tmp/fixture/artifact/deployment.json\0' > "$release_config_dir/inputs"
+    printf 'CONTRACT_RELEASE_APP=bike-nft\0' > "$release_config_dir/inputs"
   fi
 }
 load_release_config bike-nft "$MODE"
@@ -178,18 +178,18 @@ touch "$CASE_ROOT/continued"
 '''
                 script = 'MODE=' + mode + '\n' + script
                 result = self.run_shell(root, script, missing=missing)
-                if mode == "deploy" and missing:
+                if mode == "contracts-deploy" and missing:
                     self.assertNotEqual(0, result.returncode)
                     self.assertIn("interactively", result.stderr)
                     self.assertFalse((root / "continued").exists())
                 else:
                     self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                     expected = IMAGE
-                    if mode == "verify":
+                    if mode == "contracts-artifact":
                         expected = "unset"
                         self.assertFalse((root / "inspections").exists())
                     self.assertEqual(expected + "\n", (root / "loaded-image").read_text())
-                if mode == "deploy" and not missing:
+                if mode == "contracts-deploy" and not missing:
                     inspected = (root / "inspections").read_text()
                     self.assertIn("io.cam.approval-owner", inspected)
                     self.assertTrue(inspected.endswith("{{.Id}}\t" + IMAGE + "\n"))

@@ -26,7 +26,7 @@ release_config_teardown() {
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
-    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/configuration.json" "$release_config_dir/capture.json" "$release_config_dir/approval-images" "$release_config_dir/approval-pin" "$release_config_dir/approval-network" "$release_config_dir/approval-image" "$release_config_dir/approval-built" "$release_config_dir/credential-source" "$release_config_dir/retained-source" "$release_config_dir/operation-inputs.json" "$release_config_dir/publication-uri" \
+    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" "$release_config_dir/configuration.json" "$release_config_dir/capture.json" "$release_config_dir/approval-pin" "$release_config_dir/approval-network" "$release_config_dir/approval-image" "$release_config_dir/approval-built" "$release_config_dir/credential-source" "$release_config_dir/retained-source" "$release_config_dir/operation-inputs.json" "$release_config_dir/publication-uri" \
       "$release_config_dir/setup-network" "$release_config_dir/setup-approval-image" "$release_config_dir/setup-rpc-url" "$release_config_dir/chain-id" "$release_config_dir/images-setup-rpc.yml" "$release_config_dir/ui-source" "$release_config_dir/contract-source" "$release_config_dir/cam-source" "$release_config_dir/cam-uri-ready" || return "$?"
     rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir

@@ -505,45 +505,29 @@ printf continued > "$CASE_ROOT/continued"
                               "OUTPUT_DIR": "/tmp/new-ui-deployment"}
         release_config.validate(config, "pay-to-play", COMMIT, purpose="ui")
 
-    def test_artifact_completion_uses_the_saved_source_and_never_stages_signing_inputs(self):
+    def test_business_artifact_completion_uses_its_saved_plan_without_signing_settings(self):
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
-                config = configuration(app)
                 source = root / "config.json"
-                source.write_text(json.dumps(config))
+                source.write_text(json.dumps({"schemaVersion": 3, "app": app, "sourceCommit": COMMIT,
+                                              "rpcUrl": FIXTURE_RPC}))
                 output = root / "stage"
                 output.mkdir()
-                unpack(app, "f" * 40, "artifact", source, output)
-                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
-                prefix = app.upper().replace("-", "_")
-                self.assertEqual(COMMIT, inputs[f"{prefix}_RELEASE_SOURCE_COMMIT"])
-                self.assertEqual("/tmp/new-release-output", inputs[f"{prefix}_RELEASE_OUTPUT_DIR"])
-                self.assertNotIn("RELEASE_APPROVAL_IMAGE", inputs)
-                self.assertNotIn(FIXTURE_KEY, (output / "inputs").read_text())
+                unpack(app, "f" * 40, "contracts-artifact", source, output)
+                self.assertEqual(f"CONTRACT_RELEASE_APP={app}\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
-
-    def test_artifact_completion_does_not_require_retired_signing_settings(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            config = {"schemaVersion": 3, "app": "bike-nft", "sourceCommit": COMMIT,
-                      "rpcUrl": FIXTURE_RPC, "settings": {"OUTPUT_DIR": "/tmp/retained-deployment"}}
-            source = root / "config.json"
-            source.write_text(json.dumps(config))
-            output = root / "stage"
-            output.mkdir()
-            unpack("bike-nft", "f" * 40, "artifact", source, output)
-            self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
-            with self.assertRaises(ValueError):
-                release_config.validate(config, "bike-nft", COMMIT, purpose="deployment")
-
-    def test_artifact_collector_revision_must_match_the_saved_plan(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            source = Path(temporary) / "plan.json"
-            source.write_text(json.dumps({"sourceCommit": COMMIT}))
-            release_config.check_artifact_plan_source(COMMIT, source)
-            with self.assertRaisesRegex(ValueError, "different source commits"):
-                release_config.check_artifact_plan_source("f" * 40, source)
+                plan = root / "plan.json"
+                for saved in ({"schema": "cam.ui-release-plan.v1", "app": app, "sourceCommit": COMMIT},
+                              {"schema": "cam.contract-release-plan.v1", "app": "other", "sourceCommit": COMMIT}):
+                    plan.write_text(json.dumps(saved))
+                    with self.assertRaises(ValueError):
+                        release_config.independent_plan_source(app, plan, output, "contract")
+                    self.assertFalse((output / "contract-source").exists())
+                plan.write_text(json.dumps({"schema": "cam.contract-release-plan.v1", "app": app,
+                                            "sourceCommit": "b" * 40}))
+                release_config.independent_plan_source(app, plan, output, "contract")
+                self.assertEqual("b" * 40 + "\n", (output / "contract-source").read_text())
 
     def test_update_replaces_only_a_missing_approval_image_and_preserves_the_local_fixture(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -955,18 +939,6 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(FIXTURE_RPC + "\n", (output / "rpc-url").read_text())
                 self.assertTrue(all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir()))
 
-    def test_verify_uses_saved_output_and_does_not_materialize_a_signing_key(self):
-        for app in release_config.APP_FIELDS:
-            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                source = root / "config.json"
-                source.write_text(json.dumps(configuration(app)))
-                output = root / "verify"
-                output.mkdir()
-                unpack(app, COMMIT, "verify", source, output)
-                self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
-                self.assertEqual(f"{app.upper().replace('-', '_')}_DEPLOYMENT_ARTIFACT_FILE=/tmp/new-release-output/artifact/deployment.json\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
-
     def test_planner_receives_explicit_zero_and_automatic_hash(self):
         for value in ("auto", "0x" + "00" * 32):
             with self.subTest(hash=value):
@@ -1109,7 +1081,7 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(1, len(set(bytes.fromhex(config["deployerPrivateKey"][2:]))), "Local fixture keys must be an obvious repeated byte pattern")
                 output = root / "verify"
                 output.mkdir()
-                unpack(app, COMMIT, "verify", root / "release.json", output)
+                unpack(app, COMMIT, "contracts-artifact", root / "release.json", output)
                 inputs = (output / "inputs").read_text()
                 self.assertIn("RELEASE_REHEARSAL=1\0", inputs)
                 self.assertIn("RELEASE_REHEARSAL_NETWORK=local-release-test\0", inputs)

@@ -1,4 +1,4 @@
-# Offline setup and unpacking. Only the unpacker can read an existing configuration.
+# Offline configuration setup, retained operation inputs, and phase-specific unpacking.
 x-config-runtime: &config_runtime
   image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
   init: true

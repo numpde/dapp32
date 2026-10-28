@@ -482,14 +482,10 @@ def unpack(app, source_commit, mode, source, output):
         if not isinstance(settings, dict):
             raise ValueError("The release configuration settings must be an object.")
         config = {**config, "settings": {**settings, "OUTPUT_DIR": allocated_output}}
-    if mode in ("artifact", "ui-artifact", "contracts-artifact", "cam-artifact", "cam-bundle"):
+    if mode in ("ui-artifact", "contracts-artifact", "cam-artifact", "cam-bundle"):
         # These keyless operations use the saved identity and RPC. Retired
         # signing settings and the current checkout do not govern their inputs.
         validate_identity(config, app)
-        if mode == "artifact":
-            if not isinstance(config.get("settings"), dict) or "OUTPUT_DIR" not in config["settings"]:
-                raise ValueError("Artifact completion requires the saved deployment output directory.")
-            check_value(config["settings"]["OUTPUT_DIR"], "path")
         if mode == "cam-bundle":
             settings = config.get("settings")
             if not isinstance(settings, dict) or not {"EXPECTED_CHAIN_ID", "OUTPUT_DIR"} <= settings.keys():
@@ -566,11 +562,6 @@ def unpack(app, source_commit, mode, source, output):
         settings = {"CONTRACT_RELEASE_APP": app}
     elif mode == "ui-artifact":
         settings = {"UI_RELEASE_APP": app}
-    elif mode == "artifact":
-        settings = {f"{prefix}_RELEASE_SOURCE_COMMIT": config["sourceCommit"],
-                    f"{prefix}_RELEASE_OUTPUT_DIR": config["settings"]["OUTPUT_DIR"]}
-    elif mode == "verify":
-        settings = {f"{prefix}_DEPLOYMENT_ARTIFACT_FILE": config["settings"]["OUTPUT_DIR"] + "/artifact/deployment.json"}
     else:
         settings = {f"{prefix}_RELEASE_CAM_HASH": "auto"}
         settings["RELEASE_APPROVAL_IMAGE"] = config["approvalImageId"]
@@ -588,13 +579,6 @@ def unpack(app, source_commit, mode, source, output):
         write_private(output / "deployer-key", (config["deployerPrivateKey"] + "\n").encode())
 
 
-def check_artifact_plan_source(source_commit, source):
-    """Refuse to execute a collector from a revision different from its saved plan."""
-    plan = read_json_file(source, "deployment plan")
-    if not isinstance(plan, dict) or plan.get("sourceCommit") != source_commit:
-        raise ValueError("The deployment plan and configuration pin different source commits; use the original release configuration.")
-
-
 def independent_plan_source(app, source, output, operation):
     plan = read_json_file(source, "independent deployment plan")
     schema = "cam.publication-plan.v1" if operation == "cam" else f"cam.{operation}-release-plan.v1"
@@ -607,7 +591,7 @@ def independent_plan_source(app, source, output, operation):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "credential-source", "retain", "publication-uri", "approval-pin", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "verify", "artifact", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "artifact-plan", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
+    parser.add_argument("mode", choices=("network", "setup", "credential-source", "retain", "publication-uri", "approval-pin", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()
@@ -639,8 +623,6 @@ def main():
         elif args.mode in ("update", "update-ui", "update-contracts", "update-cam"):
             update_source(args.app, args.source_commit, Path("/run/release.json"), Path("/out"),
                           purpose="ui" if args.mode == "update-ui" else "contracts" if args.mode == "update-contracts" else "cam" if args.mode == "update-cam" else "deployment")
-        elif args.mode == "artifact-plan":
-            check_artifact_plan_source(args.source_commit, Path("/run/release.json"))
         elif args.mode in ("ui-plan-source", "contracts-plan-source", "cam-plan-source"):
             independent_plan_source(args.app, Path("/run/release.json"), Path("/out"),
                                     {"ui-plan-source": "ui", "contracts-plan-source": "contract", "cam-plan-source": "cam"}[args.mode])

@@ -1037,7 +1037,7 @@ compose_release_config() {
   else return 3; fi
 }
 mode=deploy
-if [[ "$OUTCOME" == verify ]]; then mode=verify; fi
+if [[ "$OUTCOME" == verify ]]; then mode=contracts-artifact; fi
 if [[ "$OUTCOME" == image-only ]]; then mode=cam-publish; CAM_RECORDS="$CASE_ROOT/old-output"; fi
 if [[ "$OUTCOME" == ui-override ]]; then
   OUTPUT_DIR="$CASE_ROOT/new-output"
