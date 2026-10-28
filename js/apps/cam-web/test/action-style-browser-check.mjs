@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { assertStableLayout } from './layout-stability.mjs'
 import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
-import { assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery, assertNumericValidationPresentation } from './display-contracts.mjs'
+import { assertBuildFooter, assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery, assertNumericValidationPresentation } from './display-contracts.mjs'
 
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/action-style-fixture.html', viewerURL)
@@ -163,6 +163,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       assert.equal(layout.draft, 'unchanged')
       assert.equal(layout.sends, 0)
       await assertDisplayedValues({ call, evaluate })
+      await assertBuildFooter({ call, evaluate, wait })
     }
     const transactionHash = `0x${'ab'.repeat(32)}`
     await evaluate(`window.actionFixture.transaction('eip155:43113',${JSON.stringify(transactionHash)})`)

@@ -913,9 +913,12 @@ help:
 	  'Run the static viewer from this host checkout (no release or publishing):' \
 	  '  make viewer/image/build         Build dapp32-viewer:local offline from the current checkout.' \
 	  '    Requires installed locked dependencies (make js/deps/install) and locally available pinned base images.' \
+	  '    The footer records the source revision and UTC build time; modified checkouts are labelled.' \
 	  '  make viewer/up                  Start the built image at http://127.0.0.1:8080; no build or pull.' \
 	  '  make viewer/status              Show this viewer container and its health.' \
 	  '  make viewer/down                Stop this viewer; does not touch chains or development viewers.' \
+	  '  make viewer/browser/check       Check shared UI, NFT previews and connections in an owned browser tab.' \
+	  '    Requires CDP_ORIGIN and VIEWER_URL from a running local GUI demo with its default download scope.' \
 	  '    VIEWER_IMAGE selects the local image; VIEWER_PORT selects a host port from 1024 to 65535.' \
 	  '    VIEWER_BIND_HOST defaults to 127.0.0.1; set an assigned private interface IP for a containerized HTTPS proxy.' \
 	  '    Select the same Docker context for build and start. Rootless resource limits need cgroup v2/systemd delegation.' \
@@ -1493,6 +1496,12 @@ viewer/down:
 
 viewer/status:
 	$(call production_viewer_compose,ps)
+
+.PHONY: viewer/browser/check
+viewer/browser/check:
+	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
+	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -p "$(COMPOSE_PROJECT_NAME)-viewer-browser-check" -f $(COMPOSE_DIR)/browser-ui-check.yml run --build --rm --no-deps -T browser-ui-check
 
 cam/integrity/refresh:
 	@$(LANE_GUARD); \

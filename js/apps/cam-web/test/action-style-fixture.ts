@@ -1,4 +1,4 @@
-import { createElement } from "react"
+import { createElement, Fragment } from "react"
 import type { ComponentProps } from "react"
 import { createRoot } from "react-dom/client"
 import { parseAbi } from "viem"
@@ -8,6 +8,7 @@ import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@ca
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
 import { Feedback, TransactionFeedback } from "../src/feedback.tsx"
 import { IntegrityWarnings } from "../src/integrity-warnings.tsx"
+import { BuildFooter } from "../src/build-footer.tsx"
 import type { SubmittedTransactionReference } from "../src/transactions.ts"
 import "../src/styles.css"
 
@@ -41,6 +42,7 @@ let integerDraft = editIntegerDraft("1")
 let durationDraft = durationDraftFromSeconds("60")
 let amountDraft = editAmountDraft(numericUnit, "base", "1")
 const events = { navigate: 0, contractCall: 0, unsupported: 0, send: 0, wallet: 0, calculate: 0, cancel: 0, back: 0, refresh: 0 }
+let buildMode = "known"
 function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCall" | "unsupported" {
   const declared = actions.find(item => item.route === action.call.function)
   if (declared === undefined) throw new Error("Fixture action was not declared")
@@ -85,7 +87,7 @@ function render(): void {
     onInteger: (_name, text, options) => { integerDraft = editIntegerDraft(text, options?.composing); render() },
     onDuration: (_name, part, text, options) => { durationDraft = editDurationDraft(durationDraft, part, text, options?.composing); render() }, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },
   }
-  root.render(createElement("main", { className: "app-shell" },
+  root.render(createElement(Fragment, null, createElement("main", { className: "app-shell" },
     createElement(ConnectionSummary, {
       chainId: "eip155:31337", host: "0x3333333333333333333333333333333333333333",
       account: viewingAccount,
@@ -100,9 +102,16 @@ function render(): void {
       report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },
       kind: "error", transaction: transactionReport.transaction,
     })),
+  ),
+    createElement(BuildFooter, {
+      revision: buildMode === "known" || buildMode === "modified" ? "0123456789abcdef0123456789abcdef01234567" : undefined,
+      builtAt: buildMode === "known" || buildMode === "modified" ? "2026-01-01T01:02:03Z" : undefined,
+      modified: buildMode === "modified", development: buildMode === "development",
+    }),
   ))
 }
 Object.assign(window, { actionFixture: { events,
+  build(mode: "known" | "modified" | "development" | "unknown") { buildMode = mode; render() },
   account(value: string) { viewingAccount = value; render() },
   transaction(chainId: string, hash: `0x${string}` | undefined) { transactionReport = { transaction: hash === undefined ? undefined : { chainId, hash } }; render() },
   hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })

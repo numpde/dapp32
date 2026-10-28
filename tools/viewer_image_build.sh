@@ -4,6 +4,14 @@ set -euo pipefail
 image=${1:?Pass the local viewer image name}
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)
+VITE_CAM_WEB_BUILD_REVISION=$(git -C "$repo_root" rev-parse HEAD)
+VITE_CAM_WEB_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+export VITE_CAM_WEB_BUILD_REVISION VITE_CAM_WEB_BUILD_TIME
+export VITE_CAM_WEB_BUILD_MODIFIED=false
+source_changes=$(git -C "$repo_root" status --porcelain)
+if [[ -n "$source_changes" ]]; then
+  VITE_CAM_WEB_BUILD_MODIFIED=true
+fi
 
 # A build must not acquire base images or install dependencies implicitly.
 for dockerfile in containers/node-deps/Dockerfile containers/viewer/Dockerfile; do

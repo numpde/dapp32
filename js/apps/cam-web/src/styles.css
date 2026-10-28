@@ -55,6 +55,20 @@ button:not(.timestamp-options):not(:disabled):active {
   padding: 32px 0;
 }
 
+.build-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 0.4em;
+  padding: 0 12px 24px;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.build-footer a { color: inherit; text-underline-offset: 0.2em; }
+.build-footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .topbar {
   margin-bottom: 16px;
 }

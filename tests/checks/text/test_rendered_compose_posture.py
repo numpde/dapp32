@@ -283,8 +283,15 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual(8080, ports[0]["target"])
 
     def test_production_viewer_build_has_offline_inputs_and_an_engine_owned_output(self) -> None:
-        config = rendered_compose_config("compose/viewer-image.yml")
+        metadata = {
+            "VITE_CAM_WEB_BUILD_REVISION": "a" * 40,
+            "VITE_CAM_WEB_BUILD_TIME": "2026-01-01T01:02:03Z",
+            "VITE_CAM_WEB_BUILD_MODIFIED": "true",
+        }
+        config = rendered_compose_config("compose/viewer-image.yml", env=metadata)
         builder = config["services"]["viewer-build"]
+        for name, value in metadata.items():
+            self.assertEqual(value, builder["environment"][name], "the compiled viewer receives its build identity")
         self.assertEqual("none", builder["network_mode"])
         self.assertEqual("none", builder["build"]["network"])
         self.assertNotIn(builder["user"].split(":")[0], ("0", "root"))
@@ -356,6 +363,18 @@ class RenderedComposePostureTest(unittest.TestCase):
                     self.assertNotIn("privileged", config_service)
                     self.assertNotIn("cap_add", config_service)
                     self.assertNotIn("devices", config_service)
+
+    def test_shared_browser_ui_check_has_only_fixture_and_workspace_inputs(self) -> None:
+        config = rendered_compose_config("compose/browser-ui-check.yml")
+        service = compose_service(config, "browser-ui-check")
+        self.assert_hardened(service)
+        self.assertEqual("host", service["network_mode"])
+        self.assertFalse(service.get("ports"))
+        self.assertFalse(service.get("secrets"))
+        mounts = {mount["target"]: mount for mount in service["volumes"]}
+        self.assertEqual({"/input/js", "/work/js/node_modules", "/work/tests/fixtures"}, set(mounts))
+        self.assertTrue(all(mount["read_only"] for mount in mounts.values()))
+        self.assertFalse(any("PRIVATE_KEY" in name or "RPC_URL" in name for name in service["environment"]))
 
     def test_escrow_browser_check_has_one_read_only_script_and_explicit_host_network(self) -> None:
         config = rendered_compose_config("compose/escrow/local/browser-check.yml", env=compose_render_env())

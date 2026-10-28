@@ -1,9 +1,39 @@
 import assert from 'node:assert/strict'
 
+export async function assertBuildFooter({ call, evaluate, wait }) {
+  const footer = `document.querySelector('footer[aria-label="Viewer build"]')`
+  await wait(`!!${footer}`)
+  const source = '0123456789abcdef0123456789abcdef01234567'
+  const shown = await evaluate(`(()=>{const footer=${footer};const time=footer.querySelector('time');const link=footer.querySelector('a');return {outsideMain:footer.closest('main')===null,revision:footer.querySelector('code').title,href:link.href,target:link.target,timestamp:time.dateTime,title:time.title,date:time.textContent,overflow:footer.scrollWidth>footer.clientWidth}})()`)
+  assert(shown.outsideMain, 'build information belongs outside the app content')
+  assert.equal(shown.revision, source, 'the source revision stays available in full')
+  assert.equal(shown.href, `https://github.com/numpde/dapp32/commit/${source}`)
+  assert.equal(shown.target, '_blank', 'opening source preserves the current app page')
+  assert.equal(shown.timestamp, '2026-01-01T01:02:03Z')
+  assert.equal(shown.title, shown.timestamp)
+  assert.equal(shown.date, '1 Jan 2026 UTC')
+  assert(!shown.overflow, 'the footer fits its viewport')
+  await call('Emulation.setTimezoneOverride', { timezoneId: 'Pacific/Honolulu' })
+  try {
+    await evaluate(`window.actionFixture.build('modified')`)
+    await wait(`${footer}.textContent.includes('(modified)')`)
+    assert.equal(await evaluate(`${footer}.querySelector('time').textContent`), '1 Jan 2026 UTC', 'the build date stays in UTC across browser timezones')
+    for (const [mode, message] of [['development', 'Viewer · Development build'], ['unknown', 'Viewer · Build metadata unavailable']]) {
+      await evaluate(`window.actionFixture.build(${JSON.stringify(mode)})`)
+      await wait(`${footer}.textContent===${JSON.stringify(message)}`)
+      assert(await evaluate(`!${footer}.querySelector('time')&&!${footer}.querySelector('a')`), 'absent build metadata is not replaced by a guessed revision or load time')
+    }
+  } finally {
+    await call('Emulation.setTimezoneOverride', { timezoneId: '' })
+    await evaluate(`window.actionFixture.build('known')`)
+    await wait(`!!${footer}.querySelector('time')`)
+  }
+}
+
 export async function assertDisplayedValues({ call, evaluate }) {
   await assertFeedbackPresentation(evaluate)
   await assertContentSeparation(evaluate)
-  const rows = await evaluate(`(()=>{const rows=[...document.querySelectorAll('dl')];return rows.map(row=>{const outer=row.parentElement.closest('dl');return {tags:[...row.children].map(child=>child.tagName),invalidParent:outer!==null&&row.parentElement.closest('dd')?.parentElement!==outer,label:row.firstElementChild?.textContent,overflow:row.scrollWidth>row.clientWidth+1}})})()`)
+  const rows = await evaluate(`(()=>{const rows=[...document.querySelectorAll('dl')];return rows.map(row=>{const outer=row.parentElement.closest('dl');return {tags:[...row.children].map(child=>child.tagName),invalidParent:outer!==null&&row.parentElement.closest('dd')?.parentElement!==outer,label:row.firstElementChild?.textContent,overflow:row.checkVisibility()&&row.scrollWidth>row.clientWidth+1}})})()`)
   assert(rows.length > 0, 'the fixture must exercise property rows')
   for (const row of rows) {
     assert.deepEqual(row.tags, ['DT', 'DD'], 'each property owns one complete label/value group')
@@ -19,7 +49,11 @@ export async function assertDisplayedValues({ call, evaluate }) {
   for (const item of identifiers) {
     assert.equal(item.text, item.expected, 'DOM extraction must contain the exact value once')
     assert.equal(item.selection, item.expected, 'selecting the value must contain the exact value once')
-    assert(item.decorative && item.ellipsis.includes('...') && item.middleFits, 'middle shortening is visible and decorative')
+    if (/^[0-9a-fA-F]{40}$/.test(item.expected)) {
+      assert.equal(await evaluate(`document.querySelectorAll('.hex-value-controls code')[${item.index}].firstElementChild.textContent`), item.expected.slice(0, 8), 'source revisions display their familiar eight-character prefix')
+    } else {
+      assert(item.decorative && item.ellipsis.includes('...') && item.middleFits, 'middle shortening is visible and decorative')
+    }
     assert(!item.disabled, 'read-only copy remains available independently of view edits')
     const { node } = await call('DOM.describeNode', { nodeId: ids[item.index] })
     const root = ax.nodes.find(candidate => candidate.backendDOMNodeId === node.backendNodeId)

@@ -11,6 +11,9 @@ services:
     working_dir: /work/js
     environment:
       VITE_CAM_WEB_RESOURCE_ORIGIN: "*"
+      VITE_CAM_WEB_BUILD_REVISION: "${VITE_CAM_WEB_BUILD_REVISION-}"
+      VITE_CAM_WEB_BUILD_TIME: "${VITE_CAM_WEB_BUILD_TIME-}"
+      VITE_CAM_WEB_BUILD_MODIFIED: "${VITE_CAM_WEB_BUILD_MODIFIED-false}"
     volumes:
       - type: bind
         source: ../js

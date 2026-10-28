@@ -1,0 +1,25 @@
+# Explicit browser authority: checks shared UI fixtures in one owned background
+# tab. The caller supplies an existing local dev viewer and CDP browser.
+services:
+  browser-ui-check:
+    extends:
+      file: fragments/node-workspace.yml
+      service: hardened-node-workspace
+    network_mode: host
+    cpus: 1
+    environment:
+      CDP_ORIGIN: "${CDP_ORIGIN:?Set the loopback CDP origin}"
+      VIEWER_URL: "${VIEWER_URL:?Set the local development viewer URL}"
+    volumes:
+      - ../js:/input/js:ro
+      - ../js/node_modules:/work/js/node_modules:ro
+      - ../tests/fixtures:/work/tests/fixtures:ro
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:packages
+        ./node_modules/.bin/tsc -p apps/cam-web/tsconfig.test.json
+        exec node tools/browser-ui-check.mjs
