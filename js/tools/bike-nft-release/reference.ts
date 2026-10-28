@@ -1,7 +1,7 @@
 import { keccak256, stringToHex, type Address } from "viem"
-import type { ExpectedArgument, ReleaseReference, ExpectedStep } from "../release-approval/reference.ts"
-import { createdContract, expectedDeployer } from "../release-approval/reference.ts"
-import { parseReleasePlan, type ContractSettings } from "./shared.ts"
+import type { ExpectedArgument, ExpectedStep } from "../release-approval/reference.ts"
+import { createdContract } from "../release-approval/reference.ts"
+import type { ContractSettings } from "./shared.ts"
 
 const roleId = (name: string) => keccak256(stringToHex(name))
 
@@ -11,29 +11,6 @@ export function bikeUICreation(manager: ExpectedArgument): ExpectedStep {
 
 export function bikeUIBinding(ui: ExpectedArgument): ExpectedStep {
   return { kind: "call", role: "camRoot", name: "setContractAddress", action: "Bind the Bike workflow interface in CAM", argumentLabels: ["CAM contract name", "Verified BicycleComponentManagerUI contract"], signature: "setContractAddress(string,address)", args: ["BicycleComponentManagerUI", ui] }
-}
-
-export function bikeReference(planBytes: Uint8Array, independentDeployer: string): ReleaseReference {
-  const plan = parseReleasePlan(planBytes)
-  const deployer = expectedDeployer(independentDeployer)
-  const sender = deployer.toLowerCase()
-
-  const steps: ExpectedStep[] = [
-    { kind: "create", role: "camRoot", name: "CamRoot", action: "Deploy CAM root with the selected manifest", argumentLabels: ["Initial CAM owner", "CAM manifest URI", "CAM manifest SHA-256"], constructorTypes: ["address", "string", "bytes32"], args: [deployer, plan.camURI, plan.camHash] },
-    ...bikeContractCreations(plan, deployer),
-    bikeUICreation(createdContract("manager")),
-  ]
-  steps.push(...bikeContractConfiguration(plan, deployer))
-  const call = (role: string, name: string, signature: string, action: string, argumentLabels: readonly string[], ...args: ExpectedStep["args"]): void => {
-    steps.push({ kind: "call", role, name, action, argumentLabels, signature, args })
-  }
-
-  steps.push(...bikeCamBindings({ camRoot: createdContract("camRoot"), manager: createdContract("manager"),
-    ui: createdContract("ui"), components: createdContract("components") }))
-  if (plan.intendedCamRootOwner.toLowerCase() !== sender) call("camRoot", "transferOwnership", "transferOwnership(address)", "Nominate the selected CAM owner; separate acceptance is required", ["Selected CAM owner"], plan.intendedCamRootOwner)
-  steps.push(...bikeAdminNominations(plan, deployer))
-
-  return { sourceCommit: plan.sourceCommit, expectedChainId: plan.expectedChainId, expectedDeployer: deployer, steps }
 }
 
 export function bikeContractCreations(plan: ContractSettings, deployer: Address): ExpectedStep[] {
