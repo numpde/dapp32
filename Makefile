@@ -7,6 +7,10 @@ ifneq ($(origin INSTANCE),undefined)
 override INSTANCE := $(value INSTANCE)
 export INSTANCE
 endif
+ifneq ($(origin FIXTURE_ID),undefined)
+override FIXTURE_ID := $(value FIXTURE_ID)
+export FIXTURE_ID
+endif
 ifneq ($(origin SOURCE_ARTIFACT),undefined)
 override SOURCE_ARTIFACT := $(value SOURCE_ARTIFACT)
 export SOURCE_ARTIFACT
@@ -843,15 +847,16 @@ help:
 	  '  make viewer/terminal/mock/down    Stop and remove that viewer container.' \
 	  '' \
 	  'Give another test runner a temporary Pay-to-Play deployment:' \
-	  '  make pay-to-play/local/fixture/up FIXTURE_ID=my-test    Deploy and leave the chain running in the background.' \
+	  '  make pay-to-play/local/fixture/up --no-print-directory  Create an exclusive fixture and return one JSON descriptor.' \
 	  '  make pay-to-play/local/fixture/info FIXTURE_ID=my-test  Print verified connection details as JSON.' \
 	  '  make pay-to-play/local/fixture/down FIXTURE_ID=my-test  Stop only that deployment and delete its state.' \
-	  '    FIXTURE_ID is your name for one test deployment, not an on-chain channel ID.' \
-	  '    Reuse the same ID for up/info/down; choose a fresh ID for each parallel test.' \
+	  '    up generates FIXTURE_ID when omitted. A caller may supply an ID known before startup for recovery.' \
+	  '    Descriptor fixtureId selects info/down; it is not an on-chain channel ID.' \
 	  '    FIXTURE_ID alone selects these deployments; COMPOSE_PROJECT_NAME does not change that selection.' \
 	  '    IDs allow 1-48 lowercase letters, digits, underscores or hyphens; start with a letter or digit.' \
-	  '    up rejects existing IDs. info includes an internal Docker network, RPC URL, deployed addresses' \
-	  '    and public test keys. Attach test containers to that network; no RPC port is exposed on the host.' \
+	  '    up rejects existing IDs without removing them. up/info include the internal network, RPC URL, deployed addresses' \
+	  '    and creation transactions, inline PayToPlay ABI and public test keys. Descriptor limit: 1 MiB.' \
+	  '    Diagnostics go to stderr. Attach test containers to the returned network; no host RPC port is exposed.' \
 	  '    Stop attached test containers before down. Only Solidity dependencies are needed here.' \
 	  '    Setup and JSON fields: dapps/pay-to-play/README.md, local deployment section.' \
 	  '' \
@@ -2201,53 +2206,12 @@ pay-to-play/local/demo/gui/down:
 
 .PHONY: pay-to-play/local/scenario/run pay-to-play/local/demo/gui/up pay-to-play/local/demo/gui/down pay-to-play/local/voucher/sign
 
-export FIXTURE_ID
-PAY_TO_PLAY_FIXTURE_PROJECT = dapps-pay-to-play-fixture-$(FIXTURE_ID)
-PAY_TO_PLAY_FIXTURE_NETWORK = $(PAY_TO_PLAY_FIXTURE_PROJECT)_pay-to-play_local
-PAY_TO_PLAY_FIXTURE_COMPOSE_ENV = $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_FIXTURE_PROJECT) PAY_TO_PLAY_FIXTURE_PROJECT=$(PAY_TO_PLAY_FIXTURE_PROJECT) CAM_URI=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)/main.json PAY_TO_PLAY_FIXTURE_NETWORK=$(PAY_TO_PLAY_FIXTURE_NETWORK)
 PAY_TO_PLAY_FIXTURE_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/fixture.yml
-PAY_TO_PLAY_FIXTURE_GUARD := if [[ ! "$${FIXTURE_ID:?Set FIXTURE_ID for this fixture run}" =~ ^[a-z0-9][a-z0-9_-]{0,47}$$ ]]; then printf '%s\n' 'FIXTURE_ID must be 1-48 lowercase letters, digits, underscores or hyphens, starting with a letter or digit.' >&2; exit 2; fi
-
-define pay_to_play_fixture_compose
-$(PAY_TO_PLAY_FIXTURE_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(PAY_TO_PLAY_FIXTURE_COMPOSE_FILES) $(1)
-endef
-
 .PHONY: pay-to-play/local/fixture/up pay-to-play/local/fixture/info pay-to-play/local/fixture/down
-pay-to-play/local/fixture/up:
-	@$(LANE_GUARD); $(PAY_TO_PLAY_FIXTURE_GUARD); \
-	for resource in container network volume; do \
-	  existing="$$(docker "$$resource" ls --quiet --filter 'label=com.docker.compose.project=$(PAY_TO_PLAY_FIXTURE_PROJECT)')"; \
-	  if [[ -n "$$existing" ]]; then printf '%s\n' 'Fixture already exists; use another FIXTURE_ID or stop this fixture first.' >&2; exit 2; fi; \
-	done; \
-	$(MAKE) dapps/deps/verify; \
-	docker network create --internal \
-	  --label 'com.docker.compose.project=$(PAY_TO_PLAY_FIXTURE_PROJECT)' \
-	  --label 'com.docker.compose.network=pay-to-play_local' \
-	  '$(PAY_TO_PLAY_FIXTURE_NETWORK)' >/dev/null; \
-	cleanup() { \
-	  status="$$?"; \
-	  if (( status != 0 )); then \
-	    $(call pay_to_play_fixture_compose,down --volumes) || printf '%s\n' 'Fixture cleanup failed; retry fixture/down with the same FIXTURE_ID.' >&2; \
-	  fi; \
-	  exit "$$status"; \
-	}; \
-	trap cleanup EXIT; \
-	$(call pay_to_play_fixture_compose,up --build --detach --wait --wait-timeout 60 pay-to-play-anvil pay-to-play-cam-http); \
-	$(PAY_TO_PLAY_FIXTURE_COMPOSE_ENV) timeout 180 env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(PAY_TO_PLAY_FIXTURE_COMPOSE_FILES) run --build --rm --no-deps -T deploy-pay-to-play-local; \
-	$(call pay_to_play_fixture_compose,run --pull never --rm --no-deps -T pay-to-play-fixture-info) >/dev/null
-
-pay-to-play/local/fixture/info:
-	@$(LANE_GUARD); $(PAY_TO_PLAY_FIXTURE_GUARD); \
-	for service in pay-to-play-anvil pay-to-play-cam-http; do \
-	  running="$$( $(call pay_to_play_fixture_compose,ps --quiet --status running) "$$service" )"; \
-	  if [[ -z "$$running" ]]; then printf 'Fixture service %s is not running; start this FIXTURE_ID first.\n' "$$service" >&2; exit 2; fi; \
-	done; \
-	docker volume inspect '$(PAY_TO_PLAY_FIXTURE_PROJECT)_pay-to-play_broadcast' >/dev/null; \
-	$(call pay_to_play_fixture_compose,run --pull never --rm --no-deps -T pay-to-play-fixture-info)
-
-pay-to-play/local/fixture/down:
-	@$(LANE_GUARD); $(PAY_TO_PLAY_FIXTURE_GUARD); \
-	$(call pay_to_play_fixture_compose,down --volumes)
+pay-to-play/local/fixture/up pay-to-play/local/fixture/info pay-to-play/local/fixture/down:
+	@$(LANE_GUARD); \
+	export $(PAY_TO_PLAY_COMPOSE_ENV) MAKE="$(MAKE)"; \
+	exec env -u PRIVATE_KEY bash tools/pay_to_play_fixture.sh "$(patsubst pay-to-play/local/fixture/%,%,$@)"
 
 
 # Offline fixture signing: only the fixed local customer key is available here.

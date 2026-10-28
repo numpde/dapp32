@@ -31,6 +31,7 @@ class PayToPlayFixtureTest(unittest.TestCase):
             role: {"address": "0x" + byte * 40, "privateKey": "0x" + byte * 64}
             for role, byte in (("admin", "a"), ("customer", "b"), ("relayer", "c"), ("payee", "d"))
         }
+        self.compilation = {"abi": [{"type": "function", "name": "owner", "inputs": [], "outputs": [{"type": "address"}]}], "bytecode": {"object": "0x6000"}}
 
     def rpc(self, url: str, method: str, params: list[object]) -> object:
         self.assertEqual(RPC_URL, url)
@@ -40,10 +41,12 @@ class PayToPlayFixtureTest(unittest.TestCase):
             return self.receipts.get(params[0])
         if method == "eth_getCode":
             return "0x6000"
+        if method == "eth_getTransactionByHash":
+            return {"hash": params[0], "to": None, "input": "0x6000" + "00" * 64}
         self.fail(f"unexpected RPC method {method}")
 
     def describe(self) -> dict[str, object]:
-        return describe_fixture(self.broadcast, self.accounts, PROJECT, NETWORK, RPC_URL)
+        return describe_fixture(self.broadcast, self.accounts, self.compilation, "check", PROJECT, NETWORK, RPC_URL)
 
     def test_exports_live_deployment_and_public_roles_for_external_consumer(self) -> None:
         with patch("tools.pay_to_play_fixture.rpc_call", side_effect=self.rpc):
@@ -52,12 +55,20 @@ class PayToPlayFixtureTest(unittest.TestCase):
         self.assertEqual(NETWORK, result["dockerNetwork"])
         self.assertEqual(RPC_URL, result["rpcUrl"])
         self.assertEqual(31337, result["chainId"])
+        self.assertEqual("pay-to-play.local-fixture.v1", result["schema"])
+        self.assertEqual("check", result["fixtureId"])
         self.assertEqual(self.accounts, result["publicFixtureAccounts"])
         self.assertEqual({
-            "CamRoot": {"address": self.transactions[0]["contractAddress"], "deploymentBlock": 1},
-            "PayToPlay": {"address": self.transactions[1]["contractAddress"], "deploymentBlock": 2},
-            "PayToPlayUI": {"address": self.transactions[2]["contractAddress"], "deploymentBlock": 3},
+            "CamRoot": {"address": self.transactions[0]["contractAddress"], "deploymentBlock": 1, "creationTransaction": self.transactions[0]["hash"]},
+            "PayToPlay": {"address": self.transactions[1]["contractAddress"], "deploymentBlock": 2, "creationTransaction": self.transactions[1]["hash"], "abi": self.compilation["abi"]},
+            "PayToPlayUI": {"address": self.transactions[2]["contractAddress"], "deploymentBlock": 3, "creationTransaction": self.transactions[2]["hash"]},
         }, result["contracts"])
+
+    def test_abi_is_rejected_when_retained_compilation_differs_from_mined_creation(self):
+        self.compilation["bytecode"]["object"] = "0xdeadbeef"
+        with patch("tools.pay_to_play_fixture.rpc_call", side_effect=self.rpc):
+            with self.assertRaisesRegex(ValueError, "retained compilation"):
+                self.describe()
 
     def test_missing_failed_or_reorganized_receipts_prevent_export(self) -> None:
         for index in range(len(self.transactions)):

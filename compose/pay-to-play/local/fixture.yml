@@ -11,6 +11,7 @@ services:
     pids_limit: 64
     mem_limit: 128m
     environment:
+      FIXTURE_ID: "${FIXTURE_ID:?missing_FIXTURE_ID}"
       COMPOSE_PROJECT_NAME: "${PAY_TO_PLAY_FIXTURE_PROJECT:?missing_PAY_TO_PLAY_FIXTURE_PROJECT}"
       PAY_TO_PLAY_FIXTURE_NETWORK: "${PAY_TO_PLAY_FIXTURE_NETWORK:?missing_PAY_TO_PLAY_FIXTURE_NETWORK}"
       PAY_TO_PLAY_BROADCAST_DIR: "${PAY_TO_PLAY_BROADCAST_DIR:?missing_PAY_TO_PLAY_BROADCAST_DIR}"
@@ -27,3 +28,5 @@ networks:
   pay-to-play_local:
     name: "${PAY_TO_PLAY_FIXTURE_NETWORK:?missing_PAY_TO_PLAY_FIXTURE_NETWORK}"
     internal: true
+    labels:
+      io.cam.fixture.creation: "${PAY_TO_PLAY_FIXTURE_CREATION_TOKEN:?missing_PAY_TO_PLAY_FIXTURE_CREATION_TOKEN}"

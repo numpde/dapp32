@@ -32,6 +32,7 @@ services:
       - ../../../dapps/pay-to-play/script:/work/dapps/pay-to-play/script:ro
       - ../../../dapps/pay-to-play/cam/main.json:/work/dapps/pay-to-play/cam/main.json:ro
       - ../../../dapps/cam/src:/work/dapps/cam/src:ro
+      - ../../../dapps/cam/script/UIReleaseScript.sol:/work/dapps/cam/script/UIReleaseScript.sol:ro
       - "pay-to-play_broadcast:${PAY_TO_PLAY_BROADCAST_DIR:?missing_PAY_TO_PLAY_BROADCAST_DIR}"
     networks:
       - pay-to-play_local
@@ -61,6 +62,7 @@ services:
           --rpc-url http://pay-to-play-anvil:8545 \
           --broadcast \
           -vvv
+        cp -- "$${FOUNDRY_OUT}/PayToPlay.sol/PayToPlay.json" "$${FOUNDRY_BROADCAST}/PayToPlay.compilation.json"
 
 networks:
   pay-to-play_local:

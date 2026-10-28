@@ -497,11 +497,12 @@ from a prepared checkout; Solidity dependencies must already be installed throug
 
 | Target | Input | Effect |
 | --- | --- | --- |
-| `pay-to-play/local/fixture/up` | `FIXTURE_ID` | Start a fresh internal Anvil and CAM HTTP service, deploy once, and verify readiness. Leave them running on success; attempt cleanup on failure. |
+| `pay-to-play/local/fixture/up` | Optional `FIXTURE_ID` | Create an exclusive base fixture and return its verified JSON descriptor. Generate an ID when omitted. Leave it running on success; clean owned failed starts. |
 | `pay-to-play/local/fixture/info` | The same `FIXTURE_ID` | Check the running deployment and print its connection details as JSON. A temporary reader container performs the checks. |
 | `pay-to-play/local/fixture/down` | The same `FIXTURE_ID` | Remove that fixture's services, network and deployment volume. Safe to repeat. |
 
-Choose a different ID for each concurrent run: 1–48 lowercase letters, digits,
+Callers managing a campaign can generate an ID before startup so recovery does
+not depend on receiving stdout. Use a different ID for each concurrent run: 1–48 lowercase letters, digits,
 underscores or hyphens, beginning with a letter or digit. `up` refuses an ID with
 existing fixture resources. It never resumes or redeploys into that state.
 Fixtures use dedicated projects prefixed `dapps-pay-to-play-fixture-`, separate
@@ -512,24 +513,31 @@ In this example, `DAPPS_CHECKOUT` is this checkout's path, `RUN_ID` identifies
 one test run, and `RUN_DIR` is an existing directory for test output:
 
 ```sh
-make -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/up FIXTURE_ID="$RUN_ID"
+make --no-print-directory -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/up \
+  FIXTURE_ID="$RUN_ID" > "$RUN_DIR/fixture.json.tmp" 2> "$RUN_DIR/fixture-start.log"
 # Register cleanup after successful startup; first stop P2P's own containers,
 # then call fixture/down with this RUN_ID, including when the scenario fails.
-make -s -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/info \
-  FIXTURE_ID="$RUN_ID" > "$RUN_DIR/fixture.json.tmp"
 mv "$RUN_DIR/fixture.json.tmp" "$RUN_DIR/fixture.json"
 ```
 
-`info` writes only JSON to stdout; operational diagnostics go to stderr. It
+`up` and `info` write one JSON line to stdout, at most 1 MiB; operational
+diagnostics go to stderr. Use `--no-print-directory` when invoking Make with
+`-C` so Make itself does not add directory banners. The exporter
 checks chain ID 31337, all deployment receipts against their recorded blocks,
 successful transaction status, and that all three deployed addresses contain contract
-code. It does not compare that code with compiler output. The JSON contains:
+code. The PayToPlay ABI comes from the same Forge invocation that deployed it,
+retained in the fixture volume. Its creation program must match the actual
+mined creation input; a current-checkout ABI is not substituted. This is not a
+general source/runtime verification service. The JSON contains:
 
-- `composeProject` and `dockerNetwork`: the fixture's cleanup identity and the
+- `schema`: `pay-to-play.local-fixture.v1`; `fixtureId` is the exact handle for
+  `info` and `down`, including when the producer generated it.
+- `composeProject` and `dockerNetwork`: the fixture's project and the
   existing internal network the consumer joins.
 - `rpcUrl` and `chainId`: connection details usable from that Docker network.
 - `contracts.CamRoot`, `contracts.PayToPlay` and `contracts.PayToPlayUI`: each has
-  `address` and the mined `deploymentBlock`. Use PayToPlay for voucher signatures
+  `address`, mined `deploymentBlock` and `creationTransaction`.
+  `contracts.PayToPlay.abi` embeds its matching ABI. Use PayToPlay for voucher signatures
   and payments; PayToPlayUI only reads signing details.
 - `publicFixtureAccounts`: `admin`, `customer`, `relayer` and `payee`, each with
   `address` and `privateKey`. These are intentionally public test identities;
@@ -540,6 +548,17 @@ network declared `external: true` and `name` set to that value. Configure its
 normal RPC client with `rpcUrl`. No RPC port is published on the host. A peer on
 this network can use Anvil's test-only mutation methods; this is a trusted test
 environment. Stop attached P2P containers before tearing down the fixture network.
+
+Only a successful `up` grants the creating caller cleanup ownership. Collision
+rejection leaves the existing fixture untouched. Attaching through `info` does
+not grant ownership. Before resource creation, stderr prints the selected ID
+and a recovery command with the checkout path. Trappable startup, verification
+and descriptor-write failures trigger cleanup of this attempt's resources.
+SIGKILL, host loss, or loss after a successful stdout write cannot prove whether
+the consumer saved the descriptor: retain the ID and stderr log, inspect the
+outcome, and recover explicitly. Do not blindly tear down an ID after an unknown
+or rejected startup. Unavailable engine inspection reports incomplete recovery
+rather than guessing ownership.
 
 After stopping its own containers, the runner calls this command even if its
 tests or `info` failed. Register that cleanup as soon as `up` succeeds:
