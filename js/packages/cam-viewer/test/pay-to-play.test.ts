@@ -7,7 +7,7 @@ import { parseJsonBytes, toInertValue, type InertRecord } from "@cam/protocol"
 import { resolvedUiButtons, type ResolvedUiNode } from "@cam/screen"
 import type { CamPublicClient } from "@cam/evm-viem"
 import type { Abi, Address, Hex } from "viem"
-import { createCamViewerSession } from "../src/index.ts"
+import { CamViewerInputError, createCamViewerSession } from "../src/index.ts"
 import { prepareViewerContractCall } from "../src/write-preparation.ts"
 
 const customer: Address = "0x0000000000000000000000000000000000000011"
@@ -34,9 +34,11 @@ async function fixture() {
     phase: 0n, scheduledRefundAt: 31536160n, refundAt: 31536160n,
     closeAt: 0n, balance: 100n, refundRecipient: customer,
   }
+  const readCalls: string[] = []
   const publicClient: CamPublicClient = {
     getChainId: async () => 31337,
     readContract: async request => {
+      readCalls.push(request.functionName)
       if (request.functionName === "supportsInterface") return true
       if (request.functionName === "camManifest") return { uri, sha256Digest: `0x${createHash("sha256").update(root).digest("hex")}` as Hex }
       if (request.functionName === "contractAddress") return request.args?.[0] === "PayToPlayUI" ? uiContract : contract
@@ -85,8 +87,48 @@ async function fixture() {
     const relative = new URL(resource).pathname.replace("/pay-to-play/", "")
     return new Uint8Array(await readFile(new URL(relative, directory)))
   } })
-  return { cam, abi, session, chainState }
+  return { cam, abi, session, chainState, readCalls }
 }
+
+test("empty numeric actions identify their own fields before any RPC, while explicit zero stays valid", async () => {
+  const { session, readCalls } = await fixture()
+  await session.load()
+  for (const [route, actor, actionName, field, enterZero] of [
+    ["position", customer, "fund", "fundAmount", () => session.editAmount("fundAmount", "base", "0")],
+    ["choosePosition", customer, "position", "lookupChannelId", () => session.editInteger("lookupChannelId", "0")],
+    ["home", other, "createChannel", "newClaimPeriod", () => session.editDuration("newClaimPeriod", "seconds", "0")],
+  ] as const) {
+    await session.setAccount({ address: actor })
+    let opened = await session.navigate(route, route === "home" ? {} : { customer, channelId: "1" })
+    if (field === "lookupChannelId") opened = session.editInteger(field, "")
+    const action = resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === actionName)!
+    assert(action)
+    const before = readCalls.length
+    for (let retry = 0; retry < 2; retry++) {
+      await assert.rejects(() => session.dispatchAction({ ...action, directStateBindings: {} }), error => {
+        assert(error instanceof CamViewerInputError)
+        assert(!Object.keys(error).includes("snapshot"), "exception logging must not enumerate form contents")
+        assert.equal(error.snapshot.state[field], null)
+        let marked = 0
+        function visit(node: ResolvedUiNode): void {
+          if (node.element === "AmountField" || node.element === "DurationField" || node.element === "NonNegativeIntegerField") {
+            if (node.draft.issue === "required") {
+              marked++
+              assert.equal(node.state.key, field, "unrelated empty editors remain neutral")
+              assert.equal(node.draft.status, "invalid")
+            }
+          }
+          if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(visit)
+        }
+        visit(error.snapshot.resolvedUi)
+        assert.equal(marked, 1)
+        return true
+      })
+    }
+    assert.equal(readCalls.length, before, "empty input must fail before RPC")
+    assert.equal(enterZero().state[field], "0")
+  }
+})
 
 test("sender-owned payment writes always continue to the acting wallet's position", async () => {
   const { cam, abi } = await fixture()

@@ -472,7 +472,8 @@ function AmountFieldView({ node, disabled, onAmount }: { readonly node: Resolved
   const hintId = useId()
   const issue = node.draft.issue
   const activeText = node.draft.representation === "base" ? node.draft.baseText : node.draft.displayText
-  const explanation = issue === "syntax" ? "Enter an unsigned amount using digits and a decimal point for the display unit. Spaces, separators, signs and exponents are not accepted."
+  const explanation = issue === "required" ? "Enter an amount."
+    : issue === "syntax" ? "Enter an unsigned amount using digits and a decimal point for the display unit. Spaces, separators, signs and exponents are not accepted."
     : issue === "lineBreak" ? "Amounts must be on one line. The value was cleared; enter it again."
     : issue === "precision" ? `This amount cannot be represented exactly with ${node.unit.decimals} decimal places. Remove nonzero extra fractional digits.`
     : issue === "tooLong" ? activeText === "" ? `Input is too long (limit ${MAX_NUMERIC_TEXT_LENGTH}). The value was cleared; enter it again.` : `The amount exceeds the limit of ${MAX_NUMERIC_DIGITS} base-unit digits.`
@@ -496,7 +497,8 @@ function AmountFieldView({ node, disabled, onAmount }: { readonly node: Resolved
 function DurationFieldView({ node, disabled, onDuration }: { readonly node: ResolvedDurationFieldNode; readonly disabled: boolean; readonly onDuration: DurationEdit }): ReactElement {
   const hintId = useId()
   const issue = node.draft.issue
-  const explanation = issue === "belowMin" ? `Enter a total of at least ${node.props.min} seconds.`
+  const explanation = issue === "required" ? "Enter a duration."
+    : issue === "belowMin" ? `Enter a total of at least ${node.props.min} seconds.`
     : issue === "aboveMax" ? `Enter a total of at most ${node.props.max} seconds.`
     : issue === "tooLong" ? `The total duration must fit in ${MAX_NUMERIC_DIGITS} digits when expressed in seconds.`
     : node.draft.status === "invalid" ? "Use whole numbers with digits only. A part that is too long or contains a line break is cleared; enter it again."
@@ -520,7 +522,8 @@ function DurationFieldView({ node, disabled, onDuration }: { readonly node: Reso
 function IntegerFieldView({ node, disabled, onInteger }: { readonly node: ResolvedNonNegativeIntegerFieldNode; readonly disabled: boolean; readonly onInteger: IntegerEdit }): ReactElement {
   const hintId = useId()
   const issue = node.draft.issue
-  const explanation = issue === "syntax" ? "Enter a nonnegative whole number using digits only."
+  const explanation = issue === "required" ? "Enter a whole number."
+    : issue === "syntax" ? "Enter a nonnegative whole number using digits only."
     : issue === "lineBreak" ? "The value must be on one line. It was cleared; enter it again."
     : issue === "belowMin" ? `Enter ${node.props.min} or greater.`
     : issue === "aboveMax" ? `Enter ${node.props.max} or less.`

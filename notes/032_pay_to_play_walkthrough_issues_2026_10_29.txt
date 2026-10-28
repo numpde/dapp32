@@ -82,7 +82,7 @@ P1 — Financial decisions, outcomes and completed setup
     read. Do not guess from the count or a simulated return under concurrency.
     No receipt framework or protocol change has been selected.
 
-[ ] Fix blank-amount validation through the shared input/action owner.
+[x] Fix blank-amount validation through the shared input/action owner.
     (Finding 3; Escrow issue 16)
     Reviewing an empty deposit should identify the missing amount at its field,
     mark it invalid and avoid a technical uint256 error as the main explanation.
@@ -322,3 +322,39 @@ and absent deadlines. Direct Chromium inspection of the disposable port-5294
 fixture confirmed one readable Operating group before tasks on both screens;
 320px device emulation (291 CSS pixels with existing zoom) had no horizontal
 overflow. This is not rendered proof of all three live recovery phases.
+
+Implementation update — required numeric fields
+------------------------------------------------
+The shared session now marks an empty numeric field only when the attempted
+action directly uses it. Amount, integer and duration editors show an invalid
+border with an associated hidden required reason. Other empty fields remain
+neutral. Edits clear the marker; explicit zero remains valid. Validation uses
+the current rendered action, not caller-supplied binding metadata, and happens
+before navigation, write preparation or RPC. This covers direct state bindings,
+not arbitrary nested/aliased expression provenance.
+
+Proof: make js/tests passed 1,023 tests, including repeated missing-input
+attempts, unchanged RPC counts, forged association metadata, zero and the
+existing parser/IME/history suites. Direct Chromium checks on disposable port
+5294 exercised all three editor types, editing to zero, a simulated zero deposit
+(discarded, not sent), status on balance/recovery and narrow amount layout.
+The rendered required amount border was red; the unrelated withdrawal editor
+remained neutral; narrow width had no horizontal overflow. No QA transaction
+was sent.
+
+The maintained Pay-to-Play browser campaign has new empty-deposit/status
+assertions, but did not reach them: attempts stopped in shared startup/clipboard
+fixtures. The stale startup helper was corrected to test the existing editable
+setup and RPC-local feedback owners; subsequent attempts stopped in the unrelated
+clipboard-error fixture. No full campaign pass is claimed.
+
+Remaining P1 design boundary
+----------------------------
+Collection outcome and creation handoff remain unchecked. Simulation currently
+discards returned values; receipts have events but no execution return value;
+write continuations resolve before submission with empty outputs. A shared
+receipt-aware result/handoff capability is needed to complete these tasks.
+Generic decoded events alone would expose a positive payment or actual created
+ID, but would not establish semantic zero payment, current-payee preview or
+a receipt-bound Open channel action. Never substitute a simulated ID or a
+post-transaction balance comparison for authoritative execution evidence.

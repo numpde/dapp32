@@ -80,11 +80,12 @@ export type NumericTextDraft = {
   readonly text: string
   readonly rejection: "tooLong" | "lineBreak" | null
   readonly composing: boolean
+  readonly requiredError?: true
 }
 
 export type IntegerDraft = NumericTextDraft & { readonly kind: "integer" }
 export type DurationPart = "days" | "hours" | "minutes" | "seconds"
-export type DurationDraft = { readonly kind: "duration"; readonly parts: Readonly<Record<DurationPart, NumericTextDraft>> }
+export type DurationDraft = { readonly kind: "duration"; readonly requiredError?: true; readonly parts: Readonly<Record<DurationPart, NumericTextDraft>> }
 export type DurationPresentation = {
   readonly parts: Readonly<Record<DurationPart, IntegerPresentation>>
   readonly status: IntegerPresentation["status"]
@@ -102,7 +103,7 @@ export type IntegerPresentation = {
   readonly text: string
   readonly status: "valid" | "empty" | "incomplete" | "invalid"
   readonly composing?: true
-  readonly issue?: "syntax" | "belowMin" | "aboveMax" | "tooLong" | "lineBreak"
+  readonly issue?: "syntax" | "belowMin" | "aboveMax" | "tooLong" | "lineBreak" | "required"
 }
 
 export type NonNegativeIntegerFieldNode = UiNodeBase & {
@@ -144,7 +145,7 @@ export type AmountPresentation = {
   readonly displayText: string
   readonly status: "valid" | "empty" | "incomplete" | "invalid"
   readonly composing?: true
-  readonly issue?: "syntax" | "precision" | "tooLong" | "lineBreak"
+  readonly issue?: "syntax" | "precision" | "tooLong" | "lineBreak" | "required"
 }
 
 export type AmountFieldNode = UiNodeBase & {

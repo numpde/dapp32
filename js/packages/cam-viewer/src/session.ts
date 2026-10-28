@@ -39,7 +39,7 @@ import type {
   UiDocument,
 } from "@cam/screen"
 
-import { CamViewerError } from "./errors.ts"
+import { CamViewerError, CamViewerInputError } from "./errors.ts"
 import { cloneViewerData } from "./inert-data.ts"
 import {
   assertActionIsRendered,
@@ -401,8 +401,9 @@ export function createCamViewerSession({
     assertViewAvailable()
     const current = assertLoaded()
     const view = assertCurrentView()
-    assertActionIsRendered(view.resolvedUi, action)
-    const interpretation = interpretRenderedAction(current.cam, action)
+    const rendered = assertActionIsRendered(view.resolvedUi, action)
+    requireActionInputs(view, rendered)
+    const interpretation = interpretRenderedAction(current.cam, rendered)
 
     if (interpretation.type === "navigate") {
       return {
@@ -425,6 +426,23 @@ export function createCamViewerSession({
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot prepare write: the account or view changed while the resolver was running")
     }
     return { type: "contractCall", call }
+  }
+
+  function requireActionInputs(view: CurrentView, action: ResolvedButtonNode): void {
+    const bindings = new Set(Object.values(action.directStateBindings ?? {}))
+    const numericDrafts = { ...view.numericDrafts }
+    const missing: string[] = []
+    forEachResolvedUiNode(view.resolvedUi, node => {
+      if (node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") return
+      if (!bindings.has(node.state.key) || node.disabled === true) return
+      if (node.draft.status !== "empty" && node.draft.issue !== "required") return
+      numericDrafts[node.state.key] = { ...numericDrafts[node.state.key]!, requiredError: true }
+      missing.push(String(node.props.label))
+    })
+    if (missing.length === 0) return
+    const resolvedUi = resolveCurrentUi(view.route, view.inputs, view.values, view.state, numericDrafts)
+    currentView = { ...view, numericDrafts, resolvedUi }
+    throw new CamViewerInputError(`Enter a value for ${missing.join(", ")} before continuing.`, loadedSnapshot(currentView))
   }
 
   async function navigateLoaded(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {

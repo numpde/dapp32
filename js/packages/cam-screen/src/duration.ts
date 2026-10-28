@@ -31,7 +31,8 @@ export function projectDurationDraft(source: DurationDraft, bounds: { readonly m
   }
   if (DURATION_PARTS.some(part => parts[part].status === "invalid")) return { canonical: null, draft: { parts, status: "invalid" } }
   if (DURATION_PARTS.some(part => parts[part].status === "incomplete")) return { canonical: null, draft: { parts, status: "incomplete" } }
-  if (DURATION_PARTS.every(part => parts[part].status === "empty")) return { canonical: null, draft: { parts, status: "empty" } }
+  if (DURATION_PARTS.every(part => parts[part].status === "empty")) return { canonical: null, draft: { parts,
+    status: source.requiredError ? "invalid" : "empty", ...(source.requiredError ? { issue: "required" as const } : {}) } }
   const total = DURATION_PARTS.reduce((sum, part) => sum + BigInt(source.parts[part].text === "" ? "0" : source.parts[part].text) * SECONDS_PER_PART[part], 0n)
   const projection = projectIntegerDraft({ kind: "integer", ...captureNumericText(total.toString()) }, bounds)
   return { canonical: projection.canonical, draft: { parts, status: projection.draft.status, ...(projection.draft.issue === undefined ? {} : { issue: projection.draft.issue }) } }

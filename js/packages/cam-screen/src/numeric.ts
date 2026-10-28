@@ -37,7 +37,7 @@ export function projectIntegerDraft(source: IntegerDraft, bounds: { readonly min
     draft: { text: source.text, status, ...(source.composing ? { composing: true as const } : {}), ...(issue === undefined ? {} : { issue }) } })
   if (source.rejection !== null) return unavailable("invalid", source.rejection)
   if (source.composing) return unavailable("incomplete")
-  if (source.text === "") return unavailable("empty")
+  if (source.text === "") return source.requiredError ? unavailable("invalid", "required") : unavailable("empty")
   const canonical = canonicalUnsignedDigits(source.text)
   if (canonical === null) return unavailable("invalid", "syntax")
   if (canonical.length > MAX_NUMERIC_DIGITS) return unavailable("invalid", "tooLong")

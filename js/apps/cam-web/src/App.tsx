@@ -21,6 +21,7 @@ import type {
 } from "@cam/screen"
 import {
   createCamViewerSession,
+  CamViewerInputError,
 } from "@cam/viewer"
 import type {
   CamViewerLoadedSnapshot,
@@ -435,6 +436,11 @@ export function App(): ReactElement {
       arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return
+      if (error instanceof CamViewerInputError) {
+        commitSnapshot(ready, error.snapshot, "replace")
+        showError({ message: error.message }, true)
+        return
+      }
       showError(actionFailure(error, action.props.label), true)
     }
   }

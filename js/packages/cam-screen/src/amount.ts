@@ -40,13 +40,13 @@ export function projectAmountDraft(source: AmountDraft): { canonical: string | n
   const { representation, text, unit } = source
   const active = representation === "base" ? { baseText: text, displayText: "" } : { baseText: "", displayText: text }
   const phase = source.composing ? { composing: true as const } : {}
-  const unavailable = (status: "empty" | "incomplete" | "invalid", issue?: "syntax" | "precision" | "tooLong" | "lineBreak") => ({
+  const unavailable = (status: "empty" | "incomplete" | "invalid", issue?: AmountPresentation["issue"]) => ({
     canonical: null,
     draft: { representation, ...active, ...phase, status, ...(issue === undefined ? {} : { issue }) },
   })
   if (source.rejection !== null) return unavailable("invalid", source.rejection)
   if (source.composing) return unavailable("incomplete")
-  if (text === "") return unavailable("empty")
+  if (text === "") return source.requiredError ? unavailable("invalid", "required") : unavailable("empty")
   if (representation === "display" && text === ".") return unavailable("incomplete")
   // Negated character checks enforce the whole string, including final line terminators.
   if (representation === "base" ? /[^0-9]/u.test(text) : /[^0-9.]/u.test(text) || text.split(".").length > 2) return unavailable("invalid", "syntax")

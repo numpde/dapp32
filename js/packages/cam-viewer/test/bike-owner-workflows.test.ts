@@ -3,7 +3,7 @@ import test from "node:test"
 import { toInertValue } from "@cam/protocol"
 import { CamEvmError } from "@cam/evm-viem"
 import { resolvedUiButtons } from "@cam/screen"
-import { CamViewerError, createCamViewerSession } from "../src/index.ts"
+import { CamViewerError, CamViewerInputError, createCamViewerSession } from "../src/index.ts"
 import type { CamViewerLoadedSnapshot } from "../src/index.ts"
 import { bikeCamJson } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import { BIKE_ACCOUNT_ADDRESS, BIKE_COMPONENTS_ADDRESS, BIKE_SERIAL_NUMBER, BIKE_TOKEN_ID } from "../../../../tests/fixtures/cam/bike.mts"
@@ -29,7 +29,7 @@ test("a thirty-minute workshop cap requires a chosen duration and rejects over-l
   assert.equal(loaded.state.duration, null)
   const selected = session.updateState({ delegate: WORKSHOP })
   const invalidDuration = (error: unknown) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT"
-  await assert.rejects(() => session.dispatchAction(button(selected, "delegation")), invalidDuration)
+  await assert.rejects(() => session.dispatchAction(button(selected, "delegation")), error => error instanceof CamViewerInputError && error.snapshot.state.duration === null)
   const tooLong = session.updateState({ duration: "1801" })
   assert.equal(tooLong.state.duration, null)
   await assert.rejects(() => session.dispatchAction(button(tooLong, "delegation")), invalidDuration)

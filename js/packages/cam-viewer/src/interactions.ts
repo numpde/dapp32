@@ -50,7 +50,7 @@ export function interpretRenderedAction(cam: CamDocument, action: ResolvedButton
   return { type: kind, route, inputs: action.call.args }
 }
 
-export function assertActionIsRendered(resolvedUi: ResolvedUiNode, action: ResolvedButtonNode): void {
+export function assertActionIsRendered(resolvedUi: ResolvedUiNode, action: ResolvedButtonNode): ResolvedButtonNode {
   // Rendered actions are the viewer/session handoff boundary. Re-checking
   // membership here prevents stale or fabricated buttons from bypassing the
   // current resolved UI and jumping directly to manifest routes.
@@ -59,9 +59,11 @@ export function assertActionIsRendered(resolvedUi: ResolvedUiNode, action: Resol
   if (matching.length === 0) {
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM action is not rendered in the current view")
   }
-  if (!matching.some((button) => button.disabled !== true)) {
+  const enabled = matching.find((button) => button.disabled !== true)
+  if (enabled === undefined) {
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM action is disabled in the current view")
   }
+  return enabled
 }
 
 export function assertStatePatchTargets(resolvedUi: ResolvedUiNode, patch: InertRecord): void {
