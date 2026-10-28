@@ -968,7 +968,7 @@ CONFIG="$CASE_ROOT/operator.json"
 release_config_stage "$CASE_ROOT"
 printf '%s\\n' "$release_config_dir" > "$CASE_ROOT/stage"
 printf 'fixture input\\n' > "$release_config_dir/rpc-url"
-''' + definition + '\ncompose_release_config run --rm --no-deps -T release-config deploy escrow fixture-source\n'
+''' + definition + '\ncompose_release_config run --rm --no-deps -T release-config contracts-deploy escrow fixture-source\n'
                 process = self.launch(script, env)
                 try:
                     if outcome == "interrupt":
@@ -1022,7 +1022,7 @@ compose_release_config() {
     return
   fi
   printf '%s\n' "$*" >> "$CASE_ROOT/events"
-  if [[ " $* " == *" release-config update "* || " $* " == *" release-config update-ui "* || " $* " == *" release-config update-cam "* ]]; then
+  if [[ " $* " == *" release-config update-contracts "* || " $* " == *" release-config update-ui "* || " $* " == *" release-config update-cam "* ]]; then
     [[ "$OUTCOME" != cancel ]] || return 2
     printf updated > "$release_config_dir/release.json"
     if [[ "$OUTCOME" == changed ]]; then printf concurrent-edit > "$CONFIG"; fi
@@ -1032,11 +1032,11 @@ compose_release_config() {
     elif [[ "$OUTCOME" == ui-override ]]; then
       printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0UI_RELEASE_OUTPUT_DIR=%s/old-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
     else
-      printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0ESCROW_RELEASE_OUTPUT_DIR=%s/new-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
+      printf 'RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0CONTRACT_RELEASE_OUTPUT_DIR=%s/new-output\0' "$CASE_ROOT" > "$release_config_dir/inputs"
     fi
   else return 3; fi
 }
-mode=deploy
+mode=contracts-deploy
 if [[ "$OUTCOME" == verify ]]; then mode=contracts-artifact; fi
 if [[ "$OUTCOME" == image-only ]]; then mode=cam-publish; CAM_RECORDS="$CASE_ROOT/old-output"; fi
 if [[ "$OUTCOME" == ui-override ]]; then
@@ -1067,17 +1067,18 @@ else load_release_config escrow "$mode"; fi
                     os.close(slave)
 
     def test_setup_publishes_configuration_only_after_the_link_for_every_app(self) -> None:
-        for app in ("bike-nft", "escrow", "pay-to-play"):
+        for app, network in (("bike-nft", "public"), ("escrow", "public"), ("pay-to-play", "public"), ("escrow", "local")):
             for fail_link in (False, True):
-                with self.subTest(app=app, fail_link=fail_link), tempfile.TemporaryDirectory() as directory:
+                with self.subTest(app=app, network=network, fail_link=fail_link), tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
                     env = self.environment(root, root)
-                    env.update(APP=app, PREFIX=app.upper().replace("-", "_"), CONFIG=str(root / "operator's release.json"), RELEASE_APPROVAL_IMAGE="must-not-print-this-image")
+                    env.update(APP=app, NETWORK=network, CONFIG=str(root / "operator's release.json"), RELEASE_APPROVAL_IMAGE="must-not-print-this-image")
                     guards = '''
 git() { [[ "$*" == "rev-parse HEAD" ]] || return 91; printf '%s\\n' 0123456789abcdef0123456789abcdef01234567; }
 validate_new_release_output() { [[ ! -e "$1" ]]; }
 recheck_new_release_output() { [[ ! -e "$1" ]]; }
 require_release_config() { [[ -f "$1" ]]; }
+require_release_local_network() { [[ "$RELEASE_REHEARSAL_NETWORK" == fixture-internal ]]; touch "$CASE_ROOT/network-checked"; }
 release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_config_dir"; }
 '''
                     composition = '''
@@ -1085,11 +1086,12 @@ release_config_prepare_approval_images() { printf '%s\n' "sha256:$(printf 'a%.0s
 docker() { [[ "$1 $2 $3" == 'image inspect --format' && "$4" == '{{.Id}}' ]]; printf '%s\n' "$5"; }
 compose_release_config() {
   if [[ " $* " == *" release-setup network "* ]]; then
-    printf 'public\n' > "$release_config_dir/setup-network"
+    printf '%s\n' "$NETWORK" > "$release_config_dir/setup-network"
+    cp "$release_config_dir/approval-image" "$release_config_dir/setup-approval-image"
   elif [[ " $* " == *" release-setup "* ]]; then
     printf '{}' > "$release_config_dir/release.json"
   else
-    printf 'RELEASE_REHEARSAL=0\\0RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\0%s_RELEASE_OUTPUT_DIR=%s/deployment\\0' "$PREFIX" "$CASE_ROOT" > "$release_config_dir/inputs"
+    return 91
   fi
 }
 '''
@@ -1097,7 +1099,7 @@ compose_release_config() {
                     for old, new in {
                         "$(LANE_GUARD)": ":", "$(patsubst %/release/setup,%,$@)": app,
                         "$(release_host_guard_functions)": guards.strip(), "$(release_config_compose)": composition.strip(),
-                        "$(release_setup_rpc_compose)": "release_config_probe_chain() { :; }", "$(CURDIR)": str(ROOT),
+                        "$(release_setup_rpc_compose)": "release_config_probe_chain() { :; }", "$(CURDIR)": str(ROOT), "$(LOCAL_RELEASE_NETWORK)": "fixture-internal",
                         f"$(call release_instance_entry,{app},setup)": ":",
                     }.items():
                         script = script.replace(old, new)
@@ -1105,6 +1107,7 @@ compose_release_config() {
                         script = 'ln() { return 17; }\n' + script
                     process = self.launch(script, env)
                     stdout, stderr = process.communicate(timeout=10)
+                    self.assertEqual(network == "local", (root / "network-checked").exists(), stdout + stderr)
                     if fail_link:
                         self.assertEqual(17, process.returncode, stdout + stderr)
                         self.assertNotIn("Saved release configuration:", stdout)

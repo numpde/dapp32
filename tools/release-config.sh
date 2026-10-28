@@ -195,7 +195,7 @@ load_release_config() {
     printf 'Run this command interactively to prepare a new operation from source %s. The saved configuration will not change.\n' "$source_commit" >&2
     return "$status"
   fi
-  if [[ ( "$status" == 0 || "$status" == 3 ) && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) ]]; then
+  if [[ ( "$status" == 0 || "$status" == 3 ) && ( "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) ]]; then
     compose_release_config run --rm --no-deps -T release-config approval-pin "$app" "$source_commit"
     local pinned prepared
     read -r pinned < "$release_config_dir/approval-pin"
@@ -210,7 +210,7 @@ load_release_config() {
   if [[ "$mode" == ui-deploy ]]; then update_mode=update-ui; fi
   if [[ "$mode" == contracts-deploy ]]; then update_mode=update-contracts; fi
   if [[ "$mode" == cam-publish ]]; then update_mode=update-cam; fi
-  if [[ "$status" == 3 && ( "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) && -t 0 && -t 1 ]]; then
+  if [[ "$status" == 3 && ( "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) && -t 0 && -t 1 ]]; then
     compose_release_config run --rm --no-deps -it release-config "$update_mode" "$app" "$source_commit"
     release_config_input="$release_config_dir/release.json"
     require_release_config "$release_config_input"
@@ -229,16 +229,14 @@ load_release_config() {
   if [[ ( "$mode" == cam-bundle || "$mode" == cam-publish ) && -n "$output_override" ]]; then export CAM_RELEASE_OUTPUT_DIR="$output_override"; fi
   RPC_URL_FILE="$release_config_dir/rpc-url"
   export RPC_URL_FILE
-  if [[ "$mode" == deploy || "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ]]; then
+  if [[ "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ]]; then
     source tools/release_approval_preflight.sh
     release_approval_require_image
     DEPLOYER_PRIVATE_KEY_FILE="$release_config_dir/deployer-key"
     export DEPLOYER_PRIVATE_KEY_FILE
   fi
   if [[ -n "$configuration_change" ]]; then
-    local prefix="${app^^}" output_name
-    prefix="${prefix//-/_}"
-    output_name="${prefix}_RELEASE_OUTPUT_DIR"
+    local output_name
     if [[ "$mode" == ui-deploy ]]; then output_name=UI_RELEASE_OUTPUT_DIR; fi
     if [[ "$mode" == contracts-deploy ]]; then output_name=CONTRACT_RELEASE_OUTPUT_DIR; fi
     if [[ "$mode" == cam-publish ]]; then output_name=CAM_RELEASE_OUTPUT_DIR; fi
@@ -246,7 +244,7 @@ load_release_config() {
     printf '%s\n' 'Operation settings prepared; the saved configuration is unchanged.'
   fi
   case "$mode" in
-    deploy|ui-deploy|contracts-deploy|cam-publish|cam-bundle)
+    ui-deploy|contracts-deploy|cam-publish|cam-bundle)
       local retained_source="$source_commit"
       if [[ "$mode" == cam-bundle ]]; then retained_source="$CAM_RELEASE_SOURCE_COMMIT"; fi
       compose_release_config run --rm --no-deps -T release-config retain "$app" "$retained_source" ;;

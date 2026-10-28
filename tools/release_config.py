@@ -501,8 +501,7 @@ def unpack(app, source_commit, mode, source, output):
         else:
             check_value(config.get("rpcUrl"), "rpc")
     else:
-        validate(config, app, source_commit, purpose="ui" if mode == "ui-deploy" else "contracts" if mode == "contracts-deploy" else "cam" if mode == "cam-publish" else "deployment")
-    prefix = app.upper().replace("-", "_")
+        validate(config, app, source_commit, purpose={"ui-deploy": "ui", "contracts-deploy": "contracts", "cam-publish": "cam"}[mode])
     if mode in ("cam-bundle", "cam-publish"):
         supplied = config["settings"]
         settings = {
@@ -562,11 +561,6 @@ def unpack(app, source_commit, mode, source, output):
         settings = {"CONTRACT_RELEASE_APP": app}
     elif mode == "ui-artifact":
         settings = {"UI_RELEASE_APP": app}
-    else:
-        settings = {f"{prefix}_RELEASE_CAM_HASH": "auto"}
-        settings["RELEASE_APPROVAL_IMAGE"] = config["approvalImageId"]
-        settings.update({f"{prefix}_RELEASE_{name}": value for name, value in config["settings"].items()})
-        settings[f"CONFIRM_{prefix}_RELEASE_DEPLOY"] = "YES"
     if "localNetwork" in config:
         settings["RELEASE_REHEARSAL"] = "1"
         settings["RELEASE_REHEARSAL_NETWORK"] = config["localNetwork"]
@@ -575,7 +569,7 @@ def unpack(app, source_commit, mode, source, output):
     encoded = b"".join(f"{name}={value}\0".encode() for name, value in settings.items())
     write_private(output / "inputs", encoded)
     write_private(output / "rpc-url", (config["rpcUrl"] + "\n").encode())
-    if mode in ("deploy", "ui-deploy", "contracts-deploy", "cam-publish"):
+    if mode in ("ui-deploy", "contracts-deploy", "cam-publish"):
         write_private(output / "deployer-key", (config["deployerPrivateKey"] + "\n").encode())
 
 
@@ -591,7 +585,7 @@ def independent_plan_source(app, source, output, operation):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("network", "setup", "credential-source", "retain", "publication-uri", "approval-pin", "update", "update-ui", "update-contracts", "deploy", "ui-deploy", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
+    parser.add_argument("mode", choices=("network", "setup", "credential-source", "retain", "publication-uri", "approval-pin", "update", "update-ui", "update-contracts", "ui-deploy", "ui-artifact", "ui-plan-source", "contracts-plan-source", "contracts-deploy", "contracts-artifact", "cam-bundle", "cam-publish", "cam-artifact", "cam-plan-source", "update-cam"))
     parser.add_argument("app", choices=tuple(APP_FIELDS))
     parser.add_argument("source_commit")
     args = parser.parse_args()

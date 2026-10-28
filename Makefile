@@ -2041,13 +2041,9 @@ if [[ "$$setup_network" == public ]]; then release_config_probe_chain "$(CURDIR)
 compose_release_config run --rm --no-deps release-setup setup "$$app" "$$source_commit"; \
 release_config_input="$$release_config_dir/release.json"; \
 require_release_config "$$release_config_input"; \
-setup_mode=deploy; \
-case "$${RELEASE_SETUP_PURPOSE:-deployment}" in ui) setup_mode=ui-deploy ;; contracts) setup_mode=contracts-deploy ;; cam) setup_mode=cam-publish ;; esac; \
-compose_release_config run --rm --no-deps -T release-config "$$setup_mode" "$$app" "$$source_commit"; \
-mapfile -d '' -t inputs < "$$release_config_dir/inputs"; \
-export "$${inputs[@]}"; \
+read -r RELEASE_APPROVAL_IMAGE < "$$release_config_dir/setup-approval-image"; \
 release_approval_require_image; \
-if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then require_release_local_network; fi; \
+if [[ "$$setup_network" == local ]]; then RELEASE_REHEARSAL_NETWORK="$(LOCAL_RELEASE_NETWORK)"; require_release_local_network; fi; \
 if [[ -n "$${OUTPUT_DIR-}" ]]; then validate_new_release_output "$$OUTPUT_DIR" OUTPUT_DIR; fi; \
 recheck_new_release_output "$$CONFIG" CONFIG; \
 ln -T -- "$$release_config_input" "$$CONFIG"; \

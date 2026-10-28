@@ -658,7 +658,7 @@ printf continued > "$CASE_ROOT/continued"
         self.image_choice.start()
         self.addCleanup(self.image_choice.stop)
 
-    def test_setup_selects_a_checked_image_and_deploy_unpack_uses_the_saved_id_for_every_app(self):
+    def test_setup_selects_a_checked_image_and_ui_deployment_uses_the_saved_id_for_every_app(self):
         self.image_choice.stop()
         other_image = "sha256:" + "cc" * 32
         for app in release_config.APP_FIELDS:
@@ -677,7 +677,7 @@ printf continued > "$CASE_ROOT/continued"
                 output = root / "unpacked"
                 output.mkdir()
                 with patch.dict(release_config.os.environ, {"RELEASE_APPROVAL_IMAGE": other_image}):
-                    unpack(app, COMMIT, "deploy", saved, output)
+                    unpack(app, COMMIT, "ui-deploy", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual(APPROVAL_IMAGE, inputs["RELEASE_APPROVAL_IMAGE"])
 
@@ -727,10 +727,15 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(expected, json.loads(saved.read_text()))
                 output = root / "out"
                 output.mkdir()
-                unpack("bike-nft", COMMIT, "deploy", saved, output)
+                unpack("bike-nft", COMMIT, "contracts-deploy", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
-                for role in roles:
-                    self.assertEqual(expected["settings"][role], inputs[f"BIKE_NFT_RELEASE_{role}"])
+                settings = json.loads(inputs["CONTRACT_RELEASE_SETTINGS_JSON"])
+                for role, field in (("INTENDED_COMPONENTS_ADMIN", "intendedComponentsAdmin"),
+                                    ("COMPONENTS_PAUSER", "componentsPauser"), ("COMPONENTS_CONFIGURER", "componentsConfigurer"),
+                                    ("INTENDED_MANAGER_ADMIN", "intendedManagerAdmin"),
+                                    ("MANAGER_PAUSER", "managerPauser"), ("MANAGER_CONFIGURER", "managerConfigurer")):
+                    self.assertEqual(expected["settings"][role], settings[field])
+                self.assertEqual(expected["settings"]["REGISTRARS"].split(","), settings["registrars"])
 
     def test_other_apps_can_keep_the_deployer_as_final_authority(self):
         for app in ("escrow", "pay-to-play"):
@@ -832,11 +837,11 @@ printf continued > "$CASE_ROOT/continued"
                     self.assertEqual(collection_answer, collection)
                 output = root / "out"
                 output.mkdir()
-                unpack("bike-nft", COMMIT, "deploy", saved, output)
+                unpack("bike-nft", COMMIT, "contracts-deploy", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
-                self.assertIn("BIKE_NFT_RELEASE_BASE_TOKEN_URI", inputs)
-                self.assertEqual(prefix, inputs["BIKE_NFT_RELEASE_BASE_TOKEN_URI"])
-                self.assertEqual(collection, inputs["BIKE_NFT_RELEASE_COLLECTION_URI"])
+                settings = json.loads(inputs["CONTRACT_RELEASE_SETTINGS_JSON"])
+                self.assertEqual(prefix, settings["baseTokenURI"])
+                self.assertEqual(collection, settings["collectionURI"])
 
     def test_bike_token_prefix_can_be_cleared_when_reviewing_settings(self):
         expected = configuration("bike-nft")
@@ -876,9 +881,9 @@ printf continued > "$CASE_ROOT/continued"
                 saved.write_text(json.dumps(config))
                 output = root / "out"
                 output.mkdir()
-                name = f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH"
+                name = "CAM_RELEASE_HASH"
                 with patch.dict(release_config.os.environ, {name: "0x" + "00" * 32}):
-                    unpack(app, COMMIT, "deploy", saved, output)
+                    unpack(app, COMMIT, "cam-publish", saved, output)
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual("auto", inputs[name])
                 self.assertNotIn("CAM_HASH", json.loads(saved.read_text())["settings"])
@@ -898,8 +903,8 @@ printf continued > "$CASE_ROOT/continued"
                     self.assertEqual(expected, json.loads(saved.read_text()))
                     output = root / "out"
                     output.mkdir()
-                    unpack(app, COMMIT, "deploy", saved, output)
-                    self.assertIn(f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH={expected['settings']['CAM_HASH']}\0", (output / "inputs").read_text())
+                    unpack(app, COMMIT, "cam-publish", saved, output)
+                    self.assertIn(f"CAM_RELEASE_HASH={expected['settings']['CAM_HASH']}\0", (output / "inputs").read_text())
 
     def test_saved_configuration_does_not_accept_interactive_zero_shorthand(self):
         for app in release_config.APP_FIELDS:
@@ -926,18 +931,8 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertNotIn(FIXTURE_KEY, transcript.getvalue())
                 self.assertNotIn("RPC_CHAIN", saved.read_text())
                 self.assertNotIn("RPC_SERVICE", saved.read_text())
-                output = directory / "unpacked"
-                output.mkdir()
-                unpack(app, COMMIT, "deploy", saved, output)
-                prefix = app.upper().replace("-", "_")
-                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
-                self.assertEqual("YES", inputs[f"CONFIRM_{prefix}_RELEASE_DEPLOY"])
-                self.assertEqual(FIXTURE_DEPLOYER_ADDRESS, inputs[f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"])
-                for name, value in expected["settings"].items():
-                    self.assertEqual(value, inputs[f"{prefix}_RELEASE_{name}"])
-                self.assertEqual(FIXTURE_KEY + "\n", (output / "deployer-key").read_text())
-                self.assertEqual(FIXTURE_RPC + "\n", (output / "rpc-url").read_text())
-                self.assertTrue(all(stat.S_IMODE(path.stat().st_mode) == 0o600 for path in output.iterdir()))
+                self.assertFalse((directory / "deployer-key").exists())
+                self.assertFalse((directory / "inputs").exists())
 
     def test_planner_receives_explicit_zero_and_automatic_hash(self):
         for value in ("auto", "0x" + "00" * 32):
@@ -994,11 +989,10 @@ printf continued > "$CASE_ROOT/continued"
                 root = Path(temporary)
                 source = root / "config.json"
                 source.write_bytes(content.encode() if isinstance(content, str) else content)
-                output = root / "out"
-                output.mkdir()
                 with self.assertRaises(ValueError):
-                    unpack("pay-to-play", COMMIT, "deploy", source, output)
-                self.assertEqual([], list(output.iterdir()))
+                    release_config.validate(release_config.read_json_file(source, "configuration"),
+                                            "pay-to-play", COMMIT, purpose="deployment")
+                self.assertEqual([source], list(root.iterdir()))
 
     def test_previous_configuration_shape_requires_setup_again(self):
         previous = configuration("escrow")

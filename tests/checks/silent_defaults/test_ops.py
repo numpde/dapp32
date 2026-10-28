@@ -93,7 +93,6 @@ ALLOWED_SHELL_DEFAULTS = {
     ("Makefile", "OUTPUT_DIR", "-", ""),
     ("compose/release/config.yml", "OUTPUT_DIR", ":-", ""),
     # Raw setup retains full-deployment purpose; the instance sets its chosen role explicitly.
-    ("Makefile", "RELEASE_SETUP_PURPOSE", ":-", "deployment"),
     ("compose/release/config.yml", "RELEASE_SETUP_PURPOSE", ":-", "deployment"),
     # Other config services render this unused selector with their existing narrow staging mount.
     ("compose/release/config.yml", "RELEASE_INSTANCE_DIR", ":-", "${RELEASE_CONFIG_STAGE_DIR:?missing_RELEASE_CONFIG_STAGE_DIR"),
