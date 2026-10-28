@@ -24,9 +24,6 @@ import type { Address, Hex } from "viem"
 
 import { ownershipState } from "../release-ownership.ts"
 import {
-  deploymentContractsFromBroadcast,
-} from "./artifact-model.ts"
-import {
   inspectReleaseCamBundle,
 } from "../release-cam-bundle.ts"
 import {
@@ -37,6 +34,7 @@ import {
 } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 import {
+  createdContract,
   creationReceiptDeployer,
   observeReleaseCreations,
   sharedCreationReceiptDeployer,
@@ -218,29 +216,15 @@ test("deployment JSON preserves the complete strict record", () => {
   )
 })
 
-test("Forge broadcast extraction requires exactly one create per release contract", () => {
-  assert.deepEqual(deploymentContractsFromBroadcast({
-    transactions: [
-      create("CamRoot", ROOT, ROOT_TX),
-      create("CamEscrow", ESCROW, ESCROW_TX),
-      create("CamEscrowUI", UI, UI_TX),
-    ],
-  }), {
-    camRoot: { address: ROOT, transactionHash: ROOT_TX },
-    camEscrow: { address: ESCROW, transactionHash: ESCROW_TX },
-    camEscrowUI: { address: UI, transactionHash: UI_TX },
-  })
-
-  assert.throws(() => deploymentContractsFromBroadcast({
-    transactions: [
-      create("CamRoot", ROOT, ROOT_TX),
-      create("CamRoot", ROOT, ROOT_TX),
-      create("CamEscrow", ESCROW, ESCROW_TX),
-      create("CamEscrowUI", UI, UI_TX),
-    ],
-  }), /create CamRoot exactly once/)
+test("Forge broadcast extraction requires exactly one named creation", () => {
+  const transactions = [
+    create("CamRoot", ROOT, ROOT_TX),
+    create("CamEscrow", ESCROW, ESCROW_TX),
+    create("CamEscrowUI", UI, UI_TX),
+  ]
+  assert.deepEqual(createdContract(transactions, "CamEscrow"), { address: ESCROW, transactionHash: ESCROW_TX })
+  assert.throws(() => createdContract([...transactions, create("CamEscrow", ESCROW, ESCROW_TX)], "CamEscrow"), /create CamEscrow exactly once/)
 })
-
 test("release provenance checks the chain before receipts and requires one observed deployer", async () => {
   const contracts = [
     { label: "CamRoot", address: ROOT, transactionHash: ROOT_TX },

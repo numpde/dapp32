@@ -8,14 +8,12 @@ import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
-import { deploymentArtifact, deploymentContractsFromBroadcast } from "./artifact-model.ts"
 import { backingFromDeployment } from "../ui-release/shared.ts"
 
 
 import { ownershipState } from "../release-ownership.ts"
 import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseReleasePlan, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
-import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
-import { creationReceiptDeployer } from "../release-provenance.ts"
+import type { DeploymentArtifact } from "./shared.ts"
 
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
 const hash = (byte: string) => `0x${byte.repeat(64)}` as Hex
@@ -236,40 +234,6 @@ test("the Bike planner rejects a missing or empty CAM URI before publishing a pl
   }
 })
 
-test("deployment artifact projection preserves named contract evidence", () => {
-  const contracts = deploymentContractsFromBroadcast({ transactions: [
-    create("CamRoot", address("10"), hash("1")),
-    create("BicycleComponents", address("11"), hash("2")),
-    create("BicycleComponentManager", address("12"), hash("3")),
-    create("BicycleComponentManagerUI", address("13"), hash("4")),
-  ] })
-  const plan: ReleasePlan = {
-    ...common(),
-    schema: RELEASE_PLAN_SCHEMA,
-    camHash: hash("a"),
-  }
-
-  assert.deepEqual(deploymentArtifact(plan, {
-    chainId: plan.expectedChainId,
-    deployer: DEPLOYER,
-    contracts,
-    codeHashes: {
-      camRoot: hash("b"),
-      components: hash("c"),
-      manager: hash("d"),
-      ui: hash("e"),
-    },
-  }), deployment())
-})
-
-test("broadcast and receipts bind four exact creations", () => {
-  const contracts = deploymentContractsFromBroadcast({ transactions: [create("CamRoot", address("10"), hash("1")), create("BicycleComponents", address("11"), hash("2")), create("BicycleComponentManager", address("12"), hash("3")), create("BicycleComponentManagerUI", address("13"), hash("4"))] })
-  assert.equal(contracts.manager.address, address("12"))
-  assert.equal(creationReceiptDeployer(contracts.manager, { status: "success", contractAddress: contracts.manager.address, transactionHash: contracts.manager.transactionHash, from: DEPLOYER, to: null }, "manager"), DEPLOYER)
-  assert.throws(() => creationReceiptDeployer(contracts.manager, { status: "success", contractAddress: contracts.ui.address, transactionHash: contracts.manager.transactionHash, from: DEPLOYER, to: null }, "manager"), /address mismatch/)
-  assert.throws(() => deploymentContractsFromBroadcast({ transactions: [create("CamRoot", address("10"), hash("1")), create("BicycleComponents", address("11"), hash("2")), create("BicycleComponentManager", address("12"), hash("3")), create("BicycleComponentManagerUI", address("13"), hash("4")), { function: "registerComponent(address,string,string)" }] }), /must not register fixture components/)
-})
-
 test("handoff accepts only intended pending or completed state", () => {
   for (const [intendedOwner, owner, pendingOwner] of [
     [OWNER, DEPLOYER, OWNER],
@@ -300,7 +264,6 @@ function plannerEnv(planPath: string): NodeJS.ProcessEnv {
   }
 }
 function deployment(): DeploymentArtifact { const { expectedChainId, ...fields } = common(); return { ...fields, schema: DEPLOYMENT_SCHEMA, chainId: expectedChainId, deployer: DEPLOYER, camHash: hash("a"), camRoot: address("10"), components: address("11"), manager: address("12"), ui: address("13"), camRootCodeHash: hash("b"), componentsCodeHash: hash("c"), managerCodeHash: hash("d"), uiCodeHash: hash("e"), camRootCreationTransaction: hash("1"), componentsCreationTransaction: hash("2"), managerCreationTransaction: hash("3"), uiCreationTransaction: hash("4") } }
-function create(contractName: string, contractAddress: string, transactionHash: string): unknown { return { transactionType: "CREATE", contractName, contractAddress, hash: transactionHash } }
 
 function verifiedDeployment(): DeploymentArtifact { return { ...deployment(), camHash: CHECKED_IN_CAM_HASH } }
 function runBikeVerifyInput(directory: string, name: string, artifact: unknown) {
@@ -331,5 +294,5 @@ test("UI deployment selects the historical manager rather than the collection, U
   assert.equal(backing.codeHash, artifact.managerCodeHash)
   assert.equal(backing.artifactSha256, `0x${createHash("sha256").update(bytes).digest("hex")}`)
   assert.equal("camRoot" in backing, false)
-  assert.throws(() => backingFromDeployment("bike-nft", new TextEncoder().encode('{"schema":"bike-nft.deployment.v2"}')), /missing/)
+  assert.throws(() => backingFromDeployment("bike-nft", new TextEncoder().encode('{"schema":"bike-nft.deployment.v2"}')), /Components address/)
 })

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict"
 import { execFile } from "node:child_process"
 import { createServer } from "node:http"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import test from "node:test"
-import { decodeFunctionData, encodeFunctionResult, keccak256, parseAbi } from "viem"
-import { DEPLOYMENT_SCHEMA, RELEASE_PLAN_SCHEMA, parseDeploymentArtifact } from "./shared.ts"
+import { keccak256 } from "viem"
+import { DEPLOYMENT_SCHEMA, type DeploymentArtifact } from "./shared.ts"
 
 const execute = promisify(execFile)
 const TOOL_DIR = dirname(fileURLToPath(import.meta.url))
@@ -17,21 +17,13 @@ const OWNER = "0x0000000000000000000000000000000000000044"
 const ROOT = "0x0000000000000000000000000000000000000022"
 const PAYMENTS = "0x0000000000000000000000000000000000000033"
 const UI = "0x0000000000000000000000000000000000000055"
-const UI_TX = `0x${"56".repeat(32)}`
-const ZERO = "0x0000000000000000000000000000000000000000"
-const ROOT_TX = `0x${"12".repeat(32)}`
-const PAYMENT_TX = `0x${"34".repeat(32)}`
+const UI_TX = `0x${"56".repeat(32)}` as const
+const ROOT_TX = `0x${"12".repeat(32)}` as const
+const PAYMENT_TX = `0x${"34".repeat(32)}` as const
 const HASH = `0x${"ab".repeat(32)}` as const
 const INPUT = "0x60006000"
-const ABI = parseAbi([
-  "function camManifest() view returns ((string uri, bytes32 sha256Digest))",
-  "function contractAddress(string name) view returns (address)",
-  "function payments() view returns (address)",
-  "function owner() view returns (address)",
-  "function pendingOwner() view returns (address)",
-])
 
-test("release CLIs materialize RPC observations and reject substituted creation evidence", async () => {
+test("historical release verification rejects substituted creation evidence", async () => {
   const dir = await mkdtemp(join(tmpdir(), "pay-to-play-release-rpc-"))
   let altered = "none"
   const camURI = "https://example.test/pay-to-play/cam/main.json"
@@ -43,8 +35,6 @@ test("release CLIs materialize RPC observations and reject substituted creation 
       let result: unknown
       switch (call.method) {
         case "eth_chainId": result = "0xaa36a7"; break
-        case "eth_blockNumber": result = "0x2"; break
-        case "eth_getCode": result = altered === "uiCode" && call.params[0] === UI ? "0x" : "0x6000"; break
         case "eth_getTransactionReceipt": {
           const hash = call.params[0]
           result = {
@@ -67,28 +57,6 @@ test("release CLIs materialize RPC observations and reject substituted creation 
             r: HASH, s: HASH, v: "0x1", chainId: "0xaa36a7", accessList: [],
           }
           break
-        case "eth_call": {
-          const transaction = call.params[0] as { to: string; data: `0x${string}` }
-          const decoded = decodeFunctionData({ abi: ABI, data: transaction.data })
-          switch (decoded.functionName) {
-            case "camManifest":
-              result = encodeFunctionResult({ abi: ABI, functionName: "camManifest", result: { uri: camURI, sha256Digest: HASH } })
-              break
-            case "contractAddress":
-              result = encodeFunctionResult({ abi: ABI, functionName: "contractAddress", result: decoded.args[0] === "PayToPlayUI" ? (altered === "uiBinding" ? PAYMENTS : UI) : PAYMENTS })
-              break
-            case "payments":
-              result = encodeFunctionResult({ abi: ABI, functionName: "payments", result: altered === "uiPin" ? ROOT : PAYMENTS })
-              break
-            case "owner":
-              result = encodeFunctionResult({ abi: ABI, functionName: "owner", result: ADMIN })
-              break
-            case "pendingOwner":
-              result = encodeFunctionResult({ abi: ABI, functionName: "pendingOwner", result: transaction.to.toLowerCase() === ROOT.toLowerCase() ? OWNER : ZERO })
-              break
-          }
-          break
-        }
         default: throw new Error(`unexpected RPC method: ${call.method}`)
       }
       response.setHeader("content-type", "application/json")
@@ -102,35 +70,24 @@ test("release CLIs materialize RPC observations and reject substituted creation 
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
     const address = server.address()
     assert.ok(address !== null && typeof address !== "string")
-    const broadcast = join(dir, "broadcast", "DeployPayToPlayRelease.s.sol", "11155111")
-    await mkdir(broadcast, { recursive: true })
-    await writeFile(join(broadcast, "run-latest.json"), JSON.stringify({ transactions: [
-      { transactionType: "CREATE", contractName: "CamRoot", contractAddress: ROOT, hash: ROOT_TX },
-      { transactionType: "CREATE", contractName: "PayToPlay", contractAddress: PAYMENTS, hash: PAYMENT_TX },
-      { transactionType: "CREATE", contractName: "PayToPlayUI", contractAddress: UI, hash: UI_TX },
-    ] }))
-    const planPath = join(dir, "plan.json")
-    await writeFile(planPath, JSON.stringify({
-      schema: RELEASE_PLAN_SCHEMA, sourceCommit: "0123456789abcdef0123456789abcdef01234567",
-      expectedChainId: 11155111, camURI, camHash: HASH, intendedCamRootOwner: OWNER,
-      intendedPaymentAdmin: ADMIN, nullClaimPeriod: 60,
-    }))
+    const artifact: DeploymentArtifact = {
+      schema: DEPLOYMENT_SCHEMA, sourceCommit: "0123456789abcdef0123456789abcdef01234567",
+      chainId: 11155111, camURI, camHash: HASH, intendedCamRootOwner: OWNER,
+      intendedPaymentAdmin: ADMIN, nullClaimPeriod: 60, deployer: ADMIN,
+      camRoot: ROOT, payToPlay: PAYMENTS, payToPlayUI: UI,
+      camRootCodeHash: keccak256("0x6000"), payToPlayCodeHash: keccak256("0x6000"),
+      payToPlayUICodeHash: keccak256("0x6000"), camRootCreationTransaction: ROOT_TX,
+      payToPlayCreationTransaction: PAYMENT_TX, payToPlayCreationInputHash: keccak256(INPUT),
+      payToPlayUICreationTransaction: UI_TX, payToPlayUICreationInputHash: keccak256(INPUT),
+    }
     const artifactPath = join(dir, "deployment.json")
+    await writeFile(artifactPath, JSON.stringify(artifact))
     const env = {
-      ...process.env, PAY_TO_PLAY_RELEASE_PLAN_PATH: planPath,
-      PAY_TO_PLAY_RELEASE_BROADCAST_DIR: join(dir, "broadcast"),
+      ...process.env,
       PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_PATH: artifactPath,
       PAY_TO_PLAY_RELEASE_RPC_URL: `http://127.0.0.1:${address.port}`,
     }
     const run = (script: string) => execute(process.execPath, ["--experimental-strip-types", join(TOOL_DIR, script)], { env, timeout: 15000 })
-    await run("artifact.ts")
-    const artifact = parseDeploymentArtifact(await readFile(artifactPath))
-    assert.equal(artifact.schema, DEPLOYMENT_SCHEMA)
-    assert.equal(artifact.intendedCamRootOwner, OWNER)
-    assert.equal(artifact.intendedPaymentAdmin, ADMIN)
-    assert.equal(artifact.payToPlayCreationInputHash, keccak256(INPUT))
-    assert.equal(artifact.payToPlayUI, UI)
-    assert.equal(artifact.payToPlayUICreationInputHash, keccak256(INPUT))
     await run("verify-provenance.ts")
     for (const [change, diagnostic] of [
       ["receipt", /did not succeed/], ["hash", /transaction hash mismatch/],
@@ -139,10 +96,6 @@ test("release CLIs materialize RPC observations and reject substituted creation 
     ] as const) {
       altered = change
       await assert.rejects(run("verify-provenance.ts"), diagnostic)
-    }
-    for (const [change, diagnostic] of [["uiBinding", /PayToPlayUI binding/], ["uiPin", /PayToPlayUI payment contract/], ["uiCode", /PayToPlayUI has no deployed code/]] as const) {
-      altered = change
-      await assert.rejects(run("artifact.ts"), diagnostic)
     }
   } finally {
     server.closeAllConnections()
