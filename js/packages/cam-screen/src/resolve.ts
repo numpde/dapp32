@@ -1,7 +1,7 @@
 import { durationDraftFromSeconds, projectDurationDraft } from "./duration.ts"
 import { UiError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
-import { formatStatusValue } from "./status-format.ts"
+import { formatStatusLabel, formatStatusValue } from "./status-format.ts"
 import { editAmountDraft, projectAmountDraft, sameAmountUnit } from "./amount.ts"
 import { editIntegerDraft, projectIntegerDraft, integerBound, compareUnsignedDigits } from "./numeric.ts"
 import {
@@ -165,7 +165,8 @@ function resolveNode(
       return [{
         element: node.element,
         props,
-        ...(props.format === undefined ? {} : { formattedValue: formatStatusValue(props.value, props.format, `${path}.props`, props.zeroText) }),
+        ...(props.valueLabels !== undefined ? { formattedValue: formatStatusLabel(props.value, props.valueLabels, `${path}.props`) }
+          : props.format === undefined ? {} : { formattedValue: formatStatusValue(props.value, props.format, `${path}.props`, props.zeroText) }),
         children: [] as const,
       }]
     }

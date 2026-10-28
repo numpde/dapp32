@@ -307,6 +307,25 @@ function amountFieldUi(defaultValue: unknown) {
   } } })
 }
 
+test("Status value labels preserve exact raw facts and reject unknown states", () => {
+  const declaration = (value: unknown, valueLabels: unknown, extra = {}) => ({ ui: UI_VERSION, nodes: {
+    app: { requires: [], element: "Status", props: { label: "State", value, valueLabels, ...extra } },
+  } })
+  for (const [value, text] of [["0", "Operating"], [1, "Settling"], [false, "No"]] as const) {
+    const node = resolveUiNode(parseUi(declaration(value, { "0": "Operating", "1": "Settling", false: "No" })), "app", {}, context)
+    assert.equal(node.element, "Status")
+    assert.equal("formattedValue" in node && node.formattedValue, text)
+    assert.equal(node.props.value, value)
+  }
+  for (const value of ["2", "toString", "01", null, [], {}, 1.5]) {
+    assert.throws(() => resolveUiNode(parseUi(declaration(value, { "0": "Operating" })), "app", {}, context), UiError)
+  }
+  for (const labels of [{}, [], "$view.labels", { "0": "" }, { "0": "$view.name" }, { "0": 1 }]) {
+    assert.throws(() => parseUi(declaration("0", labels)), UiError)
+  }
+  assert.throws(() => parseUi(declaration("0", { "0": "Operating" }, { format: "bytes" })), UiError)
+})
+
 test("declared Status formats preserve raw values while resolving exact readable text", () => {
   const cases = [
     { format: "bytes", value: "128", text: "128 bytes" },

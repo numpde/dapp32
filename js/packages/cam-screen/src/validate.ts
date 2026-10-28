@@ -265,6 +265,18 @@ function parseProps(value: unknown, path: string, schema: {
 
 function parseStatusProps(value: unknown, path: string): InertRecord {
   const props = parseProps(value, path, UI_PROP_SCHEMAS.Status)
+  if (Object.hasOwn(props, "valueLabels")) {
+    if (Object.hasOwn(props, "format") || Object.hasOwn(props, "zeroText")) {
+      throw new UiError("UI_INVALID_FIELD", "Status valueLabels cannot be combined with format or zeroText.", path)
+    }
+    const labels = requiredRecord(props.valueLabels, `${path}.valueLabels`)
+    if (Object.keys(labels).length === 0) throw new UiError("UI_INVALID_FIELD", "Status valueLabels must name at least one value.", `${path}.valueLabels`)
+    for (const [key, label] of Object.entries(labels)) {
+      if (typeof label !== "string" || label.trim().length === 0 || isExpressionReferenceString(label)) {
+        throw new UiError("UI_INVALID_FIELD", "Status valueLabels must contain nonempty literal strings.", `${path}.valueLabels.${key}`)
+      }
+    }
+  }
   if (Object.hasOwn(props, "format") && !(UI_STATUS_FORMATS as readonly unknown[]).includes(props.format)) {
     throw new UiError("UI_INVALID_FIELD", "Cannot display Status: format must be bytes, durationSeconds, timestampSeconds, or stringList.", `${path}.format`)
   }

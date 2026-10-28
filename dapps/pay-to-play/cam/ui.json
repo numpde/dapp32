@@ -801,6 +801,16 @@
           ]
         },
         {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionStatus",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
           "element": "Text",
           "props": {
             "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
@@ -860,7 +870,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "A channel’s withdrawal wait cannot change and must be at most 30 days."
+            "text": "A channel keeps a separate balance for each customer. The payment recipient receives voucher payments; only the collector can submit them. A zero collector pauses collection."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The wait below applies to ordinary withdrawals and to the final voucher-collection window after 365 days or an earlier wind-down. It cannot change after channel creation and must be at most 30 days. With zero, withdrawals need no wait and wind-down stops voucher collection immediately."
           }
         },
         {
@@ -894,7 +910,7 @@
         {
           "element": "DurationField",
           "props": {
-            "label": "Withdrawal wait for new channel"
+            "label": "Withdrawal wait and final claim period"
           },
           "state": {
             "key": "newClaimPeriod",
@@ -1078,18 +1094,21 @@
           ]
         },
         {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionStatus",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
           "element": "Screen",
           "props": {
             "title": "Account recovery"
           },
           "children": [
-            {
-              "element": "Status",
-              "props": {
-                "label": "Phase (0 operating, 1 settling, 2 refund-only)",
-                "value": "$view.phase"
-              }
-            },
             {
               "element": "Status",
               "props": {
@@ -1111,24 +1130,6 @@
                 "value": "$view.scheduledRefundAt",
                 "format": "timestampSeconds",
                 "zeroText": "No active funding cycle"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Settlement begins",
-                "value": "$view.settleAt",
-                "format": "timestampSeconds",
-                "zeroText": "Not scheduled"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Full refund available at",
-                "value": "$view.refundAt",
-                "format": "timestampSeconds",
-                "zeroText": "Not scheduled"
               }
             },
             {
@@ -1349,6 +1350,47 @@
       },
       "requires": [
         "view"
+      ]
+    },
+    "positionStatus": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Position status"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Position phase",
+            "value": "$view.phase",
+            "valueLabels": {
+              "0": "Operating",
+              "1": "Settling",
+              "2": "Refund-only"
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Settlement begins",
+            "value": "$view.settleAt",
+            "format": "timestampSeconds",
+            "zeroText": "Not scheduled"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Full refund available at",
+            "value": "$view.refundAt",
+            "format": "timestampSeconds",
+            "zeroText": "Not scheduled"
+          }
+        }
       ]
     }
   }

@@ -1,7 +1,16 @@
 import type { InertValue } from "@cam/protocol"
 
+import { isRecordObject } from "@cam/protocol"
 import { SECONDS_PER_PART } from "./duration.ts"
 import { UiError } from "./errors.ts"
+
+export function formatStatusLabel(value: InertValue, labels: InertValue, path: string): string {
+  if ((typeof value !== "string" && typeof value !== "boolean" && !(typeof value === "number" && Number.isSafeInteger(value)))
+    || !isRecordObject(labels) || !Object.hasOwn(labels, String(value))) {
+    throw new UiError("UI_INVALID_FIELD", "Cannot display Status: valueLabels must name the returned string, boolean or safe integer value.", `${path}.value`)
+  }
+  return labels[String(value)] as string
+}
 
 export function formatStatusValue(value: InertValue, format: InertValue, path: string, zeroText?: InertValue): string {
   if (format === "stringList") {

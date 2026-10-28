@@ -420,6 +420,41 @@ test("recovery writes bind the appropriate owner and never accept executor-selec
   }
 })
 
+test("balance and recovery share current readable phase and deadlines before task controls", async () => {
+  const { session, chainState } = await fixture()
+  await session.load()
+  for (const [phase, label] of [[0n, "Operating"], [1n, "Settling"], [2n, "Refund-only"]] as const) {
+    chainState.phase = phase
+    for (const route of ["position", "recovery"]) {
+      const opened = await session.navigate(route, { customer, channelId: "1" })
+      assert.equal(opened.resolvedUi.element, "Screen")
+      const task = opened.resolvedUi.children[0]!
+      assert.equal(task.element, "Screen")
+      const status = task.children[1]!
+      assert.equal(status.element, "Screen")
+      assert.equal(status.props.title, "Position status")
+      assert.deepEqual(status.children.map(node => {
+        assert.equal(node.element, "Status")
+        return node.props.value
+      }), [phase.toString(), (chainState.refundAt - 60n).toString(), chainState.refundAt.toString()])
+      assert.equal(status.children[0]!.element, "Status")
+      assert.equal("formattedValue" in status.children[0]! && status.children[0]!.formattedValue, label)
+      assert.equal(resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === "fund")?.disabled, route === "position" ? phase !== 0n : undefined)
+    }
+  }
+  chainState.phase = 0n
+  chainState.refundAt = 0n
+  const refreshed = await session.refresh()
+  const values: string[] = []
+  function visit(node: ResolvedUiNode): void {
+    if (node.element === "Status" && node.props.value === "0" && node.formattedValue !== undefined) values.push(node.formattedValue)
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(visit)
+  }
+  visit(refreshed.resolvedUi)
+  assert(values.includes("Operating"))
+  assert.equal(values.filter(value => value === "Not scheduled").length, 2)
+})
+
 test("recovery navigation stays pinned and follows contract-returned phase and permissions", async () => {
   const { session, chainState } = await fixture()
   await session.load()

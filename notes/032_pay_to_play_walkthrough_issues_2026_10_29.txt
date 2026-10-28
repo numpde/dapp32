@@ -2,7 +2,7 @@ Pay-to-Play walkthrough: prioritized implementation checklist
 ============================================================
 
 Date: 2026-10-29 (local date).
-Status: four exploratory cycles completed; all checklist work remains open.
+Status: P1 implementation underway; completed items are checked below.
 Attribution: findings in this note are agent-identified, not user reports.
 
 Context
@@ -52,7 +52,7 @@ P1 — Financial decisions, outcomes and completed setup
     preview or a concurrent balance difference. Coordinate with Escrow issue 21
     at the shared transaction-review boundary.
 
-[ ] Explain both consequences of the channel wait before creation. (Finding 4)
+[x] Explain both consequences of the channel wait before creation. (Finding 4)
     Explain what a channel is, that the payee receives payments, and that the
     collector submits vouchers. Explain that the immutable wait governs both
     ordinary withdrawals and the final voucher-claim window during wind-down.
@@ -63,7 +63,7 @@ P1 — Financial decisions, outcomes and completed setup
     Retain the admin-only indication, 30-day maximum and zero-collector pause
     rule. No collector rename or new contract parameter is needed.
 
-[ ] Show current recovery status near the balance and recovery tasks. (Finding 9)
+[x] Show current recovery status near the balance and recovery tasks. (Finding 9)
     Use readable phase names and relevant settlement/refund deadlines, so a user
     can understand why funding or renewal is unavailable on the current screen.
     Evidence: Recovery displays raw 0/1/2 with a legend in the label; the balance
@@ -273,8 +273,8 @@ headings, identity pinning, focus styling and shared controls worked.
 No physical mobile, full assistive-technology or other-browser proof is claimed.
 Screenshots/logs did not capture the voucher signature or encoded signed calldata.
 
-Qualification
--------------
+Original audit qualification
+----------------------------
 Started through pay-to-play/local/demo/gui/up with an isolated project and
 port 5194. Opened its printed URL in the existing debug browser and attached
 the supported fixture wallet through viewer/local/fixture-wallet/attach using
@@ -302,6 +302,23 @@ remains 1000000000000000 wei. Temporary audit comparison values were removed.
 
 This was four manual exploratory cycles through the rendered app and supported
 Make entrypoints, not a claim that the entire maintained Pay-to-Play browser
-campaign or repository test suite was rerun. No implementation was made;
-all implementation checklist items remain open. No new component, protocol rule,
+campaign or repository test suite was rerun. No implementation was made during that original audit; later work is recorded below. No new component, protocol rule,
 schema extension or check framework was introduced by this audit.
+
+Implementation update — position status and channel timing
+----------------------------------------------------------
+Added one shared Position status group to balance and recovery, after identity
+and before financial tasks. It uses the existing phase and deadline facts.
+Status now supports an app-authored literal valueLabels map; raw values remain
+unchanged and unmapped states fail resolution. No contract or ABI changed.
+The shared UI-profile reference and all derived protocol resources/hashes were
+refreshed. A viewer supporting valueLabels must accompany these UI resources.
+
+Creation now explains payee/collector roles, both uses of the immutable wait,
+and immediate voucher cutoff on zero-wait wind-down before the controls.
+
+Proof: make js/tests passed, including phase 0/1/2, both destinations, refresh
+and absent deadlines. Direct Chromium inspection of the disposable port-5294
+fixture confirmed one readable Operating group before tasks on both screens;
+320px device emulation (291 CSS pixels with existing zoom) had no horizontal
+overflow. This is not rendered proof of all three live recovery phases.

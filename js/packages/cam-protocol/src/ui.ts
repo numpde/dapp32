@@ -68,7 +68,7 @@ export const UI_PROP_SCHEMAS = {
   },
   Status: {
     required: ["label", "value"],
-    optional: ["format", "zeroText"],
+    optional: ["format", "zeroText", "valueLabels"],
     string: ["label"],
     address: [],
   },
