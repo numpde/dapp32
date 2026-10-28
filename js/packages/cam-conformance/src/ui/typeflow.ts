@@ -15,6 +15,9 @@ import {
   abiOutputAtSegments,
   abiFunctionOutputForExpression,
   resolvedAbiFunction,
+  transactionPresentationOutput,
+  type ContractEventsByNamespace,
+  type TransactionPresentationPhase,
   type ContractFunctionsByNamespace,
 } from "../abi/routes.ts"
 import {
@@ -65,6 +68,7 @@ type Scope = {
   readonly routesByName: ReadonlyMap<string, DeclaredRoute>
   readonly functionsByNamespace: ContractFunctionsByNamespace
   readonly routeName: string
+  readonly phase?: TransactionPresentationPhase
   readonly reported: Set<string>
   readonly issues: CamConformanceIssue[]
 }
@@ -89,11 +93,13 @@ export function validateUiTypeflow({
   uiDocument,
   routes,
   functionsByNamespace,
+  eventsByNamespace,
   issues,
 }: {
   readonly uiDocument: DeclaredUiDocument | undefined
   readonly routes: readonly DeclaredRoute[]
   readonly functionsByNamespace: ContractFunctionsByNamespace
+  readonly eventsByNamespace: ContractEventsByNamespace
   readonly issues: CamConformanceIssue[]
 }): void {
   if (uiDocument === undefined) return
@@ -114,6 +120,13 @@ export function validateUiTypeflow({
       issues,
     }
     validateRouteTypeflow(scope, route)
+    for (const [phase, invocation] of [["review", route.review?.then], ["receipt", route.receipt?.then], ["empty", route.receipt?.empty]] as const) {
+      if (invocation === undefined) continue
+      const context = contextForArgs(invocation.args, value => transactionPresentationOutput(route, phase, functionsByNamespace, eventsByNamespace, value))
+      const presentationScope = { ...scope, phase }
+      validateRouteRootCardinality(presentationScope, invocation.function, context)
+      walkNamedNode(presentationScope, invocation.function, `nodes.${invocation.function}`, context, routeInputNames(presentationScope, invocation.function, context), [], true)
+    }
   }
 }
 
@@ -180,6 +193,10 @@ function walkNode(
 ): void {
   const element = node.element
   if (typeof element !== "string") return
+
+  if (scope.phase !== undefined && !["Screen", "Fragment", "Text", "Address", "Status", "Include", ...(scope.phase === "review" ? [] : ["Button"])].includes(element)) {
+    reportTypeflowIssue(scope, path, `transaction ${scope.phase} presentation cannot contain ${element}`)
+  }
 
   validateProps(scope, element, node, path, context)
   validateAvailability(scope, element, node, path, context)
@@ -643,6 +660,10 @@ function validateKnownActionRoute(
   if (route === undefined) {
     reportTypeflowIssue(scope, `${path}.call.function`, `UI Button calls unknown route: ${routeName}`)
     return
+  }
+
+  if (scope.phase !== undefined && route.kind !== "read") {
+    reportTypeflowIssue(scope, `${path}.call.function`, "transaction result navigation must call a read route")
   }
 
   validateExpectedArgumentNames({

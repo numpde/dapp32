@@ -64,7 +64,7 @@ export async function simulateCamContractCall({
   }
 }
 
-function writeRequest(call: CamContractCall): WriteRequest {
+export function writeRequest(call: CamContractCall): WriteRequest {
   const fn = findUniqueAbiFunction({
     abi: call.abi,
     functionName: call.function,

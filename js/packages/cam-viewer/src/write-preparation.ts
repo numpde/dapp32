@@ -13,6 +13,9 @@ import type { CamDocument } from "@cam/core"
 import type { CamHost, CamPublicClient, ResolvedCamContract } from "@cam/evm-viem"
 import type { InertRecord } from "@cam/protocol"
 
+import type { UiDocument } from "@cam/screen"
+import { transactionPresentations } from "./transaction-presentations.ts"
+
 import { CamViewerError } from "./errors.ts"
 import { cloneViewerData } from "./inert-data.ts"
 import { assertViewerRouteAccountAvailable } from "./route-preflight.ts"
@@ -24,6 +27,7 @@ import type {
 export async function prepareViewerContractCall({
   publicClient,
   cam,
+  ui,
   contracts,
   host,
   account,
@@ -31,6 +35,7 @@ export async function prepareViewerContractCall({
   inputs,
 }: {
   readonly publicClient: CamPublicClient
+  readonly ui?: UiDocument
   readonly cam: CamDocument
   readonly contracts: Record<string, ResolvedCamContract>
   readonly host: CamHost
@@ -84,5 +89,5 @@ export async function prepareViewerContractCall({
     then: cloneViewerData(resolveRouteThen(cam, route, context), "call.then"),
   }
   validateCamContractCall(prepared)
-  return prepared
+  return { ...prepared, ...transactionPresentations({ call: prepared, declaration: routeDeclaration, cam, ui, context, contracts }) }
 }

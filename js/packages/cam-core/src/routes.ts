@@ -70,6 +70,8 @@ export function routeRequiresAccount(cam: CamDocument, routeName: string): boole
   const surfaces: readonly InertValue[] = [
     route.call.args,
     route.then.args,
+    ...(route.kind === "write" && route.review !== undefined ? [route.review.call.args, route.review.then.args] : []),
+    ...(route.kind === "write" && route.receipt !== undefined ? [route.receipt.then.args, ...(route.receipt.empty === undefined ? [] : [route.receipt.empty.args])] : []),
     ...(route.kind === "write" && route.resolve !== undefined ? [route.resolve.args] : []),
     ...(route.kind === "write" && route.value !== undefined ? [route.value] : []),
   ]

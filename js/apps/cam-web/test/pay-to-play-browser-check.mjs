@@ -5,7 +5,7 @@ import { checkStartupErrors } from './error-reporting-browser-check.mjs'
 import { checkViewerConnection } from './connection-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
-import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
+import { createPublicClient, createWalletClient, decodeEventLog, decodeFunctionData, encodeFunctionData, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { browserFixtureFailureDetails, checkFixtureWalletToolbar, createCdpCommands, fixtureSubmissionFailure, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
@@ -82,6 +82,8 @@ const wallets = Object.fromEntries(Object.entries(accounts).map(([role, account]
 let sent = 0
 let attempts = 0
 let lastHash
+let interleaveCreation = false
+let interveningCreation
 let open = true
 let tamper = false
 let targetId
@@ -123,7 +125,21 @@ async function bridge(request) {
     if (tx.value !== undefined) value = BigInt(tx.value)
     assert(value >= 0n && value <= 1000n)
     if (tx.gas !== undefined) assert(BigInt(tx.gas) > 0n && BigInt(tx.gas) <= 2_000_000n)
-    assert(attempts < 11, 'browser fixture transaction grant exhausted')
+    if (interleaveCreation) {
+      assert.equal(request.role, 'admin')
+      assert.equal(decodeFunctionData({ abi, data: tx.data }).functionName, 'createChannel')
+      interleaveCreation = false
+      const hash = await submitFixtureTransaction({
+        wallet: wallets.admin, publicClient,
+        transaction: { account: accounts.admin, chain, to: payments, data: encodeFunctionData({ abi, functionName: 'createChannel', args: [accounts.recipient.address, accounts.relayer.address, 60n] }), value: 0n, gas: 2_000_000n },
+        assertChain, shouldContinue: () => open,
+      })
+      assert(hash, 'intervening fixture creation must be submitted')
+      const mined = await publicClient.waitForTransactionReceipt({ hash })
+      assert.equal(mined.status, 'success')
+      interveningCreation = mined.transactionHash
+    }
+    assert(attempts < 13, 'browser fixture transaction grant exhausted')
     attempts++
     result = await submitFixtureTransaction({
       wallet: wallets[request.role], publicClient,
@@ -159,7 +175,29 @@ const provider = fixtureWalletSource({
   accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])),
   initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
 })
-const snapshot = `({readRoute:[...document.querySelectorAll('.ui-meta .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),fields:[...document.querySelectorAll('.elements input')].map(node=>node.name),timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,transactionHash:document.querySelector('.transaction-feedback .hex-value code')?.title,buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(row=>{const cell=row.lastElementChild;const identifier=cell.querySelector('.hex-value code');return [row.querySelector('.key-label').textContent,identifier===null ? cell.textContent : identifier.title]})),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
+const snapshot = `(()=>{
+  const facts=scope=>{
+    if(scope===null)return {};
+    return Object.fromEntries([...scope.querySelectorAll('.key-value')].map(row=>{
+      const cell=row.lastElementChild;
+      const identifier=cell.querySelector('.hex-value code');
+      return [row.querySelector('.key-label').textContent,identifier===null?cell.textContent:identifier.title];
+    }));
+  };
+  return {
+    readRoute:[...document.querySelectorAll('.ui-meta .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,
+    tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),
+    fields:[...document.querySelectorAll('.elements input')].map(node=>node.name),
+    timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),
+    text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),
+    notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),
+    transaction:document.querySelector('.transaction-feedback')?.innerText,
+    transactionHash:document.querySelector('.transaction-feedback .hex-value code')?.title,
+    buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label')?x.getAttribute('aria-label'):x.textContent).trim(),disabled:x.matches(':disabled')})),
+    values:facts(document),reviewValues:facts(document.querySelector('.prepared-call')),resultValues:facts(document.querySelector('.transaction-feedback')),
+    width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth
+  };
+})()`
 async function wait(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30_000)
   while (Date.now() < until) {
@@ -179,13 +217,14 @@ async function click(label) {
 async function fill(name, value) {
   assert(await evaluate(`(()=>{const e=[...document.querySelectorAll('input')].find(x=>x.name===${JSON.stringify(name)});if(!e||e.matches(':disabled'))return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));return true})()`), `field must be usable: ${name}`)
 }
-async function send(label) {
+async function send(label, inspectReview) {
   phase = label
   const before = sent
   await click(label)
   await wait(state => state.prepared && state.notices.some(value => value.includes('Simulation passed')), `${label} simulation`)
+  if (inspectReview !== undefined) await inspectReview(await evaluate(snapshot))
   await click('Send with wallet')
-  await wait(state => sent === before + 1 && state.transactionHash === lastHash && state.transaction.includes('Transaction confirmed in block'), `${label} confirmation`)
+  await wait(state => sent === before + 1 && state.transactionHash === lastHash && state.transaction.includes('Transaction confirmed in block') && !state.prepared && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), `${label} confirmation and refreshed view`)
 }
 async function inspect(customer, channelId) {
   if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) await click('Change account or channel')
@@ -216,14 +255,7 @@ try {
   await call('Runtime.addBinding', { name: 'fixtureWalletBridge' })
   await call('Page.addScriptToEvaluateOnNewDocument', { source: provider })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  phase = 'action presentation fixture'
-  await checkActionStyles({ call, evaluate, viewerURL: viewer.href })
-  await checkNftMetadata({ call, evaluate, viewerURL: viewer.href })
-  await checkViewerConnection({ call, evaluate, viewerURL: viewer.href })
-  await checkStartupErrors({ call, evaluate, viewerURL: viewer.href })
-  phase = 'timestamp display lifecycle fixture'
-  await checkTimestampStatus({ call, evaluate, viewerURL: viewer.href })
-  await checkFixtureWalletToolbar({ call, evaluate })
+  await call('Page.navigate', { url: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
   await click('Connect wallet')
@@ -231,6 +263,8 @@ try {
   await fill('newPayee', accounts.recipient.address)
   await fill('newChannelCollector', accounts.relayer.address)
   await fill('newClaimPeriod.seconds', '60')
+  const { result: simulatedId } = await publicClient.simulateContract({ address: payments, abi, functionName: 'createChannel', args: [accounts.recipient.address, accounts.relayer.address, 60n], account: accounts.admin.address })
+  interleaveCreation = true
   await send('Create channel')
   const lookup = await wait(state => state.readRoute === 'channelLookup' && state.tasks.includes('Find a channel ID') && state.fields.includes('lookupChannelId'), 'creation receipt lookup')
   assert(!lookup.buttons.some(button => button.name === 'Create channel'), 'receipt lookup must not repeat the channel creation form')
@@ -240,6 +274,14 @@ try {
   assert.equal(creationLogs.length, 1, 'creation receipt must identify one channel')
   const created = decodeEventLog({ abi, eventName: 'ChannelCreated', ...creationLogs[0] })
   const id = String(created.args.channelId)
+  assert.equal(BigInt(id), simulatedId + 1n, 'another creation mined after simulation changes the actual ID')
+  assert.equal(lookup.resultValues['Created channel ID'], id, 'creation result uses the mined event ID')
+  assert.equal(lookup.resultValues.Payee.toLowerCase(), accounts.recipient.address.toLowerCase())
+  await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: false })
+  assert(!(await evaluate(snapshot)).overflow, 'created channel facts and handoff fit a narrow viewport')
+  await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+  await click('Open this channel')
+  await wait(state => state.readRoute === 'position' && state.values['Channel ID'] === id, 'open mined channel from receipt')
   await inspect(accounts.customer.address, id)
   disabled(await evaluate(snapshot), 'Register permanent voucher key')
   await role('customer')
@@ -325,7 +367,7 @@ try {
   disabled(state, 'Request withdrawal')
   disabled(state, 'Replace withdrawal request')
   await fill('cumulativeTotal', '60')
-  await fill('maxAmount', '60')
+  await fill('maxAmount', '30')
   await fill('invoiceHash', invoiceHash)
   await fill('signature', signature)
   phase = 'voucher signing details'
@@ -341,17 +383,49 @@ try {
     && state.buttons.some(button => button.name === 'Collect voucher payment' && !button.disabled), 'draft return')
   assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]')!==null&&document.querySelector('input[name="invoiceHash"]')!==null&&document.querySelector('input[name="signature"]')!==null`), 'returned position must expose the voucher fields')
   assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]').value === "60" && document.querySelector('input[name="invoiceHash"]').value === ${JSON.stringify(invoiceHash)} && document.querySelector('input[name="signature"]').value === ${JSON.stringify(signature)}`), 'Back restores the complete invoice voucher')
-  await send('Collect voucher payment')
-  await wait(state => state.values['Current balance (wei)'] === '40' && state.values['Total paid by vouchers (wei)'] === '60', 'relayed voucher payment')
-  const collectionReceipt = await publicClient.getTransactionReceipt({ hash: lastHash })
-  const collectionLogs = collectionReceipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
-  assert.equal(collectionLogs.length, 1)
-  const collected = decodeEventLog({ abi, eventName: 'VoucherCollected', ...collectionLogs[0] }).args
-  assert.equal(collected.invoiceHash, invoiceHash)
-  assert.equal(collected.amount, 60n)
-  assert.equal(collected.voucherPaid, 60n)
-  assert.equal(collected.customer.toLowerCase(), accounts.customer.address.toLowerCase())
-  assert.equal(collected.payee.toLowerCase(), accounts.recipient.address.toLowerCase())
+  const paymentReceipts = []
+  for (const paidTotal of [30n, 60n]) {
+    await fill('cumulativeTotal', '60')
+    await fill('maxAmount', '30')
+    await fill('invoiceHash', invoiceHash)
+    await fill('signature', signature)
+    await send('Collect voucher payment', async review => {
+      assert.equal(review.reviewValues['Estimated payment (wei; may change before confirmation)'], '30')
+      assert.equal(review.reviewValues['Current payee (may change before confirmation)'].toLowerCase(), accounts.recipient.address.toLowerCase())
+      if (paidTotal === 30n) {
+        await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: false })
+        assert(!(await evaluate(snapshot)).overflow, 'collection estimate fits a narrow viewport')
+        await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+      }
+    })
+    const paid = await wait(state => state.values['Current balance (wei)'] === String(100n - paidTotal) && state.values['Total paid by vouchers (wei)'] === String(paidTotal), 'partial voucher payment')
+    assert.equal(paid.resultValues['Paid (wei)'], '30')
+    assert.equal(paid.resultValues['Paid to'].toLowerCase(), accounts.recipient.address.toLowerCase())
+    const collectionReceipt = await publicClient.getTransactionReceipt({ hash: lastHash })
+    const collectionLogs = collectionReceipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
+    assert.equal(collectionLogs.length, 1)
+    const collected = decodeEventLog({ abi, eventName: 'VoucherCollected', ...collectionLogs[0] }).args
+    assert.equal(collected.invoiceHash, invoiceHash)
+    assert.equal(collected.amount, 30n)
+    assert.equal(collected.voucherPaid, paidTotal)
+    assert.equal(collected.customer.toLowerCase(), accounts.customer.address.toLowerCase())
+    assert.equal(collected.payee.toLowerCase(), accounts.recipient.address.toLowerCase())
+    paymentReceipts.push({ hash: collectionReceipt.transactionHash, paid: String(collected.amount), payee: collected.payee })
+  }
+  await fill('cumulativeTotal', '60')
+  await fill('maxAmount', '30')
+  await fill('invoiceHash', invoiceHash)
+  await fill('signature', signature)
+  await send('Collect voucher payment', review => assert.equal(review.reviewValues['Estimated payment (wei; may change before confirmation)'], '0'))
+  const zeroPayment = await wait(state => state.resultValues['Paid (wei)'] === '0' && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), 'successful zero collection')
+  assert(zeroPayment.transaction.includes('No payment collected'))
+  assert.equal(zeroPayment.resultValues['Paid to'], undefined, 'zero result cannot retain an earlier payment recipient')
+  const zeroReceipt = await publicClient.getTransactionReceipt({ hash: lastHash })
+  assert.equal(zeroReceipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase()).length, 0)
+  await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: false })
+  assert(!(await evaluate(snapshot)).overflow, 'the zero-payment receipt fits a narrow viewport')
+  await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+  process.stdout.write(`${JSON.stringify({ event: 'ok', test: 'payment outcomes and actual channel handoff', created: { hash: receipt.transactionHash, channelId: id, simulatedId: String(simulatedId), interveningCreation }, payments: paymentReceipts, zero: { hash: zeroReceipt.transactionHash, paid: zeroPayment.resultValues['Paid (wei)'] }, widths: [1280, 320] })}\n`)
   phase = 'zero-wait recovery channel'
   await role('admin')
   await inspect(accounts.admin.address, '0')
@@ -388,8 +462,19 @@ try {
   tamper = true
   await call('Fetch.enable', { patterns: [{ urlPattern: camURI.href, requestStage: 'Request' }] })
   await call('Page.navigate', { url: viewer.href })
-  await wait(state => /File hash mismatch/i.test(state.text) && state.buttons.some(button => button.name === 'Deposit'), 'tampered manifest warning with rendered UI')
+  await wait(state => state.readRoute === cam.entry && state.text.includes('This file does not match the verification hash stored in the contract.') && state.buttons.some(button => button.name === 'Create channel'), 'tampered manifest warning with rendered home')
   assert.equal(sent, beforeTamper, 'displaying an integrity warning must never submit a transaction')
+
+  tamper = false
+  await call('Fetch.disable', {})
+  phase = 'action presentation fixture'
+  await checkActionStyles({ call, evaluate, viewerURL: viewer.href })
+  await checkNftMetadata({ call, evaluate, viewerURL: viewer.href })
+  await checkViewerConnection({ call, evaluate, viewerURL: viewer.href })
+  await checkStartupErrors({ call, evaluate, viewerURL: viewer.href })
+  phase = 'timestamp display lifecycle fixture'
+  await checkTimestampStatus({ call, evaluate, viewerURL: viewer.href })
+  await checkFixtureWalletToolbar({ call, evaluate })
   process.stdout.write(`${JSON.stringify({ event: 'ok', test: 'pay-to-play browser E2E', transactions: sent, widths: [1280, 320], fixtureChain: 31337 })}\n`)
 } catch (error) {
   const details = browserFixtureFailureDetails(error)

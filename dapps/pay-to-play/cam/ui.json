@@ -95,7 +95,7 @@
             {
               "element": "Status",
               "props": {
-                "label": "This channel’s withdrawal wait",
+                "label": "This channel\u2019s withdrawal wait",
                 "value": "$view.claimPeriod",
                 "format": "durationSeconds"
               }
@@ -138,7 +138,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "The deposit credits the sender’s balance in this channel, not the recipient. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
+                "text": "The deposit credits the sender\u2019s balance in this channel, not the recipient. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
               }
             },
             {
@@ -196,7 +196,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel’s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled."
+                "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel\u2019s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled."
               }
             },
             {
@@ -258,7 +258,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block."
+                "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request\u2014even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block."
               }
             },
             {
@@ -375,13 +375,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Only this channel’s collector can submit a voucher signed by the registered key for this balance owner and channel. Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
+                "text": "Only this channel\u2019s collector can submit a voucher signed by the registered key for this balance owner and channel. Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "The invoice hash authenticates the voucher’s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers."
+                "text": "The invoice hash authenticates the voucher\u2019s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers."
               }
             },
             {
@@ -473,7 +473,7 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Registered key’s voucher signature"
+                "label": "Registered key\u2019s voucher signature"
               },
               "state": {
                 "key": "signature",
@@ -556,7 +556,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "The admin can change this channel’s collector or set it to zero to pause its collection. Withdrawals and refunds do not require the collector."
+                "text": "The admin can change this channel\u2019s collector or set it to zero to pause its collection. Withdrawals and refunds do not require the collector."
               }
             },
             {
@@ -738,7 +738,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain’s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
+            "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain\u2019s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
           }
         },
         {
@@ -813,7 +813,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
+            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner\u2019s account. Only the channel\u2019s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
           }
         },
         {
@@ -846,7 +846,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Use the channel ID from the ChannelCreated event in the creation transaction’s receipt."
+            "text": "Use the channel ID from the ChannelCreated event in the creation transaction\u2019s receipt."
           }
         },
         {
@@ -876,7 +876,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "A customer’s ordinary withdrawal request starts this wait. Separately, the same duration is the collector’s final window to claim unpaid vouchers when a customer’s funding cycle ends or their balance is wound down early. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window."
+            "text": "A customer\u2019s ordinary withdrawal request starts this wait. Separately, the same duration is the collector\u2019s final window to claim unpaid vouchers when a customer\u2019s funding cycle ends or their balance is wound down early. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window."
           }
         },
         {
@@ -1126,7 +1126,7 @@
             {
               "element": "Status",
               "props": {
-                "label": "Position’s scheduled refund",
+                "label": "Position\u2019s scheduled refund",
                 "value": "$view.scheduledRefundAt",
                 "format": "timestampSeconds",
                 "zeroText": "No active funding cycle"
@@ -1143,7 +1143,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Each funded position operates for 365 days, then enters this channel’s final claim period. At the refund deadline, voucher collection stops and anyone may return the entire remaining balance. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock."
+                "text": "Each funded position operates for 365 days, then enters this channel\u2019s final claim period. At the refund deadline, voucher collection stops and anyone may return the entire remaining balance. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock."
               }
             },
             {
@@ -1389,6 +1389,125 @@
             "value": "$view.refundAt",
             "format": "timestampSeconds",
             "zeroText": "Not scheduled"
+          }
+        }
+      ]
+    },
+    "collectionReview": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Estimated collection"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Estimated payment (wei; may change before confirmation)",
+            "value": "$view.amount"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Current payee (may change before confirmation)",
+            "address": "$view.payee"
+          }
+        }
+      ]
+    },
+    "collectionPaid": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Payment collected"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Paid (wei)",
+            "value": "$view.amount"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Paid to",
+            "address": "$view.payee"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Balance owner",
+            "address": "$view.customer"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        }
+      ]
+    },
+    "collectionZero": {
+      "requires": [],
+      "element": "Screen",
+      "props": {
+        "title": "No payment collected"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Paid (wei)",
+            "value": "0"
+          }
+        }
+      ]
+    },
+    "channelCreated": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Channel created"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Created channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Payee",
+            "address": "$view.payee"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Open this channel"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "position",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
           }
         }
       ]

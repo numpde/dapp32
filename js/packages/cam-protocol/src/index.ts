@@ -66,6 +66,7 @@ export type {
 
 export {
   collectCamInvocationFact,
+  collectCamRoutePresentationsFact,
   collectCamRouteResolutionFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
@@ -78,6 +79,7 @@ export type {
   CamFactDiagnosticCode,
   CamFactResult,
   CamInvocationFact,
+  CamRoutePresentationsFact,
   CamRouteResolutionFact,
   CamNamespaceFact,
   CamResourceDeclarationFact,

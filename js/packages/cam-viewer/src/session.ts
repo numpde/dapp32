@@ -416,6 +416,7 @@ export function createCamViewerSession({
     const call = await prepareViewerContractCall({
       publicClient,
       cam: current.cam,
+      ui: current.ui,
       contracts: current.contracts,
       host: sessionHost,
       ...(account === undefined ? {} : { account }),

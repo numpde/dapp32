@@ -7,7 +7,7 @@ import type {
 } from "../issues.ts"
 
 import {
-  contractFunctionsByNamespace,
+  contractAbisByNamespace,
   validateRouteAbiCompatibility,
 } from "../abi/routes.ts"
 import {
@@ -100,7 +100,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     declarations: validDeclarations,
     issues,
   })
-  const functionsByNamespace = contractFunctionsByNamespace(bundle.resources, validDeclarations, issues)
+  const { functionsByNamespace, eventsByNamespace } = contractAbisByNamespace(bundle.resources, validDeclarations, issues)
   const routes = validateRouteDeclarations({
     resource: bundle.rootURI,
     root,
@@ -126,12 +126,14 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   validateRouteAbiCompatibility({
+    eventsByNamespace,
     resource: bundle.rootURI,
     routes,
     functionsByNamespace,
     issues,
   })
   validateUiTypeflow({
+    eventsByNamespace,
     uiDocument,
     routes,
     functionsByNamespace,

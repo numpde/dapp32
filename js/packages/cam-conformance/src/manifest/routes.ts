@@ -3,6 +3,7 @@ import {
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
   collectCamInvocationFact,
+  collectCamRoutePresentationsFact,
   collectCamRouteExpressionDiagnostics,
   collectCamRouteInputsFact,
   collectCamRouteResolutionFact,
@@ -37,12 +38,14 @@ export type DeclaredRoute = {
   readonly inputs: readonly string[]
   readonly value?: unknown
   readonly call: DeclaredInvocation
+  readonly review?: { readonly call: DeclaredInvocation; readonly then: DeclaredInvocation }
+  readonly receipt?: { readonly event: string; readonly then: DeclaredInvocation; readonly empty?: DeclaredInvocation }
   readonly resolve?: DeclaredInvocation
   readonly then: DeclaredInvocation
 }
 
 const BASE_ROUTE_FIELDS: ReadonlySet<string> = new Set(["kind", "inputs", "call", "then"])
-const WRITE_ROUTE_FIELDS: ReadonlySet<string> = new Set([...BASE_ROUTE_FIELDS, "value", "resolve"])
+const WRITE_ROUTE_FIELDS: ReadonlySet<string> = new Set([...BASE_ROUTE_FIELDS, "value", "resolve", "review", "receipt"])
 
 const RULES = conformanceRules({
   CAM_ENTRY_ROUTE_INVALID: {
@@ -147,6 +150,10 @@ function validateRoutes(
       declaredInputs: new Set(inputs),
     })
     for (const diagnostic of resolution.diagnostics) issues.push(invocationFactDiagnosticIssue(diagnostic))
+    const presentations = collectCamRoutePresentationsFact({
+      resource, path: `routes.${routeName}`, route, namespaceTypes: namespaces, declaredInputs: new Set(inputs),
+    })
+    for (const diagnostic of presentations.diagnostics) issues.push(diagnostic.code.startsWith("CAM_FACT_ROUTE_EXPRESSION_") ? routeExpressionFactDiagnosticIssue(diagnostic) : invocationFactDiagnosticIssue(diagnostic))
     const invocations = validateRouteInvocations(resource, routeName, route, namespaces, issues, resolution.value !== undefined)
     if (kind !== undefined) {
       validateRouteFields(resource, routeName, route, kind, issues)
@@ -172,6 +179,7 @@ function validateRoutes(
         call: { ...invocations.call, ...(resolution.value === undefined ? {} : { target: resolution.value.target }) },
         ...(resolution.value === undefined ? {} : { resolve: resolution.value.resolve }),
         then: invocations.then,
+        ...presentations.value,
       })
     }
   }
@@ -327,12 +335,14 @@ function validateRouteExpressionReferences({
     }
   }
 
+  if (kind === "write") return
+
   for (const diagnostic of collectCamRouteExpressionDiagnostics({
     resource,
     value: thenArgs,
     path: `routes.${routeName}.then.args`,
     declaredInputs,
-    allowOutputs: kind === "read",
+    allowOutputs: true,
     outputUnavailableMessage: "write route continuations cannot reference transaction outputs",
   })) {
     issues.push(routeExpressionFactDiagnosticIssue(diagnostic))

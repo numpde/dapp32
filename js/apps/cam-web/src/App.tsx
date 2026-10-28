@@ -18,9 +18,11 @@ import {
 import type { CamIntegrityWarning, CamIntegrityCheck } from "@cam/evm-viem"
 import type {
   ResolvedButtonNode,
+  ResolvedUiNode,
 } from "@cam/screen"
 import {
   createCamViewerSession,
+  transactionPresentationNavigation,
   CamViewerInputError,
 } from "@cam/viewer"
 import type {
@@ -67,6 +69,7 @@ import { createRpcConnection } from "./rpc-connection.ts"
 import {
   ConnectionSummary,
   PreparedCallView,
+  TransactionPresentationView,
   UiView,
 } from "./components.tsx"
 import {
@@ -153,7 +156,7 @@ export function App(): ReactElement {
   const [walletRefreshing, setWalletRefreshing] = useState(false)
   const [walletAccountSynchronized, setWalletAccountSynchronized] = useState(true)
   const [notice, setNotice] = useState<Notice | undefined>(undefined)
-  const [transactionNotice, setTransactionNotice] = useState<(Notice & { readonly transaction?: SubmittedTransactionReference }) | undefined>(undefined)
+  const [transactionNotice, setTransactionNotice] = useState<(Notice & { readonly transaction?: SubmittedTransactionReference; readonly result?: { readonly ui: ResolvedUiNode; readonly session: CamViewerSession } }) | undefined>(undefined)
   const [preparedCall, setPreparedCallState] = useState<CamViewerPreparedContractCall | undefined>(undefined)
   const preparedCallRef = useRef<CamViewerPreparedContractCall | undefined>(undefined)
   const [sendStage, setSendStage] = useState<TransactionStage | undefined>(undefined)
@@ -425,9 +428,9 @@ export function App(): ReactElement {
         return
       }
 
-      await preflightPreparedCall(result.call)
+      const reviewed = await preflightPreparedCall(result.call)
       if (!isCurrentInteraction(revision)) return
-      setPreparedCall(result.call)
+      setPreparedCall(reviewed)
       showStatus(!walletChainMatches
         ? `Simulation passed on viewer chain ${ready.runtime.startup.chainId}, but the wallet is on another network. Change the network in your wallet, use Reconnect wallet, then review the transaction again.`
         : wallet.status === "connected"
@@ -445,15 +448,17 @@ export function App(): ReactElement {
     }
   }
 
-  async function preflightPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
+  async function preflightPreparedCall(call: CamViewerPreparedContractCall): Promise<CamViewerPreparedContractCall> {
     const ready = requireReadyState(loadState)
     const account = wallet.status === "connected" ? wallet.address : currentViewerAccount(ready)
     if (account === undefined) throw new UserFacingError("Connect a wallet before reviewing a transaction.")
+    if (call.review !== undefined) return { ...call, reviewed: await call.review(ready.runtime.rpc.active.client, account) }
     await simulateCamContractCall({
       publicClient: ready.runtime.rpc.active.client,
       account,
       call,
     })
+    return call
   }
 
   async function connectWallet(): Promise<void> {
@@ -505,6 +510,25 @@ export function App(): ReactElement {
     invalidatePreparedInteraction()
     setNotice(undefined)
     arriveAtFeedback("view")
+  }
+
+  async function openTransactionResult(action: ResolvedButtonNode): Promise<void> {
+    const result = transactionNotice?.result
+    if (result === undefined || loadState.status !== "ready" || result.session !== loadState.runtime.session || sendingRef.current || viewInteractionBlocked()) return
+    const ready = loadState
+    const revision = nextInteractionRevision()
+    setPreparedCall(undefined)
+    try {
+      const next = transactionPresentationNavigation(result.ui, action)
+      setViewChanging(true)
+      const snapshot = await result.session.navigate(next.route, next.inputs)
+      await browserHistory.settled()
+      if (!isCurrentInteraction(revision) || readyRef.current.status !== "ready" || readyRef.current.runtime.session !== result.session) return
+      commitSnapshot(ready, snapshot, "push")
+      arriveAtFeedback("view")
+    } catch (error) {
+      if (isCurrentInteraction(revision)) showError(failureReport(error, "Cannot open the transaction result. The transaction remains confirmed."), true)
+    } finally { setViewChanging(false) }
   }
 
   async function sendPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
@@ -569,7 +593,21 @@ export function App(): ReactElement {
         reverted = true
         throw new Error(`Transaction reverted: ${txHash}`)
       }
-      reportTransaction({ message: `Transaction confirmed in block ${receipt.blockNumber.toString()}.` }, "status", ownsInteraction(), submittedTransaction)
+      submittedTransaction = { ...submittedTransaction, hash: receipt.transactionHash }
+      let outcome: ResolvedUiNode | undefined
+      let interpretationFailure: FailureReport | undefined
+      if (call.receipt !== undefined) {
+        try {
+          const transaction = await ready.runtime.rpc.active.client.getTransaction({ hash: receipt.transactionHash })
+          outcome = call.receipt(receipt, transaction, wallet.address)
+        } catch (error) {
+          interpretationFailure = failureReport(error, "Transaction confirmed, but its result could not be interpreted. Check the transaction before repeating it.")
+        }
+      }
+      if (!ownsSend()) return
+      reportTransaction(interpretationFailure === undefined
+        ? { message: `Transaction confirmed in block ${receipt.blockNumber.toString()}.` }
+        : interpretationFailure, interpretationFailure === undefined ? "status" : "error", ownsInteraction(), submittedTransaction, outcome === undefined ? undefined : { ui: outcome, session: ready.runtime.session })
       if (ownsInteraction()) {
         setPreparedCall(undefined)
       }
@@ -760,8 +798,8 @@ export function App(): ReactElement {
     if (focus) arriveAtFeedback("notice")
   }
 
-  function reportTransaction(report: FailureReport, kind: Notice["kind"], focus: boolean, transaction?: SubmittedTransactionReference): void {
-    setTransactionNotice({ ...report, kind, ...(transaction === undefined ? {} : { transaction }) })
+  function reportTransaction(report: FailureReport, kind: Notice["kind"], focus: boolean, transaction?: SubmittedTransactionReference, result?: { readonly ui: ResolvedUiNode; readonly session: CamViewerSession }): void {
+    setTransactionNotice({ ...report, kind, ...(transaction === undefined ? {} : { transaction }), ...(result === undefined ? {} : { result }) })
     if (focus) arriveAtFeedback("transaction")
   }
 
@@ -928,6 +966,8 @@ export function App(): ReactElement {
       {transactionNotice === undefined ? null : (
         <section className="transaction-feedback" aria-label="Transaction outcome">
           <TransactionFeedback report={transactionNotice} kind={transactionNotice.kind} transaction={transactionNotice.transaction} messageRef={transactionNoticeRef} />
+          {transactionNotice.result === undefined || loadState.status !== "ready" || transactionNotice.result.session !== loadState.runtime.session ? null
+            : <TransactionPresentationView node={transactionNotice.result.ui} headingLevel={2} busy={sending || changingView} onAction={openTransactionResult} />}
         </section>
       )}
       {preparedCall === undefined ? null : (

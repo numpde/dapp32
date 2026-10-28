@@ -1,3 +1,4 @@
+import { CAM_ROUTE_CALL_NAMESPACE_TYPES, CAM_READ_ROUTE_THEN_NAMESPACE_TYPES } from "../manifest.ts"
 import {
   isRecordObject,
 } from "../json.ts"
@@ -210,4 +211,100 @@ function invocationDiagnostic({
     path,
     message,
   })
+}
+
+export type CamRouteReviewFact = {
+  readonly call: CamInvocationFact
+  readonly then: CamInvocationFact
+}
+export type CamRouteReceiptFact = {
+  readonly event: string
+  readonly then: CamInvocationFact
+  readonly empty?: CamInvocationFact
+}
+export type CamRoutePresentationsFact = {
+  readonly review?: CamRouteReviewFact
+  readonly receipt?: CamRouteReceiptFact
+}
+
+export function collectCamRoutePresentationsFact({
+  resource, path, route, namespaceTypes, declaredInputs,
+}: {
+  readonly resource: string
+  readonly path: string
+  readonly route: Record<string, unknown>
+  readonly namespaceTypes: ReadonlyMap<string, CamNamespaceType>
+  readonly declaredInputs: ReadonlySet<string>
+}): CamFactResult<CamRoutePresentationsFact> {
+  const diagnostics: CamFactDiagnostic[] = []
+  function invalid(code: CamFactDiagnostic["code"], field: string, message: string): void {
+    diagnostics.push(camFactDiagnostic({ code, resource, path: `${path}.${field}`, message }))
+  }
+  function object(field: string, keys: readonly string[]): Record<string, unknown> | undefined {
+    if (!Object.hasOwn(route, field)) return undefined
+    if (route.kind !== "write") {
+      invalid("CAM_FACT_INVOCATION_FIELD_UNKNOWN", field, `${field} is available only on write routes`)
+      return undefined
+    }
+    const value = route[field]
+    if (!isRecordObject(value)) {
+      invalid("CAM_FACT_INVOCATION_NOT_OBJECT", field, `route ${field} must be an object`)
+      return undefined
+    }
+    for (const key of Object.keys(value)) {
+      if (!keys.includes(key)) invalid("CAM_FACT_INVOCATION_FIELD_UNKNOWN", `${field}.${key}`, `route ${field} field is not allowed: ${key}`)
+    }
+    return value
+  }
+  function invocation(value: unknown, field: string, contract: boolean, allowOutputs: boolean): CamInvocationFact | undefined {
+    const result = collectCamInvocationFact({
+      resource, path: `${path}.${field}`, invocation: value, namespaceTypes,
+      allowedNamespaceTypes: contract ? CAM_ROUTE_CALL_NAMESPACE_TYPES : CAM_READ_ROUTE_THEN_NAMESPACE_TYPES,
+      purpose: `route ${field}`,
+    })
+    diagnostics.push(...result.diagnostics)
+    const fact = result.value
+    if (fact === undefined) return undefined
+    if (contract && fact.function.startsWith("$")) {
+      invalid("CAM_FACT_INVOCATION_FUNCTION_INVALID", `${field}.function`, "review call must name a static contract function or signature")
+    }
+    diagnostics.push(...collectCamRouteExpressionDiagnostics({
+      resource, path: `${path}.${field}.args`, value: fact.args, declaredInputs, allowOutputs,
+      outputUnavailableMessage: `outputs are unavailable in ${field} arguments`,
+    }))
+    return fact
+  }
+  let review: CamRouteReviewFact | undefined
+  const reviewSource = object("review", ["call", "then"])
+  if (reviewSource !== undefined) {
+    const call = invocation(reviewSource.call, "review.call", true, false)
+    const then = invocation(reviewSource.then, "review.then", false, true)
+    if (call !== undefined && then !== undefined) review = { call, then }
+  }
+  let receipt: CamRouteReceiptFact | undefined
+  const receiptSource = object("receipt", ["event", "then", "empty"])
+  if (receiptSource !== undefined) {
+    const event = receiptSource.event
+    if (typeof event !== "string" || event.length === 0 || event.startsWith("$")) {
+      invalid("CAM_FACT_INVOCATION_FUNCTION_INVALID", "receipt.event", "receipt event must be a static event name")
+    }
+    const then = invocation(receiptSource.then, "receipt.then", false, true)
+    const empty = Object.hasOwn(receiptSource, "empty")
+      ? invocation(receiptSource.empty, "receipt.empty", false, false)
+      : undefined
+    if (typeof event === "string" && event.length !== 0 && then !== undefined) {
+      receipt = { event, then, ...(empty === undefined ? {} : { empty }) }
+    }
+  }
+  // Write continuations do not consume mined events; receipt UI owns that phase.
+  if (route.kind === "write") {
+    const then = isRecordObject(route.then) ? route.then : undefined
+    diagnostics.push(...collectCamRouteExpressionDiagnostics({
+      resource, path: `${path}.then.args`, value: then?.args, declaredInputs,
+      allowOutputs: false,
+      outputUnavailableMessage: "write continuation outputs are unavailable",
+    }))
+  }
+  if (diagnostics.length !== 0) return { diagnostics }
+  return { value: { ...(review === undefined ? {} : { review }), ...(receipt === undefined ? {} : { receipt }) }, diagnostics }
 }

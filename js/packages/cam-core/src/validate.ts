@@ -9,6 +9,7 @@ import {
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
   collectCamInvocationFact,
+  collectCamRoutePresentationsFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
   collectCamRootFact,
@@ -30,6 +31,7 @@ import type {
 } from "./types.ts"
 import type {
   CamFactDiagnostic,
+  CamInvocationFact,
   CamNamespaceFact,
   CamResourceDeclarationFact,
   CamRootFact,
@@ -41,7 +43,7 @@ const CONTRACT_NAMESPACE_KEYS = new Set(["type", "abiURI", "integrity"])
 const ROUTES_NAMESPACE_KEYS = new Set(["type"])
 const UI_NAMESPACE_KEYS = new Set(["type", "uri", "integrity"])
 const BASE_ROUTE_KEYS = new Set(["kind", "inputs", "call", "then"])
-const WRITE_ROUTE_KEYS = new Set([...BASE_ROUTE_KEYS, "value", "resolve"])
+const WRITE_ROUTE_KEYS = new Set([...BASE_ROUTE_KEYS, "value", "resolve", "review", "receipt"])
 const INVOCATION_KEYS = new Set(["namespace", "function", "args"])
 const TARGET_INVOCATION_KEYS = new Set([...INVOCATION_KEYS, "target"])
 
@@ -188,6 +190,15 @@ function parseRoutes(
       namespaces,
       camRouteThenNamespaceTypes(kind),
     )
+    const presentations = collectCamRoutePresentationsFact({
+      resource: "CAM root", path, route,
+      namespaceTypes: namespaceTypeMap(namespaces), declaredInputs: new Set(inputs),
+    })
+    const presentationDiagnostic = presentations.diagnostics[0]
+    if (presentationDiagnostic !== undefined) throw camErrorFromFactDiagnostic(presentationDiagnostic)
+    const review = presentations.value?.review
+    const receipt = presentations.value?.receipt
+
     if (resolution.value !== undefined) {
       for (const [value, field, allowOutputs] of [[call.args, "call.args", true], [then.args, "then.args", false], [route.value, "value", false]] as const) {
         const diagnostic = collectCamRouteExpressionDiagnostics({
@@ -214,6 +225,11 @@ function parseRoutes(
       inputs,
       call,
       then,
+      ...(review === undefined ? {} : { review: { call: parseInvocationFact(review.call), then: parseInvocationFact(review.then) } }),
+      ...(receipt === undefined ? {} : { receipt: {
+        event: receipt.event, then: parseInvocationFact(receipt.then),
+        ...(receipt.empty === undefined ? {} : { empty: parseInvocationFact(receipt.empty) }),
+      } }),
       ...(resolution.value === undefined ? {} : {
         resolve: parseInvocation(route.resolve, `${path}.resolve`, namespaces, CAM_ROUTE_CALL_NAMESPACE_TYPES),
         call: { ...call, target: resolution.value.target },
@@ -360,4 +376,8 @@ function camErrorFromFactDiagnostic(diagnostic: CamFactDiagnostic): CamError {
     case "CAM_FACT_ROUTE_EXPRESSION_OUTPUT_UNAVAILABLE":
       return new CamError("CAM_INVALID_FIELD", diagnostic.message, diagnostic.path)
   }
+}
+
+function parseInvocationFact(fact: CamInvocationFact): CamInvocation {
+  return { namespace: fact.namespace, function: fact.function, args: parseNamedArgs(fact.args, `${fact.path}.args`) }
 }

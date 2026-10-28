@@ -41,6 +41,8 @@ export type CamReadRoute = CamRouteBase & {
 
 export type CamWriteRoute = CamRouteBase & {
   readonly kind: "write"
+  readonly review?: { readonly call: CamInvocation; readonly then: CamInvocation }
+  readonly receipt?: { readonly event: string; readonly then: CamInvocation; readonly empty?: CamInvocation }
   readonly resolve?: CamInvocation
   readonly call: CamInvocation & { readonly target?: string }
   readonly value?: InertValue

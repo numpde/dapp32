@@ -102,17 +102,20 @@ export function validateRouteAbiCompatibility({
   resource,
   routes,
   functionsByNamespace,
+  eventsByNamespace,
   issues,
 }: {
   readonly resource: string
   readonly routes: readonly DeclaredRoute[]
   readonly functionsByNamespace: ContractFunctionsByNamespace
+  readonly eventsByNamespace: ContractEventsByNamespace
   readonly issues: CamConformanceIssue[]
 }): void {
   for (const route of routes) {
     const fn = validateRouteCallAbi(resource, route, functionsByNamespace, issues)
     validateRouteValue(resource, route, fn, issues)
     validateRouteResolverAbi(resource, route, fn, functionsByNamespace, issues)
+    validateTransactionPresentations(resource, route, functionsByNamespace, eventsByNamespace, issues)
   }
 }
 
@@ -162,11 +165,14 @@ function validateRouteResolverAbi(
   }
 }
 
-export function contractFunctionsByNamespace(
+export type ContractEventsByNamespace = ReadonlyMap<string, readonly Record<string, unknown>[]>
+
+export function contractAbisByNamespace(
   resources: ReadonlyMap<string, Uint8Array>,
   declarations: readonly ResourceDeclaration[],
   issues: CamConformanceIssue[],
-): ContractFunctionsByNamespace {
+): { readonly functionsByNamespace: ContractFunctionsByNamespace; readonly eventsByNamespace: ContractEventsByNamespace } {
+  const events = new Map<string, readonly Record<string, unknown>[]>()
   const result = new Map<string, ReadonlyMap<string, readonly AbiFunction[]>>()
   for (const declaration of declarations) {
     if (declaration.namespaceType !== "contract") continue
@@ -174,13 +180,14 @@ export function contractFunctionsByNamespace(
     const bytes = resources.get(declaration.uri)
     if (bytes === undefined) continue
 
-    const functions = parseAbiFunctions(declaration.uri, bytes, issues)
-    if (functions !== null) {
-      result.set(declaration.namespace, functionsByName(functions))
+    const parsed = parseAbiResource(declaration.uri, bytes, issues)
+    if (parsed !== null) {
+      result.set(declaration.namespace, functionsByName(parsed.functions))
+      events.set(declaration.namespace, parsed.events)
     }
   }
 
-  return result
+  return { functionsByNamespace: result, eventsByNamespace: events }
 }
 
 export function resolvedAbiFunction(
@@ -205,6 +212,10 @@ export function abiOutputAtSegments(output: unknown, segments: readonly string[]
   const type = nonEmptyString(output.type)
   if (type === undefined) return undefined
 
+  if (type === "array" && Array.isArray(output.items)) {
+    if (!isExpressionArrayIndex(segment)) return undefined
+    return abiOutputAtSegments(output.items[Number(segment)], rest)
+  }
   const arrayElementType = abiDynamicArrayElementType(type)
   if (arrayElementType !== undefined) {
     if (!isExpressionArrayIndex(segment)) return undefined
@@ -366,32 +377,7 @@ function validateRouteMutability(
 }
 
 function validateRouteArgs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
-  diffNameSets({
-    expectedNames: fn.inputs.map((input) => input.name),
-    actualNames: Object.keys(route.call.args),
-    onUnexpected: (name) => {
-      issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${name}`, `unexpected route argument: ${name}`))
-    },
-    onMissing: (name) => {
-      issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${name}`, `missing route argument: ${name}`))
-    },
-  })
-
-  for (const input of fn.inputs) {
-    if (!Object.hasOwn(route.call.args, input.name)) continue
-
-    validateRouteArgType(resource, route, input, issues)
-  }
-}
-
-function validateRouteArgType(
-  resource: string,
-  route: DeclaredRoute,
-  input: AbiInput,
-  issues: CamConformanceIssue[],
-): void {
-  const value = route.call.args[input.name]
-  validateRouteArgValue(resource, `routes.${route.name}.call.args.${input.name}`, input.name, value, input.abi, issues)
+  validateInvocationArguments(resource, `routes.${route.name}.call.args`, route.call.args, fn, issues)
 }
 
 function validateRouteArgValue(
@@ -689,13 +675,13 @@ function validateOutputFieldPath(
   validateOutputFieldPath(resource, path, component, rest, issues)
 }
 
-function parseAbiFunctions(
+function parseAbiResource(
   resource: string,
   bytes: Uint8Array,
   issues: CamConformanceIssue[],
-): readonly AbiFunction[] | null {
-  // This is not a general ABI linter; it extracts only the function surface
-  // needed to join routes, handoffs, and UI values at publication time.
+): { readonly functions: readonly AbiFunction[]; readonly events: readonly Record<string, unknown>[] } | null {
+  // Functions join calls and UI values; event declarations are admitted only
+  // when a receipt presentation selects them. Unused events are not linted.
   let abi: unknown
   let parseError: string | undefined
   try {
@@ -727,7 +713,7 @@ function parseAbiFunctions(
     }
   })
 
-  return functions
+  return { functions, events: abi.filter((item): item is Record<string, unknown> => isRecordObject(item) && item.type === "event") }
 }
 
 function parseAbiFunction(
@@ -1001,4 +987,90 @@ function routeAbiIssue(resource: string, path: string, message: string): CamConf
     path,
     message,
   })
+}
+
+export type TransactionPresentationPhase = "review" | "receipt" | "empty"
+
+export function transactionPresentationOutput(
+  route: DeclaredRoute,
+  phase: TransactionPresentationPhase,
+  functions: ContractFunctionsByNamespace,
+  events: ContractEventsByNamespace,
+  value: unknown,
+): unknown | undefined {
+  const reference = typeof value === "string" ? expressionReference(value) : undefined
+  if (reference?.root !== "outputs" || reference.segments[0] !== "0") return undefined
+  const [, selector, ...rest] = reference.segments
+  if (phase === "receipt") {
+    const matches = events.get(route.call.namespace)?.filter(event => event.name === route.receipt?.event)
+    const inputs = matches?.length === 1 ? matches[0]?.inputs : undefined
+    if (!Array.isArray(inputs)) return undefined
+    if (selector === undefined) return { type: "tuple", components: inputs }
+    const parameter = inputs.find(input => isRecordObject(input) && input.name === selector)
+    return abiOutputAtSegments(parameter, rest)
+  }
+  if (phase !== "review" || route.review === undefined) return undefined
+  if (selector === undefined) {
+    const readInventory = functions.get(route.review.call.namespace)
+    const writeInventory = functions.get(route.call.namespace)
+    const read = readInventory === undefined ? undefined : resolvedAbiFunction(route.review.call.function, readInventory)
+    const write = writeInventory === undefined ? undefined : resolvedAbiFunction(route.call.function, writeInventory)
+    if (read === undefined || write === undefined) return undefined
+    return { type: "tuple", components: [{ name: "read", type: "array", items: read.outputs }, { name: "simulation", type: "array", items: write.outputs }] }
+  }
+  if (selector !== "read" && selector !== "simulation") return undefined
+  const invocation = selector === "read" ? route.review.call : route.call
+  const inventory = functions.get(invocation.namespace)
+  const fn = inventory === undefined ? undefined : resolvedAbiFunction(invocation.function, inventory)
+  const [index, ...fields] = rest
+  if (fn === undefined) return undefined
+  if (index === undefined) return { type: "array", items: fn.outputs }
+  if (!isExpressionArrayIndex(index)) return undefined
+  return abiOutputAtSegments(fn.outputs[Number(index)], fields)
+}
+
+function validateTransactionPresentations(resource: string, route: DeclaredRoute, functions: ContractFunctionsByNamespace, events: ContractEventsByNamespace, issues: CamConformanceIssue[]): void {
+  if (route.review !== undefined) {
+    const call = route.review.call
+    const inventory = functions.get(call.namespace)
+    const fn = inventory === undefined ? undefined : resolveRouteFunction(resource, `routes.${route.name}.review.call`, call.function, inventory, issues)
+    if (fn !== undefined) {
+      if (fn.stateMutability !== "view" && fn.stateMutability !== "pure") issues.push(routeAbiIssue(resource, `routes.${route.name}.review.call.function`, "review call must be view or pure"))
+      validateInvocationArguments(resource, `routes.${route.name}.review.call.args`, call.args, fn, issues)
+    }
+  }
+  if (route.receipt !== undefined) {
+    const matches = events.get(route.call.namespace)?.filter(event => event.name === route.receipt?.event)
+    const event = matches?.length === 1 ? matches[0] : undefined
+    const inputs = event?.inputs
+    if (event === undefined || !Array.isArray(inputs) || event.anonymous !== undefined && event.anonymous !== false
+      || inputs.some(input => !isRecordObject(input) || typeof input.type !== "string" || input.indexed === true && (input.type === "string" || input.type === "bytes" || input.type.startsWith("tuple") || input.type.includes("[")))
+      || inspectAbiParameterNames(inputs).issues.length !== 0) {
+      issues.push(routeAbiIssue(resource, `routes.${route.name}.receipt.event`, "receipt requires one nonanonymous ABI event with named, recoverable arguments"))
+    }
+    if (Array.isArray(inputs)) inputs.forEach((input, index) => {
+      if (!isRecordObject(input)) return
+      const path = `routes.${route.name}.receipt.event.inputs.${index}`
+      canonicalAbiType(resource, path, input, "output", issues)
+      if (input.indexed !== undefined && typeof input.indexed !== "boolean") issues.push(routeAbiIssue(resource, path, "event indexed must be boolean"))
+    })
+  }
+  for (const [phase, invocation] of [["review", route.review?.then], ["receipt", route.receipt?.then], ["empty", route.receipt?.empty]] as const) {
+    if (invocation === undefined) continue
+    forEachString(invocation.args, `routes.${route.name}.${phase === "empty" ? "receipt.empty" : `${phase}.then`}.args`, (value, path) => {
+      if (expressionReference(value)?.root !== "outputs") return
+      if (transactionPresentationOutput(route, phase, functions, events, value) === undefined) issues.push(routeAbiIssue(resource, path, `transaction presentation references an unavailable output: ${value}`))
+    })
+  }
+}
+
+function validateInvocationArguments(resource: string, path: string, args: Record<string, unknown>, fn: AbiFunction, issues: CamConformanceIssue[]): void {
+  diffNameSets({
+    expectedNames: fn.inputs.map(input => input.name), actualNames: Object.keys(args),
+    onUnexpected: name => { issues.push(routeAbiIssue(resource, `${path}.${name}`, `unexpected route argument: ${name}`)) },
+    onMissing: name => { issues.push(routeAbiIssue(resource, `${path}.${name}`, `missing route argument: ${name}`)) },
+  })
+  for (const input of fn.inputs) {
+    if (Object.hasOwn(args, input.name)) validateRouteArgValue(resource, `${path}.${input.name}`, input.name, args[input.name], input.abi, issues)
+  }
 }

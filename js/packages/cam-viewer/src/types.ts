@@ -2,6 +2,9 @@ import type { InertRecord, InertValue } from "@cam/protocol"
 import type { CamResolvedInvocation } from "@cam/core"
 import type {
   CamContractCall,
+  CamReviewClient,
+  CamMinedReceipt,
+  CamMinedTransaction,
   CamHost,
   CamIntegrityWarning,
   CamPublicClient,
@@ -102,4 +105,7 @@ export type CamViewerActionResult =
 export type CamViewerPreparedContractCall = CamContractCall & {
   readonly route: string
   readonly then: CamResolvedInvocation
+  readonly review?: (client: CamReviewClient, account: CamViewerAccount["address"]) => Promise<{ readonly ui: ResolvedUiNode; readonly blockNumber: string }>
+  readonly reviewed?: { readonly ui: ResolvedUiNode; readonly blockNumber: string }
+  readonly receipt?: (receipt: CamMinedReceipt, transaction: CamMinedTransaction, account: CamViewerAccount["address"]) => ResolvedUiNode
 }

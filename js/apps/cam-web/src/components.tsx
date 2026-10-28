@@ -144,6 +144,10 @@ export function PreparedCallView({
   return (
     <section className="panel prepared-call" ref={reviewRef} tabIndex={-1} aria-labelledby="prepared-call-title">
       <h2 id="prepared-call-title">Review transaction</h2>
+      {call.reviewed === undefined ? null : <>
+        <TransactionPresentationView node={call.reviewed.ui} headingLevel={3} busy={sending} />
+        <KeyValue label="Estimate block" value={call.reviewed.blockNumber} mono={false} />
+      </>}
       {review.fields.map((field) => (
         field.json === undefined ? <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} compact={field.compact} />
           : <PropertyRow key={field.label} label={field.label} value={<>
@@ -214,13 +218,10 @@ function UiNodeView({
       const children = node.children.map((child, index) => (
         <UiNodeView key={index} busy={busy} root={false} headingLevel={titled ? Math.min(headingLevel + 1, 6) : headingLevel} scopeKey={scopeKey} node={child} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       ))
-      if (!titled) return <>{children}</>
-      const title = displayText(stringProp(node.props, "title"))
-      const Heading = `h${headingLevel}` as "h2" | "h3" | "h4" | "h5" | "h6"
-      return <section className="ui-section" aria-label={title}><Heading>{title}</Heading>{children}</section>
+      return factNodeView(node, children, root, headingLevel)
     }
     case "Text":
-      return <p className="text-row"><HexValue value={stringProp(node.props, "text")} label="value" /></p>
+      return factNodeView(node, [], root, headingLevel)
     case "TextField": {
       const name = stateKey(node)
       return (
@@ -239,7 +240,7 @@ function UiNodeView({
       )
     }
     case "Address":
-      return <KeyValue label={stringProp(node.props, "label")} value={stringProp(node.props, "address")} mono={true} />
+      return factNodeView(node, [], root, headingLevel)
     case "AmountField":
       return <AmountFieldView node={node} disabled={busy || node.disabled === true} onAmount={onAmount} />
     case "DurationField":
@@ -251,36 +252,63 @@ function UiNodeView({
     case "NftMetadataField":
       return <NftMetadataFieldView key={JSON.stringify([scopeKey, node.state.key])} label={stringProp(node.props, "label")} name={node.state.key} value={state[node.state.key] === null ? null : stateString(state, node.state.key)} disabled={busy || node.disabled === true} onInput={onInput} />
     case "Status":
-      if (node.props.format === "timestampSeconds") return <TimestampStatusView key={JSON.stringify([node.props.label, node.props.zeroText])} node={node} />
-      return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
+      return factNodeView(node, [], root, headingLevel)
     case "Nft":
       return <NftView key={JSON.stringify([scopeKey, node.props])} contractAddress={stringProp(node.props, "contractAddress")} tokenId={formatInertValue(node.props.tokenId)} metadataURI={node.props.metadataURI === undefined ? undefined : stringProp(node.props, "metadataURI")} />
     case "Button": {
-      const label = displayText(stringProp(node.props, "label"))
-      const kind = actionKind(node)
-      const effect = kind === "navigate" ? "Read only" : kind === "contractCall" ? "Review transaction" : "Unknown route"
-      return (
-        <button
-          className={`action-button${kind === "navigate" ? " button-quiet" : ""}`}
-          data-action-kind={kind}
-          aria-label={label}
-          aria-description={kind === "contractCall" && !canReviewTransaction ? "Connect a wallet to review this transaction" : effect}
-          type="button"
-          disabled={busy || node.disabled === true || (kind === "contractCall" && !canReviewTransaction)}
-          onClick={() => {
-            void onAction(node)
-          }}
-        >
-          {label}
-          {kind === "navigate"
-            ? <span className="action-arrow" aria-hidden="true"> →</span>
-            : <span className="action-effect" aria-hidden="true">{effect}</span>}
-        </button>
-      )
+      return <ActionButtonView node={node} kind={actionKind(node)} disabled={busy} canReviewTransaction={canReviewTransaction} onAction={onAction} />
     }
   }
 
   return unreachableUiNode(node)
+}
+
+export function TransactionPresentationView({ node, onAction, busy, headingLevel }: {
+  readonly node: ResolvedUiNode
+  readonly onAction?: (action: ResolvedButtonNode) => Promise<void>
+  readonly busy: boolean
+  readonly headingLevel: number
+}): ReactElement {
+  if (node.element === "Button") {
+    if (onAction === undefined) throw new Error("Transaction review cannot contain navigation actions.")
+    return <ActionButtonView node={node} kind="navigate" disabled={busy} canReviewTransaction={false} onAction={onAction} />
+  }
+  const children = (node.element === "Screen" || node.element === "Fragment" ? node.children : []).map((child, index) => <TransactionPresentationView key={index} node={child} {...(onAction === undefined ? {} : { onAction })} busy={busy} headingLevel={node.element === "Screen" ? Math.min(headingLevel + 1, 6) : headingLevel} />)
+  return factNodeView(node, children, false, headingLevel)
+}
+
+function factNodeView(node: ResolvedUiNode, children: readonly ReactElement[], root: boolean, headingLevel: number): ReactElement {
+  switch (node.element) {
+    case "Screen": {
+      if (root) return <>{children}</>
+      const title = displayText(stringProp(node.props, "title"))
+      const Heading = `h${headingLevel}` as "h2" | "h3" | "h4" | "h5" | "h6"
+      return <section className="ui-section" aria-label={title}><Heading>{title}</Heading>{children}</section>
+    }
+    case "Fragment": return <>{children}</>
+    case "Text": return <p className="text-row"><HexValue value={stringProp(node.props, "text")} label="value" /></p>
+    case "Address": return <KeyValue label={stringProp(node.props, "label")} value={stringProp(node.props, "address")} mono={true} />
+    case "Status":
+      if (node.props.format === "timestampSeconds") return <TimestampStatusView key={JSON.stringify([node.props.label, node.props.zeroText])} node={node} />
+      return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
+    default: throw new Error(`Cannot render ${node.element} as a transaction fact.`)
+  }
+}
+
+function ActionButtonView({ node, kind, disabled, canReviewTransaction, onAction }: {
+  readonly node: ResolvedButtonNode
+  readonly kind: CamViewerActionKind
+  readonly disabled: boolean
+  readonly canReviewTransaction: boolean
+  readonly onAction: (action: ResolvedButtonNode) => Promise<void>
+}): ReactElement {
+  const label = displayText(stringProp(node.props, "label"))
+  const effect = kind === "navigate" ? "Read only" : kind === "contractCall" ? "Review transaction" : "Unknown route"
+  return <button className={`action-button${kind === "navigate" ? " button-quiet" : ""}`} data-action-kind={kind} aria-label={label}
+    aria-description={kind === "contractCall" && !canReviewTransaction ? "Connect a wallet to review this transaction" : effect}
+    type="button" disabled={disabled || node.disabled === true || (kind === "contractCall" && !canReviewTransaction)} onClick={() => { void onAction(node) }}>
+    {label}{kind === "navigate" ? <span className="action-arrow" aria-hidden="true"> →</span> : <span className="action-effect" aria-hidden="true">{effect}</span>}
+  </button>
 }
 
 function TimestampStatusView({ node }: { readonly node: ResolvedStatusNode }): ReactElement {

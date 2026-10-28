@@ -4,8 +4,11 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 import { parseCam } from "@cam/core"
 import { parseJsonBytes, toInertValue, type InertRecord } from "@cam/protocol"
-import { resolvedUiButtons, type ResolvedUiNode } from "@cam/screen"
-import type { CamPublicClient } from "@cam/evm-viem"
+import { parseUi, resolvedUiButtons, type ResolvedUiNode } from "@cam/screen"
+import { encodeCamContractCall } from "@cam/evm-viem"
+import { encodeAbiParameters, toEventSelector, parseAbiItem } from "viem"
+import { transactionPresentationNavigation } from "../src/index.ts"
+import type { CamMinedReceipt, CamMinedTransaction, CamPublicClient } from "@cam/evm-viem"
 import type { Abi, Address, Hex } from "viem"
 import { CamViewerInputError, createCamViewerSession } from "../src/index.ts"
 import { prepareViewerContractCall } from "../src/write-preparation.ts"
@@ -28,6 +31,7 @@ const preparationClient = {
 async function fixture() {
   const root = new Uint8Array(await readFile(new URL("main.json", directory)))
   const cam = parseCam(parseJsonBytes(root))
+  const ui = parseUi(parseJsonBytes(new Uint8Array(await readFile(new URL("ui.json", directory)))))
   const abi = parseJsonBytes(new Uint8Array(await readFile(new URL("abi/PayToPlay.json", directory)))) as Abi
   const chainState = {
     channelCount: 3n, payee: other, collector: other, mature: false, voucherKey,
@@ -87,7 +91,7 @@ async function fixture() {
     const relative = new URL(resource).pathname.replace("/pay-to-play/", "")
     return new Uint8Array(await readFile(new URL(relative, directory)))
   } })
-  return { cam, abi, session, chainState, readCalls }
+  return { cam, abi, ui, publicClient, session, chainState, readCalls }
 }
 
 test("empty numeric actions identify their own fields before any RPC, while explicit zero stays valid", async () => {
@@ -131,13 +135,13 @@ test("empty numeric actions identify their own fields before any RPC, while expl
 })
 
 test("sender-owned payment writes always continue to the acting wallet's position", async () => {
-  const { cam, abi } = await fixture()
+  const { cam, abi, ui } = await fixture()
   for (const route of ["registerVoucherKey", "fund", "requestWithdrawal", "setWithdrawal", "move"]) {
     assert(!cam.routes[route]!.inputs.includes("customer"), `${route} must not request a fictional customer`)
     const inputs: InertRecord = route === "registerVoucherKey"
       ? { channelId: "1", voucherKey }
       : route === "move" ? { channelId: "1", targetId: "0" } : { channelId: "1", amount: "20" }
-    const options = { cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
+    const options = { cam, ui, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
     await assert.rejects(() => prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: { ...inputs, customer: other } }))
     const call = await prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs })
     assert.deepEqual(call.then, toInertValue({ namespace: "routes", function: "position", args: { customer, channelId: "1" } }))
@@ -145,10 +149,11 @@ test("sender-owned payment writes always continue to the acting wallet's positio
 })
 
 test("fund writes bind one requested native amount as both ABI argument and transaction value", async () => {
-  const { cam, abi } = await fixture()
+  const { cam, abi, ui } = await fixture()
   for (const amount of ["23", "0"]) {
     const prepared = await prepareViewerContractCall({ publicClient: preparationClient,
       cam,
+      ui,
       contracts: { "contracts.PayToPlay": { address: contract, abi } },
       host,
       account: { address: customer },
@@ -328,7 +333,7 @@ test("opened balances stay pinned across wallet changes and chooser round trips"
 })
 
 test("every write captures its explicit affected balance when prepared", async () => {
-  const { cam, abi, session } = await fixture()
+  const { cam, abi, ui, session } = await fixture()
   for (const [route, inputs] of Object.entries({
     registerVoucherKey: { channelId: "1", voucherKey },
     fund: { channelId: "1", amount: "20" }, requestWithdrawal: { channelId: "1", amount: "20" },
@@ -336,7 +341,7 @@ test("every write captures its explicit affected balance when prepared", async (
     withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", maxAmount: "20", invoiceHash, signature: "0x" },
     setPayee: { customer: other, channelId: "1", payee: customer },
   })) {
-    const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route, inputs: toInertValue(inputs) as InertRecord })
+    const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, ui, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route, inputs: toInertValue(inputs) as InertRecord })
     await session.load()
     await session.setAccount({ address: other })
     assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "position", args: { customer: ["withdraw", "collect", "setPayee"].includes(route) ? other : customer, channelId: "1" } }))
@@ -348,8 +353,8 @@ test("every write captures its explicit affected balance when prepared", async (
 
 
 test("channel creation continues to a current lookup without predicting a created ID", async () => {
-  const { cam, abi, session, chainState } = await fixture()
-  const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route: "createChannel", inputs: { payee: other, collector: other, claimPeriod: "60" } })
+  const { cam, abi, ui, session, chainState } = await fixture()
+  const prepared = await prepareViewerContractCall({ publicClient: preparationClient, cam, ui, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route: "createChannel", inputs: { payee: other, collector: other, claimPeriod: "60" } })
   assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "channelLookup", args: {} }))
   await session.load()
   chainState.channelCount = 5n
@@ -445,7 +450,7 @@ test("registration is owner-only and collection follows the registered key on re
 })
 
 test("recovery writes bind the appropriate owner and never accept executor-selected refund destinations", async () => {
-  const { cam, abi } = await fixture()
+  const { cam, abi, ui } = await fixture()
   for (const [route, inputs] of Object.entries({
     renewPosition: { channelId: "1" },
     setRefundRecipient: { channelId: "1", recipient: voucherKey },
@@ -453,7 +458,7 @@ test("recovery writes bind the appropriate owner and never accept executor-selec
     closeChannel: { customer: other, channelId: "1" },
     refund: { customer: other, channelId: "1" },
   })) {
-    const options = { cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
+    const options = { cam, ui, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
     const prepared = await prepareViewerContractCall({ publicClient: preparationClient, ...options, inputs: toInertValue(inputs) as InertRecord })
     const senderOwned = route === "renewPosition" || route === "setRefundRecipient"
     assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "recovery", args: { customer: senderOwned ? customer : other, channelId: "1" } }))
@@ -548,9 +553,9 @@ test("recovery navigation stays pinned and follows contract-returned phase and p
 
 
 test("collection preparation requires an exact bytes32 reference and preserves the inspected customer", async () => {
-  const { cam, abi } = await fixture()
+  const { cam, abi, ui } = await fixture()
   const options = {
-    cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host,
+    cam, ui, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host,
     account: { address: other }, route: "collect",
   }
   const base = { customer, channelId: "1", cumulativeTotal: "20", maxAmount: "20", signature: "0xabcd" }
@@ -658,4 +663,90 @@ test("signing details show the payment domain and registered key, distinct from 
   assert.notEqual(shown["Payment contract (verifyingContract)"], host.address)
   assert.notEqual(shown["Payment contract (verifyingContract)"], uiContract)
   assert.notEqual(shown["Registered voucher key"], customer)
+})
+
+const minedHash = `0x${"aa".repeat(32)}` as Hex
+const minedBlockHash = `0x${"bb".repeat(32)}` as Hex
+function minedCall(call: import("../src/types.ts").CamViewerPreparedContractCall, sender: Address, logs: CamMinedReceipt["logs"]) {
+  const receipt: CamMinedReceipt = { status: "success", transactionHash: minedHash, blockHash: minedBlockHash, blockNumber: 19n, from: sender, to: call.address, logs }
+  const transaction: CamMinedTransaction = { hash: minedHash, blockHash: minedBlockHash, blockNumber: 19n, from: sender, to: call.address, input: encodeCamContractCall(call), value: 0n }
+  return { receipt, transaction }
+}
+function presentationFacts(ui: ResolvedUiNode): Record<string, unknown> {
+  const facts: Record<string, unknown> = {}
+  function visit(node: ResolvedUiNode): void {
+    if (node.element === "Status") facts[String(node.props.label)] = node.props.value
+    if (node.element === "Address") facts[String(node.props.label)] = node.props.address
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(visit)
+  }
+  visit(ui)
+  return facts
+}
+
+test("creation receipt exposes its actual ID and opens that channel, independently of the displayed count", async () => {
+  const { session } = await fixture()
+  await session.load()
+  await session.setAccount({ address: other })
+  await session.navigate("home", {})
+  session.updateState({ newPayee: customer, newChannelCollector: other })
+  const edited = session.editDuration("newClaimPeriod", "seconds", "60")
+  const action = resolvedUiButtons(edited.resolvedUi).find(button => button.call.function === "createChannel")!
+  const result = await session.dispatchAction(action)
+  assert.equal(result.type, "contractCall")
+  if (result.type !== "contractCall") throw new Error("Expected prepared creation")
+  const call = result.call
+  const event = parseAbiItem("event ChannelCreated(uint256 indexed channelId,address payee,uint64 claimPeriod)")
+  const proof = minedCall(call, other, [{ address: contract,
+    topics: [toEventSelector(event), encodeAbiParameters([{ type: "uint256" }], [18n])],
+    data: encodeAbiParameters([{ type: "address" }, { type: "uint64" }], [customer, 60n]),
+  }])
+  const outcome = call.receipt!(proof.receipt, proof.transaction, other)
+  assert.equal(presentationFacts(outcome)["Created channel ID"], "18")
+  const open = resolvedUiButtons(outcome)[0]!
+  assert.equal(open.call.args.channelId, "18")
+  assert.throws(() => transactionPresentationNavigation(outcome, { ...open, call: { ...open.call, args: { ...open.call.args, channelId: "19" } } }), /not rendered/)
+  const next = transactionPresentationNavigation(outcome, open)
+  const opened = await session.navigate(next.route, next.inputs)
+  assert.equal(opened.inputs.channelId, "18")
+  assert.equal((opened.values[0] as InertRecord).channelId, "18")
+  assert.throws(() => call.receipt!({ ...proof.receipt, logs: [] }, proof.transaction, other), /did not emit/)
+})
+
+test("collection shows its estimate, then the mined amount and actual recipient, or explicitly zero", async () => {
+  const { cam, ui, abi, publicClient, chainState } = await fixture()
+  const call = await prepareViewerContractCall({ publicClient: preparationClient, cam, ui, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: other }, route: "collect", inputs: { customer, channelId: "1", cumulativeTotal: "60", maxAmount: "30", invoiceHash, signature: "0xabcd" } })
+  const review = await call.review!({ ...publicClient,
+    getBlock: async () => ({ number: 18n, hash: minedBlockHash }),
+    simulateContract: async request => { assert.equal(request.address, contract); assert.equal(request.blockNumber, 18n); return { result: 30n } },
+  }, other)
+  assert.deepEqual(presentationFacts(review.ui), {
+    "Estimated payment (wei; may change before confirmation)": "30",
+    "Current payee (may change before confirmation)": other.toLowerCase(),
+  })
+  chainState.payee = customer
+  const event = parseAbiItem("event VoucherCollected(address indexed customer,uint256 indexed channelId,address indexed payee,uint256 amount,uint256 voucherPaid,bytes32 invoiceHash)")
+  const proof = minedCall(call, other, [{ address: contract,
+    topics: [toEventSelector(event), encodeAbiParameters([{ type: "address" }], [customer]), encodeAbiParameters([{ type: "uint256" }], [1n]), encodeAbiParameters([{ type: "address" }], [customer])],
+    data: encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }, { type: "bytes32" }], [20n, 20n, invoiceHash]),
+  }])
+  const paid = call.receipt!(proof.receipt, proof.transaction, other)
+  assert.deepEqual(presentationFacts(paid), { "Paid (wei)": "20", "Paid to": customer.toLowerCase(), "Balance owner": customer.toLowerCase(), "Channel ID": "1" })
+  const zeroPayment = call.receipt!({ ...proof.receipt, logs: [] }, proof.transaction, other)
+  assert.equal(zeroPayment.element, "Screen")
+  assert.equal(zeroPayment.props.title, "No payment collected")
+  assert.deepEqual(presentationFacts(zeroPayment), { "Paid (wei)": "0" })
+})
+
+test("presentation parsing and preparation fail before RPC at unavailable expression phases", async () => {
+  const { cam, abi, ui } = await fixture()
+  const write = cam.routes.collect!
+  assert.equal(write.kind, "write")
+  if (write.kind !== "write" || write.review === undefined || write.receipt === undefined) throw new Error("Expected annotated collection")
+  const { review, receipt } = write
+  const rootWith = (fields: Record<string, unknown>) => ({ ...cam, routes: { ...cam.routes, collect: { ...write, ...fields } } })
+  assert.throws(() => parseCam(rootWith({ review: { ...review, unknown: true } })), /field is not allowed/)
+  assert.throws(() => parseCam(rootWith({ review: { ...review, call: { ...review.call, args: { customer: "$outputs.0" } } } })), /outputs are unavailable/)
+  assert.throws(() => parseCam(rootWith({ receipt: { ...receipt, empty: { namespace: "ui", function: "collectionZero", args: { view: "$outputs.0" } } } })), /outputs are unavailable/)
+  assert.throws(() => parseCam(rootWith({ then: { ...write.then, args: { channelId: "$outputs.0.channelId" } } })), /outputs are unavailable/)
+  await assert.rejects(prepareViewerContractCall({ publicClient: preparationClient, cam, ui, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, route: "createChannel", inputs: { payee: other, collector: other, claimPeriod: "60" } }), /requires an account/)
 })

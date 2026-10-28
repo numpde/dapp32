@@ -2,7 +2,7 @@ Pay-to-Play walkthrough: prioritized implementation checklist
 ============================================================
 
 Date: 2026-10-29 (local date).
-Status: P1 implementation underway; completed items are checked below.
+Status: P1 complete; P2 and P3 remain queued.
 Attribution: findings in this note are agent-identified, not user reports.
 
 Context
@@ -42,7 +42,7 @@ below establishes the starting problems, not completion of these tasks.
 
 P1 — Financial decisions, outcomes and completed setup
 -----------------------------------------------------
-[ ] Show what collection will pay and what it actually paid. (Finding 7)
+[x] Show what collection will pay and what it actually paid. (Finding 7)
     Review should identify the current payee and expected payment, with the
     limits of the estimate clear. Confirmation should distinguish payment from
     a successful zero-payment call, using authoritative mined evidence.
@@ -73,7 +73,7 @@ P1 — Financial decisions, outcomes and completed setup
     Use the existing position facts; do not invent a global pause flag or add
     contract fields. The rendering mechanism remains to be selected.
 
-[ ] Give channel creation a usable next step with its actual channel ID.
+[x] Give channel creation a usable next step with its actual channel ID.
     (Finding 1)
     After confirmation, show the created ID and offer to open that channel.
     Evidence: creation opens Find a channel ID with a blank field and refers to
@@ -81,7 +81,7 @@ P1 — Financial decisions, outcomes and completed setup
     wallet's deployment list do not complete the ordinary app workflow.
     Derive the ID from the actual mined creation event or another authoritative
     read. Do not guess from the count or a simulated return under concurrency.
-    No receipt framework or protocol change has been selected.
+    Uses shared transaction presentations; no payment-contract replacement.
 
 [x] Fix blank-amount validation through the shared input/action owner.
     (Finding 3; Escrow issue 16)
@@ -351,16 +351,53 @@ fixtures. The stale startup helper was corrected to test the existing editable
 setup and RPC-local feedback owners; subsequent attempts stopped in the unrelated
 clipboard-error fixture. No full campaign pass is claimed.
 
-Remaining P1 design boundary
-----------------------------
-Collection outcome and creation handoff remain unchecked. Simulation currently
-discards returned values; receipts have events but no execution return value;
-write continuations resolve before submission with empty outputs. A shared
-receipt-aware result/handoff capability is needed to complete these tasks.
-Generic decoded events alone would expose a positive payment or actual created
-ID, but would not establish semantic zero payment, current-payee preview or
-a receipt-bound Open channel action. Never substitute a simulated ID or a
-post-transaction balance comparison for authoritative execution evidence.
+Completed transaction review and receipt results
+------------------------------------------------
+Optional write.review and write.receipt declarations reuse the existing UI
+profile. Collection review reads the current payee and simulates the exact call
+at one observed block, then rechecks that block's hash. Both the amount and
+payee are explicitly estimates; they may change before confirmation.
+
+Receipt interpretation first matches the actual mined destination, calldata,
+value, sender and transaction/block identity. It accepts one canonical selected
+event emitted by that destination. Foreign logs cannot supply the result;
+malformed or multiple matching events make the result unavailable. Only the
+collection declaration gives an empty receipt the meaning of zero payment.
+Creation requires its actual ChannelCreated event. A failed interpretation
+retains confirmation and the transaction hash without inventing an outcome.
+Ordinary write continuations still resolve before submission with empty outputs.
+
+Result UI contains facts and read-route navigation, including an Open this
+channel button using the mined ID. It cannot contain editors, NFT loaders or
+write buttons. Includes resolve before admission. Result navigation is scoped
+to its originating viewer session, including a late navigation completion.
+The shared renderer owns fact rows, heading hierarchy and action controls;
+there are no payment-specific branches in the web viewer.
+
+Qualification on an isolated local viewer at port 5294:
+- Creation simulated ID 7. Another creation mined before the reviewed call,
+  which emitted ID 8. The confirmation displayed 8 and its button opened 8.
+- One real signed voucher collected 30, then 30, then 0 wei. Each review showed
+  its estimated amount/payee; each confirmation was compared with its mined
+  receipt. Zero had no payment event or stale Paid to recipient.
+- Creation results, collection estimates and zero-payment results fit 320 CSS
+  pixels; the ordinary campaign ran at 1280 CSS pixels.
+- Actual manifest/UI unit fixtures additionally distinguish estimated 30 from
+  mined 20 and a rotated recipient. Foreign/malformed/duplicate events, changed
+  mined calls, same-call replacements, absent required events, invalid phase
+  references and forbidden result actions have focused regression coverage.
+- All 1,036 typed JS tests and the full web build pass. Source hygiene has
+  the same seven pre-existing failure cases and unchanged fallback findings;
+  no new ownership/default finding remains. The maintained browser
+  campaign passes these payment flows plus recovery and tamper checks, then
+  stops in the pre-existing shared clipboard-error fixture. It is not a full
+  browser-campaign or native OS clipboard pass.
+  Qualification used the current working tree, including the earlier fixture
+  attachment edits that remain outside this commit; it is not an isolated
+  public-release qualification.
+
+No payment bytecode, ABI, voucher schema or event schema changed. This work is
+local implementation and qualification, not a public release or Fuji action.
 
 Local viewer refresh
 --------------------
@@ -408,3 +445,12 @@ contract. The final paragraph anchors the ordinary wait to a withdrawal request
 and the final claim window separately to recovery; funding-cycle details remain
 with recovery controls. Integrity refresh and 161 conformance tests passed for
 these final resource bytes.
+
+P1 preview refresh
+------------------
+The existing Pay-to-Play viewer at port 5194 was refreshed in place and reloaded.
+Its route remained the same reserve-channel position; block 32 and the payment
+contract's 100 wei native balance matched before and after. The new review
+capability is present. The existing Escrow demo's services and chain were not restarted.
+The separate port-5294 qualification project is removed through its normal
+GUI-down target. No original deployment or wallet was replaced.

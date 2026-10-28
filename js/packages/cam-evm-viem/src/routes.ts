@@ -54,11 +54,12 @@ export async function callCamRouteResolver(options: CallCamRouteOptions): Promis
   })
 }
 
-async function readCamInvocation({
-  publicClient, contracts, context, route, routeCall, targetOutputIndex,
+export async function readCamInvocation({
+  publicClient, contracts, context, route, routeCall, targetOutputIndex, blockNumber,
 }: Omit<CallCamRouteOptions, "cam"> & {
   readonly routeCall: CamResolvedInvocation
   readonly targetOutputIndex?: number
+  readonly blockNumber?: bigint
 }): Promise<RouteResult> {
   await assertClientChain(publicClient, context.host)
   const contract = contracts[routeCall.namespace]
@@ -90,6 +91,7 @@ async function readCamInvocation({
       functionName: routeFunction.name,
       args,
       account,
+      ...(blockNumber === undefined ? {} : { blockNumber }),
     })
   } catch (cause) {
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
@@ -123,7 +125,7 @@ function routeAccount(context: CamRuntimeContext): Address | undefined {
   return address
 }
 
-function normalizeRouteResult(
+export function normalizeRouteResult(
   raw: unknown,
   route: string,
   routeOutputs: readonly AbiParameter[],
@@ -164,7 +166,7 @@ function normalizeRawRouteOutputs(raw: unknown, route: string, outputCount: numb
   return raw
 }
 
-function normalizeRouteValues(
+export function normalizeRouteValues(
   values: readonly unknown[],
   outputs: readonly AbiParameter[],
   route: string,

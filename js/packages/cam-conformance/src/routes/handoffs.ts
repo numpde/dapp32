@@ -55,9 +55,14 @@ export function validateRouteHandoffs({
   const routesByName = new Map(routes.map((route) => [route.name, route]))
 
   for (const route of routes) {
+    if (uiNodes !== undefined) {
+      for (const [phase, invocation] of [["review.then", route.review?.then], ["receipt.then", route.receipt?.then], ["receipt.empty", route.receipt?.empty]] as const) {
+        if (invocation !== undefined) validateUiHandoff(resource, invocation, `routes.${route.name}.${phase}`, uiNodes, issues)
+      }
+    }
     if (route.kind === "read") {
       if (uiNodes === undefined) continue
-      validateUiHandoff(resource, route, uiNodes, issues)
+      validateUiHandoff(resource, route.then, `routes.${route.name}.then`, uiNodes, issues)
       continue
     }
     validateRouteHandoff(resource, route, routesByName, functionsByNamespace, issues)
@@ -66,22 +71,23 @@ export function validateRouteHandoffs({
 
 function validateUiHandoff(
   resource: string,
-  route: DeclaredRoute,
+  invocation: DeclaredRoute["then"],
+  path: string,
   uiNodes: ReadonlyMap<string, DeclaredUiNode>,
   issues: CamConformanceIssue[],
 ): void {
-  const node = uiNodes.get(route.then.function)
+  const node = uiNodes.get(invocation.function)
   if (node === undefined) {
-    issues.push(handoffIssue(resource, `routes.${route.name}.then.function`, `route renders unknown UI node: ${route.then.function}`))
+    issues.push(handoffIssue(resource, `${path}.function`, `route renders unknown UI node: ${invocation.function}`))
     return
   }
   if (node.requires === undefined) return
 
   validateNamedHandoffArgs({
     resource,
-    path: `routes.${route.name}.then.args`,
+    path: `${path}.args`,
     expectedNames: node.requires,
-    actualNames: Object.keys(route.then.args),
+    actualNames: Object.keys(invocation.args),
     destination: `UI node ${node.name}`,
     issues,
   })

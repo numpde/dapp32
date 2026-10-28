@@ -22,3 +22,5 @@ export {
   resolveRouteResolver,
   resolveRouteThen,
 } from "./routes.ts"
+
+export { resolveArgs } from "./expressions.ts"

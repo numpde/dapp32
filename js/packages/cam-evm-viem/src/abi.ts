@@ -122,7 +122,7 @@ function validateFunctionItem(item: Record<string, unknown>, path: string): void
   validateFunctionInputNames(item.inputs, `${path}.inputs`)
 }
 
-function validateAbiParameters(value: unknown, path: string): void {
+export function validateAbiParameters(value: unknown, path: string): void {
   if (!Array.isArray(value)) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameters must be an array: ${path}`)
   }

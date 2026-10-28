@@ -20,3 +20,5 @@ export { viewerErrorMessage } from "./error-message.ts"
 export { defaultIpfsGateway, publicIpfsGateways } from "./ipfs-gateways.ts"
 
 export { evmNetworkChoices, publicRpcEndpoints } from "./rpc-catalog.ts"
+
+export { transactionPresentationNavigation } from "./transaction-presentations.ts"

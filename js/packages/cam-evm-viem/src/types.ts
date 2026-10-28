@@ -1,4 +1,4 @@
-import type { Abi, Address, Chain, Hex } from "viem"
+import type { Abi, Address, Block, Chain, Hex } from "viem"
 import type { CamDocument } from "@cam/core"
 import type { InertValue } from "@cam/protocol"
 
@@ -13,6 +13,7 @@ export type CamReadContractRequest = {
   readonly functionName: string
   readonly args?: readonly unknown[] | undefined
   readonly account?: Address | undefined
+  readonly blockNumber?: NonNullable<Block["number"]>
 }
 
 export type CamPublicClient = {
@@ -100,6 +101,7 @@ export type CamSimulationClient = {
     readonly args?: readonly unknown[]
     readonly value?: EvmTransactionValue
     readonly account: Address
+    readonly blockNumber?: NonNullable<Block["number"]>
   }) => Promise<unknown>
 }
 

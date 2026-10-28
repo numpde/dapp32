@@ -21,10 +21,12 @@ export type {
 
 export {
   collectCamInvocationFact,
+  collectCamRoutePresentationsFact,
   collectCamRouteResolutionFact,
 } from "./invocations.ts"
 export type {
   CamInvocationFact,
+  CamRoutePresentationsFact,
   CamRouteResolutionFact,
 } from "./invocations.ts"
 
