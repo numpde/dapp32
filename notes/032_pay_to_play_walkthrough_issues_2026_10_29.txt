@@ -400,3 +400,11 @@ the earlier detailed baseline, ignoring line numbers and set ordering: no new
 findings remain. The source gate itself is not green; unrelated prior work and
 its known failures were preserved. The full browser campaign remains limited
 by its shared clipboard fixture as described above.
+
+Final timing copy: a context-isolated reader correctly distinguished the two
+triggers and the separate zero-collector and zero-duration choices, and did not
+assume an automatic transfer. Source review confirmed the wording against the
+contract. The final paragraph anchors the ordinary wait to a withdrawal request
+and the final claim window separately to recovery; funding-cycle details remain
+with recovery controls. Integrity refresh and 161 conformance tests passed for
+these final resource bytes.

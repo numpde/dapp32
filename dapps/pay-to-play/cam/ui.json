@@ -876,7 +876,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "The wait below applies to ordinary withdrawals and to the final voucher-collection window after 365 days or an earlier wind-down. It cannot change after channel creation and must be at most 30 days. With zero, withdrawals need no wait and wind-down stops voucher collection immediately."
+            "text": "A customer’s ordinary withdrawal request starts this wait. Separately, the same duration is the collector’s final window to claim unpaid vouchers when a customer’s funding cycle ends or their balance is wound down early. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window."
           }
         },
         {
