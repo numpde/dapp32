@@ -72,6 +72,7 @@ import {
 import {
   type PreparedCallSubmitterPorts,
   type SubmittedTransactionReference,
+  type TransactionStage,
   SubmissionOutcomeUnknownError,
   submittedTransactionDiagnosis,
   submitPreparedContractCall,
@@ -155,7 +156,8 @@ export function App(): ReactElement {
   const [transactionNotice, setTransactionNotice] = useState<(Notice & { readonly transaction?: SubmittedTransactionReference }) | undefined>(undefined)
   const [preparedCall, setPreparedCallState] = useState<CamViewerPreparedContractCall | undefined>(undefined)
   const preparedCallRef = useRef<CamViewerPreparedContractCall | undefined>(undefined)
-  const [sending, setSending] = useState(false)
+  const [sendStage, setSendStage] = useState<TransactionStage | undefined>(undefined)
+  const sending = sendStage !== undefined
   const [changingView, setChangingView] = useState(false)
   const interactionRevision = useRef(0)
   const sendRevision = useRef(0)
@@ -526,7 +528,7 @@ export function App(): ReactElement {
     // transaction-submission gate.
     sendingRef.current = true
     cancelPendingDocumentHashes()
-    setSending(true)
+    setSendStage("checking")
     setNotice(undefined)
     try {
       const ready = requireReadyState(loadState)
@@ -537,11 +539,13 @@ export function App(): ReactElement {
         startup: { ...ready.runtime.startup, rpcUrl: ready.runtime.rpc.active.url },
         call,
         shouldContinue: () => ownsInteraction() && ownsSend(),
+        onStage: stage => { if (ownsSend()) setSendStage(stage) },
       })
       if (txHash === undefined) return
       submittedTransaction = { chainId: ready.runtime.startup.chainId, hash: txHash }
       if (!ownsSend()) return
       reportTransaction({ message: "Transaction submitted." }, "status", false, submittedTransaction)
+      setSendStage("confirming")
 
       const nonceGap = await submittedTransactionDiagnosis({
         client: ready.runtime.rpc.active.client,
@@ -566,6 +570,7 @@ export function App(): ReactElement {
       }
 
       if (call.then.namespace === "routes" && ownsInteraction()) {
+        setSendStage("refreshing")
         try {
           setViewChanging(true)
           try {
@@ -599,7 +604,7 @@ export function App(): ReactElement {
     } finally {
       sendingRef.current = false
       if (ownsSend()) {
-        setSending(false)
+        setSendStage(undefined)
       }
     }
   }
@@ -925,8 +930,8 @@ export function App(): ReactElement {
           call={preparedCall}
           reviewRef={preparedRef}
           canSend={wallet.status === "connected" && walletChainMatches && walletAccountSynchronized && !changingView && !walletRefreshing}
-          canDiscard={!sending && !changingView && !walletRefreshing}
-          sending={sending}
+          canDiscard={!changingView && !walletRefreshing}
+          stage={sendStage}
           onSend={sendPreparedCall}
           onDiscard={discardPreparedCall}
         />

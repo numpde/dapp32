@@ -93,6 +93,14 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     assert(styles.readDistinct && styles.commandsOutlined && styles.kindsVisible, 'read-only actions and transaction reviews have distinct visible and accessible treatments even when labels suggest the opposite')
     assert(styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel have a quiet supporting treatment')
     assert(styles.sendFilled, 'only Send is filled')
+    assert(await evaluate(`document.querySelector('.prepared-call .review-json').textContent===actionFixture.reviewJson&&document.querySelector('.prepared-call textarea[readonly]').value===actionFixture.reviewURI`), 'review decodes embedded JSON exactly while retaining the full URI')
+    for (const [stage,label] of [['checking','Checking transaction…'],['wallet','Waiting for wallet…'],['confirming','Waiting for confirmation…'],['refreshing','Loading updated view…']]) {
+      await evaluate(`actionFixture.stage(${JSON.stringify(stage)})`)
+      await wait(`document.querySelector('.send-button').textContent.trim()===${JSON.stringify(label)}`)
+      assert(await evaluate(`document.querySelector('.send-button').disabled&&[...document.querySelectorAll('.prepared-call button')].find(button=>button.textContent.trim()==='Discard transaction').disabled`), 'pending submission cannot be sent twice or discarded')
+      if (stage==='wallet') assert(await evaluate(`document.querySelector('.prepared-call [role="status"][data-kind="status"]').textContent.includes('open your wallet')`), 'a hidden wallet popup has an explicit next action')
+    }
+    await evaluate('actionFixture.sending(false)')
 
     assert(await evaluate(`(() => {
       const controls = [...document.querySelectorAll('.ui-meta>button, .ui-meta>details>summary')]

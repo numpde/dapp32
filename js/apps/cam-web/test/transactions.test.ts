@@ -83,6 +83,26 @@ function reader(options: {
   }
 }
 
+test("submission stages distinguish a held preflight from a held wallet request", async () => {
+  let finishSimulation!: (value: unknown) => void
+  let finishWallet!: (value: `0x${string}`) => void
+  const simulation = new Promise<unknown>(resolve => { finishSimulation = resolve })
+  const wallet = new Promise<`0x${string}`>(resolve => { finishWallet = resolve })
+  const stages: string[] = []
+  const ports = { ...recordingPorts([]), simulate: () => simulation, send: () => wallet }
+  const pending = submitPreparedContractCall({ ports, publicClient: testPublicClient(), walletAddress,
+    startup: testStartup(), call: testCall(), shouldContinue: () => true, onStage: stage => { stages.push(stage) } })
+  try {
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(stages, ['checking'])
+    finishSimulation(undefined)
+    await new Promise(resolve => setImmediate(resolve))
+    assert.deepEqual(stages, ['checking', 'wallet'])
+    finishWallet(sentHash)
+    assert.equal(await pending, sentHash)
+  } finally { finishSimulation(undefined); finishWallet(sentHash); await pending }
+})
+
 test("prepared call submission proves wallet revalidation after chain switching", async () => {
   const events: string[] = []
   let continueCalls = 0

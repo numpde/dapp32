@@ -186,6 +186,18 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `connection facts reflow at ${width}px`)
     }
     const warning = `document.querySelector('[aria-label="UI integrity warnings"]')`
+    await open('wallet-approval')
+    await wait(`!!document.querySelector('.ui')`)
+    await evaluate(`document.querySelector('.wallet-button').click()`)
+    await wait(`connectionFixture.state.subjects.at(-1)===connectionFixture.wallet&&!${button}.disabled`)
+    await evaluate(`${button}.click()`)
+    await wait(`!!document.querySelector('.prepared-call .send-button:not(:disabled)')`)
+    await evaluate(`connectionFixture.holdWallet();document.querySelector('.send-button').click()`)
+    await wait(`connectionFixture.state.sends===1&&document.querySelector('.send-button')?.textContent.trim()==='Waiting for wallet…'`)
+    assert(await evaluate(`document.querySelector('.prepared-call [role="status"][data-kind="status"]').textContent.includes('open your wallet')&&document.querySelector('.send-button').disabled`), 'a wallet that has not opened receives an explicit next action while submission stays locked')
+    await evaluate(`document.querySelector('.send-button').click();connectionFixture.rejectWallet()`)
+    await wait(`!!document.querySelector('.notice[role="alert"]')&&!document.querySelector('.send-button').disabled`)
+    assert(await evaluate(`connectionFixture.state.sends===1&&document.querySelector('.notice').textContent.includes('Transaction not sent')`), 'pending approval cannot submit twice and an explicit wallet rejection releases the review')
     await open('unverified-held')
     await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
     assert(await evaluate(`!document.querySelector('.ui')&&document.querySelector('.panel')?.textContent.includes('Loading app')`), 'the root warning appears while later resources are still loading')

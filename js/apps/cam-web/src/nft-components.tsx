@@ -6,7 +6,7 @@ import { failureReport, UserFacingError } from "./errors.ts"
 import { Feedback, FeedbackBox } from "./feedback.tsx"
 import { PropertyRow } from "./property-row.tsx"
 import { DownloadContext } from "./download-context.ts"
-import { isRelativeNftImageURI, loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readNftMetadataDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
+import { isRelativeNftImageURI, loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readJsonDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type SettledResource<T> = { readonly status: "idle" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown; readonly value?: T }
 type Resource<T> = SettledResource<T> | { readonly status: "pending"; readonly previous: SettledResource<T> }
@@ -144,7 +144,7 @@ function metadataDraft(text: string) {
 function initialMetadataDraft(value: string | null): ReturnType<typeof metadataDraft> {
   if (value === null || !/^data:/i.test(value)) return metadataDraft("{}")
   try {
-    const text = readNftMetadataDataURI(value)
+    const text = readJsonDataURI(value)
     return { text, metadata: parseNftMetadata(text), uri: value }
   }
   catch (error) { return { text: value, error } }

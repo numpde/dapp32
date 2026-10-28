@@ -9,7 +9,7 @@ import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.t
 import { Feedback, TransactionFeedback } from "../src/feedback.tsx"
 import { IntegrityWarnings } from "../src/integrity-warnings.tsx"
 import { BuildFooter } from "../src/build-footer.tsx"
-import type { SubmittedTransactionReference } from "../src/transactions.ts"
+import type { SubmittedTransactionReference, TransactionStage } from "../src/transactions.ts"
 import "../src/styles.css"
 
 const element = document.getElementById("root")
@@ -29,7 +29,9 @@ canvas.getContext("2d")!.fillRect(0, 0, 2, 2)
 const image = await canvas.convertToBlob({ type: "image/png" })
 const imageURI = `data:image/png;base64,${btoa(String.fromCharCode(...new Uint8Array(await image.arrayBuffer())))}`
 const metadata = `data:application/json,${encodeURIComponent(JSON.stringify({ name: "Component preview", image: imageURI, attributes: [{ trait_type: "Document", value: fixtureDigest }] }))}`
-const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: parseAbi(["function fixtureWrite(address owner, bytes payload, bytes32 digest)"]), function: "fixtureWrite", args: { owner: "0x1111111111111111111111111111111111111111", payload: fixtureDigest, digest: fixtureDigest }, then: { namespace: "routes", function: "read", args: {} } }
+const reviewJson = '{"name":"Fixture asset","number":123456789012345678901234567890,"note":"' + 'x'.repeat(2500) + '"}'
+const reviewURI = `data:application/json;base64,${btoa(reviewJson)}`
+const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: parseAbi(["function fixtureWrite(address owner, bytes payload, bytes32 digest, string metadata)"]), function: "fixtureWrite", args: { owner: "0x1111111111111111111111111111111111111111", payload: fixtureDigest, digest: fixtureDigest, metadata: reviewURI }, then: { namespace: "routes", function: "read", args: {} } }
 let prepared = false
 let busy = false
 let sending = false
@@ -43,6 +45,7 @@ let durationDraft = durationDraftFromSeconds("60")
 let amountDraft = editAmountDraft(numericUnit, "base", "1")
 const events = { navigate: 0, contractCall: 0, unsupported: 0, send: 0, wallet: 0, calculate: 0, cancel: 0, back: 0, refresh: 0 }
 let buildMode = "known"
+let sendStage: TransactionStage = "checking"
 function fixtureActionKind(action: ResolvedButtonNode): "navigate" | "contractCall" | "unsupported" {
   const declared = actions.find(item => item.route === action.call.function)
   if (declared === undefined) throw new Error("Fixture action was not declared")
@@ -97,7 +100,7 @@ function render(): void {
     createElement(UiView, props),
     createElement(Feedback, { report: { message: "Ready to continue." }, kind: "status", className: "notice" }),
     createElement(IntegrityWarnings, { warnings: [{ hashSource: "contract", status: "unverified", uri: "https://example.test/manifest.json", expectedHash: `0x${"00".repeat(32)}`, actualHash: fixtureDigest }, { hashSource: "manifest", status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
-    prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy && !sending, sending, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
+    prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy, stage: sending ? sendStage : undefined, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
     transactionReport === undefined ? null : createElement("section", { className: "transaction-feedback" }, createElement(TransactionFeedback, {
       report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },
       kind: "error", transaction: transactionReport.transaction,
@@ -110,7 +113,8 @@ function render(): void {
     }),
   ))
 }
-Object.assign(window, { actionFixture: { events,
+Object.assign(window, { actionFixture: { events, reviewJson, reviewURI,
+  stage(value: TransactionStage) { sendStage = value; sending = true; render() },
   build(mode: "known" | "modified" | "development" | "unknown") { buildMode = mode; render() },
   account(value: string) { viewingAccount = value; render() },
   transaction(chainId: string, hash: `0x${string}` | undefined) { transactionReport = { transaction: hash === undefined ? undefined : { chainId, hash } }; render() },

@@ -29,7 +29,8 @@ import {
   preparedCallFields,
 } from "./prepared-call.ts"
 import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
-import { Feedback } from "./feedback.tsx"
+import { Feedback, FeedbackBox } from "./feedback.tsx"
+import type { TransactionStage } from "./transactions.ts"
 import { HexValue } from "./hex-value.tsx"
 import { PropertyRow } from "./property-row.tsx"
 
@@ -121,7 +122,7 @@ export function PreparedCallView({
   reviewRef,
   canSend,
   canDiscard,
-  sending,
+  stage,
   onSend,
   onDiscard,
 }: {
@@ -129,16 +130,28 @@ export function PreparedCallView({
   readonly reviewRef: Ref<HTMLElement>
   readonly canSend: boolean
   readonly canDiscard: boolean
-  readonly sending: boolean
+  readonly stage: TransactionStage | undefined
   readonly onSend: (call: CamViewerPreparedContractCall) => Promise<void>
   readonly onDiscard: () => void
 }): ReactElement {
+  const sending = stage !== undefined
+  const status = stage === undefined ? "Send with wallet" : {
+    checking: "Checking transaction…", wallet: "Waiting for wallet…",
+    confirming: "Waiting for confirmation…", refreshing: "Loading updated view…",
+  }[stage]
   return (
     <section className="panel prepared-call" ref={reviewRef} tabIndex={-1} aria-labelledby="prepared-call-title">
       <h2 id="prepared-call-title">Review transaction</h2>
       {preparedCallFields(call).map((field) => (
-        <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} compact={field.compact} />
+        field.json === undefined ? <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} compact={field.compact} />
+          : <PropertyRow key={field.label} label={field.label} value={<>
+            {field.json.status === "ready" ? <pre className="review-json"><code>{field.json.text}</code></pre> : <FeedbackBox kind="warning" message={field.json.failure.message}>
+              {field.json.failure.diagnostic === undefined ? null : <code className="feedback-diagnostic">{field.json.failure.diagnostic}</code>}
+            </FeedbackBox>}
+            <details><summary>Exact URI</summary><textarea readOnly aria-label={`Exact URI for ${field.label}`} value={field.value} /></details>
+          </>} />
       ))}
+      {stage === "wallet" ? <FeedbackBox kind="status" message="Approve or reject the request in your wallet. If no prompt appeared, open your wallet." /> : null}
       <button
         className="send-button"
         type="button"
@@ -147,9 +160,9 @@ export function PreparedCallView({
           void onSend(call)
         }}
       >
-        {sending ? "Sending..." : "Send with wallet"}
+        {status}
       </button>
-      <button className="button-quiet" type="button" disabled={!canDiscard} onClick={onDiscard}>
+      <button className="button-quiet" type="button" disabled={!canDiscard || sending} onClick={onDiscard}>
         Discard transaction
       </button>
     </section>

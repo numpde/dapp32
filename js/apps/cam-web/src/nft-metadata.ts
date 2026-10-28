@@ -33,16 +33,16 @@ export function nftMetadataDataURI(metadata: InertRecord): string {
   return `data:application/json;base64,${btoa(binary)}`
 }
 
-export function readNftMetadataDataURI(uri: string): string {
+export function readJsonDataURI(uri: string): string {
   const { bytes, type } = readDataURI(uri, NFT_METADATA_MAX_BYTES)
-  if (type !== "application/json") throw new UserFacingError("Cannot read NFT metadata: a data URI must contain application/json.")
+  if (type !== "application/json") throw new UserFacingError("Cannot read JSON data URI: the media type must be application/json.")
   return decodeMetadata(bytes)
 }
 
 export async function loadNftMetadata(uri: string, signal: AbortSignal, assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string): Promise<InertRecord> {
   signal.throwIfAborted()
   if (uri.startsWith("data:")) {
-    return parseNftMetadata(readNftMetadataDataURI(uri))
+    return parseNftMetadata(readJsonDataURI(uri))
   }
   const url = nftHttpURL(uri, "NFT details", assertAllowed, undefined, ipfsGatewayTemplate)
   return withDeadline(signal, "NFT metadata", async activeSignal => {
@@ -114,7 +114,7 @@ function decodeMetadata(bytes: Uint8Array): string {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
   } catch (cause) {
-    throw new UserFacingError("Cannot read NFT metadata: JSON must use valid UTF-8 text.", { cause })
+    throw new UserFacingError("Cannot read JSON: use valid UTF-8 text.", { cause })
   }
 }
 

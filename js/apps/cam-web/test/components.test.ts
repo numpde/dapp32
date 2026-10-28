@@ -27,6 +27,25 @@ test("formatInertValue bounds browser display values", () => {
   assert.equal(formatInertValue({ text: long }), `${JSON.stringify({ text: long }).slice(0, 2_000)}...`)
 })
 
+test("transaction review decodes JSON data URIs without changing numbers or truncating the exact URI", () => {
+  const text = '{"name":"Bicycle","number":123456789012345678901234567890,"note":"' + 'x'.repeat(2500) + '"}'
+  for (const uri of [`data:application/json;base64,${Buffer.from(text).toString('base64')}`, `data:application/json,${encodeURIComponent(text)}`]) {
+    const call = { ...preparedCall, abi: parseAbi(["function fund(string metadata)"]), args: { metadata: uri } }
+    const field = preparedCallFields(call).find(field => field.label === 'Input: metadata (string)')!
+    assert.equal(field.value, uri)
+    assert.deepEqual(field.json, { status: 'ready', text })
+  }
+})
+
+test("unreadable JSON stays inspectable and other URI types remain inert text", () => {
+  const uri = 'data:application/json;base64,broken'
+  const call = { ...preparedCall, abi: parseAbi(["function fund(string metadata)"]), args: { metadata: uri } }
+  const field = preparedCallFields(call).find(field => field.label === 'Input: metadata (string)')!
+  assert.equal(field.value, uri)
+  assert.equal(field.json?.status, 'failed')
+  assert.equal(preparedCallFields({ ...call, args: { metadata: 'data:text/html,<script>alert(1)</script>' } }).find(field => field.label === 'Input: metadata (string)')?.json, undefined)
+})
+
 test("prepared call review discloses native transaction value in wei", () => {
   const fields = preparedCallFields({
     ...preparedCall,

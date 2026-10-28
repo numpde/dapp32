@@ -31,6 +31,8 @@ const cam = encode({ cam: "1.3.0", protocol: { uri: "./protocol.html", integrity
 const resources = new Map([["main.json", cam], ["protocol.html", protocol], ["abi.json", abiBytes], ["ui.json", ui]])
 const state = { holdRoot: false, failRoot: false, rootDownloads: 0, rootHash: sha256(cam), holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
 const rootReads: (() => void)[] = []
+let holdWallet = false
+let rejectWallet: ((error: unknown) => void) | undefined
 const protocolReads: (() => void)[] = []
 const publicReads: (() => void)[] = []
 const candidateReads: (() => void)[] = []
@@ -96,8 +98,9 @@ const provider = {
     if (method === "eth_requestAccounts" || method === "eth_accounts") return [wallet]
     if (method === "eth_chainId") return "0x7a69"
     if (method === "wallet_switchEthereumChain") return null
-    if (method === "eth_sendTransaction") {
+    if (method === "eth_sendTransaction" || method === "wallet_sendTransaction") {
       state.sends++
+      if (holdWallet) return new Promise<never>((_resolve, reject) => { rejectWallet = reject })
       throw new Error("The connection fixture never signs or sends transactions")
     }
     throw new Error(`Unexpected fixture wallet method: ${method}`)
@@ -109,6 +112,8 @@ const provider = {
   removeListener(event: string, listener: (value: unknown) => void) { listeners.get(event)?.delete(listener) },
 }
 Object.assign(window, { ethereum: provider, connectionFixture: { state, wallet, listeners,
+  holdWallet() { holdWallet = true },
+  rejectWallet() { holdWallet = false; rejectWallet?.(Object.assign(new Error("Fixture wallet rejected the request"), { code: 4001 })); rejectWallet = undefined },
   replaceRoot(suffix: string) { const bytes = new Uint8Array([...cam, ...new TextEncoder().encode(suffix)]); resources.set("main.json", bytes); state.rootHash = sha256(bytes) },
   releaseRoot() { state.holdRoot = false; rootReads.splice(0).forEach(release => release()) },
   releaseProtocol() { state.holdProtocol = false; protocolReads.splice(0).forEach(release => release()) },

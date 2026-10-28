@@ -73,6 +73,8 @@ button:not(.timestamp-options):not(:disabled):active {
 .integrity-resource > p { flex: 1; min-width: 0; }
 .integrity-refresh { display: grid; place-items: center; flex: 0 0 28px; width: 28px; min-height: 28px; padding: 4px; border: 0; background: transparent; color: var(--muted); }
 .integrity-refresh svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.review-json { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 20rem; overflow: auto; }
+.prepared-call textarea[readonly] { width: 100%; max-width: 100%; overflow-wrap: anywhere; }
 
 .topbar {
   margin-bottom: 16px;

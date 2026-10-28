@@ -48,6 +48,7 @@ export type TransactionReader<TReceipt> = {
 }
 
 export type PreparedCallSimulationClient = Parameters<typeof simulateCamContractCall>[0]["publicClient"]
+export type TransactionStage = "checking" | "wallet" | "confirming" | "refreshing"
 
 export type PreparedCallSubmitterPorts<TWalletClient, TChain> = {
   readonly ensureAccount: (address: Address) => Promise<void>
@@ -80,6 +81,7 @@ export async function submitPreparedContractCall<TWalletClient, TChain>({
   startup,
   call,
   shouldContinue,
+  onStage,
 }: {
   readonly ports: PreparedCallSubmitterPorts<TWalletClient, TChain>
   readonly publicClient: PreparedCallSimulationClient
@@ -87,9 +89,11 @@ export async function submitPreparedContractCall<TWalletClient, TChain>({
   readonly startup: StartupOptions
   readonly call: CamViewerPreparedContractCall
   readonly shouldContinue: () => boolean
+  readonly onStage?: (stage: "checking" | "wallet") => void
 }): Promise<`0x${string}` | undefined> {
   // Wallet state can change while the wallet opens chain-switch or signing UI.
   // Keep each external effect explicit so tests can prove the safety order.
+  onStage?.("checking")
   await ports.ensureAccount(walletAddress)
   if (!shouldContinue()) return undefined
 
@@ -100,6 +104,7 @@ export async function submitPreparedContractCall<TWalletClient, TChain>({
   })
   if (!shouldContinue()) return undefined
 
+  onStage?.("wallet")
   await ports.ensureChain(startup)
   if (!shouldContinue()) return undefined
 
