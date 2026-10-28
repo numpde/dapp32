@@ -4,7 +4,10 @@ import { viewerErrorMessage } from "@cam/viewer"
 import { FeedbackBox } from "./feedback.tsx"
 import { PropertyRow } from "./property-row.tsx"
 
-export function IntegrityWarnings({ warnings }: { readonly warnings: CamViewerLoadedSnapshot["integrityWarnings"] }): ReactElement | null {
+export function IntegrityWarnings({ warnings, reloadDisabled }: {
+  readonly warnings: CamViewerLoadedSnapshot["integrityWarnings"]
+  readonly reloadDisabled?: boolean
+}): ReactElement | null {
   if (warnings.length === 0) return null
   return <section aria-label="UI integrity warnings">
     {warnings.map((warning, index) => <FeedbackBox key={`${index}:${warning.uri}`} kind={warning.status === "mismatch" ? "error" : "warning"}
@@ -13,5 +16,6 @@ export function IntegrityWarnings({ warnings }: { readonly warnings: CamViewerLo
       <PropertyRow label="Expected hash" value={warning.expectedHash} />
       <PropertyRow label="Downloaded hash" value={warning.actualHash} />
     </FeedbackBox>)}
+    <button className="button-quiet" type="button" disabled={reloadDisabled} onClick={() => window.location.reload()}>Reload page</button>
   </section>
 }

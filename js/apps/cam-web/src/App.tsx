@@ -896,7 +896,7 @@ export function App(): ReactElement {
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
       ) : <div className="connection connection-facts">{resourcePolicy}{gatewayControl}</div>}
 
-      {loadState.status === "setup" ? null : <IntegrityWarnings warnings={loadState.status === "ready" ? loadState.snapshot.integrityWarnings : loadState.integrityWarnings} />}
+      {loadState.status === "setup" ? null : <IntegrityWarnings warnings={loadState.status === "ready" ? loadState.snapshot.integrityWarnings : loadState.integrityWarnings} reloadDisabled={sending} />}
       {notice === undefined ? null : (
         <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}
