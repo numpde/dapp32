@@ -855,6 +855,13 @@ test("write preparation preserves exact valid integer arguments and payable valu
   }
 })
 
+function useFixtureReadViews(cam: Record<string, unknown>) {
+  const routes = mutableRecord(cam.routes)
+  for (const route of [BIKE_ROUTE_ENTRY, BIKE_ROUTE_COMPONENT]) {
+    mutableRecord(routes[route]).then = { namespace: "ui", function: "app", args: { view: "$outputs.0" } }
+  }
+}
+
 function paymentPreparationSession(
   payment: InertRecord,
   value?: InertValue,
@@ -881,6 +888,7 @@ function paymentPreparationSession(
   }
   const uiBytes = encodeJson(ui)
   const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  useFixtureReadViews(cam)
   mutableRecord(cam.routes).payment = {
     kind: "write", inputs: ["payment"], ...(value === undefined ? {} : { value }), call: {
       namespace: "contracts.BicycleComponentManager", function: "testPayment", args: { payment: "$inputs.payment" },
@@ -1108,6 +1116,7 @@ test("Back revalidates the same integer lexical draft against refreshed readonly
   nodes["component.active"] = field
   const uiBytes = encodeJson(ui)
   const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  useFixtureReadViews(cam)
   mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
   const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
   routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), tokenId: 1n, statusId: "100" }
@@ -1155,6 +1164,7 @@ test("Back never reinterprets an integer draft as an amount or an amount draft a
     nodes["changed.kind"] = initiallyInteger ? amount : integer
     const uiBytes = encodeJson(ui)
     const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+    useFixtureReadViews(cam)
     mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
     const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
     const session = createSession(sessionFixtureOptions({
@@ -1212,6 +1222,7 @@ test("Refresh revalidates duration parts against fresh bounds and rolls back a f
   ] }
   const uiBytes = encodeJson(ui)
   const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  useFixtureReadViews(cam)
   mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
   const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
   const result = bikeEntryRouteResult(userAddress)
@@ -1631,6 +1642,7 @@ test("Back restores amount drafts only when the complete declared unit identity 
     nodes["changed.unit"] = field(changedUnit, "2")
     const uiBytes = encodeJson(ui)
     const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+    useFixtureReadViews(cam)
     mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
     const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
     const session = createSession(sessionFixtureOptions({

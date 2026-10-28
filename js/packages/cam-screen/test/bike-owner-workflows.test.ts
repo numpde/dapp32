@@ -14,7 +14,7 @@ function args(view: Record<string, unknown>): InertRecord {
   const normalized = Object.fromEntries(Object.entries(view).map(([name, value]) => [
     name, typeof value === "bigint" ? value.toString() : value,
   ]))
-  return { view: toInertValue(normalized) }
+  return { view: toInertValue({ screen: normalized.viewId, task: normalized }) }
 }
 const render = (view: Record<string, unknown>) => resolveInitialUiNode(ui(), "app", args(view), context)
 
@@ -25,7 +25,9 @@ test("every Bike task exposes the same input-independent app destinations", () =
     ...["", "UNKNOWN", BIKE_SERIAL_NUMBER].map(serial => render(bikeComponentRouteResult(serial, BIKE_ACCOUNT_ADDRESS, "active"))),
     ...["", "UNKNOWN", BIKE_SERIAL_NUMBER].map(serial => render(bikeRegisterRouteResult(serial, BIKE_ACCOUNT_ADDRESS))),
     render(workshopView()),
-    resolveInitialUiNode(ui(), "deploymentHandovers", args({ cam: authority, components: authority, manager: authority, actions: [] }), context),
+    resolveInitialUiNode(ui(), "app", { view: toInertValue({ screen: "deploymentHandovers", task: {
+      paused: false, componentTokenPaused: false, cam: authority, components: authority, manager: authority, actions: [],
+    } }) }, context),
   ]
   for (const screen of screens) {
     const groups: ResolvedUiNode[] = []

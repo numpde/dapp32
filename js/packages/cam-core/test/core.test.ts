@@ -78,7 +78,8 @@ test("resolves a CAM route into a plain call descriptor", () => {
     function: "app",
     args: toInertValue({
       view: {
-        viewId: "component.found",
+        screen: "component.found",
+        task: { viewId: "component.found" },
       },
     }),
   })

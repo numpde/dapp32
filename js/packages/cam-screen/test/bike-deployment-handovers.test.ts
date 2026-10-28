@@ -9,8 +9,10 @@ test("deployment acceptances stay visible and follow the contract's independent 
   const authority = { target: BIKE_HOST_ADDRESS, current: BIKE_HOST_ADDRESS, pending: BIKE_ACCOUNT_ADDRESS,
     readyAt: "2000000000", status: "Waiting for acceptance time", canAccept: false }
   for (const actions of [[], ["acceptCamOwnership"], ["acceptComponentsAdmin", "acceptManagerAdmin"]]) {
-    const view = toInertValue({ cam: authority, components: authority, manager: authority, actions })
-    const screen = resolveInitialUiNode(parseUi(parseJsonBytes(bikeUiBytes)), "deploymentHandovers", { view }, {
+    const view = toInertValue({ screen: "deploymentHandovers", task: {
+      paused: false, componentTokenPaused: false, cam: authority, components: authority, manager: authority, actions,
+    } })
+    const screen = resolveInitialUiNode(parseUi(parseJsonBytes(bikeUiBytes)), "app", { view }, {
       host: bikeHost, account: { address: BIKE_ACCOUNT_ADDRESS }, inputs: {}, outputs: [], state: {},
     })
     const buttons = resolvedUiButtons(screen.resolvedUi)
