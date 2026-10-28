@@ -38,7 +38,6 @@ import {
   ensureConnectedWalletAccount,
   ensureInjectedWalletChain,
   initialWalletState,
-  walletLabel,
 } from "./wallet.ts"
 import { createBrowserHistory } from "./browser-history.ts"
 import type { BrowserVisit } from "./browser-history.ts"
@@ -907,10 +906,10 @@ export function App(): ReactElement {
           chainId={displayedConnection.chainId}
           host={displayedConnection.host}
           account={loadState.status === "ready" ? currentViewerAccount(loadState) : displayedConnection.account}
-          wallet={walletRefreshing ? "Updating account…" : walletLabel(wallet)}
-          walletAction={wallet.status === "unavailable" ? null : (
-            <button className="wallet-button" type="button" disabled={connection === undefined || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
-              {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
+          wallet={wallet.status === "connected" ? wallet.address : undefined}
+          walletAction={(
+            <button className="wallet-button" type="button" aria-busy={walletRefreshing} disabled={wallet.status === "unavailable" || connection === undefined || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
+              {walletRefreshing ? "Updating account…" : wallet.status === "unavailable" ? "Wallet not detected" : wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
             </button>
           )}
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>

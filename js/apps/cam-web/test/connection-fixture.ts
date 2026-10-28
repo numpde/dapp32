@@ -33,6 +33,8 @@ const state = { holdRoot: false, failRoot: false, rootDownloads: 0, rootHash: sh
 const rootReads: (() => void)[] = []
 let holdWallet = false
 let rejectWallet: ((error: unknown) => void) | undefined
+let holdConnection = false
+let releaseConnection: (() => void) | undefined
 const protocolReads: (() => void)[] = []
 const publicReads: (() => void)[] = []
 const candidateReads: (() => void)[] = []
@@ -95,6 +97,7 @@ window.fetch = async (input, init) => {
 const listeners = new Map<string, Set<(value: unknown) => void>>()
 const provider = {
   async request({ method }: { method: string }) {
+    if (method === "eth_requestAccounts" && holdConnection) await new Promise<void>(resolve => { releaseConnection = resolve })
     if (method === "eth_requestAccounts" || method === "eth_accounts") return [wallet]
     if (method === "eth_chainId") return "0x7a69"
     if (method === "wallet_switchEthereumChain") return null
@@ -111,7 +114,9 @@ const provider = {
   },
   removeListener(event: string, listener: (value: unknown) => void) { listeners.get(event)?.delete(listener) },
 }
-Object.assign(window, { ethereum: provider, connectionFixture: { state, wallet, listeners,
+Object.assign(window, { ethereum: scenario === "no-wallet" ? undefined : provider, connectionFixture: { state, wallet, listeners,
+  holdConnection() { holdConnection = true },
+  releaseConnection() { holdConnection = false; releaseConnection?.(); releaseConnection = undefined },
   holdWallet() { holdWallet = true },
   rejectWallet() { holdWallet = false; rejectWallet?.(Object.assign(new Error("Fixture wallet rejected the request"), { code: 4001 })); rejectWallet = undefined },
   replaceRoot(suffix: string) { const bytes = new Uint8Array([...cam, ...new TextEncoder().encode(suffix)]); resources.set("main.json", bytes); state.rootHash = sha256(bytes) },

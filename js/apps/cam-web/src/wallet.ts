@@ -106,17 +106,6 @@ export function initialWalletState(): WalletState {
     : { status: "disconnected" }
 }
 
-export function walletLabel(wallet: WalletState): string {
-  switch (wallet.status) {
-    case "unavailable":
-      return "Not detected"
-    case "disconnected":
-      return "Not connected"
-    case "connected":
-      return wallet.address
-  }
-}
-
 export async function connectInjectedWallet(
   options: WalletChainOptions,
 ): Promise<Address> {

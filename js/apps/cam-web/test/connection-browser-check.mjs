@@ -55,7 +55,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       await evaluate(`document.querySelector('#app-open').click()`)
       await wait(`!!document.querySelector('input[name=draft]')`)
       assert.equal(await evaluate(`document.querySelector('#rpc-endpoint-url').value`), 'https://rpc.fixture.test/', 'the connection controls retain the chosen custom endpoint after setup')
-      if (scenario === 'bare') assert(await evaluate(`document.querySelector('.wallet-value').textContent.includes('Not connected')&&document.querySelector('.wallet-button').textContent==='Connect wallet'`), 'reopening setup starts a fresh wallet binding without displaying an old signer')
+      if (scenario === 'bare') assert(await evaluate(`!document.querySelector('.wallet-value code')&&document.querySelector('.wallet-value').textContent.trim()==='Connect wallet'`), 'reopening setup shows only the connect action without an old signer or redundant status label')
       assert(await evaluate(`!new URL(location.href).searchParams.has('account')&&!new URL(location.href).searchParams.has('rpcUrl')`), 'opening an app requires neither a viewing account nor a credential-bearing share URL')
     }
     for (const scenario of ['choose-rpc', 'invalid-rpc']) {
@@ -135,7 +135,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await wait(`new URL(location.href).searchParams.get('account')===connectionFixture.wallet&&!${button}.disabled`)
     assert(!(await evaluate(publicView)), 'successful account projection ends public mode')
     await evaluate('connectionFixture.emit("disconnect")')
-    await wait(`document.querySelector('.wallet-value')?.textContent.includes('Not connected')`)
+    await wait(`document.querySelector('.wallet-button')?.textContent==='Connect wallet'&&!document.querySelector('.wallet-value code')`)
     assert(await evaluate(`new URL(location.href).searchParams.get('account')===connectionFixture.wallet&&!${publicView}`), 'disconnect keeps the last successfully selected viewing account')
 
     await open('explicit-zero')
@@ -186,9 +186,16 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `connection facts reflow at ${width}px`)
     }
     const warning = `document.querySelector('[aria-label="UI integrity warnings"]')`
+    await open('no-wallet')
+    await wait(`!!document.querySelector('.ui')`)
+    assert(await evaluate(`document.querySelector('.wallet-value').textContent.trim()==='Wallet not detected'&&document.querySelector('.wallet-button').disabled&&!document.querySelector('.wallet-value code')`), 'a missing provider is explained by the unavailable control without a separate status label')
     await open('wallet-approval')
     await wait(`!!document.querySelector('.ui')`)
-    await evaluate(`document.querySelector('.wallet-button').click()`)
+    assert(await evaluate(`document.querySelector('.wallet-value').textContent.trim()==='Connect wallet'`), 'disconnected wallets show only the connect action')
+    await evaluate(`connectionFixture.holdConnection();document.querySelector('.wallet-button').click()`)
+    await wait(`document.querySelector('.wallet-button').getAttribute('aria-busy')==='true'`)
+    assert(await evaluate(`(()=>{const button=document.querySelector('.wallet-button');return button.disabled&&button.textContent.trim()==='Updating account…'&&document.querySelector('.wallet-value').textContent.trim()===button.textContent.trim()})()`), 'connection progress stays inside the busy button, with no appearing status text beside it')
+    await evaluate(`connectionFixture.releaseConnection()`)
     await wait(`connectionFixture.state.subjects.at(-1)===connectionFixture.wallet&&!${button}.disabled`)
     await evaluate(`${button}.click()`)
     await wait(`!!document.querySelector('.prepared-call .send-button:not(:disabled)')`)

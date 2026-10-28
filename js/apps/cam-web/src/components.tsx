@@ -45,15 +45,15 @@ export function ConnectionSummary({
   readonly chainId: string
   readonly host: string
   readonly account: string | undefined
-  readonly wallet: string
-  readonly walletAction: ReactElement | null
+  readonly wallet: string | undefined
+  readonly walletAction: ReactElement
   readonly children?: ReactNode
 }): ReactElement {
   return (
     <section className="connection" aria-label="Account and wallet">
       <div className="connection-facts">
         <PropertyRow label="Viewing as" value={account === undefined ? "Public view" : account} />
-        <PropertyRow label="Signing wallet" value={<span className="wallet-value"><span role="status"><HexValue value={wallet} label="wallet address" /></span>{walletAction}</span>} />
+        <PropertyRow label="Signing wallet" value={<span className="wallet-value">{wallet === undefined ? null : <span role="status"><HexValue value={wallet} label="wallet address" /></span>}{walletAction}</span>} />
         <PropertyRow label="Chain" value={chainId} />
         <PropertyRow label="CAM contract" value={host} />
         {children}
