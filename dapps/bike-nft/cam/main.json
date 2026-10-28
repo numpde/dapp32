@@ -9,17 +9,17 @@
     "contracts.ICamRootOwnership": {
       "type": "contract",
       "abiURI": "./abi/ICamRootOwnership.json",
-      "integrity": "sha256:0xa33fcedfa63189578f590f027518c7690deccdc308cf13da073030e1d039427e"
+      "integrity": "sha256:0x7c3876efa534dc0329621312dda95c58535188475f56f1a1af4313cedfee5a0d"
     },
     "contracts.BicycleComponentManagerUI": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManagerUI.json",
-      "integrity": "sha256:0xf4b887cab6641ae9d3548272ec7fc62fec272e18122a163992630e2f5c91fc07"
+      "integrity": "sha256:0xc9a39bb6265fc2c8b55c2d458f56b0c4d43a6b89eb9656cda4e6d2f490001080"
     },
     "contracts.BicycleComponentManager": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManager.json",
-      "integrity": "sha256:0xd606d2efaf24d73345d28130a3be5cd72fddc6ce16cdc4b5a22f90185d3094ad"
+      "integrity": "sha256:0x1181d95acd8589516f1938f460a70e5d34f502463e00ec01af1598d8409468df"
     },
     "routes": {
       "type": "routes"
@@ -32,7 +32,7 @@
     "contracts.BicycleComponents": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponents.json",
-      "integrity": "sha256:0xcce561123ad1fbd72e4e9bb5ac1019d0ec7b00147873b05abb0d2e1801056e53"
+      "integrity": "sha256:0x5200a7499f92e89027c331550625c32ce8225aac8a6f3f4c54a516db0ac8bbc0"
     }
   },
   "routes": {

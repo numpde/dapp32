@@ -81,6 +81,7 @@ export function createCamViewerSession({
   publicClient,
   host,
   loadResource,
+  onIntegrityWarning: reportIntegrityWarning,
   account: initialAccount,
   inputs: initialInputs,
   route: initialRoute,
@@ -132,7 +133,10 @@ export function createCamViewerSession({
   async function load(): Promise<CamViewerLoadedSnapshot> {
     writePreparationRevision += 1
     const integrityWarnings: CamIntegrityWarning[] = []
-    const onIntegrityWarning = (warning: CamIntegrityWarning): void => { integrityWarnings.push(warning) }
+    const onIntegrityWarning = (warning: CamIntegrityWarning): void => {
+      integrityWarnings.push(warning)
+      reportIntegrityWarning?.(cloneViewerData(warning, "integrityWarning"))
+    }
     const loadedCam = await loadCamFromHost({
       publicClient,
       host: sessionHost,
