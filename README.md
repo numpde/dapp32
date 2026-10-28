@@ -34,6 +34,7 @@ make bike-nft/release/setup INSTANCE=/absolute/002-avalanche-fuji
 make bike-nft/release/deploy INSTANCE=/absolute/002-avalanche-fuji
 make bike-nft/release/ui/update INSTANCE=/absolute/002-avalanche-fuji
 make bike-nft/release/verify INSTANCE=/absolute/002-avalanche-fuji
+make bike-nft/release/source/publish INSTANCE=/absolute/002-avalanche-fuji
 ```
 
 Use `escrow` or `pay-to-play` for the other apps. Setup creates the directory
@@ -65,6 +66,32 @@ then repeat the command to enter their manifest URI. That URI is retained for
 publication; no configuration edit is required. `release/cam/bundle` prepares files only;
 `release/cam/publish` configures contract addresses and the manifest URI/hash
 on chain. Neither command uploads files.
+
+Completed instance deployment commands also submit their contracts' original
+sources to Sourcify for public verification. This runs after deployment cleanup,
+without an RPC credential or signing key. Rehearsals do not submit public sources.
+An external service failure leaves the completed deployment intact; retry with
+`release/source/publish`. This command offers saved business, UI, CAM-root and
+historical full-deployment records, and never deploys or changes bindings.
+
+Public verification uses the selected deployment's retained compiler artifacts
+and original Git revision, not today's source. Installed dependency source must
+match the compiler metadata hashes; restore the matching dependencies if it does
+not. Missing history or compiler artifacts fails before submission. Only the
+metadata-listed source files and compiler settings are sent to Sourcify.
+The chain must be supported by Sourcify.
+
+Requests and resumable job/results records live beside the selected deployment
+under `source-publication/<deployment-artifact-sha256>/`. A retry resumes pending
+jobs and keeps failed attempts. Output distinguishes exact matches from matches
+with differing compiler metadata. An already-verified response is accepted only
+when both bytecodes match exactly and the stored metadata equals our original
+compiler metadata. Original deployment artifacts remain unchanged.
+
+`release/verify` checks our deployment evidence against the chain; it does not
+submit sources externally. Public source verification does not guarantee wallet
+decoding or publish an ERC-7730 descriptor. See the
+[wallet decoding note](notes/030_wallet_transaction_decoding_and_clear_signing.txt).
 
 ## Development
 

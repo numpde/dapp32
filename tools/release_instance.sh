@@ -18,7 +18,7 @@ release_instance() {
     printf '%s\n' 'INSTANCE must be owned by the current user with mode 0700. Secure the directory before using it.' >&2; return 2
   fi
   local selector
-  for selector in CONFIG UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE CAM_RECORDS OUTPUT_DIR CONTRACT_RECORDS UI_RECORDS DEPLOYMENT_ARTIFACT_FILE; do
+  for selector in CONFIG UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE CAM_RECORDS OUTPUT_DIR CONTRACT_RECORDS UI_RECORDS DEPLOYMENT_ARTIFACT_FILE SOURCE_ARTIFACT; do
     if [[ -n "${!selector-}" ]]; then printf 'Use INSTANCE alone for record selection; remove %s.\n' "$selector" >&2; return 2; fi
   done
   command -v flock >/dev/null || { printf '%s\n' 'Instance commands require flock (util-linux), alongside setsid.' >&2; return 2; }
@@ -71,6 +71,17 @@ release_instance() {
   fi
   if [[ "$operation" == viewer/* ]]; then exit 0; fi
   release_run_owned "$release_command_grace" "${compose[@]}" run --pull never --rm --no-deps -T release-instance finish "$app" "$operation" "$instance"
+  # Deployment is complete and its child services are gone before public submission.
+  # External service failure must not turn a successful paid operation back into pending work.
+  if [[ ( ! -v RELEASE_REHEARSAL || "$RELEASE_REHEARSAL" != 1 ) && -f "$stage/source-artifacts" ]]; then
+    local source_artifact
+    while IFS= read -r -d '' source_artifact; do
+      if ! release_run_owned "$release_make_cleanup_grace" "${environment[@]}" "${MAKE:?}" --no-print-directory \
+          "$app/release/source/publish" "SOURCE_ARTIFACT=$source_artifact"; then
+        printf 'Deployment records are complete; public source verification is incomplete. Retry: make %q INSTANCE=%q\n' "$app/release/source/publish" "$instance" >&2
+      fi
+    done < "$stage/source-artifacts"
+  fi
   exit 0
 }
 

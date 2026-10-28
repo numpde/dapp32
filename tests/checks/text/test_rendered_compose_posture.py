@@ -250,6 +250,20 @@ def compose_config_process(
 
 
 class RenderedComposePostureTest(unittest.TestCase):
+    def test_public_source_publication_separates_private_inputs_from_network(self) -> None:
+        services = rendered_compose_config("compose/release/source-publication.yml")["services"]
+        prepare = services["source-prepare"]
+        submit = services["source-submit"]
+        self.assertEqual("none", prepare["network_mode"])
+        self.assertEqual("bridge", submit["network_mode"])
+        self.assertNotIn("ports", submit)
+        mounts = {volume["target"]: volume for volume in submit["volumes"]}
+        self.assertEqual({"/tool/release_source.py", "/tool/release_instance.py", "/tool/release_config.py", "/requests", "/state"}, set(mounts))
+        self.assertEqual({"/state"}, {target for target, volume in mounts.items() if volume.get("read_only") is not True})
+        self.assertNotIn("environment", submit)
+        self.assertNotIn("secrets", submit)
+        self.assertNotIn("depends_on", submit)
+
     def test_production_viewer_serves_only_a_prebuilt_image_without_source_mounts(self) -> None:
         config = rendered_compose_config("compose/viewer.yml", env={
             "VIEWER_IMAGE": "sha256:" + "a" * 64,
@@ -976,6 +990,8 @@ class RenderedComposePostureTest(unittest.TestCase):
             })
         expected.update({
             # The offline instance selector owns only its private folder and command staging output.
+            ("compose/release/source-publication.yml", "source-prepare", "/tmp/source-requests", "/requests"),
+            ("compose/release/source-publication.yml", "source-submit", "/tmp/source-state", "/state"),
             ("compose/release/config.yml", "release-instance", "/tmp/release-config-stage", "/instance"),
             ("compose/release/config.yml", "release-instance", "/tmp/release-config-stage", "/out"),
             ("compose/release/cam-source.yml", "release-cam-source", "/tmp/component-artifacts", "/component-artifacts"),

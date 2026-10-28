@@ -58,6 +58,12 @@ class ToolchainVersionTest(unittest.TestCase):
                 # This release image is selected by an exact local image ID at launch.
                 if path == repo_path("compose/release/approval.yml") and image == '"${RELEASE_APPROVAL_IMAGE:?missing_RELEASE_APPROVAL_IMAGE}"':
                     continue
+                if path == repo_path("compose/release/source-publication.yml") and image == '"${SOURCE_NODE_IMAGE:?missing_SOURCE_NODE_IMAGE}"':
+                    source = rendered_compose_config("compose/release/source-publication.yml")["services"]["source-prepare"]
+                    self.assertEqual("sha256:" + "a" * 64, source["image"])
+                    self.assertEqual("never", source["pull_policy"])
+                    self.assertNotIn("build", source)
+                    continue
                 # This one source-export lane receives IDs from release_tool_image,
                 # which checks the archived context label and exact local image ID.
                 # test_release_cam exercises that caller with rejected IDs/metadata.

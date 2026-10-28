@@ -269,6 +269,11 @@ def prepare(root, app, operation):
         action.parent.mkdir(mode=0o700, exist_ok=True)
         return selection, {"operation": operation, "configurationRole": key, "purpose": purpose, "inputs": {"CONFIG": config}}, action
     records = inventory(root, app)
+    if operation == "source/publish":
+        choices = [(f"{relative} · chain {artifact['chainId']}", relative)
+                   for kind, relative, artifact in records if kind != "bundle"]
+        selected = choose("Choose deployed contracts whose source to publish", choices, automatic=True)
+        return selection, {"operation": operation, "inputs": {"SOURCE_ARTIFACT": selected}}, root
     actions = saved_actions(root)
     if operation in RECORD_PORTS or operation == "verify":
         eligible = []
@@ -371,6 +376,10 @@ def phase_records(root, request, action, phase):
 def arguments(root, app, request, action, host_root):
     # silent-defaults: allow-default -- Artifact/verify selection overrides execution; ordinary resume retains the original operation.
     operation = request.get("requestedOperation", request["operation"])
+    if operation == "source/publish":
+        relative = request["inputs"]["SOURCE_ARTIFACT"]
+        instance_path(root, relative)
+        return [f"{app}/release/source/publish", "INSTANCE=", "MAKEOVERRIDES=", f"SOURCE_ARTIFACT={Path(host_root) / relative}"]
     if operation.startswith("viewer/"):
         project = "cam-viewer-" + hashlib.sha256(host_root.encode()).hexdigest()[:12]
         args = [operation.replace("viewer/", "viewer/release/"), "INSTANCE=", "MAKEOVERRIDES=", f"RELEASE_VIEWER_COMPOSE_PROJECT_NAME={project}"]
@@ -428,10 +437,25 @@ def publication_for(action):
     return records / "artifact/cam-publication.json"
 
 
+def source_publication_artifacts(root, request, action):
+    """External publication follows completed operations; observation commands stay read-only."""
+    operation = request["requestedOperation"] if "requestedOperation" in request else request["operation"]
+    if operation not in ("deploy", "ui/update", "contracts/deploy", "ui/deploy", "cam/publish"):
+        return []
+    artifacts = []
+    for phase in OPERATIONS[operation][1]:
+        path = phase_records(root, request, action, phase) / "artifact" / PHASE_ARTIFACTS[phase]
+        if path.is_file():
+            artifacts.append(path.relative_to(root).as_posix())
+    return artifacts
+
+
 def finish(root, request, action):
     selection = load_selection(root)
     # silent-defaults: allow-default -- Artifact/verify selection overrides execution; ordinary resume retains the original operation.
     operation = request.get("requestedOperation", request["operation"])
+    if operation == "source/publish":
+        return
     if operation == "setup":
         selection[request["configurationRole"]] = request["inputs"]["CONFIG"]
         write_json(root / "instance.json", selection)
@@ -491,8 +515,12 @@ def main():
     else:
         chosen = read_json(Path("/out/selection.json"))
         finish(root, chosen["request"], instance_path(root, chosen["action"]))
+        originals = source_publication_artifacts(root, chosen["request"], instance_path(root, chosen["action"]))
+        Path("/out/source-artifacts").write_bytes(b"".join((str(Path(options.host_root) / relative) + "\0").encode() for relative in originals))
     if options.mode == "finish":
         chosen = read_json(Path("/out/selection.json"))
+        if options.operation == "source/publish":
+            return
         if options.operation == "setup":
             next_operation = {"deployment": "deploy", "contracts": "contracts/deploy", "ui": "ui/deploy", "cam": "cam/bundle"}[chosen["request"]["purpose"]]
         elif load_selection(root).get("pending") == chosen["action"]:

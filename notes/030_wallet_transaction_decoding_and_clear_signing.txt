@@ -1,0 +1,125 @@
+Wallet transaction decoding and clear signing
+2026-10-28
+
+## Why MetaMask can show bytes while the viewer shows named arguments
+
+The viewer loads the CAM-declared ABI and uses it to prepare and display a
+contract call. An ABI describes function names and the names and types of their
+arguments. The viewer then encodes that call into transaction bytes.
+
+When requesting a transaction through eth_sendTransaction, the viewer sends the
+recipient address, encoded call data, value and transaction settings. It does
+not send its CAM manifest, ABI or decoded review to MetaMask. The wallet must
+obtain any decoding information separately. Our readable review therefore does
+not imply that MetaMask can produce the same display.
+
+There are two complementary ways to make the call easier to inspect.
+
+## 1. Verify the deployed contract's source and ABI
+
+Publish the original Solidity source and compiler input to a verification
+service. The service recompiles it and compares the result with the deployed
+code. Compiler version, settings, dependencies and constructor arguments must
+match the original deployment; compiling today's source is not sufficient.
+
+Successful verification lets an explorer expose the source and ABI and decode
+calls into programming names and values, for example:
+
+    registerComponent
+      owner:        0xf4a1…672b
+      serialNumber: SCALPEL
+      tokenURI_:    data:application/json;base64,…
+
+This answers which function and arguments the bytes represent. Verification is
+not a security audit and does not guarantee that MetaMask obtains or uses that
+ABI. It requires no replacement contract or change to application state.
+
+For Bike registration, the relevant address is the BicycleComponentManager
+receiving the transaction, not the CAM root or its read-only UI contract.
+
+## 2. Publish an ERC-7730 clear-signing description
+
+ERC-7730 defines a separate JSON description that tells a supporting wallet how
+to present a particular contract call. We author it and submit it through a
+registry and review process that the wallet supports.
+
+The description identifies the network, contract address and function. It also
+specifies a human-readable intent and how to label and format the arguments.
+For this Bike call, the intended presentation would be:
+
+    Register component
+      Owner:     0xf4a1…672b
+      Serial:    SCALPEL
+      Metadata:  data:application/json;base64,…
+
+That example illustrates the desired display; it is not an ERC-7730 descriptor
+or a promise about MetaMask's exact layout.
+
+The sequence is:
+
+1. We publish a description bound to chain 43113, the actual manager address
+   and the registerComponent function.
+2. MetaMask receives the encoded transaction from the viewer.
+3. A supporting wallet obtains a matching description through its supported
+   discovery and trust process, decodes the arguments, and applies the display
+   instructions in its confirmation window.
+
+The JSON description is not attached to the ordinary transaction request.
+Putting it in this repository or in the CAM manifest alone does not make
+MetaMask discover it. Registry publication alone also does not guarantee that
+a particular wallet accepts it: wallet support and trust requirements matter.
+
+The author supplies the explanation. A friendly heading cannot establish that
+the code is safe, and the description does not enforce business rules. The
+contract remains responsible for those rules.
+
+Publishing this description does not require redeploying the contract. However,
+a replacement contract has a different address and needs matching metadata.
+
+## What neither step automatically solves
+
+Decoding tokenURI_ as a string is different from decoding the JSON inside that
+string. An embedded data:application/json;base64 URI requires a further decoding
+and presentation step. Neither ABI verification nor the existence of an
+ERC-7730 description establishes that MetaMask supports that presentation.
+
+The viewer should retain its own decoded JSON review and exact transaction
+calldata so users can inspect both. A wallet that only shows bytes is not, by
+itself, evidence that the viewer encoded the transaction incorrectly.
+
+## Current scope and next action
+
+MetaMask has announced ERC-7730 adoption. Support for the user's installed
+Firefox extension version on Avalanche Fuji has not been established here.
+Before investing in a descriptor integration, check that exact wallet/network
+combination and its accepted metadata source and trust process.
+
+Then verify the existing manager using its original deployment inputs, prepare
+the descriptor, and check the actual confirmation display. Do not claim success
+from descriptor validation or explorer decoding alone. Wallet presentation work
+does not require approving or broadcasting a real registration transaction.
+
+This note records the approach. It does not record source verification,
+descriptor publication, a MetaMask compatibility test or a deployment.
+
+The repository now provides <app>/release/source/publish INSTANCE=/absolute/path
+for the first step, with automatic attempts after completed instance deployments.
+See the README's Deployment instances section for records, retries and limits.
+ERC-7730 descriptor publication remains separate and unimplemented.
+
+## Sources
+
+- MetaMask eth_sendTransaction request:
+  https://docs.metamask.io/metamask-connect/evm/reference/json-rpc-api/eth_sendTransaction/
+- Avalanche contract verification:
+  https://build.avax.network/docs/tooling/contract-verification
+- Sourcify source verification API:
+  https://docs.sourcify.dev/docs/api/
+- ERC-7730 specification:
+  https://eips.ethereum.org/EIPS/eip-7730
+- Clear-signing author guide:
+  https://clearsigning.org/build/
+- Descriptor registry and its submission/trust requirements:
+  https://github.com/ethereum/clear-signing-erc7730-registry
+- MetaMask adoption announcement:
+  https://metamask.com/news/crypto-security-report-may-2026

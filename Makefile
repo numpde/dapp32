@@ -7,6 +7,10 @@ ifneq ($(origin INSTANCE),undefined)
 override INSTANCE := $(value INSTANCE)
 export INSTANCE
 endif
+ifneq ($(origin SOURCE_ARTIFACT),undefined)
+override SOURCE_ARTIFACT := $(value SOURCE_ARTIFACT)
+export SOURCE_ARTIFACT
+endif
 ifneq ($(origin CONFIG),undefined)
 override CONFIG := $(value CONFIG)
 export CONFIG
@@ -1013,6 +1017,11 @@ help:
 	  '  make escrow/release/verify INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/verify INSTANCE=/absolute/instance' \
 	  '    Select saved work and verify or complete records without sending transactions.' \
+	  '  make bike-nft/release/source/publish INSTANCE=/absolute/instance' \
+	  '  make escrow/release/source/publish INSTANCE=/absolute/instance' \
+	  '  make pay-to-play/release/source/publish INSTANCE=/absolute/instance' \
+	  '    Publish original sources to Sourcify; no signing key or deployment transactions. Rerun to resume.' \
+	  '    Completed instance deployments attempt this automatically; external failure does not undo deployment.' \
 	  '  make bike-nft/release/contracts/deploy INSTANCE=/absolute/instance' \
 	  '  make escrow/release/contracts/deploy INSTANCE=/absolute/instance' \
 	  '  make pay-to-play/release/contracts/deploy INSTANCE=/absolute/instance' \
@@ -2109,6 +2118,17 @@ pay-to-play/release/deploy:
 
 pay-to-play/release/verify:
 	@$(call release_full,pay-to-play,verify)
+
+.PHONY: bike-nft/release/source/publish escrow/release/source/publish pay-to-play/release/source/publish
+bike-nft/release/source/publish escrow/release/source/publish pay-to-play/release/source/publish:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(SOLDEER_DEPS_GUARD); \
+	$(release_host_guard_functions); \
+	$(call release_instance_entry,$(patsubst %/release/source/publish,%,$@),source/publish); \
+	require_release_file "$${SOURCE_ARTIFACT:?Select saved records with INSTANCE}" SOURCE_ARTIFACT; \
+	export LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)"; \
+	exec bash tools/release_source.sh "$(patsubst %/release/source/publish,%,$@)"
 
 # Disposable payment-channel fixture. Its scenario and browser projects are isolated.
 PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-pay-to-play-local-scenario

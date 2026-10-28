@@ -36,6 +36,29 @@ def first_choice(label, choices, **_options):
 
 
 class ReleaseInstanceTest(unittest.TestCase):
+    def test_public_source_selection_cannot_resume_paid_work_or_change_selection(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(instances, "choose", side_effect=first_choice):
+            root = Path(directory)
+            self.fixture(root)
+            selection, _, _ = instances.prepare(root, APP, "ui/update")
+            before = instances.load_selection(root)
+            _, request, action = instances.prepare(root, APP, "source/publish")
+            arguments = instances.arguments(root, APP, request, action, str(root))
+            self.assertEqual("escrow/release/source/publish", arguments[0])
+            self.assertTrue(any(argument.startswith("SOURCE_ARTIFACT=") for argument in arguments))
+            self.assertFalse(any(argument.startswith("CONFIG=") for argument in arguments))
+            instances.finish(root, request, action)
+            self.assertEqual(before, instances.load_selection(root))
+
+    def test_observation_commands_never_trigger_external_source_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            action = root / "updates/one"
+            artifact(root, "updates/one/ui/artifact/ui-deployment.json", "cam.ui-deployment.v1")
+            request = {"operation": "ui/deploy", "inputs": {}}
+            self.assertEqual(["updates/one/ui/artifact/ui-deployment.json"], instances.source_publication_artifacts(root, request, action))
+            self.assertEqual([], instances.source_publication_artifacts(root, {**request, "requestedOperation": "verify"}, action))
+
     def test_verifying_an_unstarted_operation_reports_no_records_and_keeps_it_pending(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(instances, "choose", side_effect=first_choice):
             root = Path(directory)

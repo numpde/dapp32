@@ -48,8 +48,8 @@ async function checkedArtifactBytes(artifactsRoot: string, contract: string): Pr
   return readBoundedRegularFile(path, `${contract} compiler artifact`, MAX_ARTIFACT_BYTES)
 }
 
-export async function readCompiledContractSource(location: { readonly source: string; readonly contract: string },
-  artifactsRoot: string, sourcesRoot: string): Promise<CompiledContractSource> {
+async function readCompilation(location: { readonly source: string; readonly contract: string },
+  artifactsRoot: string, sourcesRoot: string) {
   const artifactBytes = await checkedArtifactBytes(artifactsRoot, location.contract)
   const artifact = record(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(artifactBytes)), `${location.contract} compiler artifact`)
   const bytecode = record(artifact.bytecode, `${location.contract} bytecode`)
@@ -70,18 +70,37 @@ export async function readCompiledContractSource(location: { readonly source: st
   if (Object.keys(target).length !== 1 || target[location.source] !== location.contract) throw new Error(`${location.contract} compilation target mismatch`)
   const sources = record(metadata.sources, `${location.contract} compiler sources`)
   if (Object.keys(sources).length === 0 || Object.keys(sources).length > 200 || !(location.source in sources)) throw new Error(`${location.contract} compiler sources are incomplete or excessive`)
+  const sourceContents: Record<string, { content: string }> = {}
   for (const [relative, entry] of Object.entries(sources)) {
     const hash = record(entry, `${location.contract} compiler source ${relative}`).keccak256
     if (typeof hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(hash)) throw new Error(`${location.contract} compiler source hash is invalid: ${relative}`)
-    const actual = keccak256(toHex(await checkedSourceBytes(sourcesRoot, relative)))
+    const contents = await checkedSourceBytes(sourcesRoot, relative)
+    const actual = keccak256(toHex(contents))
     if (actual.toLowerCase() !== hash.toLowerCase()) throw new Error(`${location.contract} source hash mismatch: ${relative}`)
+    sourceContents[relative] = { content: new TextDecoder("utf-8", { fatal: true }).decode(contents) }
   }
 
-  return {
+  const compiled: CompiledContractSource = {
     name: location.contract, source: location.source, compilerVersion: compiler.version, compilerSettings: settings,
     compilerMetadataSha256: sha256(JSON.stringify(metadata)),
     artifactSha256: sha256(artifactBytes),
     creationBytecode: bytecode.object as Hex,
     abi,
   }
+  return { compiled, metadata, sourceContents }
+}
+
+export async function readCompiledContractSource(location: { readonly source: string; readonly contract: string },
+  artifactsRoot: string, sourcesRoot: string): Promise<CompiledContractSource> {
+  return (await readCompilation(location, artifactsRoot, sourcesRoot)).compiled
+}
+
+/** Export only metadata-named, hash-checked sources; never send an entire archive to a verifier. */
+export async function readSourceVerificationInput(location: { readonly source: string; readonly contract: string },
+  artifactsRoot: string, sourcesRoot: string) {
+  const { compiled, metadata, sourceContents } = await readCompilation(location, artifactsRoot, sourcesRoot)
+  // compilationTarget describes a compiler output; it is not a valid solc input setting.
+  const { compilationTarget: _target, ...settings } = compiled.compilerSettings
+  return { metadata, compilerVersion: compiled.compilerVersion, contractIdentifier: `${compiled.source}:${compiled.name}`,
+    stdJsonInput: { language: "Solidity", sources: sourceContents, settings } }
 }

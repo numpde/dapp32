@@ -1,0 +1,64 @@
+# Original-source preparation is offline; only public requests reach the networked submitter.
+services:
+  source-prepare:
+    extends: {file: ../fragments/node-workspace.yml, service: offline-node-workspace}
+    build: !reset null
+    image: "${SOURCE_NODE_IMAGE:?missing_SOURCE_NODE_IMAGE}"
+    pull_policy: never
+    working_dir: /work/js
+    environment:
+      SOURCE_PUBLICATION_APP: "${SOURCE_PUBLICATION_APP:?missing_SOURCE_PUBLICATION_APP}"
+    volumes:
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+      - type: bind
+        source: "${SOURCE_ARTIFACT:?missing_SOURCE_ARTIFACT}"
+        target: /selected/deployment.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${SOURCE_DEPLOYMENT_RECORDS:?missing_SOURCE_DEPLOYMENT_RECORDS}"
+        target: /records
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${SOURCE_ARCHIVES:?missing_SOURCE_ARCHIVES}"
+        target: /sources
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${SOURCE_REQUESTS:?missing_SOURCE_REQUESTS}"
+        target: /requests
+        bind: {create_host_path: false}
+    command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json; node --experimental-strip-types tools/source-publication-prepare.ts']
+
+  source-submit:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    pull_policy: never
+    init: true
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    memswap_limit: 128m
+    pids_limit: 32
+    cpus: 1
+    ulimits: {core: 0}
+    logging: {driver: none}
+    network_mode: bridge
+    tmpfs: [/tmp:rw,noexec,nosuid,nodev,size=16m]
+    entrypoint: [python3, -I, -B, /tool/release_source.py]
+    volumes:
+      - ../../tools/release_source.py:/tool/release_source.py:ro
+      - ../../tools/release_instance.py:/tool/release_instance.py:ro
+      - ../../tools/release_config.py:/tool/release_config.py:ro
+      - type: bind
+        source: "${SOURCE_REQUESTS:?missing_SOURCE_REQUESTS}"
+        target: /requests
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${SOURCE_PUBLICATION_STATE:?missing_SOURCE_PUBLICATION_STATE}"
+        target: /state
+        bind: {create_host_path: false}
