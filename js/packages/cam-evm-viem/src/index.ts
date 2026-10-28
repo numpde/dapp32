@@ -1,6 +1,7 @@
 export type {
   CamHost,
   CamIntegrityWarning,
+  CamIntegrityCheck,
   CamContractCall,
   CamPublicClient,
   CamSimulationClient,
@@ -23,7 +24,7 @@ export { verifyCamHash, verifyCamResourceIntegrity } from "./hash.ts"
 export { assertClientChain, evmChainIdHex, evmChainIdNumber, evmChainMetadata, requireEvmAddress, requireEvmChainId } from "./chain.ts"
 export { createHttpCamPublicClient } from "./client.ts"
 export type { CreateHttpCamPublicClientOptions } from "./client.ts"
-export { loadCamFromHost } from "./host.ts"
+export { checkCamResourceIntegrity, loadCamFromHost } from "./host.ts"
 export { resolveCamContracts } from "./contracts.ts"
 export { callCamRoute, callCamRouteResolver } from "./routes.ts"
 export { sendCamContractCall, simulateCamContractCall, validateCamContractCall } from "./writes.ts"

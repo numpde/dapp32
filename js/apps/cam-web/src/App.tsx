@@ -13,7 +13,9 @@ import type { DownloadScope } from "@cam/protocol"
 import {
   sendCamContractCall,
   simulateCamContractCall,
+  checkCamResourceIntegrity,
 } from "@cam/evm-viem"
+import type { CamIntegrityWarning, CamIntegrityCheck } from "@cam/evm-viem"
 import type {
   ResolvedButtonNode,
 } from "@cam/screen"
@@ -458,6 +460,19 @@ export function App(): ReactElement {
     browserHistory.back()
   }
 
+  async function refreshIntegrity(warning: CamIntegrityWarning, signal: AbortSignal): Promise<CamIntegrityCheck> {
+    const current = readyRef.current
+    const startup = current.status === "ready" ? current.runtime.startup : current.status === "setup" ? undefined : current.startup
+    if (startup === undefined) throw new UserFacingError("Cannot refresh these hashes without the app's connection settings.")
+    const publicClient = current.status === "ready" ? current.runtime.rpc.client : createPublicClient({ transport: http(startup.rpcUrl) })
+    return checkCamResourceIntegrity({
+      publicClient,
+      host: { chainId: startup.chainId, address: startup.host },
+      loadResource: createViewerResourceLoader(assertCurrentDownloadAllowed, gatewayRef.current, signal),
+      resource: warning,
+    })
+  }
+
   async function refreshView(): Promise<void> {
     if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
@@ -896,7 +911,7 @@ export function App(): ReactElement {
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
       ) : <div className="connection connection-facts">{resourcePolicy}{gatewayControl}</div>}
 
-      {loadState.status === "setup" ? null : <IntegrityWarnings warnings={loadState.status === "ready" ? loadState.snapshot.integrityWarnings : loadState.integrityWarnings} reloadDisabled={sending} />}
+      {loadState.status === "setup" ? null : <IntegrityWarnings key={JSON.stringify([loadRequest?.chainId, loadRequest?.host, loadState.status === "ready" ? loadState.runtime.rpc.active.url : loadRequest?.rpcUrl])} warnings={loadState.status === "ready" ? loadState.snapshot.integrityWarnings : loadState.integrityWarnings} onRefresh={refreshIntegrity} />}
       {notice === undefined ? null : (
         <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}

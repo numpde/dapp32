@@ -29,7 +29,8 @@ const cam = encode({ cam: "1.3.0", protocol: { uri: "./protocol.html", integrity
   routes: { home: read("home"), detail: read("detail"), update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: { amount: "9007199254740993" } }, then: { namespace: "routes", function: "detail", args: {} } }, metadata: { kind: "write", inputs: ["uri"], call: { namespace: "contracts.App", function: "updateMetadata", args: { tokenURI: "$inputs.uri" } }, then: { namespace: "routes", function: "detail", args: {} } } },
 })
 const resources = new Map([["main.json", cam], ["protocol.html", protocol], ["abi.json", abiBytes], ["ui.json", ui]])
-const state = { holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
+const state = { holdRoot: false, failRoot: false, rootDownloads: 0, rootHash: sha256(cam), holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
+const rootReads: (() => void)[] = []
 const protocolReads: (() => void)[] = []
 const publicReads: (() => void)[] = []
 const candidateReads: (() => void)[] = []
@@ -38,6 +39,11 @@ window.fetch = async (input, init) => {
   if (url.origin === resourceBase.origin && url.pathname.startsWith(resourceBase.pathname)) {
     const bytes = resources.get(url.pathname.split("/").at(-1)!)
     if (bytes === undefined) throw new Error(`Unexpected fixture resource: ${url.href}`)
+    if (url.pathname.endsWith("/main.json")) {
+      state.rootDownloads++
+      if (state.holdRoot) await new Promise<void>(resolve => rootReads.push(resolve))
+      if (state.failRoot) throw new Error("Fixture manifest download failed")
+    }
     if (url.pathname.endsWith("/protocol.html")) {
       state.protocolStarted++
       const held = state.holdProtocol
@@ -62,7 +68,7 @@ window.fetch = async (input, init) => {
     const data = rpc.params[0].data
     const selector = data.slice(0, 10)
     if (selector === toFunctionSelector("supportsInterface(bytes4)")) result = encodeAbiParameters([{ type: "bool" }], [true])
-    else if (selector === toFunctionSelector("camManifest()")) result = encodeFunctionResult({ abi: rootAbi, functionName: "camManifest", result: { uri: new URL("main.json", resourceBase).href, sha256Digest: state.unverifiedRoot ? zeroHash : sha256(cam) } })
+    else if (selector === toFunctionSelector("camManifest()")) result = encodeFunctionResult({ abi: rootAbi, functionName: "camManifest", result: { uri: new URL("main.json", resourceBase).href, sha256Digest: state.unverifiedRoot ? zeroHash : state.rootHash } })
     else if (selector === toFunctionSelector("contractAddress(string)")) result = encodeAbiParameters([{ type: "address" }], [target])
     else if (selector === toFunctionSelector("read(address)")) {
       const decoded = decodeFunctionData({ abi, data })
@@ -103,6 +109,8 @@ const provider = {
   removeListener(event: string, listener: (value: unknown) => void) { listeners.get(event)?.delete(listener) },
 }
 Object.assign(window, { ethereum: provider, connectionFixture: { state, wallet, listeners,
+  replaceRoot(suffix: string) { const bytes = new Uint8Array([...cam, ...new TextEncoder().encode(suffix)]); resources.set("main.json", bytes); state.rootHash = sha256(bytes) },
+  releaseRoot() { state.holdRoot = false; rootReads.splice(0).forEach(release => release()) },
   releaseProtocol() { state.holdProtocol = false; protocolReads.splice(0).forEach(release => release()) },
   releasePublicReads() { state.holdPublicRead = false; publicReads.splice(0).forEach(release => release()) },
   releaseCandidate() { state.holdCandidate = false; candidateReads.splice(0).forEach(release => release()) },

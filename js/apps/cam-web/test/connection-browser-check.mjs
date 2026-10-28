@@ -197,7 +197,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
     await evaluate('connectionFixture.state.failHeldProtocol=true;connectionFixture.releaseProtocol()')
     await wait(`!!document.querySelector('.panel.error')`)
-    assert(await evaluate(`!!${warning}&&${warning}.textContent.includes('Unverified')`), 'a later download failure preserves already known warnings')
+    assert(await evaluate(`!!${warning}&&${warning}.textContent.includes('hash stored in the contract is zero')`), 'a later download failure preserves already known warnings')
     await evaluate(`connectionFixture.state.unverifiedRoot=false;[...document.querySelectorAll('button')].find(button=>button.textContent==='Retry loading').click()`)
     await wait(`!!document.querySelector('.ui')`)
     assert(await evaluate(`!${warning}`), 'retry clears prior-attempt warnings')
@@ -209,15 +209,24 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await wait(`!!document.querySelector('.ui')&&!${warning}`)
     await evaluate('connectionFixture.state.tamperHeldProtocol=true;connectionFixture.releaseProtocol()')
     await wait('connectionFixture.state.protocolCompleted===2')
-    await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+    await withBrowserFocus(call, () => evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))'))
     assert(await evaluate(`!!document.querySelector('.ui')&&!${warning}`), 'late warnings from the cancelled load cannot replace the new view')
 
     await open('unverified')
     await wait(`!!document.querySelector('.ui')`)
     assert(await evaluate(`!!document.querySelector('[aria-label="UI integrity warnings"] [role="status"][data-kind="warning"]')`), 'a zero verification hash produces a warning while the UI remains available')
-    assert(await evaluate(`document.querySelector('[aria-label="UI integrity warnings"]').textContent.includes('Unverified')`), 'the unverified condition is stated explicitly')
+    assert(await evaluate(`document.querySelector('[aria-label="UI integrity warnings"]').textContent.includes('hash stored in the contract is zero')`), 'the unverified condition is stated explicitly')
     assert(await evaluate(`(()=>{const warning=document.querySelector('[aria-label="UI integrity warnings"] [role="status"]');const normal=document.createElement('div');normal.className='error-feedback';normal.dataset.kind='status';document.body.append(normal);const distinct=getComputedStyle(warning).backgroundColor!==getComputedStyle(normal).backgroundColor;normal.remove();return distinct})()`), 'unverified resources do not use the normal status treatment')
-    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, sends: 0 }
+    await evaluate(`(()=>{window.savedIntegrityView=document.querySelector('.ui');window.savedIntegrityURL=location.href;window.savedIntegrityReads=connectionFixture.state.subjects.length;const input=document.querySelector('input[name="draft"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Keep this draft');input.dispatchEvent(new Event('input',{bubbles:true}));connectionFixture.replaceRoot(' ');connectionFixture.state.unverifiedRoot=false;connectionFixture.state.holdRoot=true;document.querySelector('button[aria-label="Refresh hashes"]').click()})()`)
+    await wait(`connectionFixture.state.rootDownloads===2&&document.querySelector('button[aria-label="Refresh hashes"]').disabled`)
+    assert(await evaluate(`document.querySelector('.ui')===window.savedIntegrityView&&document.querySelector('input[name="draft"]').value==='Keep this draft'`), 'hash checking keeps the current view and draft while the download is pending')
+    await evaluate('connectionFixture.releaseRoot()')
+    await wait(`document.querySelector('[aria-label="UI integrity warnings"]').textContent.includes('latest download matches')`)
+    assert(await evaluate(`(()=>{const box=document.querySelector('[aria-label="UI integrity warnings"]');const hashes=[...box.querySelectorAll('code')].map(code=>code.title);return hashes.length===2&&hashes.every(hash=>hash===connectionFixture.state.rootHash)&&box.textContent.includes('does not reload the app')&&box.querySelector('[data-kind="warning"]')!==null&&document.querySelector('.ui')===window.savedIntegrityView&&location.href===window.savedIntegrityURL&&document.querySelector('input[name="draft"]').value==='Keep this draft'&&connectionFixture.state.subjects.length===window.savedIntegrityReads})()`), 'both hashes refresh without replacing the loaded app, its draft, URL or route reads; a changed download is not presented as the displayed app')
+    await evaluate(`connectionFixture.state.failRoot=true;document.querySelector('button[aria-label="Refresh hashes"]').click()`)
+    await wait(`!!document.querySelector('[aria-label="UI integrity warnings"] [role="alert"]')`)
+    assert(await evaluate(`(()=>{const box=document.querySelector('[aria-label="UI integrity warnings"]');return [...box.querySelectorAll('dl code')].every(code=>code.title===connectionFixture.state.rootHash)&&document.querySelector('.ui')===window.savedIntegrityView&&!box.textContent.includes('Reload page')&&connectionFixture.state.sends===0})()`), 'a failed hash refresh retains the previous facts and never reloads or sends a transaction')
+    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, hashRefreshPreservesApp: true, sends: 0 }
   } catch (error) { failures.push(error) }
   finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
 }

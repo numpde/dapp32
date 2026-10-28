@@ -69,6 +69,11 @@ button:not(.timestamp-options):not(:disabled):active {
 .build-footer a { color: inherit; text-underline-offset: 0.2em; }
 .build-footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+.integrity-resource { display: flex; align-items: start; gap: 8px; }
+.integrity-resource > p { flex: 1; min-width: 0; }
+.integrity-refresh { display: grid; place-items: center; flex: 0 0 28px; width: 28px; min-height: 28px; padding: 4px; border: 0; background: transparent; color: var(--muted); }
+.integrity-refresh svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
 .topbar {
   margin-bottom: 16px;
 }

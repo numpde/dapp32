@@ -35,6 +35,10 @@ export type CamIntegrityWarning = {
   readonly actualHash: string
 }
 
+export type CamIntegrityCheck = Omit<CamIntegrityWarning, "status"> & {
+  readonly status: CamIntegrityWarning["status"] | "verified"
+}
+
 export type LoadCamFromHostOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost

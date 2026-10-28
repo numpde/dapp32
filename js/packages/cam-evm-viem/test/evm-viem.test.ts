@@ -19,6 +19,7 @@ import {
   evmChainIdNumber,
   evmChainMetadata,
   loadCamFromHost,
+  checkCamResourceIntegrity,
   requireEvmAddress,
   requireEvmChainId,
   resolveCamContracts,
@@ -88,6 +89,47 @@ const testChain: Chain = {
     },
   },
 }
+
+test("hash refresh rereads the contract reference and hashes a fresh download without loading the app", async t => {
+  let uri = camDocumentURI
+  let bytes = new TextEncoder().encode("original file")
+  let expectedHash: Hex = BIKE_ZERO_BYTES32
+  const client = createPublicClient(publicClientFixtureOptions({}))
+  const read = client.readContract.bind(client)
+  t.mock.method(client, "readContract", async (request: Parameters<typeof client.readContract>[0]) => request.functionName === ROOT_CAM_MANIFEST
+    ? { uri, sha256Digest: expectedHash } : read(request))
+  const downloads: string[] = []
+  const loadResource = async (requested: string) => { downloads.push(requested); assert.equal(requested, uri); return bytes }
+  const resource = { hashSource: "contract" as const, uri: camDocumentURI }
+  const first = await checkCamResourceIntegrity({ publicClient: client, host, loadResource, resource })
+  assert.equal(first.status, "unverified")
+  assert.equal(first.actualHash, sha256(bytes))
+  uri = "https://updated.example.test/main.json"
+  bytes = new TextEncoder().encode("new bytes need not be valid CAM to compare their hash")
+  expectedHash = sha256(bytes)
+  const next = await checkCamResourceIntegrity({ publicClient: client, host, loadResource, resource })
+  assert.deepEqual(next, { hashSource: "contract", status: "verified", uri, expectedHash, actualHash: expectedHash })
+  assert.deepEqual(downloads, [camDocumentURI, uri])
+  assert.notEqual(next.actualHash, first.actualHash)
+})
+
+test("secondary hash refresh uses current manifest declarations and rejects removed resources", async () => {
+  const bytes = new TextEncoder().encode("new protocol bytes")
+  const resources: Record<string, Uint8Array> = { [camDocumentURI]: encodeJson(camJson), [BIKE_PROTOCOL_URI]: bytes }
+  const options = {
+    publicClient: createPublicClient(publicClientFixtureOptions({ camHash: BIKE_ZERO_BYTES32 })), host,
+    loadResource: createMockResourceLoader(resources), resource: { hashSource: "manifest" as const, uri: BIKE_PROTOCOL_URI },
+  }
+  const first = await checkCamResourceIntegrity(options)
+  assert.equal(first.status, "mismatch")
+  assert.equal(first.actualHash, sha256(bytes))
+  resources[camDocumentURI] = encodeJson({ ...camJson, protocol: { uri: "./protocol.html", integrity: `sha256:${sha256(bytes)}` } })
+  const next = await checkCamResourceIntegrity(options)
+  assert.equal(next.status, "verified")
+  assert.equal(next.expectedHash, sha256(bytes))
+  resources[camDocumentURI] = encodeJson({ ...camJson, protocol: { uri: "./other.html", integrity: `sha256:${sha256(bytes)}` } })
+  await assert.rejects(checkCamResourceIntegrity(options), /no longer declares this resource/)
+})
 
 test("known chain metadata is selected by chain ID and leaves unknown chains unresolved", async () => {
   const fuji = await evmChainMetadata("eip155:43113")
