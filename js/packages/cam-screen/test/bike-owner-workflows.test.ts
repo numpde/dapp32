@@ -54,6 +54,33 @@ function field(node: ResolvedUiNode, key: string) {
   return found
 }
 
+test("NFT document editing has a task subsection and keeps each commit at its owning scope", () => {
+  for (const [view, title, action] of [
+    [bikeRegisterRouteResult(BIKE_SERIAL_NUMBER, BIKE_ACCOUNT_ADDRESS), "NFT details", "registerComponent"],
+    [ownerComponentView(), "Edit NFT details", "updateComponentMetadata"],
+  ] as const) {
+    const initial = render(view)
+    const sections: ResolvedUiNode[] = []
+    forEachResolvedUiNode(initial.resolvedUi, node => {
+      if (node.element === "Screen" && node.props.title === title) sections.push(node)
+    })
+    assert.equal(sections.length, 1)
+    const metadata = sections[0]!
+    const originalEditor = field(metadata, "tokenURI")
+    assert.ok(originalEditor.element === "NftMetadataField")
+    assert.equal(originalEditor.props.label, "Metadata document")
+    assert.deepEqual(resolvedUiButtons(metadata).map(node => node.call.function),
+      action === "registerComponent" ? [] : [action],
+      "registration commits the whole form; metadata updates belong beside the editor")
+    const uri = "https://example.test/component.json"
+    const edited = resolveUiNode(ui(), "app", args(view), { ...context, state: { ...initial.state, tokenURI: uri } })
+    assert.equal(button(edited, action).call.args.tokenURI, uri)
+    const editedEditor = field(edited, "tokenURI")
+    assert.ok(editedEditor.element === "NftMetadataField")
+    assert.equal(editedEditor.disabled, originalEditor.disabled)
+  }
+})
+
 test("owner opens a specific workshop lookup without replacing the loaded component", () => {
   const view = ownerComponentView()
   const initial = render(view)

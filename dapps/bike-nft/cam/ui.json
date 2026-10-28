@@ -435,34 +435,36 @@
               }
             },
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below."
-              }
-            },
-            {
-              "element": "NftMetadataField",
-              "props": {
-                "label": "Edit NFT details"
+                "title": "Edit NFT details"
               },
-              "state": {
-                "key": "tokenURI",
-                "defaultValue": "$view.tokenURI"
-              },
-              "enabledWhen": {
-                "member": "updateComponentMetadata",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "updateComponentMetadata",
-                "args": {
-                  "view": "$view"
+              "children": [
+                {
+                  "element": "NftMetadataField",
+                  "props": {
+                    "label": "Metadata document"
+                  },
+                  "state": {
+                    "key": "tokenURI",
+                    "defaultValue": "$view.tokenURI"
+                  },
+                  "enabledWhen": {
+                    "member": "updateComponentMetadata",
+                    "in": "$view.actions"
+                  }
+                },
+                {
+                  "element": "Include",
+                  "call": {
+                    "namespace": "ui",
+                    "function": "updateComponentMetadata",
+                    "args": {
+                      "view": "$view"
+                    }
+                  }
                 }
-              }
+              ]
             }
           ]
         },
@@ -1054,31 +1056,33 @@
               }
             },
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "The NFT name, description and image come from a JSON document. Choose where to keep that document below. Registration mints the NFT using the selected document URI."
-              }
-            },
-            {
-              "element": "NftMetadataField",
-              "props": {
-                "label": "NFT details"
+                "title": "NFT details"
               },
-              "state": {
-                "key": "tokenURI",
-                "defaultValue": "$view.tokenURI"
-              },
-              "enabledWhen": {
-                "member": "registerComponent",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Address",
-              "props": {
-                "label": "Component token contract",
-                "address": "$view.componentsAddress"
-              }
+              "children": [
+                {
+                  "element": "NftMetadataField",
+                  "props": {
+                    "label": "Metadata document"
+                  },
+                  "state": {
+                    "key": "tokenURI",
+                    "defaultValue": "$view.tokenURI"
+                  },
+                  "enabledWhen": {
+                    "member": "registerComponent",
+                    "in": "$view.actions"
+                  }
+                },
+                {
+                  "element": "Address",
+                  "props": {
+                    "label": "Component token contract",
+                    "address": "$view.componentsAddress"
+                  }
+                }
+              ]
             },
             {
               "element": "Include",
