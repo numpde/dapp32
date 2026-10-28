@@ -1,8 +1,9 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { ReactElement, ReactNode, Ref } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import { isDocumentHashDigest } from "@cam/protocol"
+import { encodeCamContractCall } from "@cam/evm-viem"
 import { formatRelativeTimestamp, DURATION_PARTS, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
 import type {
   ResolvedButtonNode,
@@ -135,6 +136,7 @@ export function PreparedCallView({
   readonly onDiscard: () => void
 }): ReactElement {
   const sending = stage !== undefined
+  const review = useMemo(() => ({ fields: preparedCallFields(call), calldata: encodeCamContractCall(call) }), [call])
   const status = stage === undefined ? "Send with wallet" : {
     checking: "Checking transaction…", wallet: "Waiting for wallet…",
     confirming: "Waiting for confirmation…", refreshing: "Loading updated view…",
@@ -142,7 +144,7 @@ export function PreparedCallView({
   return (
     <section className="panel prepared-call" ref={reviewRef} tabIndex={-1} aria-labelledby="prepared-call-title">
       <h2 id="prepared-call-title">Review transaction</h2>
-      {preparedCallFields(call).map((field) => (
+      {review.fields.map((field) => (
         field.json === undefined ? <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} compact={field.compact} />
           : <PropertyRow key={field.label} label={field.label} value={<>
             {field.json.status === "ready" ? <pre className="review-json"><code>{field.json.text}</code></pre> : <FeedbackBox kind="warning" message={field.json.failure.message}>
@@ -151,6 +153,7 @@ export function PreparedCallView({
             <details><summary>Exact URI</summary><textarea readOnly aria-label={`Exact URI for ${field.label}`} value={field.value} /></details>
           </>} />
       ))}
+      <PropertyRow label="Transaction data (hex)" className="mono-value" value={<textarea readOnly rows={4} aria-label="Transaction data (hex)" value={review.calldata} />} />
       {stage === "wallet" ? <FeedbackBox kind="status" message="Approve or reject the request in your wallet. If no prompt appeared, open your wallet." /> : null}
       <button
         className="send-button"

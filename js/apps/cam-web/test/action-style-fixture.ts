@@ -1,7 +1,7 @@
 import { createElement, Fragment } from "react"
 import type { ComponentProps } from "react"
 import { createRoot } from "react-dom/client"
-import { parseAbi } from "viem"
+import { encodeFunctionData, parseAbi } from "viem"
 import { editAmountDraft, editIntegerDraft, durationDraftFromSeconds, editDurationDraft, projectAmountDraft, projectIntegerDraft, projectDurationDraft } from "@cam/screen"
 import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
@@ -32,6 +32,7 @@ const metadata = `data:application/json,${encodeURIComponent(JSON.stringify({ na
 const reviewJson = '{"name":"Fixture asset","number":123456789012345678901234567890,"note":"' + 'x'.repeat(2500) + '"}'
 const reviewURI = `data:application/json;base64,${btoa(reviewJson)}`
 const call: CamViewerPreparedContractCall = { route: "write", address: "0x0000000000000000000000000000000000000001", abi: parseAbi(["function fixtureWrite(address owner, bytes payload, bytes32 digest, string metadata)"]), function: "fixtureWrite", args: { owner: "0x1111111111111111111111111111111111111111", payload: fixtureDigest, digest: fixtureDigest, metadata: reviewURI }, then: { namespace: "routes", function: "read", args: {} } }
+const reviewCalldata = encodeFunctionData({ abi: call.abi, functionName: 'fixtureWrite', args: ['0x1111111111111111111111111111111111111111', fixtureDigest, fixtureDigest, reviewURI] })
 let prepared = false
 let busy = false
 let sending = false
@@ -113,7 +114,7 @@ function render(): void {
     }),
   ))
 }
-Object.assign(window, { actionFixture: { events, reviewJson, reviewURI,
+Object.assign(window, { actionFixture: { events, reviewJson, reviewURI, reviewCalldata,
   stage(value: TransactionStage) { sendStage = value; sending = true; render() },
   build(mode: "known" | "modified" | "development" | "unknown") { buildMode = mode; render() },
   account(value: string) { viewingAccount = value; render() },

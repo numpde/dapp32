@@ -94,10 +94,12 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     assert(styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel have a quiet supporting treatment')
     assert(styles.sendFilled, 'only Send is filled')
     assert(await evaluate(`document.querySelector('.prepared-call .review-json').textContent===actionFixture.reviewJson&&document.querySelector('.prepared-call textarea[readonly]').value===actionFixture.reviewURI`), 'review decodes embedded JSON exactly while retaining the full URI')
+    assert(await evaluate(`(()=>{const bytes=document.querySelector('textarea[aria-label="Transaction data (hex)"]');return bytes.readOnly&&!bytes.disabled&&bytes.value.length>2000&&bytes.value===actionFixture.reviewCalldata})()`), 'full calldata remains selectable without truncation or hash shortening')
     for (const [stage,label] of [['checking','Checking transaction…'],['wallet','Waiting for wallet…'],['confirming','Waiting for confirmation…'],['refreshing','Loading updated view…']]) {
       await evaluate(`actionFixture.stage(${JSON.stringify(stage)})`)
       await wait(`document.querySelector('.send-button').textContent.trim()===${JSON.stringify(label)}`)
       assert(await evaluate(`document.querySelector('.send-button').disabled&&[...document.querySelectorAll('.prepared-call button')].find(button=>button.textContent.trim()==='Discard transaction').disabled`), 'pending submission cannot be sent twice or discarded')
+      assert(await evaluate(`!document.querySelector('textarea[aria-label="Transaction data (hex)"]').disabled`), 'calldata inspection remains available while the wallet request is pending')
       if (stage==='wallet') assert(await evaluate(`document.querySelector('.prepared-call [role="status"][data-kind="status"]').textContent.includes('open your wallet')`), 'a hidden wallet popup has an explicit next action')
     }
     await evaluate('actionFixture.sending(false)')

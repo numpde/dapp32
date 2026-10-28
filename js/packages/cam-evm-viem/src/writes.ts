@@ -1,3 +1,4 @@
+import { encodeFunctionData } from "viem"
 import type { Chain, Hex } from "viem"
 
 import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
@@ -22,6 +23,11 @@ type WriteRequest = {
 
 export function validateCamContractCall(call: CamContractCall): void {
   writeRequest(call)
+}
+
+export function encodeCamContractCall(call: CamContractCall): Hex {
+  const { abi, functionName, args } = writeRequest(call)
+  return encodeFunctionData({ abi, functionName, args })
 }
 
 export async function sendCamContractCall<TChain extends Chain | null>({

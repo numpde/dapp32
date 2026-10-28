@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { sendCamContractCall } from "@cam/evm-viem"
+import { encodeCamContractCall, sendCamContractCall } from "@cam/evm-viem"
+import type { CamContractCall } from "@cam/evm-viem"
+import { decodeFunctionData, parseAbi } from "viem"
 import { viewerErrorMessage } from "@cam/viewer"
 import { SubmissionOutcomeUnknownError, submitPreparedContractCall } from "../src/transactions.ts"
 import type { PreparedCallSimulationClient, PreparedCallSubmitterPorts } from "../src/transactions.ts"
@@ -17,6 +19,23 @@ const CHAIN_OPTIONS = {
 
 const DEPOSIT_ABI = [{ type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] }] as const
 const TRANSACTION_HASH = `0x${"ab".repeat(32)}` as const
+
+test("review calldata is exactly the data forwarded to the injected wallet", async () => {
+  const abi = parseAbi(["function registerComponent(address owner, string serialNumber, string tokenURI_)"])
+  const uri = `data:application/json,${encodeURIComponent(JSON.stringify({ description: 'x'.repeat(2500) }))}`
+  const call: CamContractCall = { address: OTHER_ACCOUNT, abi, function: 'registerComponent', args: { tokenURI_: uri, owner: ACCOUNT, serialNumber: 'SCALPEL' } }
+  const expected = encodeCamContractCall(call)
+  assert(expected.length > 2000)
+  assert.deepEqual(decodeFunctionData({ abi, data: expected }).args, [ACCOUNT, 'SCALPEL', uri])
+  let forwarded: unknown
+  transactionProvider(async request => {
+    if (request.method === 'eth_chainId') return '0x7a69'
+    if (request.method === 'eth_sendTransaction') { forwarded = request.params; return TRANSACTION_HASH }
+    throw new Error(`Unexpected request ${request.method}`)
+  })
+  await sendCamContractCall({ walletClient: createInjectedWalletClient(ACCOUNT, CHAIN_OPTIONS, () => true), chain: null, call })
+  assert.deepEqual(forwarded, [{ from: ACCOUNT, to: OTHER_ACCOUNT, data: expected, chainId: '0x7a69' }])
+})
 
 test("an installed custom network sends without catalog metadata and carries its expected chain ID", async () => {
   const sends: unknown[] = []
