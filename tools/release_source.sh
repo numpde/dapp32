@@ -70,8 +70,9 @@ SOURCE_NODE_IMAGE=$(release_tool_image "$PWD" "$(git rev-parse HEAD)" node-deps)
 export SOURCE_NODE_IMAGE
 
 source_prepare() {
+  # Preparation must not consume a caller's terminal or the remaining records in a loop.
   release_run_owned "$release_command_grace" "${compose[@]}" run --pull never --rm --no-deps -T source-prepare \
-    run-js-workspace sh -eu -c 'npm run build:packages; ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json; node --experimental-strip-types tools/source-publication-prepare.ts "$@"' sh "$@"
+    run-js-workspace sh -eu -c 'npm run build:packages; ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json; node --experimental-strip-types tools/source-publication-prepare.ts "$@"' sh "$@" < /dev/null
 }
 
 prepare_source_artifact() {
