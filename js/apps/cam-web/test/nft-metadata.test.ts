@@ -5,6 +5,7 @@ import { assertDownloadAllowed } from "@cam/protocol"
 import {
   NFT_IMAGE_MAX_BYTES,
   NFT_METADATA_MAX_BYTES,
+  isRelativeNftImageURI,
   loadNftImage,
   loadNftMetadata,
   nftMetadataDataURI,
@@ -15,6 +16,15 @@ import { UserFacingError } from "../src/errors.ts"
 const signal = () => new AbortController().signal
 const allowDownload = (uri: string) => assertDownloadAllowed(uri, { kind: "https-or-ipfs" })
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value)) as unknown
+
+test("relative NFT image references need a metadata base; complete URIs do not", () => {
+  for (const uri of ["image.webp", "../image.webp", "/image.webp", "//images.example.test/image.webp"]) {
+    assert.equal(isRelativeNftImageURI(uri), true, uri)
+  }
+  for (const uri of ["", "https://example.test/image.webp", "ipfs://bafy/image.webp", "data:image/png;base64,AA=="]) {
+    assert.equal(isRelativeNftImageURI(uri), false, uri)
+  }
+})
 
 test("IPFS metadata and relative images use the selected gateway without changing their logical base", async t => {
   const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"

@@ -52,6 +52,10 @@ export async function loadNftMetadata(uri: string, signal: AbortSignal, assertAl
   })
 }
 
+export function isRelativeNftImageURI(uri: string): boolean {
+  return uri !== "" && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri)
+}
+
 export async function loadNftImage(uri: string, baseURI: string | undefined, signal: AbortSignal, assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string): Promise<Blob> {
   signal.throwIfAborted()
   if (uri.startsWith("data:")) {
@@ -62,7 +66,7 @@ export async function loadNftImage(uri: string, baseURI: string | undefined, sig
   if (uri.length === 0 || /[\u0000-\u001f\u007f\\]/u.test(uri)) {
     throw new UserFacingError("Cannot load NFT image: use a nonempty image URL without control characters or backslashes.")
   }
-  const relative = !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri)
+  const relative = isRelativeNftImageURI(uri)
   if (relative) {
     if (baseURI === undefined || baseURI.startsWith("data:")) {
       throw new UserFacingError("Cannot load NFT image: a relative image URI needs an HTTP(S) or IPFS metadata URL. Use an absolute image URL.")

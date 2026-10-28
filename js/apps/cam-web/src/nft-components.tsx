@@ -3,10 +3,10 @@ import type { MouseEvent, ReactElement } from "react"
 import { assertRemoteResourceURI, isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import { failureReport, UserFacingError } from "./errors.ts"
-import { Feedback } from "./feedback.tsx"
+import { Feedback, FeedbackBox } from "./feedback.tsx"
 import { PropertyRow } from "./property-row.tsx"
 import { DownloadContext } from "./download-context.ts"
-import { loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readNftMetadataDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
+import { isRelativeNftImageURI, loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readNftMetadataDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type SettledResource<T> = { readonly status: "idle" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown; readonly value?: T }
 type Resource<T> = SettledResource<T> | { readonly status: "pending"; readonly previous: SettledResource<T> }
@@ -94,6 +94,7 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly 
     <div className="nft-preview-summary">
     {typeof metadata.name === "string" && metadata.name !== "" ? <h3>{metadata.name}</h3> : null}
     {typeof metadata.description === "string" && metadata.description !== "" ? <p>{metadata.description}</p> : null}
+    {typeof metadata.image === "string" && isRelativeNftImageURI(metadata.image) ? <FeedbackBox kind="warning" message="This image uses a relative path. It works here, but other NFT apps may need a full image address." /> : null}
     <div className="nft-attributes">{attributes.map((attribute, index) => isRecordObject(attribute) && typeof attribute.trait_type === "string" && (typeof attribute.value === "string" || typeof attribute.value === "number" || typeof attribute.value === "boolean")
       ? <PropertyRow key={index} label={attribute.trait_type} value={String(attribute.value)} /> : null)}</div>
     </div>
@@ -173,7 +174,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   const [draft, setDraft] = useState(() => initialMetadataDraft(value))
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
   const hosted = hostedMetadata(hostedURI)
-  const relativeImage = !("error" in draft) && typeof draft.metadata.image === "string" && draft.metadata.image !== "" && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(draft.metadata.image)
+  const relativeImage = !("error" in draft) && typeof draft.metadata.image === "string" && isRelativeNftImageURI(draft.metadata.image)
   const embeddedURI = "error" in draft || relativeImage ? null : draft.uri
   const canonical = mode === "hosted" ? hosted.value : embeddedURI
   useEffect(() => {
@@ -187,7 +188,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   function editDraft(text: string): void {
     const next = metadataDraft(text)
     setDraft(next)
-    const relative = !("error" in next) && typeof next.metadata.image === "string" && next.metadata.image !== "" && !/^[A-Za-z][A-Za-z0-9+.-]*:/.test(next.metadata.image)
+    const relative = !("error" in next) && typeof next.metadata.image === "string" && isRelativeNftImageURI(next.metadata.image)
     onInput(name, "error" in next || relative ? null : next.uri)
   }
 
