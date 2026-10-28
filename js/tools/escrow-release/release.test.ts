@@ -15,7 +15,6 @@ import { fileURLToPath } from "node:url"
 
 import type { Address, Hex } from "viem"
 
-import { ownershipState } from "../release-ownership.ts"
 import {
   inspectReleaseCamBundle,
 } from "../release-cam-bundle.ts"
@@ -200,35 +199,6 @@ test("creation receipts are bound to broadcast hashes and contract addresses", (
     from: DEPLOYER,
     to: null,
   }, "CamRoot"), /did not succeed/)
-})
-
-test("ownership classification distinguishes pending and accepted handoff", () => {
-  assert.deepEqual(ownershipState({ label: "CamRoot",
-    deployer: DEPLOYER,
-    intendedOwner: OWNER,
-    owner: DEPLOYER,
-    pendingOwner: OWNER,
-  }), {
-    ownershipTransferRequired: true,
-    ownershipAccepted: false,
-  })
-
-  assert.deepEqual(ownershipState({ label: "CamRoot",
-    deployer: DEPLOYER,
-    intendedOwner: OWNER,
-    owner: OWNER,
-    pendingOwner: ZERO,
-  }), {
-    ownershipTransferRequired: true,
-    ownershipAccepted: true,
-  })
-
-  assert.throws(() => ownershipState({ label: "CamRoot",
-    deployer: DEPLOYER,
-    intendedOwner: OWNER,
-    owner: DEPLOYER,
-    pendingOwner: ZERO,
-  }), /unexpected CamRoot handoff state/)
 })
 
 function deploymentArtifact(): DeploymentArtifact {

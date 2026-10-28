@@ -1,5 +1,4 @@
 import { zeroAddress } from "viem"
-import type { Address } from "viem"
 
 import { viewerErrorMessage } from "../packages/cam-viewer/dist/index.js"
 import { requireEvmAddress } from "../packages/cam-evm-viem/dist/index.js"
@@ -39,16 +38,6 @@ export function requiredNonzeroAddress(value: unknown, label: string): CamHost["
     throw new Error(`${label} must not be the zero address`)
   }
   return address
-}
-
-export function assertAddress(actual: Address, expected: Address, label: string): void {
-  assertEqual(actual.toLowerCase(), expected.toLowerCase(), label)
-}
-
-export function assertEqual(actual: string, expected: string, label: string): void {
-  if (actual !== expected) {
-    throw new Error(`${label} mismatch: expected ${expected}, got ${actual}`)
-  }
 }
 
 export function requiredBytes32(value: unknown, label: string): `0x${string}` {

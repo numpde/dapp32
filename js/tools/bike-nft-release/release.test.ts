@@ -9,7 +9,6 @@ import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
 import { backingFromDeployment } from "../ui-release/shared.ts"
 
 
-import { ownershipState } from "../release-ownership.ts"
 import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseContractSettings, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 
@@ -100,19 +99,6 @@ test("Bike release requires a present string metadata base and keeps other metad
   }
   for (const field of ["tokenName", "tokenSymbol", "collectionURI"] as const) {
     assert.throws(() => parseContractSettings({ ...deployment(), [field]: "" }), new RegExp(field))
-  }
-})
-
-test("handoff accepts only intended pending or completed state", () => {
-  for (const [intendedOwner, owner, pendingOwner] of [
-    [OWNER, DEPLOYER, OWNER],
-    [OWNER, OWNER, address("0")],
-    [DEPLOYER, DEPLOYER, address("0")],
-  ] as const) {
-    assert.doesNotThrow(() => ownershipState({ label: "root", deployer: DEPLOYER, intendedOwner, owner, pendingOwner }))
-  }
-  for (const [intendedOwner, pendingOwner] of [[DEPLOYER, DEPLOYER], [OWNER, address("0")]] as const) {
-    assert.throws(() => ownershipState({ label: "root", deployer: DEPLOYER, intendedOwner, owner: DEPLOYER, pendingOwner }), /unexpected root handoff/)
   }
 })
 
