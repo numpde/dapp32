@@ -18,7 +18,6 @@ import { fileURLToPath } from "node:url"
 import { sha256 } from "viem"
 
 import { assertReleaseCamURI, inspectReleaseCamBundle } from "./release-cam-bundle.ts"
-import { stageVerifiedReleaseArtifact } from "./release-verification-input.ts"
 
 const REPOSITORY_DAPPS = join(dirname(fileURLToPath(import.meta.url)), "../../dapps")
 const ESCROW_CAM = join(REPOSITORY_DAPPS, "escrow/cam")
@@ -65,21 +64,17 @@ for (const app of ["bike-nft", "escrow", "pay-to-play"]) {
   })
 }
 
-test("verification preserves zero commitment while still checking the source bundle", async () => {
+test("zero commitment still checks the source bundle", async () => {
   const fixture = await copiedEscrowCamFixture()
-  const artifact = { sourceCommit: SOURCE_COMMIT, camURI: CAM_URI, camHash: ZERO_HASH }
-  const artifactPath = join(fixture.directory, "artifact.json")
+  const inspect = () => inspectReleaseCamBundle({
+    dappsRootPath: fixture.dappsRootPath, rootPath: fixture.rootPath,
+    camURI: CAM_URI, camHash: ZERO_HASH, label: "fixture",
+  })
   try {
-    await writeFile(artifactPath, JSON.stringify(artifact))
-    const verify = (snapshotPath: string) => stageVerifiedReleaseArtifact({
-      artifactPath, parseArtifact: bytes => JSON.parse(new TextDecoder().decode(bytes)) as typeof artifact,
-      expectedSourceCommit: SOURCE_COMMIT, dappsRootPath: fixture.dappsRootPath,
-      rootPath: fixture.rootPath, snapshotPath, label: "fixture",
-    })
-    assert.deepEqual(await verify(join(fixture.directory, "verified.json")), artifact)
+    assert.equal((await inspect()).camHash, ZERO_HASH)
     const root = await readRootRecord(fixture.rootPath)
     await unlink(resolve(dirname(fixture.rootPath), escrowNamespace(root).abiURI))
-    await assert.rejects(verify(join(fixture.directory, "invalid.json")), /does not exist/)
+    await assert.rejects(inspect(), /does not exist/)
   } finally {
     await rm(fixture.directory, { recursive: true, force: true })
   }

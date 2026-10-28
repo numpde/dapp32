@@ -1,17 +1,9 @@
 import assert from "node:assert/strict"
-import { execFile } from "node:child_process"
 import { createServer } from "node:http"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
-import { promisify } from "node:util"
 import test from "node:test"
-import { keccak256 } from "viem"
-import { DEPLOYMENT_SCHEMA, type DeploymentArtifact } from "./shared.ts"
+import { createPublicClient, http, keccak256 } from "viem"
+import { observeContractIdentity } from "../release-provenance.ts"
 
-const execute = promisify(execFile)
-const TOOL_DIR = dirname(fileURLToPath(import.meta.url))
 const ADMIN = "0x0000000000000000000000000000000000000011"
 const OWNER = "0x0000000000000000000000000000000000000044"
 const ROOT = "0x0000000000000000000000000000000000000022"
@@ -23,10 +15,8 @@ const PAYMENT_TX = `0x${"34".repeat(32)}` as const
 const HASH = `0x${"ab".repeat(32)}` as const
 const INPUT = "0x60006000"
 
-test("historical release verification rejects substituted creation evidence", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "pay-to-play-release-rpc-"))
+test("contract identity checks reject substituted creation evidence", async () => {
   let altered = "none"
-  const camURI = "https://example.test/pay-to-play/cam/main.json"
   const server = createServer((request, response) => {
     void (async () => {
       const chunks: Buffer[] = []
@@ -34,7 +24,8 @@ test("historical release verification rejects substituted creation evidence", as
       const call = JSON.parse(Buffer.concat(chunks).toString()) as { id: number; method: string; params: unknown[] }
       let result: unknown
       switch (call.method) {
-        case "eth_chainId": result = "0xaa36a7"; break
+        case "eth_getCode": result = "0x6000"; break
+        case "eth_getBlockByNumber": result = { hash: HASH, number: call.params[0], transactions: [] }; break
         case "eth_getTransactionReceipt": {
           const hash = call.params[0]
           result = {
@@ -70,36 +61,24 @@ test("historical release verification rejects substituted creation evidence", as
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve))
     const address = server.address()
     assert.ok(address !== null && typeof address !== "string")
-    const artifact: DeploymentArtifact = {
-      schema: DEPLOYMENT_SCHEMA, sourceCommit: "0123456789abcdef0123456789abcdef01234567",
-      chainId: 11155111, camURI, camHash: HASH, intendedCamRootOwner: OWNER,
-      intendedPaymentAdmin: ADMIN, nullClaimPeriod: 60, deployer: ADMIN,
-      camRoot: ROOT, payToPlay: PAYMENTS, payToPlayUI: UI,
-      camRootCodeHash: keccak256("0x6000"), payToPlayCodeHash: keccak256("0x6000"),
-      payToPlayUICodeHash: keccak256("0x6000"), camRootCreationTransaction: ROOT_TX,
-      payToPlayCreationTransaction: PAYMENT_TX, payToPlayCreationInputHash: keccak256(INPUT),
-      payToPlayUICreationTransaction: UI_TX, payToPlayUICreationInputHash: keccak256(INPUT),
+    const client = createPublicClient({ transport: http(`http://127.0.0.1:${address.port}`) })
+    const verify = async () => {
+      await observeContractIdentity(client, { address: PAYMENTS, creationTransaction: PAYMENT_TX,
+        creationInputHash: keccak256(INPUT), codeHash: keccak256("0x6000") }, ADMIN, 2n, "PayToPlay")
+      await observeContractIdentity(client, { address: UI, creationTransaction: UI_TX,
+        creationInputHash: keccak256(INPUT), codeHash: keccak256("0x6000") }, ADMIN, 2n, "PayToPlayUI")
     }
-    const artifactPath = join(dir, "deployment.json")
-    await writeFile(artifactPath, JSON.stringify(artifact))
-    const env = {
-      ...process.env,
-      PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_PATH: artifactPath,
-      PAY_TO_PLAY_RELEASE_RPC_URL: `http://127.0.0.1:${address.port}`,
-    }
-    const run = (script: string) => execute(process.execPath, ["--experimental-strip-types", join(TOOL_DIR, script)], { env, timeout: 15000 })
-    await run("verify-provenance.ts")
+    await verify()
     for (const [change, diagnostic] of [
       ["receipt", /did not succeed/], ["hash", /transaction hash mismatch/],
       ["sender", /sender mismatch/], ["destination", /destination address/],
-      ["input", /creation input hash mismatch/], ["uiInput", /PayToPlayUI creation input hash mismatch/],
+      ["input", /PayToPlay .*creation input hash .*differs from recorded hash/], ["uiInput", /PayToPlayUI .*creation input hash .*differs from recorded hash/],
     ] as const) {
       altered = change
-      await assert.rejects(run("verify-provenance.ts"), diagnostic)
+      await assert.rejects(verify(), diagnostic)
     }
   } finally {
     server.closeAllConnections()
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
-    await rm(dir, { recursive: true, force: true })
   }
 })

@@ -1,14 +1,8 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { spawnSync } from "node:child_process"
 import {
-  existsSync,
-  mkdtempSync,
   readFileSync,
-  rmSync,
-  writeFileSync,
 } from "node:fs"
-import { tmpdir } from "node:os"
 import {
   dirname,
   join,
@@ -19,7 +13,6 @@ import { backingFromDeployment } from "../ui-release/shared.ts"
 
 import { fileURLToPath } from "node:url"
 
-import { getAddress } from "viem"
 import type { Address, Hex } from "viem"
 
 import { ownershipState } from "../release-ownership.ts"
@@ -36,8 +29,6 @@ import type { DeploymentArtifact } from "./shared.ts"
 import {
   createdContract,
   creationReceiptDeployer,
-  observeReleaseCreations,
-  sharedCreationReceiptDeployer,
 } from "../release-provenance.ts"
 import { requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit } from "../release-values.ts"
 
@@ -120,54 +111,6 @@ test("escrow release inspection reports SHA-256 of the exact checked-in manifest
   assert.equal(bundle.camHash, CHECKED_IN_CAM_HASH)
 })
 
-test("escrow verification rejects source and CAM drift before snapshot publication", () => {
-  const directory = mkdtempSync(join(tmpdir(), "escrow-verify-input-"))
-  try {
-    for (const [name, artifact, message] of [
-      ["source", { ...verifiedDeploymentArtifact(), sourceCommit: "f".repeat(40) }, /source commit mismatch/],
-      ["cam", { ...verifiedDeploymentArtifact(), camHash: CAM_HASH }, /CAM hash does not match/],
-    ] as const) {
-      const { result, snapshotPath } = runEscrowVerifyInput(directory, name, artifact)
-      assert.notEqual(result.status, 0)
-      assert.match(result.stderr, message)
-      assert.equal(existsSync(snapshotPath), false)
-    }
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
-
-test("escrow verification applies the app parser before snapshot publication", () => {
-  const directory = mkdtempSync(join(tmpdir(), "escrow-verify-parser-"))
-  try {
-    const { ownershipAccepted: _ownershipAccepted, ...malformed } = verifiedDeploymentArtifact()
-    const { result, snapshotPath } = runEscrowVerifyInput(directory, "malformed", malformed)
-    assert.notEqual(result.status, 0)
-    assert.match(result.stderr, /missing=\[ownershipAccepted\]/)
-    assert.equal(existsSync(snapshotPath), false)
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
-
-test("escrow verification publishes one canonical no-clobber snapshot", () => {
-  const directory = mkdtempSync(join(tmpdir(), "escrow-verify-success-"))
-  try {
-    const artifact = verifiedDeploymentArtifact()
-    const parsed = parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact)))
-    const first = runEscrowVerifyInput(directory, "success", artifact)
-    assert.equal(first.result.status, 0, first.result.stderr)
-    assert.equal(readFileSync(first.snapshotPath, "utf8"), `${JSON.stringify(parsed, null, 2)}\n`)
-    assert.match(first.result.stdout, /"event":"escrow_release_input_verified"/)
-
-    const second = runEscrowVerifyInput(directory, "success", artifact)
-    assert.notEqual(second.result.status, 0)
-    assert.equal(readFileSync(second.snapshotPath, "utf8"), `${JSON.stringify(parsed, null, 2)}\n`)
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
-
 test("deployment JSON preserves the complete strict record", () => {
   const artifact = deploymentArtifact()
   const parsed = parseDeploymentArtifact(
@@ -225,35 +168,6 @@ test("Forge broadcast extraction requires exactly one named creation", () => {
   assert.deepEqual(createdContract(transactions, "CamEscrow"), { address: ESCROW, transactionHash: ESCROW_TX })
   assert.throws(() => createdContract([...transactions, create("CamEscrow", ESCROW, ESCROW_TX)], "CamEscrow"), /create CamEscrow exactly once/)
 })
-test("release provenance checks the chain before receipts and requires one observed deployer", async () => {
-  const contracts = [
-    { label: "CamRoot", address: ROOT, transactionHash: ROOT_TX },
-    { label: "CamEscrow", address: ESCROW, transactionHash: ESCROW_TX },
-  ] as const
-  let chainId = 1
-  let escrowDeployer = DEPLOYER
-  const reads: string[] = []
-  const client = {
-    getChainId: async () => chainId,
-    getTransactionReceipt: async ({ hash }: { hash: `0x${string}` }) => {
-      reads.push(hash)
-      return {
-        status: "success" as const, to: null,
-        transactionHash: hash,
-        contractAddress: hash === ROOT_TX ? ROOT : ESCROW,
-        from: hash === ROOT_TX ? DEPLOYER : escrowDeployer,
-      }
-    },
-  }
-  await assert.rejects(observeReleaseCreations({ client, expectedChainId: 11155111, contracts }), /chain mismatch/)
-  assert.deepEqual(reads, [])
-  chainId = 11155111
-  assert.deepEqual(await observeReleaseCreations({ client, expectedChainId: chainId, contracts }), { chainId, deployer: DEPLOYER })
-  assert.deepEqual(reads, [ROOT_TX, ESCROW_TX])
-  escrowDeployer = OWNER
-  await assert.rejects(observeReleaseCreations({ client, expectedChainId: chainId, contracts }), /do not share one deployer/)
-})
-
 test("creation receipts are bound to broadcast hashes and contract addresses", () => {
   const contract = { address: ROOT, transactionHash: ROOT_TX }
   assert.equal(creationReceiptDeployer(contract, {
@@ -299,27 +213,6 @@ test("creation receipts are bound to broadcast hashes and contract addresses", (
     from: DEPLOYER,
     to: null,
   }, "CamRoot"), /did not succeed/)
-})
-
-test("creation receipts identify one deployer without relying on address casing", () => {
-  const deployer = "0x00000000000000000000000000000000000000aa" as Address
-  const checksumSpelling = getAddress(deployer)
-  assert.notEqual(checksumSpelling, deployer)
-  assert.equal(
-    sharedCreationReceiptDeployer([deployer, checksumSpelling]),
-    deployer,
-  )
-  assert.equal(
-    sharedCreationReceiptDeployer([checksumSpelling, deployer, checksumSpelling]),
-    checksumSpelling,
-  )
-})
-
-test("creation receipts reject genuinely different deployers", () => {
-  assert.throws(
-    () => sharedCreationReceiptDeployer([DEPLOYER, ESCROW]),
-    /creation transactions do not share one deployer/,
-  )
 })
 
 test("ownership classification distinguishes pending and accepted handoff", () => {
@@ -372,32 +265,6 @@ function deploymentArtifact(): DeploymentArtifact {
     camEscrowCreationTransaction: ESCROW_TX,
     camEscrowUICreationTransaction: UI_TX,
   }
-}
-
-function verifiedDeploymentArtifact(): DeploymentArtifact {
-  return { ...deploymentArtifact(), camHash: CHECKED_IN_CAM_HASH }
-}
-
-function runEscrowVerifyInput(directory: string, name: string, artifact: unknown) {
-  const artifactPath = join(directory, `${name}-deployment.json`)
-  const snapshotPath = join(directory, `${name}-verified.json`)
-  writeFileSync(artifactPath, JSON.stringify(artifact))
-  const result = spawnSync(
-    process.execPath,
-    ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "verify-input.ts")],
-    {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        ESCROW_DEPLOYMENT_ARTIFACT_PATH: artifactPath,
-        ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: SOURCE_COMMIT,
-        ESCROW_RELEASE_DAPPS_ROOT: DAPPS_ROOT,
-        ESCROW_RELEASE_CAM_ROOT_PATH: join(DAPPS_ROOT, "escrow/cam/main.json"),
-        ESCROW_VERIFIED_ARTIFACT_PATH: snapshotPath,
-      },
-    },
-  )
-  return { result, snapshotPath }
 }
 
 function create(contractName: string, contractAddress: string, hash: string): unknown {

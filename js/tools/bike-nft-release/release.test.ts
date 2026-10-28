@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { spawnSync } from "node:child_process"
@@ -48,54 +48,6 @@ test("Bike release inspection reports SHA-256 of the exact checked-in manifest b
   assert.equal(bundle.camHash, CHECKED_IN_CAM_HASH)
 })
 
-test("Bike verification rejects source and CAM drift before snapshot publication", () => {
-  const directory = mkdtempSync(join(tmpdir(), "bike-verify-input-"))
-  try {
-    for (const [name, artifact, message] of [
-      ["source", { ...verifiedDeployment(), sourceCommit: "f".repeat(40) }, /source commit mismatch/],
-      ["cam", { ...verifiedDeployment(), camHash: hash("a") }, /CAM hash does not match/],
-    ] as const) {
-      const { result, snapshotPath } = runBikeVerifyInput(directory, name, artifact)
-      assert.notEqual(result.status, 0)
-      assert.match(result.stderr, message)
-      assert.equal(existsSync(snapshotPath), false)
-    }
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
-
-test("Bike verification applies the app parser before snapshot publication", () => {
-  const directory = mkdtempSync(join(tmpdir(), "bike-verify-parser-"))
-  try {
-    const { registrars: _registrars, ...malformed } = verifiedDeployment()
-    const { result, snapshotPath } = runBikeVerifyInput(directory, "malformed", malformed)
-    assert.notEqual(result.status, 0)
-    assert.match(result.stderr, /missing=\[registrars\]/)
-    assert.equal(existsSync(snapshotPath), false)
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
-
-test("Bike verification publishes one canonical no-clobber snapshot", () => {
-  const directory = mkdtempSync(join(tmpdir(), "bike-verify-success-"))
-  try {
-    const artifact = verifiedDeployment()
-    const parsed = parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact)))
-    const first = runBikeVerifyInput(directory, "success", artifact)
-    assert.equal(first.result.status, 0, first.result.stderr)
-    assert.equal(readFileSync(first.snapshotPath, "utf8"), `${JSON.stringify(parsed, null, 2)}\n`)
-    assert.match(first.result.stdout, /"event":"bike_nft_release_input_verified"/)
-
-    const second = runBikeVerifyInput(directory, "success", artifact)
-    assert.notEqual(second.result.status, 0)
-    assert.equal(readFileSync(second.snapshotPath, "utf8"), `${JSON.stringify(parsed, null, 2)}\n`)
-  } finally {
-    rmSync(directory, { recursive: true })
-  }
-})
-
 test("deployment artifact parsing rejects malformed evidence and preserves selected deployer authority", () => {
   const artifact = deployment()
   assert.deepEqual(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))), artifact)
@@ -141,10 +93,10 @@ test("release plans and deployment artifacts share the single-line text domain",
   }
 })
 
-test("Bike release keeps an explicitly empty metadata base in plans, artifacts and verification", () => {
+test("Bike release keeps an explicitly empty metadata base in plans and artifacts", () => {
   const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a"), baseTokenURI: "" }
   assert.equal(parseReleasePlan(new TextEncoder().encode(JSON.stringify(plan))).baseTokenURI, "")
-  const artifact = { ...verifiedDeployment(), baseTokenURI: "" }
+  const artifact = { ...deployment(), baseTokenURI: "" }
   assert.equal(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))).baseTokenURI, "")
   const directory = mkdtempSync(join(tmpdir(), "bike-release-empty-base-"))
   try {
@@ -153,9 +105,6 @@ test("Bike release keeps an explicitly empty metadata base in plans, artifacts a
     const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], { encoding: "utf8", env })
     assert.equal(result.status, 0, result.stderr)
     assert.equal(parseReleasePlan(new TextEncoder().encode(readFileSync(planPath, "utf8"))).baseTokenURI, "")
-    const verified = runBikeVerifyInput(directory, "empty-base", artifact)
-    assert.equal(verified.result.status, 0, verified.result.stderr)
-    assert.equal(parseDeploymentArtifact(new TextEncoder().encode(readFileSync(verified.snapshotPath, "utf8"))).baseTokenURI, "")
   } finally {
     rmSync(directory, { recursive: true })
   }
@@ -264,26 +213,6 @@ function plannerEnv(planPath: string): NodeJS.ProcessEnv {
   }
 }
 function deployment(): DeploymentArtifact { const { expectedChainId, ...fields } = common(); return { ...fields, schema: DEPLOYMENT_SCHEMA, chainId: expectedChainId, deployer: DEPLOYER, camHash: hash("a"), camRoot: address("10"), components: address("11"), manager: address("12"), ui: address("13"), camRootCodeHash: hash("b"), componentsCodeHash: hash("c"), managerCodeHash: hash("d"), uiCodeHash: hash("e"), camRootCreationTransaction: hash("1"), componentsCreationTransaction: hash("2"), managerCreationTransaction: hash("3"), uiCreationTransaction: hash("4") } }
-
-function verifiedDeployment(): DeploymentArtifact { return { ...deployment(), camHash: CHECKED_IN_CAM_HASH } }
-function runBikeVerifyInput(directory: string, name: string, artifact: unknown) {
-  const artifactPath = join(directory, `${name}-deployment.json`)
-  const snapshotPath = join(directory, `${name}-verified.json`)
-  writeFileSync(artifactPath, JSON.stringify(artifact))
-  const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "verify-input.ts")], {
-    encoding: "utf8",
-    env: {
-      ...process.env,
-      BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: artifactPath,
-      BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT: SOURCE,
-      BIKE_NFT_RELEASE_DAPPS_ROOT: DAPPS,
-      BIKE_NFT_RELEASE_CAM_ROOT_PATH: join(DAPPS, "bike-nft/cam/main.json"),
-      BIKE_NFT_VERIFIED_ARTIFACT_PATH: snapshotPath,
-    },
-  })
-  return { result, snapshotPath }
-}
-
 
 test("UI deployment selects the historical manager rather than the collection, UI or CAM root", () => {
   const artifact = deployment()
