@@ -360,6 +360,14 @@ def prepare(root, app, operation):
     return selection, request, action
 
 
+def phase_records(root, request, action, phase):
+    if phase == "cam":
+        return publication_for(action).parent.parent
+    if phase == "ui" and "UI_ARTIFACT" in request["inputs"]:
+        return instance_path(root, request["inputs"]["UI_ARTIFACT"]).parent.parent
+    return action / phase
+
+
 def arguments(root, app, request, action, host_root):
     # silent-defaults: allow-default -- Artifact/verify selection overrides execution; ordinary resume retains the original operation.
     operation = request.get("requestedOperation", request["operation"])
@@ -387,6 +395,11 @@ def arguments(root, app, request, action, host_root):
     if original == "setup":
         resolved["RELEASE_SETUP_PURPOSE"] = request["purpose"]
     phases = OPERATIONS[original][1] if original in OPERATIONS else ()
+    if operation == "verify" and phases:
+        records = [phase_records(root, request, action, phase) for phase in phases]
+        if "UI_ARTIFACT" not in request["inputs"] and not any(path.exists() or path.is_symlink() for path in records):
+            print("No deployment phase records exist yet. Resume this operation to begin.")
+            return []
     if operation == "verify" and len(phases) == 1:
         operation = f"{phases[0]}/artifact"
     output = action if original == "setup" else action / OPERATIONS[original][0]
@@ -401,12 +414,7 @@ def arguments(root, app, request, action, host_root):
     resolved["OUTPUT_DIR"] = str(Path(host_root) / output.relative_to(root))
     if operation in RECORD_PORTS:
         phase = operation.split("/")[0]
-        if phase == "cam":
-            records = publication_for(action).parent.parent
-        elif phase == "ui" and "UI_ARTIFACT" in request["inputs"]:
-            records = instance_path(root, request["inputs"]["UI_ARTIFACT"]).parent.parent
-        else:
-            records = action / phase
+        records = phase_records(root, request, action, phase)
         resolved[RECORD_PORTS[operation]] = str(Path(host_root) / records.relative_to(root))
         if phase == "cam" and "CAM_BUNDLE" not in resolved:
             resolved["CAM_BUNDLE"] = str(Path(host_root) / action.relative_to(root) / "cam-bundle")

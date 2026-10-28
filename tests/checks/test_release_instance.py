@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import contextlib
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -34,6 +36,30 @@ def first_choice(label, choices, **_options):
 
 
 class ReleaseInstanceTest(unittest.TestCase):
+    def test_verifying_an_unstarted_operation_reports_no_records_and_keeps_it_pending(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(instances, "choose", side_effect=first_choice):
+            root = Path(directory)
+            self.fixture(root)
+            _, request, action = instances.prepare(root, APP, "ui/update")
+            selected = instances.load_selection(root)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                arguments = instances.arguments(root, APP, {**request, "requestedOperation": "verify"}, action, str(root))
+            self.assertEqual([], arguments)
+            self.assertIn("No deployment phase records", output.getvalue())
+            instances.finish(root, {**request, "requestedOperation": "verify"}, action)
+            self.assertEqual(selected, instances.load_selection(root))
+            self.assertEqual(["selection.json"], [path.name for path in action.iterdir()])
+
+    def test_a_selected_ui_record_cannot_be_treated_as_an_unstarted_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            request = {"operation": "ui/update", "requestedOperation": "verify",
+                       "inputs": {"CONFIG": "config.json", "UI_ARTIFACT": "updates/selected/ui/artifact/ui-deployment.json"}}
+            arguments = instances.arguments(root, APP, request, root / "updates/current", str(root))
+            self.assertEqual("escrow/release/verify", arguments[0])
+            self.assertIn(f"UI_ARTIFACT={root / request['inputs']['UI_ARTIFACT']}", arguments)
+
     def fixture(self, root):
         save(root, "config.json", {"app": APP})
         return artifact(root, "deployments/original/artifact/deployment.json", "escrow.deployment.v2")

@@ -165,14 +165,27 @@ release_full() {
   fi
 
   if [[ "$operation" == verify ]]; then
+    local checked=0
     if [[ -e "$contracts" || -L "$contracts" ]]; then
       release_full_make "$app/release/contracts/artifact" "CONFIG=$main_config" "CONTRACT_RECORDS=$contracts" || return
+      checked=1
     fi
     local verify_ui="$ui"
     if [[ -n "${UI_ARTIFACT-}" ]]; then verify_ui=$(dirname -- "$(dirname -- "$UI_ARTIFACT")"); fi
-    release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$verify_ui" || return
-    release_full_cam "$app" "$cam_config" "$prepared" "$cam" verify
-    return "$?"
+    if [[ -n "${UI_ARTIFACT-}" || -e "$verify_ui" || -L "$verify_ui" ]]; then
+      release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$verify_ui" || return
+      checked=1
+    fi
+    if [[ -e "$cam" || -L "$cam" ]]; then
+      release_full_cam "$app" "$cam_config" "$prepared" "$cam" verify || return
+      checked=1
+    fi
+    if [[ "$checked" == 0 ]]; then
+      printf '%s\n' 'No deployment phase records exist yet. Resume this operation to begin.'
+    else
+      printf '%s\n' 'Verified the available deployment records. No transaction was sent.'
+    fi
+    return 0
   fi
 
   if [[ "$operation" == full ]]; then

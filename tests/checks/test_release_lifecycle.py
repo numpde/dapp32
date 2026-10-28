@@ -1311,7 +1311,7 @@ release_full_make() {
       CONTRACT_ARTIFACT=*) business="${argument#*=}" ;;
       UI_ARTIFACT=*) ui="${argument#*=}" ;;
       ROOT_ARTIFACT=*) root="${argument#*=}" ;;
-      CAM_RECORDS=*) records="${argument#*=}" ;;
+      UI_RECORDS=*|CAM_RECORDS=*) records="${argument#*=}" ;;
     esac
   done
   if [[ "$target" == "${FAIL_TARGET-}" ]]; then
@@ -1342,7 +1342,7 @@ release_full_make() {
       fi
       printf 'verified cam\n' > "$destination/artifact/cam-publication.json" ;;
     */contracts/artifact) [[ -f "$CASE_ROOT/release/contracts/artifact/contract-deployment.json" ]] || return 24 ;;
-    */ui/artifact) [[ -f "$CASE_ROOT/release/ui/artifact/ui-deployment.json" ]] || return 24 ;;
+    */ui/artifact) [[ -f "$records/artifact/ui-deployment.json" ]] || return 24 ;;
     */cam/artifact)
       if [[ -f "$records/artifact/cam-publication.json" ]]; then return 0; fi
       if [[ -f "$records/partial" ]]; then
@@ -1540,9 +1540,37 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             result, _ = self.invoke(root, app="escrow", operation="full", uri=False)
             self.assertEqual(0, result.returncode, result.stderr)
             result, calls = self.invoke(root, app="escrow", uri=True, operation="verify")
-            self.assertEqual(24, result.returncode, result.stderr)
-            self.assertTrue(all(call[0].endswith("/artifact") for call in calls))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/contracts/artifact", "escrow/release/ui/artifact"], [call[0] for call in calls])
             self.assertFalse((root / "release/cam").exists())
+
+    def test_verifying_selection_only_records_never_invokes_a_deployment_phase(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            (root / "release").mkdir(mode=0o700)
+            result, calls = self.invoke(root, app="escrow", uri=False, operation="verify")
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual([], calls)
+            self.assertIn("No deployment phase records", result.stdout)
+            self.assertEqual([], list((root / "release").iterdir()))
+
+    def test_verification_checks_selected_ui_records_and_still_rejects_missing_records(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            (root / "release").mkdir(mode=0o700)
+            ui = root / "selected-ui/artifact/ui-deployment.json"
+            ui.parent.mkdir(parents=True)
+            ui.write_text("verified ui\n")
+            result, calls = self.invoke(root, app="escrow", operation="verify", uri=False, UI_ARTIFACT=str(ui))
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/ui/artifact"], [call[0] for call in calls])
+            self.assertIn(f"UI_RECORDS={ui.parent.parent}", calls[0])
+            ui.unlink()
+            result, calls = self.invoke(root, app="escrow", operation="verify", uri=False, UI_ARTIFACT=str(ui))
+            self.assertEqual(24, result.returncode, result.stderr)
+            self.assertEqual(["escrow/release/ui/artifact"], [call[0] for call in calls])
 
     def test_phase_configuration_paths_are_literal_make_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
