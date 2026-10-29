@@ -1,0 +1,970 @@
+Escrow walkthrough: issues for later implementation
+==================================================
+
+Date: 2026-10-28
+Status: collecting UI issues; UI implementation deferred until requested.
+Authorized test-tool repairs for issues 25-26 are complete, as recorded below.
+
+Context
+-------
+App: Escrow, in the existing debug browser.
+Viewer: http://127.0.0.1:5193/
+Chain: disposable local chain 31337.
+Test wallet: client, contractor and arbitrator accounts.
+
+Issues
+------
+1. Deadline settings: unclear meaning and explanation-to-field association
+
+   Location: agreement creation, Deadlines section.
+
+   User report:
+   "Here, much is unclear. First, which clarification belongs to which setting.
+   The UI doesn't say what those are, just dumps constraints."
+
+   Observed in the supplied screenshot:
+   - General limits and transaction/timing rules precede the duration settings.
+   - Phase explanations appear between groups of inputs, making it unclear
+     whether a paragraph describes the preceding or following setting.
+   - Labels such as Acceptance duration and Work duration do not, by themselves,
+     explain what the user is choosing. The surrounding copy leads with rules,
+     deadlines and timeout settlement rather than the setting's purpose.
+
+   Desired behavior:
+   - Make each explanation visibly belong to its corresponding setting.
+   - Explain what each duration controls and why the user chooses it before
+     presenting its limits, timing mechanics and timeout consequences.
+   - Preserve material contract rules while making the primary decision clear.
+
+   Implementation: deferred. No layout or wording solution selected yet.
+
+2. Document hash controls: unexplained space below calculation buttons
+
+   Location: agreement creation, document-hash field, directly above Create
+   agreement.
+
+   User report: "Strange space after buttons."
+
+   Observation: the supplied screenshot shows a substantial blank area inside
+   the bordered group below Calculate from file and Calculate from URL.
+
+   Follow-up: identify what owns this space and whether it serves a necessary
+   interaction state. No cause or layout fix established yet.
+
+   Implementation: deferred.
+
+3. Document hash: zero-value admission and intended policy
+
+   Context: raised with the document-hash controls screenshot.
+
+   User question: "Also, is zero allowed? should it?"
+
+   Follow-up: determine the current behavior and intended policy for zero in
+   this context. The precise value representation and boundary should be
+   established during investigation rather than assumed.
+
+   Status: question recorded only; not answered or adjudicated.
+   Implementation: deferred.
+
+4. Document hash field: redundant visible labels
+
+   Location: agreement creation, Terms SHA-256 digest group.
+
+   User report: "Repeated text slightly annoying."
+
+   Observation: the supplied screenshot shows the group legend Terms SHA-256
+   digest immediately followed by the input label SHA-256 digest, repeating the
+   same description.
+
+   Desired behavior: avoid redundant visible wording while retaining a clear,
+   accessible name for the input.
+
+   Implementation: deferred. No presentation change selected yet.
+
+5. Document hash control: component scope and custom-component separation
+
+   Location: Terms URI and Terms SHA-256 digest controls, including Calculate
+   from file, Calculate from URL and their feedback.
+
+   User questions:
+   "What is this component? Is it too bespoke for this app? We don't want
+   too-bespoke components."
+
+   User requirement:
+   "We may allow custom components (plug-ins) but they have to be segregated
+   and have their own path."
+
+   Follow-up:
+   - Identify the actual component, its owner and current reuse before judging
+     whether it is app-specific.
+   - Assess the appropriate shared capability and whether any behavior belongs
+     in an app-specific extension.
+   - Keep custom components segregated under their own path if supported.
+     No packaging or loading design has been selected.
+
+   Status: questions and architectural constraint recorded only. Allowing
+   plug-ins is a possibility, not a request to implement a plug-in framework.
+   Implementation: deferred.
+
+6. Terms document section: missing purpose before technical instructions
+
+   Location: agreement creation, Terms document section.
+
+   User report: "Same here, no description, just info dump."
+
+   Observation: the supplied screenshot leads with Document URI limit (512
+   bytes), then publication, URI, SHA-256, exact-byte calculation, local-file
+   behavior and placeholder instructions. It does not first explain the terms
+   document's purpose in the agreement or the decision the user is making.
+
+   Desired behavior: explain the section's purpose first, then place relevant
+   instructions and constraints with the controls they qualify. Related to
+   issue 1's purpose-before-constraints and explanation-to-field association.
+
+   Implementation: deferred. No replacement wording or layout selected yet.
+
+7. Address entry: offer known addresses for selection or insertion
+
+   Location: observed at Contractor address during agreement creation;
+   explicitly raised as a general UI ergonomics issue.
+
+   User requirement: "It should offer a list of known addresses to paste."
+
+   Desired behavior: let the user choose a known address and insert it into the
+   relevant address field, reducing manual copying and typing. Keep manual
+   entry available for addresses outside that list.
+
+   User clarification:
+   "If I change it in one place, it should be known to other fields to paste;
+   including the active wallet address."
+
+   - An address entered or changed in one field should become available for
+     selection in other address fields.
+   - Include the active wallet address among the available addresses.
+   - Sharing suggestions must not silently replace values in other fields.
+
+   Scope: consider shared address-entry behavior across applicable fields and
+   apps, rather than a contractor-field-only shortcut. Identify the appropriate
+   source and lifetime of known addresses during design; cross-field reuse and
+   the active wallet are explicit inputs, while persistence and presentation
+   remain undecided.
+
+   Implementation: deferred.
+
+8. Navigation: complete screen table of contents across apps
+
+   User requirement: "All apps should have the complete screen TOC like the
+   Bike app."
+
+   Desired behavior: provide a complete table of contents for app screens,
+   consistently across apps, using Bike's navigation as the current reference.
+
+   Policy boundary: this is an app-authoring convention for now, not a CAM
+   protocol requirement. Do not turn it into protocol grammar or conformance
+   requirements without a later explicit decision.
+
+   Implementation: deferred. Exact navigation presentation and handling of
+   screens requiring object-specific inputs remain to be worked out.
+
+9. Addresses: links to the chain explorer
+
+   Location: observed in the connection summary (Viewing as, Signing wallet,
+   CAM contract); applies to wallet and contract addresses generally.
+
+   User requirement: "I want a link to the chain explorer for addresses
+   (wallets and contracts)."
+
+   Desired behavior: provide an address-specific link to the appropriate
+   explorer for the selected chain, alongside the existing shortened address
+   and copy capability.
+
+   Follow-up: determine explorer availability and the appropriate behavior
+   when a chain, including a local fixture chain, has no configured explorer.
+   Do not invent an explorer URL for an unsupported chain.
+
+   Implementation: deferred. Explorer metadata ownership and link
+   presentation have not been selected.
+
+10. App details: visible in the preamble without expansion
+
+    User preference: "App details should probably be shown in the preamble
+    section, no expansion."
+
+    Observation: the screenshot shows an App details disclosure containing
+    Read route (createAgreementForm) and UI resource
+    (http://127.0.0.1:5193/cam/ui.json).
+
+    Desired direction: place these details in the preamble alongside the
+    existing app/connection information and show them without requiring the
+    user to expand a disclosure.
+
+    Implementation: deferred. Exact placement and grouping remain undecided;
+    retain the tentative nature of the user's wording.
+
+11. Text fields: support useful hints about the expected content
+
+    Location: observed at the empty Agreement reference text field; raised
+    as a general text-field capability.
+
+    User requirement: "Text fields like that should have hints, or at least
+    be able to."
+
+    Desired behavior: allow a field to explain what the user should enter,
+    with a useful example where appropriate. A label alone may not convey
+    the purpose or expected content, as with Agreement reference.
+
+    Scope: shared text-field hint capability and appropriate use in authored
+    app forms. Do not infer that every field needs extra prose. Hint placement,
+    accessibility association and any schema implications remain to be
+    assessed; no specific mechanism has been selected.
+
+    Implementation: deferred.
+
+12. Arbitration timeout recipient: use a named choice control
+
+    Location: agreement creation, Arbitration timeout recipient.
+
+    User question: "Here, why not a selector / dropdown?"
+
+    Observation: the field accepts a raw number and its label explains the
+    mapping: 1 = client, 2 = contractor. The screenshot shows the value 1.
+
+    Desired direction: offer the valid recipients by name through an
+    appropriate choice control, rather than requiring users to enter or
+    remember numeric enum values. Preserve the contract-facing value mapping.
+
+    Follow-up: assess shared choice-control support and similar authored
+    fields. A dropdown is a proposed presentation, not a selected mechanism.
+
+    Implementation: deferred.
+
+13. Calculate from file: justify its role when the app does not upload files
+
+    User challenge: "If the interface does not allow/provide upload it doesn't
+    seem useful to calculate from file, but prove me wrong."
+
+    Context: Terms URI and document-digest controls offer Calculate from file
+    and Calculate from URL, while explicitly stating that local files are not
+    uploaded or checked against the URI.
+
+    Candidate use case discussed: the user publishes the document through
+    another service and hashes the exact local original. This can also work
+    when the hosting service prevents the browser from fetching the URL.
+
+    Important limit: hashing a selected local file establishes its digest; it
+    does not establish that the entered URI is valid or serves matching bytes.
+
+    Follow-up: evaluate whether this externally published-document workflow
+    warrants the capability and its current prominence, and how the interface
+    should explain the missing publication/URI-matching steps. No decision to
+    retain, remove, relocate or supplement the control has been made. Upload
+    support is not authorized by this question.
+
+    Implementation: deferred.
+
+14. Credit withdrawal: action alignment and misplaced creation navigation
+
+    Screenshot: Withdraw credit is a tall button containing the secondary
+    line Review transaction. Create an agreement appears immediately beside
+    it as a navigation link, with a different visual alignment.
+
+    User observation: something is strange layout-wise / misaligned;
+    Create an agreement seems misplaced.
+
+    Follow-up: review the grouping, placement and alignment of the withdrawal
+    action and the separate agreement-creation navigation. Assess whether the
+    shared action layout and secondary button text contribute to the mismatch;
+    do not assume a CSS-only cause or select a replacement layout yet.
+
+    Implementation: deferred.
+
+15. Task headings and grouping: review throughout Escrow and Pay-to-Play
+
+    Screenshot: below the credit-withdrawal actions, agreement-ID lookup
+    begins with a long explanatory paragraph, then Agreement ID and Open
+    agreement by ID. No visible heading establishes this as a separate task.
+
+    User observation: perhaps a heading is missing. Carefully review and
+    revise this pattern throughout both Escrow and Pay-to-Play.
+
+    Follow-up: audit task boundaries, descriptive headings, explanation
+    placement and action grouping across both apps. Make each task's purpose
+    and relationship to neighboring tasks apparent before its instructions
+    and controls. Review alongside issue 14; adding a heading alone may not
+    resolve an incorrectly grouped flow. Preserve meaningful constraints and
+    accessible heading hierarchy rather than applying decorative headings
+    indiscriminately.
+
+    Implementation: deferred with the walkthrough issues.
+
+16. Agent finding: missing inputs produce technical failures, not field guidance
+
+    Attribution: agent-identified during the live Escrow walkthrough on
+    2026-10-28, not a user-reported observation.
+
+    Reproduction A: open Create an agreement and, with the initial empty
+    form untouched, activate Create agreement (the review action only).
+    It is enabled. The result is Create agreement failed, followed by
+    "CAM transaction value must be a decimal uint256: createAgreement".
+    Focus moves to the general failure message; the empty amount field is
+    not marked aria-invalid=true. No transaction was sent.
+
+    Reproduction B: activate Open agreement by ID with an empty Agreement
+    ID. The general error says to correct inputs, but the detail is
+    "CAM ABI argument viewAgreement.agreementId: expected hex bytes for
+    bytes32". The ID field is not marked invalid or linked to that error.
+
+    Consequence: users must translate transaction/ABI vocabulary into the
+    field they need to fix, rather than receiving an actionable local cause.
+
+    Follow-up: review missing/invalid field feedback at the existing input,
+    authored task and action boundaries. Preserve detailed diagnostics as
+    secondary evidence; do not require a new form framework or silently
+    substitute values. Presentation and validation timing remain undecided.
+
+    Implementation: deferred.
+
+17. Agent finding: reference lookup depends on a distant creation-form field
+
+    Attribution: agent-identified during the live Escrow walkthrough on
+    2026-10-28.
+
+    Location: createAgreementForm, Find an existing agreement.
+
+    Observation: Find agreement by client and reference has no reference
+    input beside it. Its instructions refer to the reference above, in
+    Account and agreement reference, before the entire creation form. Parties,
+    funding, four durations and terms-document controls intervene. In the
+    inspected normal layout the lookup heading was about 2,900 CSS pixels
+    below the reference field; a narrow-layout sample increased the gap to
+    about 4,100 CSS pixels.
+
+    Consequence: a user coming to find an agreement encounters the complete
+    creation flow and must return far upward to enter or check lookup input.
+    The lookup action does not display the reference it will use.
+
+    Follow-up: make reference lookup understandable and operable as a task
+    without scanning the creation form. Preserve a single owner for any
+    shared draft; do not simply duplicate independently maintained fields.
+    Related to user issues 8 and 15, but this is an additional observed
+    input/action separation, not just a missing heading.
+
+    Implementation: deferred.
+
+18. Agent finding: all-zero examples are real initial field values
+
+    Attribution: agent-identified by inspecting the live creation controls
+    on 2026-10-28; related to the user's zero-value question in issue 3.
+
+    Observation: Contractor address and Arbitrator address contain actual
+    all-zero address values; Terms SHA-256 digest contains an actual all-zero
+    digest. Their native placeholder properties are empty. They are therefore
+    populated values, although the prose calls them placeholders. No invalid
+    state is indicated for those initial values.
+
+    Consequence: required fields appear filled, and users must replace long
+    strings rather than enter their intended values into empty controls.
+    The interface depends on prose to explain that its supplied defaults are
+    not acceptable completed inputs.
+
+    Follow-up: distinguish genuine defaults, examples and missing values at
+    the input owner. Adjudicate the contract's zero rules separately; this
+    observation does not decide whether zero should be admitted on-chain.
+
+    Implementation: deferred.
+
+19. Agent finding / design question: calculated digest survives a source change
+
+    Attribution: agent-identified during a second live pass on 2026-10-28.
+
+    Reproduction: set Terms URI to the local /cam/protocol.html and activate
+    Calculate from URL. The calculation succeeds and populates a digest.
+    Change Terms URI to /cam/main.json. The old digest remains, while the
+    calculation-success message disappears. No current indication identifies
+    the digest as calculated from the previous URI.
+
+    Consequence: changing the document location can leave a populated URI/hash
+    pair whose relationship has not been checked. Users may miss the need to
+    recalculate or confirm the pair themselves.
+
+    Qualification: the old success claim is correctly removed. A location
+    change does not necessarily mean different document bytes; keeping a
+    manually entered digest can be intentional. This is an unresolved workflow
+    question, not proof that retaining a digest is always wrong.
+
+    Follow-up: review the document pair's editing/calculation flow and source
+    provenance. Do not silently erase a valid manual digest, automatically
+    fetch on every edit or add conditional commentary by default. Choose the
+    interaction only after establishing the intended document workflow.
+
+    Implementation: deferred.
+
+20. Agent finding / ergonomic improvement: Enter does not initiate ID lookup
+
+    Attribution: agent-identified through targeted keyboard interaction in
+    the live creation screen on 2026-10-28.
+
+    Reproduction: enter a valid-format synthetic Agreement ID (0x followed
+    by 64 twos), focus the input and press Enter through the browser input
+    path. The route remains createAgreementForm and focus stays in the input.
+    Tab moves to Open agreement by ID; Enter there navigates successfully to
+    Agreement not found for the entered ID. The button has visible keyboard
+    focus styling.
+
+    Consequence: this single-field lookup requires an extra keyboard step
+    rather than supporting the familiar enter-ID-and-press-Enter interaction.
+
+    Qualification: the control is keyboard-operable. This is an ergonomic
+    improvement, not an assertion of keyboard inaccessibility. Other forms
+    and lookup fields have not been tested for the same behavior.
+
+    Follow-up: consider a consistent submission convention for explicit lookup
+    tasks. Do not make Enter in arbitrary editing fields activate an unrelated
+    action or send a transaction.
+
+    Implementation: deferred.
+
+21. Agent finding: agreement review collapses the settings into a JSON tuple
+
+    Attribution: agent-identified in the live unsigned transaction-review
+    step on 2026-10-28.
+
+    Reproduction: populate a temporary valid creation draft and activate
+    Create agreement. Simulation succeeds and the viewer opens Review
+    transaction. No Send action was activated.
+
+    Observation: all agreement settings appear in one Input: params (tuple)
+    row containing compact JSON, including the reference, two addresses,
+    recipient enum, amount, four durations and nested terms URI/digest.
+    Form relationships are lost: the recipient is 1, durations are bare
+    numeric strings, and addresses/hashes are embedded in the JSON. Technical
+    App action and After confirmation route/argument strings follow it.
+    At the narrow viewport this JSON row alone occupied about 429 CSS pixels,
+    with identifiers and property names wrapping through a dense block.
+
+    Consequence: users reach the consequential review step but must decode
+    implementation names and map the tuple back to the form to check it.
+    The separate native amount row remains clear and identifies wei.
+
+    Scope: shared viewer transaction review, not an Escrow-only renderer.
+    Follow-up: assess structured argument presentation and the relationship
+    between the human task summary and exact technical evidence. Preserve
+    exact calldata/arguments and do not invent domain units or enum meanings
+    from arbitrary ABI names. No ABI traversal abstraction, protocol change
+    or app-specific summary mechanism has been selected.
+
+    Additional live evidence: the arbitrator's resolveForContractor review
+    contains only the contract/function, agreement ID and technical follow-up
+    route. It does not repeat the award amount or actual contractor address.
+    Those facts are on the agreement page, but absent from the review itself.
+    The review was discarded, not sent. Any future human summary must source
+    state-dependent facts explicitly rather than pretending the ABI arguments
+    alone contain them. This remains a design question, not a false-calldata
+    or unsafe-send finding.
+
+    Withdrawal evidence: with 1000000000000000 wei of real local test credit,
+    the withdrawTo review showed its recipient address but did not repeat the
+    amount being withdrawn. This is another state-dependent fact absent from
+    ABI inputs, not a tuple-formatting problem alone.
+
+    Implementation: deferred.
+
+22. Agent finding: simulation guidance survives invalidation of its review
+
+    Attribution: agent-identified in the live creation/review flow on
+    2026-10-28. This is a reproduced feedback-lifetime defect.
+
+    Reproduction: prepare the temporary creation draft until simulation
+    succeeds and Review transaction is visible. Edit Agreement reference.
+    The prepared review and Send with wallet button disappear correctly,
+    but the message remains:
+    "Simulation passed. Review the transaction, then send it with your wallet."
+
+    Consequence: the message describes the previous draft and directs users
+    to a review/send path that no longer exists for the edited draft.
+
+    Qualification: this is not evidence of sending stale calldata. The Send
+    control is removed. Explicit Discard transaction correctly removes both
+    the review and the message; the demonstrated gap is input-driven review
+    invalidation.
+
+    Follow-up: keep prepared-transaction feedback lifetime aligned with the
+    prepared transaction it describes, at the existing shared owner.
+
+    Implementation: deferred.
+
+23. Agent finding / navigation tradeoff: link-like navigation has no link URL
+
+    Attribution: agent-identified from rendered controls and successful
+    read-only navigation in the live app on 2026-10-28.
+
+    Observation: Find agreement by client and reference, Open agreement by
+    ID and View account credit use green text and a navigation arrow, but
+    render as type=button, data-action-kind=navigate. They have no href or
+    native link destination. Their accessible description says Read only.
+
+    Consequence: these controls do not offer native link operations such as
+    copying a link address or opening the destination in another tab. The
+    appearance suggests link navigation while the browser sees an action.
+
+    Qualification: activation and keyboard operation work. Destination
+    availability depends on route inputs, so do not manufacture URLs for
+    unresolved or invalid routes. Modifier-click/context-menu interactions
+    were not separately exercised; the finding is the rendered button/link
+    semantic difference and consequent absence of a native href.
+
+    Follow-up: consider native link behavior for destinations the existing
+    router can resolve. This is a shared navigation design question, not a
+    new protocol requirement or a mandate to replace all action buttons.
+
+    Implementation: deferred.
+
+24. Agent finding: no in-page selection of the client used for reference lookup
+
+    Attribution: agent-confirmed in the live Escrow viewer on 2026-10-28.
+    This corroborates the earlier account-dropdown/freeform backlog; it is
+    not a new claim that account selection has never been requested.
+
+    Observation: Find agreement by client and reference consumes the global
+    account shown as Viewing as. That row displays the address and a copy
+    button. The inspected page offers no account picker or freeform address
+    field to select another lookup client independently of the signing wallet.
+    The fixture toolbar can switch between its test wallets, but that is a
+    debug facility and changes the signer as well.
+
+    Consequence: looking up another client's agreement by reference has no
+    direct account-selection path in the inspected task/preamble. Manually
+    editing the account URL parameter is a technical workaround, not an
+    in-page control. Lookup by a known agreement ID remains available.
+
+    Qualification: initial setup/URL account configuration exists, and wallet
+    changes work. Switching the fixture client to contractor updated Viewing
+    as, Signing wallet, account-credit identity and withdrawal recipient
+    consistently. The defect is lack of a direct independent viewing-account
+    choice in the running interface, not stale identity after a wallet change.
+
+    Follow-up: resolve viewing-account selection at the existing shared
+    account owner, including known-address suggestions (issue 7). Keep the
+    distinction between inspecting an account and signing as it explicit.
+
+    Implementation: deferred.
+
+25. Agent finding: supported fixture-write check omits required package builds
+
+    Attribution: agent-reproduced after the user authorized local fixture
+    transactions on 2026-10-28.
+
+    Command: make escrow/live/browser/fixture-writes/check, using the existing
+    port-5193 demo, pinned root/manifest/hash and chain 31337.
+
+    Result: the command exits before browser cases or transactions with
+    ERR_MODULE_NOT_FOUND for @cam/viewer/dist/index.js, imported by
+    escrow-browser-fixture.mjs. The Compose command builds only @cam/protocol;
+    the fixture helper now also imports viewerErrorMessage from @cam/viewer.
+    Other shared browser lanes use the existing build:packages command.
+
+    Consequence: the documented supported entrypoint cannot exercise the
+    agreement lifecycle in its clean staged container, even though the
+    running browser demo itself loads successfully.
+
+    Evidence: the captured error is a module-loading failure before any case,
+    not a failed agreement UI assertion.
+
+    Follow-up: use the existing package-build owner for the runner's actual
+    imports; do not depend on host dist output or add a new build lane.
+    Resolution: authorized and repaired. Both Escrow and Pay-to-Play browser
+    runners now use build:packages, matching the existing shared browser
+    lanes. The rerun also exposed a stale pending-state assertion: it counted
+    read-only and fixture-toolbar inputs as editable drafts, and copy controls
+    as transaction actions. It now checks actual drafts and guarded actions,
+    while positively retaining address copying during pending submission.
+    The supported Escrow campaign passed after both corrections.
+
+26. Agent finding: attached fixture wallet rejects the viewer's local chain ID
+
+    Attribution: agent-reproduced through the ordinary local creation UI
+    after the user authorized test transactions on 2026-10-28.
+
+    Draft: reference walkthrough-20261028-lifecycle, the existing client/
+    contractor/arbitrator fixture accounts, 0.001 test ETH and four one-day
+    phases. Simulation passed. The local confirmation was accepted, but the
+    fixture rejected the request before broadcasting it.
+
+    Observed request field names: data, from, to, value, chainId.
+    chainId was 0x7a69, the correct chain-31337 ID. The shared fixture validator
+    permits only from/to/data/value/gas and throws Unsupported fixture
+    transaction field. The maintained Escrow browser-write runner has the
+    same stale whitelist independently.
+
+    Visible outcome: Transaction not sent, followed by an unknown-RPC wrapper
+    and the concrete local-fixture explanation. The explanation does not name
+    the rejected field, so the root cause required observing the request's
+    field names. That observation forwarded the exact unchanged request and
+    restored the original bridge; no field was stripped or guard bypassed.
+
+    Consequence: wallet attachment/connection and read-only use work, but
+    an ordinary valid local write from this viewer cannot reach submission.
+    This also demonstrates that prior attachment/read-only success did not
+    establish transaction compatibility.
+
+    Follow-up: accept the explicit local chain ID only after matching it to
+    the configured fixture chain, continue rejecting other chains/unsupported
+    fields, and keep the corresponding runner behavior consistent. Verify
+    the ordinary UI-to-wallet path, not merely hand-built legacy request
+    shapes. Preserve all sender/target/calldata/value/gas grants.
+
+    Resolution: authorized and repaired. A shared request-field/chain check
+    now serves the attached wallet and both app browser runners. Matching
+    explicit local chain IDs and previously supported omitted IDs work;
+    wrong chains and unsupported fields are rejected. Regression tests cover
+    wrong-chain rejection before signing and preserve all existing grants.
+    The attached wallet was restarted through the supported Make target;
+    ordinary local creation, acceptance, submission and dispute then confirmed.
+
+27. Agent finding: lifecycle tasks remain a flat stream in populated agreements
+
+    Attribution: agent-observed in live funded, accepted, submitted, disputed
+    and closed agreement screens on 2026-10-28.
+
+    Observation: the agreement body has only its root task heading. Facts,
+    a dictionary of states, party explanations, all four duration explanations,
+    document facts, eleven lifecycle actions, two evidence editors and lookup
+    share one long sequence without task subheadings. As client on a newly
+    funded agreement, only Cancel agreement is enabled among eleven lifecycle
+    buttons. On a closed agreement all eleven remain disabled, but work-
+    submission and dispute-entry instructions/editors still occupy the page.
+    At the narrow sample the closed agreement body was about 6,903 CSS pixels
+    tall. In the normal disputed view the arbitrator's two available award
+    actions were about 4,165 CSS pixels below the viewport top.
+
+    Consequence: users must scan past unrelated phases and disabled tasks to
+    find their available next action. Recorded document facts and new-evidence
+    inputs are difficult to distinguish as separate product objects.
+
+    Scope: concrete populated-state evidence for the broader hierarchy review
+    in user issue 15. Do not treat each disabled button as an independent bug
+    or introduce a role framework/hide every unavailable action by default.
+    Review grouping, current-task prominence and useful access to other-phase
+    information using the actual state and permissions already supplied.
+
+    Implementation: deferred.
+
+28. Agent finding: recorded documents have no open or verification affordance
+
+    Attribution: agent-observed in submitted, disputed and closed agreements
+    on 2026-10-28.
+
+    Observation: Terms URI, Submission URI and Dispute URI are plain text
+    fact values, with separate digest rows. The valid local protocol-document
+    URI in the walkthrough renders as an ordinary dd, not a link. The prose
+    instructs users to retrieve the document independently and compare its
+    hash. The page offers no recorded-document open/download/hash-check action,
+    although evidence-entry editors can calculate a hash from a URL.
+
+    Consequence: a client reviewing submitted work or an arbitrator reviewing
+    a dispute must manually extract URLs and use another workflow to read and
+    check the evidence, rather than following a clear action from the record.
+
+    Follow-up: review reusable presentation of a recorded URI/digest pair.
+    Distinguish opening a document from verifying its bytes or its meaning.
+    Reuse URL admission, download scope and bounded loading if retrieval is
+    offered; do not automatically fetch contract-returned URLs or turn every
+    arbitrary string into a link. No app-specific component/plugin is selected.
+
+    Shared URI input/display work is tracked across all apps in
+    notes/034_shared_cam_ui_backlog.txt, item 1.
+
+    Implementation: deferred.
+
+29. Agent finding: settled status uses an internal machine identifier
+
+    Attribution: agent-observed on the campaign's closed agreement on
+    2026-10-28.
+
+    Observation: the heading correctly says View a closed escrow agreement,
+    and Current deadline correctly says No active deadline. The State value
+    itself is released.arbitratorToContractor, accompanied by a general
+    dictionary explaining families of states rather than this outcome.
+
+    Consequence: the user must decode dotted/camel-case vocabulary to learn
+    that the arbitrator awarded the escrow to the contractor.
+
+    Follow-up: give supported agreement outcomes human-readable names while
+    retaining the exact state code where useful. Use the app's known state
+    semantics, not a generic string-splitting/English-guessing rule.
+
+    Implementation: deferred.
+
+30. Agent finding: monetary facts lose the creation editor's readable units
+
+    Attribution: agent-observed in the local agreement and account-credit
+    screens on 2026-10-28.
+
+    Observation: the creation amount editor offers wei and Native asset
+    representations. After creation, Original escrow amount in wei shows
+    1000000000000000, with no corresponding readable native-asset amount.
+    The account-credit total is likewise labeled and displayed in wei only.
+    This was also checked with nonzero credit after cancelling a separate
+    local test agreement: the displayed total was 1000000000000000 wei.
+
+    Consequence: users must count zeros or convert units to compare agreement
+    and withdrawable amounts with what they entered in the native-asset field.
+    The raw value and its wei label are accurate; this is a readability and
+    cross-task consistency issue, not an incorrect-amount finding.
+
+    Follow-up: assess consistent amount presentation using explicitly known
+    asset/unit metadata. Preserve exact base-unit values; do not infer currency
+    symbols or decimals from an app name or an arbitrary integer field.
+
+    Implementation: deferred.
+
+31. Agent finding / ambiguity: retained receipt does not identify its operation
+
+    Attribution: agent-confirmed in the live continuation on 2026-10-29
+    (local date), using ordinary agreement lookup as well as URL navigation.
+
+    Reproduction: complete a local transaction, then open a different
+    agreement. The prominent green feedback still says Transaction confirmed
+    in block 19 and shows its hash, while the displayed agreement is the
+    separate disputed walkthrough record. Block 19 actually finalized an
+    acceptance timeout on an older agreement. The same pattern was observed
+    earlier with the block-18 withdrawal receipt above another funded record.
+
+    The retained box is visibly rendered; its text names neither the completed
+    action nor the agreement/account it affected, and does not label itself
+    as a previous/latest transaction. Captured and inspected a screenshot
+    showing the block-19 confirmation above the unrelated disputed agreement.
+
+    Consequence: correct transaction evidence can look like confirmation of
+    an operation on the currently displayed record, particularly after a
+    navigation or account change.
+
+    Qualification: the receipt/hash is accurate. Retaining transaction
+    evidence across navigation may be important, especially for unresolved
+    submissions. Do not fix this by indiscriminately clearing submission or
+    reconciliation state. Distinguish the operation's identity and lifetime
+    from the current screen, at the shared transaction-feedback owner.
+
+    Implementation: deferred.
+
+32. Agent finding: settlement navigation loses the credited party's context
+
+    Attribution: agent-confirmed after natural acceptance-timeout finalization
+    on 2026-10-29 (local date).
+
+    Reproduction: as fixture arbitrator, finalize the older funded agreement's
+    expired acceptance timeout. The contract correctly refunds the client.
+    From the resulting closed agreement, activate View account credit.
+    The destination is the arbitrator's accountCredit screen, showing zero,
+    rather than the credited client's balance. Switching the fixture wallet
+    to client shows the actual 1000000000000000 wei refund.
+
+    Consequence: following the apparent settlement/withdrawal path does not
+    lead the non-recipient finalizer to the beneficiary's credit. The generic
+    button label does not explain that it opens the currently viewed account.
+
+    Qualification: no funds were misdirected. Both account balances and their
+    labels are accurate. The gap is in task navigation and account scope.
+    This supplies a concrete settlement-flow consequence for issue 24's lack
+    of independent viewing-account selection; it is not a separate money or
+    contract-authorization defect.
+
+    Follow-up: make the credit destination's account explicit and consider
+    a beneficiary-oriented path when that recipient is known. Preserve access
+    to the operator's own credit without silently changing the signing wallet.
+    No route/schema/contract interface change has been selected.
+
+    Implementation: deferred.
+
+33. Agent finding: human agreement identity is buried below its machine ID
+
+    Attribution: agent-measured in the live disputed agreement on 2026-10-29
+    (local date).
+
+    Observation: View and manage an escrow agreement is a generic heading.
+    Agreement ID follows about 65 CSS pixels below it. The client's readable
+    reference, walkthrough-20261028-lifecycle, is about 976 CSS pixels below
+    that heading in the existing 764-CSS-pixel-high viewport. State and role
+    dictionaries, parties, amount, deadline and explanations intervene.
+
+    Consequence: a user opening or comparing records encounters an opaque
+    hash first, while the reference they chose for recognition is below the
+    first screenful of agreement content.
+
+    Follow-up: promote the existing human reference and relevant client
+    identity near the record's heading/ID. Keep the exact agreement ID and
+    acknowledge that references are scoped to a client; do not invent a
+    globally unique name, a new identity field or a viewer ABI-name heuristic.
+
+    Implementation: deferred.
+
+Agent walkthrough coverage and limits
+------------------------------------
+Date: 2026-10-28. Live local viewer at port 5193, chain 31337.
+First pass: inspected accountCredit, createAgreementForm and agreement-not-found through
+the existing browser, including empty-input review/read failures and a valid
+format synthetic ID (0x followed by 64 ones). Inspected normal rendering and
+a temporary 320px device viewport; actual layout viewport was about 291 CSS
+pixels at the browser's existing zoom. Captured and viewed screenshots.
+
+Reconfirmed user issues: task/navigation grouping on credit (14/15), dense
+creation explanations (1/6), numeric recipient entry (12), duplicate digest
+labels (4), and the need to navigate a long form (8). These remain user reports;
+the independent agent findings are explicitly labeled 16-18.
+
+Positive observations: Back restored a temporary creation reference after a
+visit to account credit. Not-found lookup retained the queried ID in its
+correction field. The narrow sample had no document-level horizontal overflow.
+
+No signed actions, agreement creation, file uploads, account switching or
+chain resets. Funded/accepted/submitted/disputed agreement states, successful
+withdrawals, keyboard traversal and assistive-technology behavior were not
+exercised. Pay-to-Play was not browsed in this pass. Viewport override was
+cleared, temporary reference removed and tab returned to accountCredit;
+browser, wallet attachment and chain were left running. No app code changed.
+
+Second pass: additionally exercised document URL failure, correction, successful
+URL hashing, source edits and malformed manual digest entry. The malformed
+digest has a red border, aria-invalid=true and a linked explanatory description;
+that local feedback works. Correcting an invalid URI clears its prior download
+error. Tested native browser Tab/Enter specifically for ID lookup, as recorded
+in issue 20; this is not a complete keyboard or assistive-technology audit.
+Read existing local-chain logs: only root setup/binding events, no agreements
+available for inspecting funded or later lifecycle states without new writes.
+Removed all second-pass test drafts and returned to accountCredit. Issues
+19-20 are agent observations; no implementation or signed actions occurred.
+
+Third pass: tested 366-day duration input against the displayed 365-day
+maximum; the duration group correctly receives red borders, aria-invalid
+and a linked maximum explanation. Prepared a temporary creation transaction
+using read-only simulation, inspected its review at normal/narrow widths,
+edited a reviewed input, then re-prepared and explicitly discarded it.
+No wallet Send/confirmation/signing action occurred. The review receives
+focus and identifies its heading; discard clears its simulation message.
+Issues 21-23 are agent observations with their qualifications above.
+Restored all creation inputs to their initial values, verified no prepared
+transaction/message remained, cleared viewport override and returned to
+accountCredit. Existing chain and wallet attachment remain running.
+
+Fourth pass: tested the attached wallet's client-to-contractor account change
+and restored client. Inspected first entry in a separate temporary background
+tab without a wallet; Back is correctly disabled there. At its existing
+654x764 CSS viewport, Account and agreement reference began around y=557,
+the creation-task heading around y=1074 and Find an existing agreement around
+y=3482. These measurements support the existing navigation/orientation issues
+8 and 17, rather than constituting additional independent findings.
+Closed only the temporary tab and verified the original remains on
+accountCredit with client selected. No transactions occurred. Further
+funded/submitted/disputed coverage needs agreements on this empty local chain;
+the supported opt-in lane is escrow/live/browser/fixture-writes/check, not
+an ad hoc signing script. Permission was requested separately; that lane was
+not run during this read-only pass.
+
+After local-write authorization: ran the supported fixture-write command;
+it failed at package import before any test case. Then attempted creation
+through the ordinary app and attached fixture wallet. A second attempt
+observed the rejected request's field names without changing its bytes.
+Both attempts stopped at the whitelist before wallet broadcast. The client
+nonce was still 0x5 afterward. No agreement was created, so later lifecycle
+states remain unreviewed. Issues 25-26 record these concrete tooling blockers.
+At that point the prepared local draft was retained pending the test-tool
+repair decision; no Fuji action, chain reset or app implementation occurred.
+
+After authorized tooling repairs
+-------------------------------
+The explicit matching-chain regression failed before the repair. The final
+supported JS test lane passed 1,020 tests, including wrong-chain rejection
+before signing and all existing sender/target/calldata/value/gas cases.
+The supported Escrow fixture-write campaign then passed all thirteen cases:
+grant, back-review, wallet-events, chain-navigation, empty-navigation,
+chain-failed-navigation, empty-failed-navigation, held, rejected, lost,
+receipt, refresh and workflow. The run sent nine local fixture
+transactions: one each in lost/receipt/refresh and six in workflow. It closed
+its owned tabs and left the existing walkthrough tab/chain running.
+
+The attached wallet was stopped and restarted through the supported
+viewer/local/fixture-wallet/attach command with the existing demo project.
+It attached to the same target and was reconnected as client. No chain
+deployment or source installation was repeated.
+
+Manual populated-state walkthrough after repair:
+- walkthrough-20261028-lifecycle: created with 0.001 fake ETH and four one-day
+  phases, accepted as contractor, submitted local URL evidence, then disputed
+  as client. Both evidence digests were calculated with the app's URL control
+  from the actual local protocol document. Inspected arbitrator award review
+  and discarded it. The agreement remains disputed for further inspection.
+- Agreement ID for that disputed record:
+  0xc3d1a3a4bb01922924482cc68f4186ec082df55ad15ab4e17559c732ffe0f600
+- walkthrough-20261028-credit: created with the same bounded amount and
+  fixture parties, cancelled as client, inspected the nonzero account credit
+  and its review, then withdrew it to that same client. Confirmed credit=0.
+
+Seven manual local transactions confirmed in blocks 12-18: creation,
+acceptance, submission, dispute, second creation, cancellation and withdrawal.
+The final withdrawal hash is:
+0x711106bf1b48a82f64d5f4fded04a15410bd73b086dc4d567578d2c2fee689b6
+Together with the maintained campaign, sixteen local transactions occurred
+after repair. No Fuji transactions or manual clock advancement/reset occurred.
+
+Live coverage now includes funded, accepted, submitted, disputed, released,
+client-cancelled, nonzero-credit and post-withdrawal screens. Availability
+changed correctly by phase/actor. Closed views correctly have no active
+deadline. The overall UI hierarchy and human summaries remain pending issues,
+as detailed in agent findings 27-30 and the additional issue-21 evidence.
+The runtime browser used is the existing debug Chromium; no full assistive-
+technology, mobile-device or other-engine qualification is claimed.
+
+UI changes remain deferred. The prepared award was discarded, viewport
+override cleared and client restored. The tab is left on the disputed
+walkthrough agreement, with no prepared transaction. The demo and repaired
+wallet bridge remain running; the example records are intentionally retained.
+
+Final repair qualification
+--------------------------
+JS: 1,020 tests passed in the final supported test run. The live supported
+Escrow browser-write campaign exited successfully with thirteen cases and
+nine local transactions. Pay-to-Play's shared request-check/build consumers
+were updated and covered by compilation/unit tests; its live campaign was
+not run in this Escrow walkthrough.
+
+Source: 518 checks ran. The seven failures exactly match the earlier run:
+three silent-default-policy checks, three Bike release snapshot subcases and
+one Escrow release snapshot check. The initial extra note-filename hygiene
+failure was corrected and is absent from the final run. None of the original
+release Make definitions changed. No full-repository green claim is made.
+
+Read back all seven manual transaction receipts from local blocks 12-18:
+every status is successful, each targets the verified local Escrow binding,
+and senders match the relevant fixture client/contractor. Only the two
+creations attach native value (0.001 fake ETH each); the other calls attach
+zero. Final credit is zero, the separate lifecycle record remains disputed,
+and no transaction is left prepared. Application UI changes remain deferred.
+
+Continuation on 2026-10-29 (local date)
+--------------------------------------
+Inspected a naturally expired campaign agreement without changing the clock.
+Its stored state remained funded and Finalize acceptance timeout was the
+available action. Finalized it through the existing attached fixture wallet
+as arbitrator; raw receipt status is successful in block 19 on chain 31337,
+targeting the local Escrow binding with zero attached value. Transaction hash:
+0xd04f13f08e922d519cfc541d1990ae3ed31fe1a966ec10c8ff4b852604976cbc
+The resulting state was refunded.acceptanceTimeout. Confirmed the arbitrator
+had zero credit and the client received 1000000000000000 wei. This is one
+additional manual local transaction: seventeen since the tooling repair.
+
+Exercised withdrawal-review dismissal without withdrawing the new refund.
+The review initially received focus under its heading. After native Enter on
+Discard transaction, focus returned to Current view; the next native Tab
+reached Back with visible focus styling. This targeted keyboard path worked;
+it is not a full keyboard or screen-reader qualification.
+
+Verified retained receipt visibility after opening the separate disputed
+record through the actual Open agreement by ID control. Added agent findings
+31-33; the observed timeout status also extends the human-state wording issue
+29. No app code or additional tooling changes were made in this pass.
+
+Latest state supersedes the earlier zero-credit snapshot: client selected,
+accountCredit open, 0.001 fake ETH of refund credit intentionally available,
+and no transaction prepared. The separate walkthrough lifecycle agreement
+remains disputed. The demo and repaired wallet attachment remain running.
+No Fuji action, manual time advancement or chain reset occurred.
