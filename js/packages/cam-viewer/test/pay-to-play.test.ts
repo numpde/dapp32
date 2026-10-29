@@ -313,7 +313,11 @@ test("signing context precedes the coherent domain, key and message task", async
   assert.equal(context?.props.title, "Account and channel")
   assert(signing?.element === "Screen")
   assert.equal(signing.props.title, "Voucher signing details")
-  assert.deepEqual(signing.children.map(node => { assert(node.element === "Screen"); return node.props.title }), ["Signing domain", "Signing key", "Voucher message"])
+  assert(signing.children.every(node => node.element === "Screen" || node.element === "Text"))
+  assert.deepEqual(signing.children.filter(node => node.element === "Screen").map(node => {
+    assert(node.element === "Screen")
+    return node.props.title
+  }), ["Signing domain", "Signing key", "Voucher message"])
 })
 
 test("account destinations offer navigation with the inspected identity across wallet changes", async () => {
@@ -544,12 +548,10 @@ test("balance and recovery share current readable phase and deadlines before tas
       assert(firstWrite > 1, "current lifecycle facts precede every transaction task")
       assert.equal(status.element, "Screen")
       assert.equal(status.props.title, "Position status")
-      assert.deepEqual(status.children.map(node => {
-        assert.equal(node.element, "Status")
-        return node.props.value
-      }), [phase.toString(), (chainState.refundAt - 60n).toString(), chainState.refundAt.toString()])
-      assert.equal(status.children[0]!.element, "Status")
-      assert.equal("formattedValue" in status.children[0]! && status.children[0]!.formattedValue, label)
+      assert(status.children.every(node => node.element === "Status" || node.element === "Text"))
+      const facts = status.children.filter(node => node.element === "Status")
+      assert.deepEqual(facts.map(node => node.props.value), [phase.toString(), (chainState.refundAt - 60n).toString(), chainState.refundAt.toString()])
+      assert.equal(facts[0]!.formattedValue, label)
       assert.equal(resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === "fund")?.disabled, route === "position" ? phase !== 0n : undefined)
     }
   }

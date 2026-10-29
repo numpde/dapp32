@@ -35,6 +35,12 @@
           },
           "children": [
             {
+              "element": "Text",
+              "props": {
+                "text": "This account’s current deposit and earlier voucher payments are shown separately. The paid total is a running history, rather than money still available to spend."
+              }
+            },
+            {
               "element": "Status",
               "props": {
                 "label": "Current balance (wei)",
@@ -59,7 +65,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Deposits are held by the Pay-to-Play contract. Each account has a separate balance in each channel. A channel sets the payment recipient and withdrawal waiting time."
+                "text": "The settings below apply to everyone using this channel. They set the voucher recipient, the collector allowed to claim payments, and the withdrawal waiting time."
               }
             },
             {
@@ -72,7 +78,7 @@
             {
               "element": "Status",
               "props": {
-                "label": "This channel\u2019s withdrawal wait",
+                "label": "This channel’s withdrawal wait",
                 "value": "$view.claimPeriod",
                 "format": "durationSeconds"
               }
@@ -115,13 +121,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance."
+                "text": "Add money to your balance in this channel so it is available for later payments or withdrawal. Depositing does not pay the recipient or sign a voucher."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "The deposit credits the sender\u2019s balance in this channel, not the recipient. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
+                "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
               }
             },
             {
@@ -196,13 +202,19 @@
             {
               "element": "Text",
               "props": {
-                "text": "A withdrawal request does not set money aside. Vouchers can still spend the deposited balance while you wait. Balance minus withdrawal request subtracts only the request, never goes below zero, and does not subtract unpaid vouchers. A requested amount of 0 means no request."
+                "text": "A withdrawal has two steps: request an amount now, then withdraw or move what remains after the waiting period. Vouchers can still spend the balance while you wait."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel\u2019s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled."
+                "text": "Balance minus withdrawal request subtracts only the request, never goes below zero, and does not subtract unpaid vouchers. A requested amount of 0 means no request."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel’s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled."
               }
             },
             {
@@ -264,7 +276,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request\u2014even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block."
+                "text": "After waiting, choose where the requested funds should go. A withdrawal always pays the owner; a move keeps the same owner and changes only the channel."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block."
               }
             },
             {
@@ -335,7 +353,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Register the address of a signing key you control, never its private key. This choice cannot be changed or cancelled, even after withdrawing all funds. Changing wallet owners or wallet software does not revoke it. The key authorizes voucher payments only; it does not gain control of withdrawals. Keep it secure."
+                "text": "Register a signing-key address so its signatures can authorize voucher payments here. You must keep control of that key: the contract provides no replacement or revocation."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Enter its address, never its private key. This choice cannot be changed or cancelled, even after withdrawing all funds. Changing wallet owners or wallet software does not revoke it. The key authorizes voucher payments only; it does not gain control of withdrawals. Keep it secure."
               }
             },
             {
@@ -381,19 +405,25 @@
             {
               "element": "Text",
               "props": {
-                "text": "Only this channel\u2019s collector can submit a voucher signed by the registered key for this balance owner and channel. Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
+                "text": "Use vouchers to authorize payments from this balance. The registered key signs the payment details outside this app, then the channel’s collector submits the signature to pay the current recipient."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "The invoice hash authenticates the voucher\u2019s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers."
+                "text": "Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "For this owner and channel, the total includes earlier voucher payments. With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Collection stops at the recovery deadline. Old unpaid vouchers can apply again if this position is refunded and later funded in an open channel. Payments go to the current recipient."
+                "text": "Voucher amounts are cumulative. The contract pays only the part of the signed total that has not already been paid, up to the available balance and your transaction limit."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Collection stops at the recovery deadline. Old unpaid vouchers can apply again if this position is refunded and later funded in an open channel. Payments go to the current recipient."
               }
             },
             {
@@ -414,6 +444,12 @@
               "enabledWhen": {
                 "member": "voucherDigest",
                 "in": "$view.actions"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "The invoice hash authenticates the voucher’s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers."
               }
             },
             {
@@ -479,7 +515,7 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Registered key\u2019s voucher signature"
+                "label": "Registered key’s voucher signature"
               },
               "state": {
                 "key": "signature",
@@ -521,6 +557,12 @@
           },
           "children": [
             {
+              "element": "Text",
+              "props": {
+                "text": "Manage this channel’s shared payment addresses here. Changing the recipient or collector affects the whole channel, rather than only the balance you are viewing."
+              }
+            },
+            {
               "element": "Screen",
               "props": {
                 "title": "Change payment recipient"
@@ -529,7 +571,13 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "Only the admin can change the payment recipient. A recipient change redirects unpaid voucher payments from every customer in this channel, including already-signed vouchers. Customer balances and withdrawal waits stay the same."
+                    "text": "This setting chooses who receives voucher payments for all customers in this channel. Changing it also redirects amounts authorized by older signed vouchers."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Only the admin can change the payment recipient. Customer balances and withdrawal waits stay the same."
                   }
                 },
                 {
@@ -576,7 +624,13 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "The admin can change this channel\u2019s collector or set it to zero to pause its collection. Withdrawals and refunds do not require the collector."
+                    "text": "Use the collector setting to decide who may claim voucher payments. Zero pauses collection without making the admin or recipient an implicit replacement."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Only the admin can change this setting. Withdrawals and refunds do not require the collector."
                   }
                 },
                 {
@@ -653,6 +707,12 @@
             {
               "element": "Text",
               "props": {
+                "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
                 "text": "Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs opens the balance without those drafts."
               }
             },
@@ -679,11 +739,23 @@
           },
           "children": [
             {
+              "element": "Text",
+              "props": {
+                "text": "Use these details in an external EIP-712 signer to authorize the voucher. The domain identifies the payment contract, the key must match the registered signer, and the message contains the exact payment fields."
+              }
+            },
+            {
               "element": "Screen",
               "props": {
                 "title": "Signing domain"
               },
               "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "The domain identifies the payment contract and chain that will check this voucher. Use these exact values in the external signer, including the payment contract address."
+                  }
+                },
                 {
                   "element": "Status",
                   "props": {
@@ -730,7 +802,7 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "A zero address means no voucher key is registered for this account and channel."
+                    "text": "The voucher must be signed by the key registered for this account and channel. A zero address means no key has been registered yet."
                   }
                 }
               ]
@@ -765,7 +837,13 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain\u2019s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
+                    "text": "Review the voucher’s exact message before signing. Its total includes earlier voucher payments, and its invoice hash identifies a reference rather than a separate charge."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain’s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
                   }
                 }
               ]
@@ -799,7 +877,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner\u2019s account. Only the channel\u2019s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
+                "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
               }
             },
             {
@@ -880,13 +964,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "A channel keeps a separate balance for each customer. The payment recipient receives voucher payments; only the collector can submit them. A zero collector pauses collection."
+            "text": "Create a new set of payment rules for customers to use. Choose who receives payments, who submits vouchers, and how long customers must wait before withdrawing."
           }
         },
         {
           "element": "Text",
           "props": {
-            "text": "A customer\u2019s ordinary withdrawal request starts this wait. Separately, the same duration is the collector\u2019s final window to claim unpaid vouchers when a customer\u2019s funding cycle ends or their balance is wound down early. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window."
+            "text": "Choose one duration for both the withdrawal wait and the collector’s final claim window. Customers wait it after a withdrawal request; a closing funding cycle uses it before refunds become available. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window."
           }
         },
         {
@@ -964,7 +1048,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Choose the account and channel whose balance you want to open. Changing wallets does not change an already-open balance."
+            "text": "Use this to open your own balance or inspect someone else’s. The account and channel identify the funds; your connected wallet determines your permissions."
           }
         },
         {
@@ -1085,6 +1169,12 @@
               }
             },
             {
+              "element": "Text",
+              "props": {
+                "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
+              }
+            },
+            {
               "element": "Button",
               "props": {
                 "label": "Return to account balance"
@@ -1126,7 +1216,7 @@
             {
               "element": "Status",
               "props": {
-                "label": "Position\u2019s scheduled refund",
+                "label": "Position’s scheduled refund",
                 "value": "$view.scheduledRefundAt",
                 "format": "timestampSeconds",
                 "zeroText": "No active funding cycle"
@@ -1143,7 +1233,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Each funded position operates for 365 days, then enters this channel\u2019s final claim period. At the refund deadline, voucher collection stops and anyone may return the entire remaining balance. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock."
+                "text": "Use recovery to get the remaining balance back when its funding period ends. The refund becomes available at the deadline shown here and goes to the selected recipient."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Each funded position operates for 365 days, then enters this channel’s final claim period. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock."
               }
             },
             {
@@ -1155,7 +1251,13 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "Only the balance owner can renew, and only before settlement begins. A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery. Renewal does not change an ordinary withdrawal request."
+                    "text": "Renew if you want to keep using this funded balance beyond its current operating period. The owner can extend it before settlement starts, without changing an ordinary withdrawal request."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery."
                   }
                 },
                 {
@@ -1186,7 +1288,13 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "Only the balance owner can choose the full-refund recipient. This does not change ordinary withdrawals, which still pay the owner. It changes no deadline or voucher authority. A failed refund retains the balance and can be retried after the owner corrects the recipient."
+                    "text": "Use this if the recovery refund should go somewhere other than the balance owner’s wallet. It changes only the refund destination, not the payment recipient or withdrawal destination."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Only the balance owner can choose the full-refund recipient. It changes no deadline or voucher authority. A failed refund retains the balance and can be retried after the owner corrects the recipient."
                   }
                 },
                 {
@@ -1232,6 +1340,12 @@
                 {
                   "element": "Text",
                   "props": {
+                    "text": "Begin closing this funding cycle before its normal expiry. New funding stops now; a separate refund transaction can return what remains when the deadline is reached."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
                     "text": "The balance owner, admin, or current payee can end this funding cycle early. This immediately stops deposits, incoming moves and renewal. The final claim period cannot be restarted or cancelled; an earlier deadline is preserved. Existing withdrawal entitlements are not postponed."
                   }
                 },
@@ -1271,7 +1385,13 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "A full refund pays only the displayed recipient, never the caller, and clears the withdrawal request and funding cycle. The key and lifetime paid total remain. If the channel is open, later funding starts a new annual cycle and old unpaid vouchers can collect again. Refunding an empty cycle may be necessary before reuse."
+                    "text": "After the refund deadline, anyone can return the entire remaining balance to the recipient shown here. The transaction ends the funding cycle and clears any withdrawal request."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "The key and lifetime paid total remain. If the channel is open, later funding starts a new annual cycle and old unpaid vouchers can collect again. Refunding an empty cycle may be necessary before reuse."
                   }
                 },
                 {
@@ -1321,13 +1441,19 @@
             {
               "element": "Text",
               "props": {
-                "text": "CHANNEL-WIDE, IRREVERSIBLE: the admin or current payee can stop this channel for every customer. New funding stops immediately. After the final claim period, remaining balances are individually refundable; one rejecting recipient cannot block others. The channel ID never reopens. Channel 0 can be retired only by the admin."
+                "text": "Retirement is a channel-wide decision that cannot be reversed. Funds do not move automatically: the final claim period runs first, then remaining balances need separate refunds."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Closing the channel does not send coins or loop over customers. Refund transactions must be submitted separately. Total channel escrow reaches zero only when all accounted customer balances have been collected, withdrawn, moved out, or refunded."
+                "text": "The admin or current payee can stop this channel for every customer. New funding stops immediately. One rejecting refund recipient cannot block others. The channel ID never reopens. Channel 0 can be retired only by the admin."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Total channel escrow reaches zero only when all accounted customer balances have been collected, withdrawn, moved out, or refunded."
               }
             },
             {
@@ -1401,6 +1527,12 @@
       },
       "children": [
         {
+          "element": "Text",
+          "props": {
+            "text": "This shows where the balance is in its funding cycle. The phase and dates tell you when new funding stops and when a full refund becomes available."
+          }
+        },
+        {
           "element": "Status",
           "props": {
             "label": "Position phase",
@@ -1442,6 +1574,12 @@
       },
       "children": [
         {
+          "element": "Text",
+          "props": {
+            "text": "Review the expected payment before sending. It is an estimate, because the balance, paid total or recipient may change before confirmation."
+          }
+        },
+        {
           "element": "Status",
           "props": {
             "label": "Estimated payment (wei; may change before confirmation)",
@@ -1466,6 +1604,12 @@
         "title": "Payment collected"
       },
       "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "This is the payment recorded by the confirmed transaction. The amount and recipient below show the actual collection, rather than the earlier estimate."
+          }
+        },
         {
           "element": "Status",
           "props": {
@@ -1504,6 +1648,12 @@
       },
       "children": [
         {
+          "element": "Text",
+          "props": {
+            "text": "This is a confirmed zero collection. No voucher payment was made, even though the transaction itself completed."
+          }
+        },
+        {
           "element": "Status",
           "props": {
             "label": "Paid (wei)",
@@ -1521,6 +1671,12 @@
         "title": "Channel created"
       },
       "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The confirmed transaction created this channel. Use its recorded ID to open your balance in it; creating a channel does not deposit any funds."
+          }
+        },
         {
           "element": "Status",
           "props": {

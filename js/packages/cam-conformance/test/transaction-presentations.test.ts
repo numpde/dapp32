@@ -41,7 +41,10 @@ test("transaction presentations join real ABI outputs, UI arguments and read-onl
     ["unknown review field", "CAM_ROUTE_INVOCATION_INVALID", "routes.collect.review.extra", root => { object(object(object(root.routes).collect).review).extra = true }],
     ["review call cannot consume outputs", "CAM_ROUTE_EXPRESSION_INVALID", "routes.collect.review.call.args.customer", root => { object(object(object(object(root.routes).collect).review).call).args = { customer: "$outputs.0", channelId: "1", actor: "$account.address" } }],
     ["review wrong output index", "CAM_ROUTE_ABI_MISMATCH", "routes.collect.review.then.args.view.amount", root => { object(object(object(object(root.routes).collect).review).then).args = { view: { amount: "$outputs.0.simulation.99", payee: "$outputs.0.read.0.payee" } } }],
-    ["review wrong value type", "CAM_UI_TYPEFLOW_MISMATCH", "nodes.collectionReview.children.1.props.address", root => { object(object(object(object(root.routes).collect).review).then).args = { view: { amount: "30", payee: "$outputs.0.simulation.0" } } }],
+    ["review wrong value type", "CAM_UI_TYPEFLOW_MISMATCH", "nodes.collectionReview.children.0.props.address", (root, nodes) => {
+      object(object(object(object(root.routes).collect).review).then).args = { view: { amount: "30", payee: "$outputs.0.simulation.0" } }
+      object(nodes.collectionReview).children = [{ element: "Address", props: { label: "Payee", address: "$view.payee" } }]
+    }],
     ["receipt missing event", "CAM_ROUTE_ABI_MISMATCH", "routes.createChannel.receipt.event", root => { object(object(object(root.routes).createChannel).receipt).event = "NotEmitted" }],
     ["receipt unknown argument", "CAM_ROUTE_ABI_MISMATCH", "routes.createChannel.receipt.then.args.view.channelId", root => { object(object(object(object(root.routes).createChannel).receipt).then).args = { view: { channelId: "$outputs.0.unknown", payee: "$outputs.0.payee", customer: "$account.address" } } }],
     ["empty receipt has no outputs", "CAM_ROUTE_EXPRESSION_INVALID", "routes.collect.receipt.empty.args.absent", root => { object(object(object(object(root.routes).collect).receipt).empty).args = { absent: "$outputs.0.amount" } }],

@@ -1,0 +1,389 @@
+Pay-to-Play / Account and channel — balance
+
+Before:
+This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries.
+
+→
+
+After:
+You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here.
+
+Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries.
+
+
+Pay-to-Play / Account and channel — signing
+
+Before:
+Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs opens the balance without those drafts.
+
+→
+
+After:
+You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here.
+
+Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs opens the balance without those drafts.
+
+
+Pay-to-Play / Account and channel — recovery
+
+Before:
+(none)
+
+→
+
+After:
+You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here.
+
+
+Pay-to-Play / Balance overview
+
+Before:
+(none)
+
+→
+
+After:
+This account’s current deposit and earlier voucher payments are shown separately. The paid total is a running history, rather than money still available to spend.
+
+
+Pay-to-Play / Channel
+
+Before:
+Deposits are held by the Pay-to-Play contract. Each account has a separate balance in each channel. A channel sets the payment recipient and withdrawal waiting time.
+
+Channel 0 holds deposits that vouchers cannot spend. Move funds to another channel to make them available for voucher payments. The admin can change the recipient of other channels, including for vouchers already signed.
+
+→
+
+After:
+The settings below apply to everyone using this channel. They set the voucher recipient, the collector allowed to claim payments, and the withdrawal waiting time.
+
+Channel 0 holds deposits that vouchers cannot spend. Move funds to another channel to make them available for voucher payments. The admin can change the recipient of other channels, including for vouchers already signed.
+
+
+Pay-to-Play / Deposit
+
+Before:
+New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance.
+
+The deposit credits the sender’s balance in this channel, not the recipient. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait.
+
+→
+
+After:
+Add money to your balance in this channel so it is available for later payments or withdrawal. Depositing does not pay the recipient or sign a voucher.
+
+New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait.
+
+
+Pay-to-Play / Withdraw or move funds
+
+Before:
+A withdrawal request does not set money aside. Vouchers can still spend the deposited balance while you wait. Balance minus withdrawal request subtracts only the request, never goes below zero, and does not subtract unpaid vouchers. A requested amount of 0 means no request.
+
+Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel’s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled.
+
+When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block.
+
+→
+
+After:
+A withdrawal has two steps: request an amount now, then withdraw or move what remains after the waiting period. Vouchers can still spend the balance while you wait.
+
+Balance minus withdrawal request subtracts only the request, never goes below zero, and does not subtract unpaid vouchers. A requested amount of 0 means no request.
+
+Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel’s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled.
+
+After waiting, choose where the requested funds should go. A withdrawal always pays the owner; a move keeps the same owner and changes only the channel.
+
+When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block.
+
+
+Pay-to-Play / Voucher signing key
+
+Before:
+Register the address of a signing key you control, never its private key. This choice cannot be changed or cancelled, even after withdrawing all funds. Changing wallet owners or wallet software does not revoke it. The key authorizes voucher payments only; it does not gain control of withdrawals. Keep it secure.
+
+→
+
+After:
+Register a signing-key address so its signatures can authorize voucher payments here. You must keep control of that key: the contract provides no replacement or revocation.
+
+Enter its address, never its private key. This choice cannot be changed or cancelled, even after withdrawing all funds. Changing wallet owners or wallet software does not revoke it. The key authorizes voucher payments only; it does not gain control of withdrawals. Keep it secure.
+
+
+Pay-to-Play / Voucher payments
+
+Before:
+Only this channel’s collector can submit a voucher signed by the registered key for this balance owner and channel. Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures.
+
+The invoice hash authenticates the voucher’s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers.
+
+For this owner and channel, the total includes earlier voucher payments. With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Collection stops at the recovery deadline. Old unpaid vouchers can apply again if this position is refunded and later funded in an open channel. Payments go to the current recipient.
+
+The payment limit applies to this transaction. The same signed voucher can be used again for an unpaid remainder.
+
+→
+
+After:
+Use vouchers to authorize payments from this balance. The registered key signs the payment details outside this app, then the channel’s collector submits the signature to pay the current recipient.
+
+Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures.
+
+Voucher amounts are cumulative. The contract pays only the part of the signed total that has not already been paid, up to the available balance and your transaction limit.
+
+With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Collection stops at the recovery deadline. Old unpaid vouchers can apply again if this position is refunded and later funded in an open channel. Payments go to the current recipient.
+
+The invoice hash authenticates the voucher’s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers.
+
+The payment limit applies to this transaction. The same signed voucher can be used again for an unpaid remainder.
+
+
+Pay-to-Play / Channel settings
+
+Before:
+(none)
+
+→
+
+After:
+Manage this channel’s shared payment addresses here. Changing the recipient or collector affects the whole channel, rather than only the balance you are viewing.
+
+
+Pay-to-Play / Change payment recipient
+
+Before:
+Only the admin can change the payment recipient. A recipient change redirects unpaid voucher payments from every customer in this channel, including already-signed vouchers. Customer balances and withdrawal waits stay the same.
+
+→
+
+After:
+This setting chooses who receives voucher payments for all customers in this channel. Changing it also redirects amounts authorized by older signed vouchers.
+
+Only the admin can change the payment recipient. Customer balances and withdrawal waits stay the same.
+
+
+Pay-to-Play / Change collector
+
+Before:
+The admin can change this channel’s collector or set it to zero to pause its collection. Withdrawals and refunds do not require the collector.
+
+→
+
+After:
+Use the collector setting to decide who may claim voucher payments. Zero pauses collection without making the admin or recipient an implicit replacement.
+
+Only the admin can change this setting. Withdrawals and refunds do not require the collector.
+
+
+Pay-to-Play / Open a balance
+
+Before:
+Choose the account and channel whose balance you want to open. Changing wallets does not change an already-open balance.
+
+Channel 0 holds deposits that vouchers cannot spend. Choose another existing channel for voucher payments.
+
+→
+
+After:
+Use this to open your own balance or inspect someone else’s. The account and channel identify the funds; your connected wallet determines your permissions.
+
+Channel 0 holds deposits that vouchers cannot spend. Choose another existing channel for voucher payments.
+
+
+Pay-to-Play / Create a channel
+
+Before:
+A channel keeps a separate balance for each customer. The payment recipient receives voucher payments; only the collector can submit them. A zero collector pauses collection.
+
+A customer’s ordinary withdrawal request starts this wait. Separately, the same duration is the collector’s final window to claim unpaid vouchers when a customer’s funding cycle ends or their balance is wound down early. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window.
+
+→
+
+After:
+Create a new set of payment rules for customers to use. Choose who receives payments, who submits vouchers, and how long customers must wait before withdrawing.
+
+Choose one duration for both the withdrawal wait and the collector’s final claim window. Customers wait it after a withdrawal request; a closing funding cycle uses it before refunds become available. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window.
+
+
+Pay-to-Play / Position status
+
+Before:
+(none)
+
+→
+
+After:
+This shows where the balance is in its funding cycle. The phase and dates tell you when new funding stops and when a full refund becomes available.
+
+
+Pay-to-Play / Balance recovery
+
+Before:
+Each funded position operates for 365 days, then enters this channel’s final claim period. At the refund deadline, voucher collection stops and anyone may return the entire remaining balance. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock.
+
+→
+
+After:
+Use recovery to get the remaining balance back when its funding period ends. The refund becomes available at the deadline shown here and goes to the selected recipient.
+
+Each funded position operates for 365 days, then enters this channel’s final claim period. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock.
+
+
+Pay-to-Play / Renew funding period
+
+Before:
+Only the balance owner can renew, and only before settlement begins. A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery. Renewal does not change an ordinary withdrawal request.
+
+→
+
+After:
+Renew if you want to keep using this funded balance beyond its current operating period. The owner can extend it before settlement starts, without changing an ordinary withdrawal request.
+
+A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery.
+
+
+Pay-to-Play / Choose refund recipient
+
+Before:
+Only the balance owner can choose the full-refund recipient. This does not change ordinary withdrawals, which still pay the owner. It changes no deadline or voucher authority. A failed refund retains the balance and can be retried after the owner corrects the recipient.
+
+→
+
+After:
+Use this if the recovery refund should go somewhere other than the balance owner’s wallet. It changes only the refund destination, not the payment recipient or withdrawal destination.
+
+Only the balance owner can choose the full-refund recipient. It changes no deadline or voucher authority. A failed refund retains the balance and can be retried after the owner corrects the recipient.
+
+
+Pay-to-Play / Start wind-down
+
+Before:
+The balance owner, admin, or current payee can end this funding cycle early. This immediately stops deposits, incoming moves and renewal. The final claim period cannot be restarted or cancelled; an earlier deadline is preserved. Existing withdrawal entitlements are not postponed.
+
+→
+
+After:
+Begin closing this funding cycle before its normal expiry. New funding stops now; a separate refund transaction can return what remains when the deadline is reached.
+
+The balance owner, admin, or current payee can end this funding cycle early. This immediately stops deposits, incoming moves and renewal. The final claim period cannot be restarted or cancelled; an earlier deadline is preserved. Existing withdrawal entitlements are not postponed.
+
+
+Pay-to-Play / Refund balance
+
+Before:
+A full refund pays only the displayed recipient, never the caller, and clears the withdrawal request and funding cycle. The key and lifetime paid total remain. If the channel is open, later funding starts a new annual cycle and old unpaid vouchers can collect again. Refunding an empty cycle may be necessary before reuse.
+
+→
+
+After:
+After the refund deadline, anyone can return the entire remaining balance to the recipient shown here. The transaction ends the funding cycle and clears any withdrawal request.
+
+The key and lifetime paid total remain. If the channel is open, later funding starts a new annual cycle and old unpaid vouchers can collect again. Refunding an empty cycle may be necessary before reuse.
+
+
+Pay-to-Play / Retire this channel
+
+Before:
+CHANNEL-WIDE, IRREVERSIBLE: the admin or current payee can stop this channel for every customer. New funding stops immediately. After the final claim period, remaining balances are individually refundable; one rejecting recipient cannot block others. The channel ID never reopens. Channel 0 can be retired only by the admin.
+
+Closing the channel does not send coins or loop over customers. Refund transactions must be submitted separately. Total channel escrow reaches zero only when all accounted customer balances have been collected, withdrawn, moved out, or refunded.
+
+→
+
+After:
+Retirement is a channel-wide decision that cannot be reversed. Funds do not move automatically: the final claim period runs first, then remaining balances need separate refunds.
+
+The admin or current payee can stop this channel for every customer. New funding stops immediately. One rejecting refund recipient cannot block others. The channel ID never reopens. Channel 0 can be retired only by the admin.
+
+Total channel escrow reaches zero only when all accounted customer balances have been collected, withdrawn, moved out, or refunded.
+
+
+Pay-to-Play / Voucher signing details
+
+Before:
+(none)
+
+→
+
+After:
+Use these details in an external EIP-712 signer to authorize the voucher. The domain identifies the payment contract, the key must match the registered signer, and the message contains the exact payment fields.
+
+
+Pay-to-Play / Signing domain
+
+Before:
+(none)
+
+→
+
+After:
+The domain identifies the payment contract and chain that will check this voucher. Use these exact values in the external signer, including the payment contract address.
+
+
+Pay-to-Play / Signing key
+
+Before:
+A zero address means no voucher key is registered for this account and channel.
+
+→
+
+After:
+The voucher must be signed by the key registered for this account and channel. A zero address means no key has been registered yet.
+
+
+Pay-to-Play / Voucher message
+
+Before:
+Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain’s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices.
+
+→
+
+After:
+Review the voucher’s exact message before signing. Its total includes earlier voucher payments, and its invoice hash identifies a reference rather than a separate charge.
+
+Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain’s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices.
+
+
+Pay-to-Play / collectionReview
+
+Before:
+(none)
+
+→
+
+After:
+Review the expected payment before sending. It is an estimate, because the balance, paid total or recipient may change before confirmation.
+
+
+Pay-to-Play / collectionPaid
+
+Before:
+(none)
+
+→
+
+After:
+This is the payment recorded by the confirmed transaction. The amount and recipient below show the actual collection, rather than the earlier estimate.
+
+
+Pay-to-Play / collectionZero
+
+Before:
+(none)
+
+→
+
+After:
+This is a confirmed zero collection. No voucher payment was made, even though the transaction itself completed.
+
+
+Pay-to-Play / channelCreated
+
+Before:
+(none)
+
+→
+
+After:
+The confirmed transaction created this channel. Use its recorded ID to open your balance in it; creating a channel does not deposit any funds.
