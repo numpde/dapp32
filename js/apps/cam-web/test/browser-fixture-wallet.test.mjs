@@ -3,12 +3,95 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
 import { toFunctionSelector } from 'viem'
-import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import { fixtureWalletDeployment, pinFixtureManifest, selectFixtureWalletTab, fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import escrowWalletConfig from './escrow-fixture-wallet.mjs'
 import payToPlayWalletConfig from './pay-to-play-fixture-wallet.mjs'
+import bikeWalletConfig from './bike-nft-fixture-wallet.mjs'
 const address = `0x${'11'.repeat(20)}`
 const other = `0x${'22'.repeat(20)}`
 const fn = (name, inputs) => ({ type: 'function', name, inputs, outputs: [], stateMutability: 'nonpayable' })
+
+test('a new attachment pins the current publication without changing the recorded deployment', async () => {
+  const { assertFixtureWalletDeployment } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const original = { uri: 'http://127.0.0.1/main.json', sha256Digest: '0x' + '11'.repeat(32) }
+  const current = { ...original, sha256Digest: '0x' + '22'.repeat(32) }
+  const pinned = pinFixtureManifest(original, current)
+  assert.equal(original.sha256Digest, '0x' + '11'.repeat(32))
+  assert.deepEqual(pinned, current)
+  await verifiedFixture({ republished: true })
+  current.sha256Digest = '0x' + '33'.repeat(32)
+  await assert.rejects(assertFixtureWalletDeployment({ manifest: current, expectedManifest: pinned, expectedContracts: {}, readBinding: async () => address }), /hash changed/)
+  for (const invalid of [{ ...current, uri: 'http://other.test/main.json' }, { ...current, sha256Digest: '0x' + '00'.repeat(32) }, { ...current, sha256Digest: 'bad' }]) {
+    assert.throws(() => pinFixtureManifest(original, invalid))
+  }
+})
+
+function savedDeployment(config) {
+  const transactions = ['CamRoot', ...Object.keys(config.contracts)].map((contractName, index) => ({
+    transactionType: 'CREATE', contractName, contractAddress: `0x${String(index + 1).padStart(40, '0')}`,
+    hash: `0x${String(index + 1).padStart(64, '0')}`,
+    arguments: index === 0 ? [address, 'http://127.0.0.1:5193/cam/main.json', `0x${'ab'.repeat(32)}`] : [],
+  }))
+  return { chain: 31337, transactions, receipts: transactions.map(tx => ({
+    transactionHash: tx.hash, contractAddress: tx.contractAddress, status: '0x1',
+  })) }
+}
+
+test('attachment derives each app grant and manifest identity from recorded creations', () => {
+  for (const config of [escrowWalletConfig, payToPlayWalletConfig, bikeWalletConfig]) {
+    const saved = savedDeployment(config)
+    delete saved.receipts
+    saved.transactions.push({ transactionType: 'CALL', contractName: 'CamRoot', contractAddress: other })
+    const deployment = fixtureWalletDeployment(saved, config)
+    assert.equal(deployment.root, saved.transactions[0].contractAddress)
+    assert.equal(deployment.origin, 'http://127.0.0.1:5193')
+    assert.deepEqual(deployment.expectedManifest, { uri: saved.transactions[0].arguments[1], sha256Digest: saved.transactions[0].arguments[2] })
+    assert.deepEqual(Object.keys(deployment.expectedContracts), Object.keys(config.contracts))
+    for (const [name, target] of Object.entries(deployment.expectedContracts)) {
+      assert.equal(target, saved.transactions.find(tx => tx.contractName === name).contractAddress)
+    }
+  }
+})
+
+test('attachment rejects missing or ambiguous saved deployment identities', () => {
+  const corruptions = [
+    saved => { saved.chain = 43113 },
+    saved => { saved.transactions.shift() },
+    saved => { saved.transactions.push(saved.transactions[0]) },
+    saved => { saved.transactions.pop() },
+    saved => { saved.transactions[0].arguments = [] },
+    saved => { saved.transactions[0].arguments[1] = 'https://public.example.test/main.json' },
+    saved => { saved.transactions[0].arguments[2] = 'bad hash' },
+    saved => { saved.transactions[1].contractAddress = '0x' + '0'.repeat(40) },
+  ]
+  for (const corrupt of corruptions) {
+    const saved = savedDeployment(escrowWalletConfig)
+    corrupt(saved)
+    assert.throws(() => fixtureWalletDeployment(saved, escrowWalletConfig))
+  }
+})
+
+test('tab discovery isolates the saved demo and requires a choice for several matches', async () => {
+  const deployment = fixtureWalletDeployment(savedDeployment(escrowWalletConfig), escrowWalletConfig)
+  const url = `${deployment.origin}/?chainId=eip155:31337&host=${deployment.root}`
+  const first = { type: 'page', id: 'first', url: `${url}#route=entry` }
+  const second = { type: 'page', id: 'second', url: `${url}#route=account` }
+  const others = [
+    { ...first, url: url.replace('5193', '5194') },
+    { ...first, url: url.replace('31337', '43113') },
+    { ...first, url: url.replace(deployment.root, other) },
+    { ...first, type: 'service_worker' },
+    { ...first, url: 'about:blank' },
+  ]
+  const noChoice = async () => { throw new Error('A sole match must not require another choice') }
+  assert.equal(await selectFixtureWalletTab([...others, first], deployment, noChoice), first)
+  await assert.rejects(selectFixtureWalletTab(others, deployment, noChoice), /No browser tab matches this demo/)
+  assert.equal(await selectFixtureWalletTab([first, second], deployment, async choices => {
+    assert.deepEqual(choices, [first, second])
+    return second.id
+  }), second)
+  await assert.rejects(selectFixtureWalletTab([first, second], deployment, async () => 'unlisted'), /Choose one of the matching/)
+})
 function install(existing, deploymentFacts) {
   const sent = []
   const elements = new Map()
@@ -393,7 +476,7 @@ test('exact function signatures select only the requested overload and reject re
 })
 
 async function verifiedFixture(overrides) {
-  const { corruptABI, abiOrigin, ...deploymentOverrides } = { corruptABI: false, abiOrigin: 'http://127.0.0.1', ...overrides }
+  const { corruptABI, abiOrigin, republished, ...deploymentOverrides } = { corruptABI: false, abiOrigin: 'http://127.0.0.1', republished: false, ...overrides }
   const { sha256 } = await import('viem')
   const { verifyFixtureWalletDeployment } = await import('../../../tools/browser-fixture-wallet.mjs')
   const managerABI = [fn('register', [{ name: 'id', type: 'uint256' }])]
@@ -402,8 +485,9 @@ async function verifiedFixture(overrides) {
   const abiBytes = { 'http://127.0.0.1/Manager.json': encode(managerABI), 'http://127.0.0.1/Collection.json': encode(collectionABI) }
   const manifestBytes = encode({ namespaces: Object.fromEntries(Object.entries(abiBytes).map(([uri, bytes]) => [`contracts.${uri.endsWith('Manager.json') ? 'Manager' : 'Collection'}`, { type: 'contract', abiURI: uri.replace('http://127.0.0.1', abiOrigin), integrity: 'sha256:'+sha256(bytes) }])) })
   const manifest = { uri: 'http://127.0.0.1/main.json', sha256Digest: sha256(manifestBytes) }
+  const expectedManifest = republished ? pinFixtureManifest({ ...manifest, sha256Digest: '0x' + '11'.repeat(32) }, manifest) : manifest
   const config = { contracts: { Manager: ['register'], Collection: ['transfer'] }, maxValue: 0n, maxGas: 100000n, maxCalldataHexLength: 100 }
-  const grants = await verifyFixtureWalletDeployment({ config, expectedContracts: { Manager: address, Collection: other }, manifest, expectedManifest: manifest, origin: 'http://127.0.0.1', readBytes: async uri => uri === manifest.uri ? manifestBytes : corruptABI ? encode([]) : abiBytes[uri], readBinding: async name => name === 'Manager' ? address : other, readCode: async () => '0x6000', ...deploymentOverrides })
+  const grants = await verifyFixtureWalletDeployment({ config, expectedContracts: { Manager: address, Collection: other }, manifest, expectedManifest, origin: 'http://127.0.0.1', readBytes: async uri => uri === manifest.uri ? manifestBytes : corruptABI ? encode([]) : abiBytes[uri], readBinding: async name => name === 'Manager' ? address : other, readCode: async () => '0x6000', ...deploymentOverrides })
   return { grants, config, managerABI, collectionABI }
 }
 
@@ -447,6 +531,7 @@ test('destination-specific transaction authorization rejects every invalid reque
     { ...valid, gas: '0x0' }, { ...valid, gas: '0x186a1' },
     { ...valid, data: collectionData+'0' }, { ...valid, data: collectionData+'00' }, { ...valid, data: collectionData.slice(0, 10) },
     { ...valid, data: collectionData+'00'.repeat(100) }, { ...valid, nonce: '0x0' },
+    { ...valid, chainId: '0xa869' }, { ...valid, chainId: null },
   ]) await assert.rejects(send(invalid))
   assert.deepEqual(effects, [])
   assert.equal(await send(valid), 'hash')
@@ -455,6 +540,20 @@ test('destination-specific transaction authorization rejects every invalid reque
   assert.equal(effects[0].value, 0n)
   assert.equal(effects[1], 'sign')
   assert.equal(await send({ from: address, to: address, data: managerData }), 'hash')
+})
+
+test('fixture transactions accept an explicit matching chain and reject mismatches before signing', async () => {
+  const { encodeFunctionData } = await import('viem')
+  const { fixtureWalletTransaction } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const { grants, config, collectionABI } = await verifiedFixture({})
+  const tx = { from: address, to: other, data: encodeFunctionData({ abi: collectionABI, functionName: 'transfer', args: [1n] }) }
+  const authorize = supplied => fixtureWalletTransaction({ tx: supplied, account: { address }, chain: { id: 31337 }, config, grants })
+  assert.equal(authorize(tx).chain.id, 31337)
+  assert.equal(authorize({ ...tx, chainId: '0x7a69' }).chain.id, 31337)
+  for (const chainId of ['0xa869', '0x1', '', 'invalid', null, 31337]) {
+    assert.throws(() => authorize({ ...tx, chainId }), /chain/i)
+  }
+  assert.throws(() => authorize({ ...tx, chainId: '0x7a69', nonce: '0x0' }), /field/i)
 })
 
 for (const drift of ['manifest', 'binding']) {

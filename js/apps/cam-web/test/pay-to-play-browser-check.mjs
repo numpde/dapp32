@@ -9,7 +9,7 @@ import { createPublicClient, createWalletClient, decodeEventLog, decodeFunctionD
 import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { browserFixtureFailureDetails, checkFixtureWalletToolbar, createCdpCommands, fixtureSubmissionFailure, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
-import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import { assertFixtureTransactionFields, fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from '../../../tools/pay-to-play-vouchers/protocol.ts'
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
 
@@ -119,7 +119,7 @@ async function bridge(request) {
     assert(Object.hasOwn(accounts, request.role))
     assert.equal(request.params.length, 1)
     const tx = request.params[0]
-    assert(Object.keys(tx).every(key => ['from', 'to', 'data', 'value', 'gas'].includes(key)))
+    assertFixtureTransactionFields(tx, chain)
     assert.equal(tx.from.toLowerCase(), accounts[request.role].address.toLowerCase())
     assert.equal(tx.to.toLowerCase(), payments.toLowerCase())
     assert(/^0x[0-9a-fA-F]+$/.test(tx.data) && tx.data.length <= 4096)

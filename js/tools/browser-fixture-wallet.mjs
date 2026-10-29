@@ -1,7 +1,53 @@
 import { privateKeyToAccount } from 'viem/accounts'
 import assert from 'node:assert/strict'
-import { decodeFunctionData, encodeFunctionData, sha256, toFunctionSelector, toFunctionSignature } from 'viem'
-import { requireSameHttpOrigin } from '@cam/protocol'
+import { decodeFunctionData, encodeFunctionData, sha256, toFunctionSelector, toFunctionSignature, toHex } from 'viem'
+import { requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
+
+// Recorded creations pin the demo's root, origin and contract bindings.
+export function fixtureWalletDeployment(broadcast, config) {
+  assert(broadcast && typeof broadcast === 'object', 'Saved demo deployment must be a JSON object')
+  assert.equal(broadcast.chain, 31337, 'Saved demo deployment must use local chain 31337')
+  assert(Array.isArray(broadcast.transactions), 'Saved demo deployment needs its transaction list')
+  function creation(name) {
+    const matches = broadcast.transactions.filter(tx => tx.transactionType === 'CREATE' && tx.contractName === name)
+    assert.equal(matches.length, 1, `Saved demo deployment must contain one ${name} creation`)
+    const tx = matches[0]
+    assert(typeof tx.contractAddress === 'string' && /^0x[0-9a-fA-F]{40}$/.test(tx.contractAddress) && !/^0x0{40}$/.test(tx.contractAddress), `Saved ${name} address must be nonzero`)
+    return tx
+  }
+  const root = creation('CamRoot')
+  assert(Array.isArray(root.arguments) && root.arguments.length === 3, 'Saved CAM creation must contain its owner, manifest URI and hash')
+  const [, uri, sha256Digest] = root.arguments
+  const manifest = requireHttpURL(uri, 'Recorded CAM manifest')
+  assert(manifest.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(manifest.hostname), 'Recorded demo manifest must use loopback HTTP')
+  assert(typeof sha256Digest === 'string' && /^0x[0-9a-fA-F]{64}$/.test(sha256Digest), 'Saved CAM verification hash must contain 32 bytes')
+  return { root: root.contractAddress, origin: manifest.origin, expectedManifest: { uri, sha256Digest },
+    expectedContracts: Object.fromEntries(Object.keys(config.contracts).map(name => [name, creation(name).contractAddress])) }
+}
+
+// The owner may republish a fixture's CAM without replacing its contracts.
+// Pin that publication once; never refresh grants during an attachment.
+export function pinFixtureManifest(originalManifest, currentManifest) {
+  assert.equal(currentManifest.uri, originalManifest.uri, 'CAM manifest URI changed')
+  assert(/^0x[0-9a-fA-F]{64}$/.test(currentManifest.sha256Digest) && !/^0x0{64}$/.test(currentManifest.sha256Digest), 'Fixture CAM must have a nonzero verification hash')
+  return { uri: currentManifest.uri, sha256Digest: currentManifest.sha256Digest }
+}
+
+export async function selectFixtureWalletTab(tabs, deployment, choose) {
+  assert(Array.isArray(tabs), 'Debug browser did not return its tab list')
+  const matches = tabs.filter(tab => {
+    if (tab.type !== 'page' || !URL.canParse(tab.url)) return false
+    const url = new URL(tab.url)
+    return url.origin === deployment.origin && url.searchParams.get('chainId') === 'eip155:31337'
+      && url.searchParams.get('host')?.toLowerCase() === deployment.root.toLowerCase()
+  })
+  assert(matches.length > 0, `No browser tab matches this demo. Open the URL printed by the demo at ${deployment.origin}, then run attachment again.`)
+  if (matches.length === 1) return matches[0]
+  const id = await choose(matches)
+  const selected = matches.find(tab => tab.id === id)
+  assert(selected, 'Choose one of the matching demo tabs; no wallet was attached')
+  return selected
+}
 
 export function fixtureFunctionSelectors(abi, configuredNames) {
   const configured = new Set()
@@ -63,8 +109,14 @@ export async function verifyFixtureWalletDeployment({ config, expectedContracts,
   return grants
 }
 
+export function assertFixtureTransactionFields(tx, chain) {
+  const unsupported = Object.keys(tx).filter(key => !['from', 'to', 'data', 'value', 'gas', 'chainId'].includes(key))
+  assert.equal(unsupported.length, 0, `Unsupported fixture transaction fields: ${unsupported.join(', ')}`)
+  if (tx.chainId !== undefined) assert.equal(tx.chainId, toHex(chain.id), `Fixture transaction chain must match chain ${chain.id}`)
+}
+
 export function fixtureWalletTransaction({ tx, account, chain, config, grants }) {
-  assert(Object.keys(tx).every(key => ['from', 'to', 'data', 'value', 'gas'].includes(key)), 'Unsupported fixture transaction field')
+  assertFixtureTransactionFields(tx, chain)
   assert.equal(tx.from.toLowerCase(), account.address.toLowerCase(), 'Transaction must use the selected fixture account')
   const grant = grants.get(tx.to.toLowerCase())
   assert(grant !== undefined, 'Transaction target is not granted')

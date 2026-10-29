@@ -9,12 +9,8 @@ services:
     cpus: 1
     environment:
       FIXTURE_WALLET_APP: "${FIXTURE_WALLET_APP:?Select an explicit app fixture}"
-      CDP_TARGET_ID: "${CDP_TARGET_ID:?Select an existing browser tab}"
       CDP_ORIGIN: "${CDP_ORIGIN:?Set the loopback CDP origin}"
-      VIEWER_URL: "${VIEWER_URL:?Set the pinned local viewer URL}"
-      EXPECTED_CAM_URI: "${EXPECTED_CAM_URI:?Set the pinned manifest URI}"
-      EXPECTED_CAM_HASH: "${EXPECTED_CAM_HASH:?Set the pinned manifest hash}"
-      EXPECTED_CONTRACT_ADDRESSES: "${EXPECTED_CONTRACT_ADDRESSES:?Set JSON namespace-to-address pins for every signing target}"
+      FIXTURE_BROADCAST_PATH: "${FIXTURE_BROADCAST_PATH:?Set the saved demo broadcast path}"
     volumes:
       - type: bind
         source: ../js
@@ -28,6 +24,10 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: volume
+        source: demo-broadcast
+        target: /foundry-broadcast
+        read_only: true
     command:
       - run-js-workspace
       - sh
@@ -36,3 +36,8 @@ services:
       - |
         npm run build:packages
         exec node /work/js/tools/browser-fixture-wallet-attach.mjs
+
+volumes:
+  demo-broadcast:
+    external: true
+    name: "${FIXTURE_BROADCAST_VOLUME:?Select an existing demo broadcast volume}"

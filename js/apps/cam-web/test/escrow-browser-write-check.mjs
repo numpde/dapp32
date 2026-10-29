@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 import { createPublicClient, createWalletClient, http, sha256, parseAbi, toHex } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { checkFixtureWalletToolbar, createCdpCommands, fixtureSubmissionFailure, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
-import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import { assertFixtureTransactionFields, fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import walletConfig from './escrow-fixture-wallet.mjs'
 
 function endpoint(value, name, local) {
@@ -81,7 +81,7 @@ const MAX_GAS = 2000000n
 function validatedTransaction(role, tx) {
   assert(Object.hasOwn(accounts, role), 'unknown fixture actor')
   assert(tx && typeof tx === 'object' && !Array.isArray(tx), 'missing transaction')
-  assert(Object.keys(tx).every(key => ['from', 'to', 'data', 'value', 'gas'].includes(key)), 'unsupported transaction field')
+  assertFixtureTransactionFields(tx, chain)
   assert.equal(tx.from?.toLowerCase(), accounts[role].address.toLowerCase(), 'wrong fixture sender')
   assert.equal(tx.to?.toLowerCase(), escrow.toLowerCase(), 'transaction must target pinned Escrow binding')
   assert(/^0x[0-9a-fA-F]+$/.test(tx.data) && tx.data.length <= 16386, 'invalid or oversized call bytes')
@@ -177,7 +177,7 @@ function providerSource() {
     };
   })()`
 }
-const snapshotExpression = `({href:location.href,chainSwitches:window.__fixtureChainSwitches,readReached:window.__fixtureReadReached,text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Viewing as')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled')}))})`
+const snapshotExpression = `({href:location.href,chainSwitches:window.__fixtureChainSwitches,readReached:window.__fixtureReadReached,text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Viewing as')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled'),kind:x.dataset.actionKind})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled'),draft:!!x.closest('.elements')&&!x.readOnly}))})`
 async function waitFor(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30000)
   let state
@@ -247,8 +247,11 @@ async function setupDraft(ref) {
 }
 function assertFrozen(state) {
   assert(state.prepared, 'in-flight submission must retain its review')
-  assert(state.inputs.every(input => input.disabled), 'in-flight transaction must disable all draft inputs')
-  assert(state.buttons.every(button => button.disabled), 'in-flight transaction must disable navigation, wallet and transaction actions')
+  const drafts = state.inputs.filter(input => input.draft)
+  assert(drafts.length > 0 && drafts.every(input => input.disabled), 'in-flight transaction must disable all draft inputs')
+  const actions = state.buttons.filter(button => button.kind !== undefined || ['Send with wallet', 'Discard transaction', 'Back', 'Refresh', 'Reconnect wallet'].includes(button.name))
+  assert(actions.length > 0 && actions.every(button => button.disabled), 'in-flight transaction must disable navigation, wallet and transaction actions')
+  assert(state.buttons.some(button => button.name === 'Copy Viewing as' && !button.disabled), 'read-only address copying must remain available')
 }
 async function nonce() { return BigInt(await rpc('eth_getTransactionCount', [accounts.client.address, 'latest'])) }
 async function agreement(ref) {

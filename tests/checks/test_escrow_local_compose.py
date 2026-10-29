@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -44,6 +45,29 @@ FIXTURE_KEYS = {
 
 
 class EscrowLocalComposeTest(unittest.TestCase):
+    def test_demo_wallet_hint_preserves_default_and_overridden_projects(self) -> None:
+        for app, variable in (
+            ("escrow", "ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME"),
+            ("bike-nft", "BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME"),
+            ("pay-to-play", "PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME"),
+        ):
+            for override in (None, "custom-demo-project"):
+                with self.subTest(app=app, override=override), tempfile.TemporaryDirectory() as directory:
+                    makefile = Path(directory) / "Makefile"
+                    makefile.write_text(
+                        f"include {repo_path('Makefile')}\n.PHONY: wallet-hint\nwallet-hint:\n"
+                        f"\t@viewer_url=http://127.0.0.1:5193/; $(call print_local_demo_ready,{app},{variable})\n"
+                    )
+                    command = ["make", "--no-print-directory", "-f", str(makefile), "wallet-hint", "COMPOSE_PROJECT_NAME=demo-test"]
+                    if override is not None:
+                        command.append(f"{variable}={override}")
+                    result = subprocess.run(command, cwd=repo_path("."), text=True, capture_output=True, check=True)
+                    hint = next(line.strip() for line in result.stdout.splitlines() if line.strip().startswith("make viewer/local/fixture-wallet/attach "))
+                    selections = dict(argument.split("=", 1) for argument in shlex.split(hint)[2:])
+                    self.assertEqual(app, selections["FIXTURE_WALLET_APP"])
+                    self.assertEqual("demo-test", selections["COMPOSE_PROJECT_NAME"])
+                    self.assertEqual(override, selections.get(variable))
+
     def test_all_fixture_consumers_do_not_forward_external_cam_hash(self) -> None:
         for consumer in (SCENARIO, TERMINAL, GUI):
             with self.subTest(consumer=consumer):

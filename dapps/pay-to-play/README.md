@@ -590,17 +590,16 @@ can remove the chain state. The frontend stages source at startup, not by
 mutating the read-only checkout.
 
 Connect a compatible wallet. To attach the existing local test wallet to a tab
-in an already-running CDP browser, use verified deployment values:
+in an already-running CDP browser, use the same project name as the GUI launcher:
 
 ```sh
 make viewer/local/fixture-wallet/attach \
-  FIXTURE_WALLET_APP=pay-to-play CDP_TARGET_ID='<existing-tab-id>' \
-  CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='<printed viewer URL>' \
-  EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json \
-  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESSES='{"PayToPlay":"0x..."}'
+  FIXTURE_WALLET_APP=pay-to-play COMPOSE_PROJECT_NAME=dapps \
+  CDP_ORIGIN=http://127.0.0.1:9222
 ```
 
-The attachment verifies the tab/origin/host/chain/manifest/contract and refuses
+The attachment reads the demo's saved deployment and selects its existing tab;
+several matching tabs prompt for a choice. It verifies the tab/origin/host/chain/manifest/contract and refuses
 an existing wallet. It starts no browser or chain. Its account names are public
 fixture identities, not permissions. The existing attachment's transaction
 allowlist includes payment, ordinary withdrawal and recovery operations, scoped

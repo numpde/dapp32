@@ -60,5 +60,5 @@ services:
       - -eu
       - -c
       - |
-        npm run build -w @cam/protocol
+        npm run build:packages
         exec node /work/js/apps/cam-web/test/escrow-browser-write-check.mjs

@@ -48,15 +48,14 @@ foreground attachment running alongside the demo:
 
 ```sh
 make viewer/local/fixture-wallet/attach \
-  FIXTURE_WALLET_APP=bike-nft CDP_TARGET_ID='<existing-tab-id>' \
-  CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='<printed viewer URL>' \
-  EXPECTED_CAM_URI='<camManifest URI>' EXPECTED_CAM_HASH=0x... \
-  EXPECTED_CONTRACT_ADDRESSES='{"BicycleComponentManager":"0x...","BicycleComponents":"0x..."}'
+  FIXTURE_WALLET_APP=bike-nft COMPOSE_PROJECT_NAME=dapps \
+  CDP_ORIGIN=http://127.0.0.1:9222
 ```
 
-Read the manifest URI and SHA-256 digest from `camManifest()` on the printed CAM
-host, and the two addresses from its `contractAddress(string)` bindings. Use the
-namespace names shown above without the `contracts.` prefix.
+Use the same project name as the GUI launcher. The attachment reads its saved
+deployment records and selects the matching existing tab, offering a choice if
+several tabs match. It verifies the recorded manifest and contract bindings
+against the running chain before installing the wallet.
 
 Connect the app wallet after attachment. Its selector starts as **seller** and
 also offers **mechanic** and **buyer**, using the public `ba`, `bd` and `bc`

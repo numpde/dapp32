@@ -4,11 +4,13 @@
 <p>Use public test accounts in an existing local app tab without a wallet extension. Choose an account in the selector; the app receives a wallet-account change and rechecks its actions. The contract still enforces permissions.</p>
 <h2>Attach to an existing tab</h2>
 <pre>make viewer/local/fixture-wallet/attach \
-  FIXTURE_WALLET_APP=pay-to-play CDP_TARGET_ID=&lt;existing-tab-id&gt; \
-  CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='&lt;viewer URL&gt;' \
-  EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json \
-  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESSES='{"PayToPlay":"0x..."}'</pre>
-<p>Use <code>pay-to-play</code>, <code>escrow</code> or <code>bike-nft</code>. Pin <code>PayToPlay</code> for payments, <code>CamEscrow</code> for escrow, or both <code>BicycleComponentManager</code> and <code>BicycleComponents</code> for Bike. The JSON object must contain exactly the configured signing targets. The tab, local origin, app host, chain 31337, manifest hash, ABI integrity and each deployed contract binding must match the supplied pins. The tool rechecks manifest identity and bindings before signing and broadcasting. It refuses a tab that already has a wallet. It does not start or stop the browser, app or chain.</p>
+  FIXTURE_WALLET_APP=escrow \
+  COMPOSE_PROJECT_NAME=dapps \
+  CDP_ORIGIN=http://127.0.0.1:9222</pre>
+<p>Use <code>pay-to-play</code>, <code>escrow</code> or <code>bike-nft</code> and the same <code>COMPOSE_PROJECT_NAME</code> used to start that demo. The default project name is <code>dapps</code>. The command reads the demo's existing deployment volume without changing it; missing records fail without creating a replacement volume.</p>
+<p>The saved deployment supplies the CAM host, manifest URI and granted contract addresses. Attachment finds the existing browser tab for that origin, host and local chain 31337. A sole match is selected automatically; several matches prompt for a choice in your terminal. Open the URL printed by the demo first. No browser tab IDs, viewer URLs or contract pins need to be copied.</p>
+<p>Attachment verifies and pins the current manifest hash from the contract, checks the downloaded manifest and ABI hashes, and requires the original contract bindings. It rechecks those pins before signing and broadcasting. It refuses a tab that already has a wallet. It does not start or stop the browser, app or chain.</p>
+<p>After editing a demo, run its <code>local/demo/gui/refresh</code> Make target with the same project and GUI settings. This rebuilds the viewer, validates the CAM files and updates their on-chain hash with the public fixture account when needed. Contracts and balances stay in place; original deployment records are retained. Reload the page, then stop and rerun wallet attachment if its manifest pin changed.</p>
 <h2>Use the selector</h2>
 <p>Choose <strong>Connect wallet</strong> in the app after attachment. The selector chooses the active account; <strong>Reconnect wallet</strong> asks the app to connect again using that account. A transaction’s <strong>Send with wallet</strong> button asks for browser confirmation. Confirming signs and submits immediately using the selected public test account. Voucher signatures must still be created in a separate signer.</p>
 <p>Keep this foreground process running. Reloading the page resets the selector to the app’s configured initial account and requires connecting again. Ctrl-C removes the test wallet and selector and leaves the tab open. It rejects pending requests and prevents new signing or submission phases. A transaction already submitted cannot be undone. If the process is forcibly killed, reload the tab before attaching again so a leftover page wallet does not remain without its signing process.</p>

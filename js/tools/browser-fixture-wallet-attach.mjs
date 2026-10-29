@@ -1,10 +1,12 @@
 // Foreground local-fixture signer for one operator-selected existing browser tab.
 import assert from 'node:assert/strict'
+import { createInterface } from 'node:readline/promises'
 import { createPublicClient, createWalletClient, http, parseAbi } from 'viem'
-import { requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from '@cam/protocol'
+import { parseJsonBytes, requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from '@cam/protocol'
 import { viewerErrorMessage } from '@cam/viewer'
+import { readBoundedRegularFile } from './release-files.ts'
 import { createFixtureFactsReader } from './browser-fixture-facts.mjs'
-import { assertFixtureWalletDeployment, verifyFixtureWalletDeployment, fixtureWalletTransaction, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
+import { fixtureWalletDeployment, pinFixtureManifest, selectFixtureWalletTab, assertFixtureWalletDeployment, verifyFixtureWalletDeployment, fixtureWalletTransaction, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
 import { createCdpCommands, fixtureSubmissionFailure, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
 
 let phase = 'validating app account configuration'
@@ -14,29 +16,41 @@ async function main() {
   const config = (await import(`../apps/cam-web/test/${app}-fixture-wallet.mjs`)).default
   let accounts
   try { accounts = fixtureWalletAccounts(config.accounts) } catch (error) { process.stderr.write(`Cannot configure the fixture wallet: ${error.message}\n`); process.exitCode = 1; return }
-  phase = 'validating the pinned local deployment'
+  phase = 'reading the saved demo deployment'
   assert(Object.hasOwn(accounts, config.initialRole), 'Initial fixture account is missing')
+  const deployment = fixtureWalletDeployment(parseJsonBytes(await readBoundedRegularFile(process.env.FIXTURE_BROADCAST_PATH, 'saved demo deployment', 1048576)), config)
   function localURL(value, name) {
     const url = requireHttpURL(value, name)
     assert(url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname), `${name} must use loopback HTTP`)
     return url
   }
-  const viewer = localURL(process.env.VIEWER_URL, 'VIEWER_URL')
   const cdp = localURL(process.env.CDP_ORIGIN, 'CDP_ORIGIN')
   assert(cdp.pathname === '/' && !cdp.search && !cdp.hash, 'CDP_ORIGIN must be an origin')
-  assert.equal(viewer.searchParams.get('chainId'), 'eip155:31337')
-  const root = viewer.searchParams.get('host')
-  assert(/^0x[0-9a-fA-F]{40}$/.test(root), 'VIEWER_URL must name a CAM host')
-  const expectedContracts = JSON.parse(process.env.EXPECTED_CONTRACT_ADDRESSES)
-  const targetId = process.env.CDP_TARGET_ID
-  assert(/^[A-Fa-f0-9]{32}$/.test(targetId), 'CDP_TARGET_ID must select one existing tab')
-  const rpcURL = localURL(viewer.searchParams.get('rpcUrl'), 'Viewer RPC')
-  requireSameHttpOrigin(rpcURL.href, viewer.origin, 'Viewer RPC')
   async function bytes(url) {
     const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(10000) })
     assert(response.ok, 'Fixture HTTP request failed')
     return new Uint8Array(await readBoundedResponseBytes(response, String(url), 1048576))
   }
+  phase = 'selecting an existing demo tab'
+  const target = await selectFixtureWalletTab(JSON.parse(new TextDecoder().decode(await bytes(new URL('/json/list', cdp)))), deployment, async matches => {
+    assert(process.stdin.isTTY, 'Several demo tabs match. Run attachment in an interactive terminal to choose one.')
+    const terminal = createInterface({ input: process.stdin, output: process.stderr })
+    try {
+      matches.forEach((tab, index) => process.stderr.write(`${index + 1}. ${JSON.stringify(tab.url)}\n`))
+      const choice = await terminal.question('Choose a demo tab (0 to cancel): ')
+      if (choice === '0') throw new Error('Wallet attachment cancelled; no wallet was attached')
+      assert(/^[1-9][0-9]*$/.test(choice), 'Enter a listed tab number')
+      return matches[Number(choice) - 1]?.id
+    } finally { terminal.close() }
+  })
+  const viewer = localURL(target.url, 'Demo tab URL')
+  const targetId = target.id
+  assert(/^[A-Fa-f0-9]{32}$/.test(targetId), 'Debug browser returned an invalid tab ID')
+  const { root, expectedContracts } = deployment
+  const rpcURL = localURL(viewer.searchParams.get('rpcUrl'), 'Viewer RPC')
+  requireSameHttpOrigin(rpcURL.href, viewer.origin, 'Viewer RPC')
+  process.stderr.write(`Attaching the ${app} test wallet to tab ${targetId} at ${viewer.origin}.\n`)
+  phase = 'validating the saved deployment against the local chain'
   const chain = { id: 31337, name: 'Local fixture', nativeCurrency: { name: 'Native asset', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcURL.href] } } }
   const publicClient = createPublicClient({ chain, transport: http(rpcURL.href, { timeout: 10000, retryCount: 0 }) })
   async function assertChain() { assert.equal(await publicClient.getChainId(), 31337, 'RPC must remain fixture chain 31337') }
@@ -44,7 +58,7 @@ async function main() {
   const rootABI = parseAbi(['function camManifest() view returns ((string uri,bytes32 sha256Digest))', 'function contractAddress(string) view returns (address)'])
   const readManifest = () => publicClient.readContract({ address: root, abi: rootABI, functionName: 'camManifest' })
   const readBinding = namespace => publicClient.readContract({ address: root, abi: rootABI, functionName: 'contractAddress', args: [namespace] })
-  const expectedManifest = { uri: process.env.EXPECTED_CAM_URI, sha256Digest: process.env.EXPECTED_CAM_HASH }
+  const expectedManifest = pinFixtureManifest(deployment.expectedManifest, await readManifest())
   const grants = await verifyFixtureWalletDeployment({ config, expectedContracts, manifest: await readManifest(), expectedManifest, origin: viewer.origin, readBytes: bytes, readBinding, readCode: address => publicClient.getCode({ address }) })
   const inspectionContracts = Object.fromEntries(Object.entries(expectedContracts).map(([name, address]) => [name, { address, abi: grants.get(address.toLowerCase()).inspectionABI }]))
   const wallets = Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, createWalletClient({ account, chain, transport: http(rpcURL.href, { timeout: 10000, retryCount: 0 }) })]))
@@ -165,6 +179,6 @@ async function main() {
 }
 main().catch(failure => {
   if (failure instanceof AggregateError) process.stderr.write(failure.message+'\n')
-  process.stderr.write(`Cannot maintain the local fixture wallet during ${phase}. Verify the selected tab and pinned local deployment.\n`)
+  process.stderr.write(`Cannot attach or maintain the local fixture wallet during ${phase}: ${viewerErrorMessage(failure)}\n`)
   process.exitCode = 1
 })

@@ -896,11 +896,11 @@ help:
 	  '  make pay-to-play/live/browser/check            Send signed local transactions and test payment/recovery workflows.' \
 	  '    These two checks change demo state and spend local test coins on gas.' \
 	  '  make viewer/local/fixture-wallet/attach        Sign and send transactions requested by an existing demo tab.' \
-	  '    For attach, set FIXTURE_WALLET_APP=escrow, pay-to-play or bike-nft and CDP_TARGET_ID to that existing tab ID.' \
-	  '    EXPECTED_CONTRACT_ADDRESSES is a JSON object mapping every granted namespace to its address. Keep attach running.' \
-	  '    The app README gives the contract binding and full browser setup commands.' \
+	  '    For attach, set FIXTURE_WALLET_APP=escrow, pay-to-play or bike-nft, CDP_ORIGIN, and the same COMPOSE_PROJECT_NAME used to launch the demo.' \
+	  '    Reads that demo deployment volume read-only; finds its existing tab or offers a choice of matching tabs.' \
+	  '    Contract and manifest pins come from the saved deployment. Keep attach running.' \
 	  '    Confirming a Send prompt in the browser immediately signs and submits that local transaction.' \
-	  '    Find tab IDs at the debugging origin /json/list. The signer is for local chain 31337 only.' \
+	  '    The signer is for local chain 31337 only; no tab IDs or contract pins need to be copied.' \
 	  '' \
 	  'Sign a local Pay-to-Play voucher without sending it:' \
 	  '  make pay-to-play/local/voucher/sign' \
@@ -1980,6 +1980,10 @@ bike-nft/local/demo/terminal/down:
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME),$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES),0)
 
+define print_local_demo_ready
+printf '\n%s\n\nAttach the local test wallet from another terminal (existing debug browser):\n  make viewer/local/fixture-wallet/attach FIXTURE_WALLET_APP=%s COMPOSE_PROJECT_NAME=%s%s CDP_ORIGIN=http://127.0.0.1:9222\n\n' "$$viewer_url" "$(1)" "$(COMPOSE_PROJECT_NAME)" "$(if $(filter $(COMPOSE_PROJECT_NAME)-$(1)-viewer-gui,$($(2))),, $(2)=$($(2)))"
+endef
+
 bike-nft/local/demo/gui/up: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_GUI_BIND_GUARD); \
@@ -2001,7 +2005,7 @@ bike-nft/local/demo/gui/up: dapps/deps/verify
 	    $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
 	    run --build --rm --no-deps -T bike-nft-viewer-url \
 	)"; \
-	printf '\n%s\n\n' "$$viewer_url"; \
+	$(call print_local_demo_ready,bike-nft,BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME); \
 	$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
 	  up --build --force-recreate --abort-on-container-exit cam-web bike-nft-browser-gateway
@@ -2062,7 +2066,7 @@ escrow/local/demo/gui/up: dapps/deps/verify
 	    $(ESCROW_VIEWER_GUI_COMPOSE_FILES) \
 	    run --build --rm --no-deps -T escrow-viewer-url \
 	)"; \
-	printf '\n%s\n\n' "$$viewer_url"; \
+	$(call print_local_demo_ready,escrow,ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME); \
 	$(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(ESCROW_VIEWER_GUI_COMPOSE_FILES) \
 	  up --build --force-recreate --abort-on-container-exit cam-web escrow-browser-gateway
@@ -2237,7 +2241,7 @@ pay-to-play/local/demo/gui/up: dapps/deps/verify
 	    $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
 	    run --build --rm --no-deps -T pay-to-play-viewer-url \
 	)"; \
-	printf '\n%s\n\n' "$$viewer_url"; \
+	$(call print_local_demo_ready,pay-to-play,PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME); \
 	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
 	  up --build --force-recreate --abort-on-container-exit cam-web pay-to-play-browser-gateway
@@ -2288,11 +2292,15 @@ pay-to-play/live/browser/check:
 viewer/local/fixture-wallet/attach:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	FIXTURE_WALLET_APP="$${FIXTURE_WALLET_APP:?Set FIXTURE_WALLET_APP}" CDP_TARGET_ID="$${CDP_TARGET_ID:?Set CDP_TARGET_ID}" \
-	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
-	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
-	EXPECTED_CONTRACT_ADDRESSES="$${EXPECTED_CONTRACT_ADDRESSES:?Set EXPECTED_CONTRACT_ADDRESSES}" \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/browser-fixture-wallet.yml run --build --rm --no-deps -T browser-fixture-wallet
+	case "$${FIXTURE_WALLET_APP:?Set FIXTURE_WALLET_APP to escrow, pay-to-play or bike-nft}" in \
+	  escrow) FIXTURE_BROADCAST_VOLUME="$(ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME)_escrow_broadcast"; FIXTURE_BROADCAST_PATH="$(ESCROW_BROADCAST_PATH)" ;; \
+	  pay-to-play) FIXTURE_BROADCAST_VOLUME="$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME)_pay-to-play_broadcast"; FIXTURE_BROADCAST_PATH="$(PAY_TO_PLAY_BROADCAST_PATH)" ;; \
+	  bike-nft) FIXTURE_BROADCAST_VOLUME="$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME)_bike_nft_broadcast"; FIXTURE_BROADCAST_PATH="$(BIKE_NFT_BROADCAST_PATH)" ;; \
+	  *) printf '%s\n' 'FIXTURE_WALLET_APP must be escrow, pay-to-play or bike-nft.' >&2; exit 2 ;; \
+	esac; \
+	export FIXTURE_BROADCAST_VOLUME FIXTURE_BROADCAST_PATH; \
+	FIXTURE_WALLET_APP="$$FIXTURE_WALLET_APP" CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/browser-fixture-wallet.yml run --build --rm --no-deps browser-fixture-wallet
 export REFUND_CONFIG_FILE RPC_URL_FILE REFUND_PRIVATE_KEY_FILE REFUND_STATE_DIR
 .PHONY: pay-to-play/local/recovery/run pay-to-play/refunds/check pay-to-play/refunds/plan pay-to-play/refunds/run
 REFUND_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/refunds/check.yml

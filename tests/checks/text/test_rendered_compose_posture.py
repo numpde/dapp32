@@ -250,6 +250,20 @@ def compose_config_process(
 
 
 class RenderedComposePostureTest(unittest.TestCase):
+    def test_fixture_wallet_reads_existing_demo_records_without_manual_pins(self) -> None:
+        config = rendered_compose_config("compose/browser-fixture-wallet.yml", env=compose_render_env())
+        service = compose_service(config, "browser-fixture-wallet")
+        volume = config["volumes"]["demo-broadcast"]
+        self.assertIs(volume["external"], True)
+        self.assertEqual(RENDERED_COMPOSE_FIXTURE_ENV["FIXTURE_BROADCAST_VOLUME"], volume["name"])
+        mounts = [mount for mount in service["volumes"] if mount["target"] == "/foundry-broadcast"]
+        self.assertEqual(1, len(mounts))
+        self.assertIs(mounts[0]["read_only"], True)
+        self.assertEqual("volume", mounts[0]["type"])
+        environment = compose_mapping(service, "environment")
+        self.assertEqual(RENDERED_COMPOSE_FIXTURE_ENV["FIXTURE_BROADCAST_PATH"], environment["FIXTURE_BROADCAST_PATH"])
+        self.assertTrue(all(name not in environment for name in ("EXPECTED_CAM_URI", "EXPECTED_CAM_HASH", "EXPECTED_CONTRACT_ADDRESSES", "VIEWER_URL", "CDP_TARGET_ID")))
+
     def test_public_source_publication_separates_private_inputs_from_network(self) -> None:
         services = rendered_compose_config("compose/release/source-publication.yml")["services"]
         prepare = services["source-prepare"]
@@ -423,7 +437,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual(1.0, service["cpus"])
         self.assertNotIn("ports", service)
         self.assertEqual(
-            ["run-js-workspace", "sh", "-eu", "-c", "npm run build -w @cam/protocol\nexec node /work/js/apps/cam-web/test/escrow-browser-write-check.mjs\n"],
+            ["run-js-workspace", "sh", "-eu", "-c", "npm run build:packages\nexec node /work/js/apps/cam-web/test/escrow-browser-write-check.mjs\n"],
             service["command"],
         )
         self.assertEqual(
