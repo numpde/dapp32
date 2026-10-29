@@ -387,6 +387,7 @@ summary:focus-visible {
 .address-input { display: grid; gap: 7px; min-width: 0; margin-block: 16px; }
 .address-input > label { color: var(--muted); font-size: 0.86rem; }
 .address-control { display: flex; min-width: 0; border: 1px solid var(--control-border); border-radius: 6px; background: #fbfcfe; }
+.address-control:has(input[aria-invalid="true"]) { border-color: var(--danger); }
 .address-entry { position: relative; flex: 1; min-width: 0; }
 .address-entry > input { border: 0; background: transparent; }
 .address-entry[data-compact="true"] > input { color: transparent; }

@@ -43,6 +43,7 @@ export function AddressInput({ name, label, value, disabled, onInput }: {
       <Autocomplete.InputGroup className="address-control">
         <div className="address-entry" data-compact={compact}>
           <Autocomplete.Input id={inputId} name={name} autoCapitalize="none" spellCheck={false}
+            aria-invalid={value !== "" && !isAbiAddressValue(value)}
             onFocus={() => setEditing(true)}
             onChange={event => { edited.current = event.currentTarget.value }}
             onBlur={() => {

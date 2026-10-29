@@ -104,6 +104,11 @@ async function checkKnownAddresses({ call, evaluate, wait }) {
   await edit('arbitrator', '0xabc')
   await evaluate(`${input}.blur()`)
   assert.equal(await evaluate(`${input}.value`), '0xabc', 'custom incomplete text is not silently replaced on blur')
+  for (const [value, invalid] of [['0xabc', true], ['not an address', true], ['', false], [entered, false]]) {
+    await edit('arbitrator', value)
+    await wait(`${input}.getAttribute('aria-invalid')===${JSON.stringify(String(invalid))}`)
+    assert.equal(await evaluate(`(()=>{const bar=${input}.closest('.address-control'),probe=document.createElement('span');probe.style.color='var(--danger)';bar.append(probe);const red=getComputedStyle(probe).color;probe.remove();return getComputedStyle(bar).borderTopColor===red})()`), invalid, 'only nonempty malformed addresses have a red field border')
+  }
   await evaluate('connectionFixture.state.holdPublicRead=true')
   const beforeRefresh = await evaluate('connectionFixture.state.subjects.length')
   await evaluate(`[...document.querySelectorAll('.ui-meta>button')].find(button=>button.textContent==='Refresh').click()`)
