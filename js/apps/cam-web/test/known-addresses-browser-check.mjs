@@ -93,6 +93,7 @@ async function checkKnownAddresses({ call, evaluate, wait }) {
     await evaluate(`${input}.blur()`)
     await wait(`!!${input}.closest('.address-control').querySelector('.address-display')`)
     assert(await evaluate(`${input}.closest('.address-control').querySelector('.address-display code').textContent===${JSON.stringify(entered)}`), 'the compact display retains the exact identifier once')
+    assert(await evaluate(`(()=>{const code=${input}.closest('.address-control').querySelector('.address-display code'),style=getComputedStyle(code),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');ctx.font=style.font;return Math.abs(code.querySelector('.hex-middle').getBoundingClientRect().width-ctx.measureText('...').width)<1})()`), 'the compact ellipsis reserves only its rendered width, without a gap before the suffix')
     await evaluate(`${input}.focus()`)
     await wait(`!${input}.closest('.address-control').querySelector('.address-display')`)
     const doc = await call('DOM.getDocument', {})
@@ -108,6 +109,7 @@ async function checkKnownAddresses({ call, evaluate, wait }) {
     await edit('arbitrator', value)
     await wait(`${input}.getAttribute('aria-invalid')===${JSON.stringify(String(invalid))}`)
     assert.equal(await evaluate(`(()=>{const bar=${input}.closest('.address-control'),probe=document.createElement('span');probe.style.color='var(--danger)';bar.append(probe);const red=getComputedStyle(probe).color;probe.remove();return getComputedStyle(bar).borderTopColor===red})()`), invalid, 'only nonempty malformed addresses have a red field border')
+    assert(await evaluate(`(()=>{const bar=${input}.closest('.address-control'),style=getComputedStyle(bar);return parseFloat(style.outlineWidth)>0&&getComputedStyle(${input}).outlineStyle==='none'&&(${invalid} ? style.outlineColor===style.borderTopColor : true)})()`), 'focus surrounds the whole address control and uses red for invalid input')
   }
   await evaluate('connectionFixture.state.holdPublicRead=true')
   const beforeRefresh = await evaluate('connectionFixture.state.subjects.length')
