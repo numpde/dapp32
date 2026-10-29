@@ -1339,12 +1339,12 @@ test("ChoiceField keeps ordered literal options and exact state through Includes
 })
 
 test("ChoiceField rejects unusable options and defaults instead of making an implicit selection", () => {
-  const declaration = (options: unknown, defaultValue: unknown = "1") => ({ ui: UI_VERSION, nodes: { input: {
+  const declaration = (options: unknown, defaultValue: unknown) => ({ ui: UI_VERSION, nodes: { input: {
     requires: [], element: "ChoiceField", props: { label: "Recipient", options }, state: { key: "recipient", defaultValue },
   } } })
   for (const options of [[], "$view.options", [{ value: "1", label: "" }], [{ value: "", label: "Client" }],
     [{ value: "1", label: "Client", extra: true }], [{ value: "1", label: "Client" }, { value: "1", label: "Other" }]]) {
-    assert.throws(() => parseUi(declaration(options)), UiError)
+    assert.throws(() => parseUi(declaration(options, "1")), UiError)
   }
   const options = [{ value: "1", label: "Party" }, { value: "2", label: "Party" }]
   const ui = parseUi(declaration(options, "3"))

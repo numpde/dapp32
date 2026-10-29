@@ -277,7 +277,7 @@ button.resource-load[aria-busy="true"] { color: var(--accent); background: linea
 button:disabled,
 input:disabled,
 textarea:disabled,
-:is(.field, .address-input) > select:disabled {
+:is(.field, .address-control) > select:disabled {
   color: var(--muted);
   border-color: var(--line);
   background: #edf2f6;
@@ -384,8 +384,15 @@ summary:focus-visible {
   .connection-facts > .key-value > dt { flex-basis: 100%; }
 }
 
-.address-input { display: grid; gap: 8px; min-width: 0; margin-block: 16px; }
-.address-input > .field { margin: 0; }
-.address-input > select { width: 100%; min-width: 0; font: inherit; color: inherit; padding: 8px; border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); }
+.address-input { display: grid; gap: 7px; min-width: 0; margin-block: 16px; }
+.address-input > label { color: var(--muted); font-size: 0.86rem; }
+.address-control { display: flex; min-width: 0; border: 1px solid var(--control-border); border-radius: 6px; background: #fbfcfe; }
+.address-entry { position: relative; flex: 1; min-width: 0; }
+.address-entry > input { border: 0; background: transparent; }
+.address-entry[data-compact="true"] > input { color: transparent; }
+.address-display { position: absolute; inset: 0; display: flex; align-items: center; padding-inline: 11px; pointer-events: none; overflow: hidden; }
+.address-display > code { font: inherit; white-space: nowrap; }
+.address-entry > input:disabled + .address-display { color: var(--muted); }
+.address-control > select { flex: 0 0 40px; width: 40px; min-width: 0; border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent; color: inherit; font: inherit; }
 
 .field > select { width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }

@@ -1,7 +1,9 @@
-import { createContext, useContext, useRef, useState } from "react"
+import { createContext, useContext, useId, useRef, useState } from "react"
 import type { ReactElement, ReactNode } from "react"
 import { addressSuggestions, enteredAddresses } from "./known-addresses.ts"
 import type { KnownAddress } from "./known-addresses.ts"
+import { isAbiAddressValue } from "@cam/protocol"
+import { HexText, abbreviatedHex } from "./hex-value.tsx"
 import { displayText } from "./display.ts"
 
 const KnownAddresses = createContext<{
@@ -29,20 +31,28 @@ export function AddressInput({ name, label, value, disabled, onInput }: {
 }): ReactElement {
   const { suggestions, remember } = useContext(KnownAddresses)
   const edited = useRef<string | undefined>(undefined)
+  const [editing, setEditing] = useState(false)
+  const inputId = useId()
+  const compact = !editing && isAbiAddressValue(value)
   return <div className="address-input">
-    <label className="field">
-      <span>{displayText(label)}</span>
-      <input name={name} value={value} disabled={disabled} autoCapitalize="none" spellCheck={false}
-        onChange={event => { edited.current = event.currentTarget.value; onInput(name, event.currentTarget.value) }}
-        onBlur={() => {
-          if (edited.current === value && !disabled) remember({ address: value, label: `Entered in: ${label}` })
-          edited.current = undefined
-        }} />
-    </label>
-    <select aria-label={`Use a known address for ${label}`} value="" disabled={disabled || suggestions.length === 0}
-      onChange={event => { if (event.currentTarget.value !== "") onInput(name, event.currentTarget.value) }}>
-      <option value="">Use a known address…</option>
-      {suggestions.map(entry => <option key={entry.address.toLowerCase()} value={entry.address}>{displayText(entry.label)} · {entry.address}</option>)}
-    </select>
+    <label htmlFor={inputId}>{displayText(label)}</label>
+    <div className="address-control">
+      <div className="address-entry" data-compact={compact}>
+        <input id={inputId} name={name} value={value} disabled={disabled} autoCapitalize="none" spellCheck={false}
+          onFocus={() => setEditing(true)}
+          onChange={event => { edited.current = event.currentTarget.value; onInput(name, event.currentTarget.value) }}
+          onBlur={() => {
+            setEditing(false)
+            if (edited.current === value && !disabled) remember({ address: value, label: `Entered in: ${label}` })
+            edited.current = undefined
+          }} />
+        {compact ? <span className="address-display" aria-hidden="true"><HexText value={value} /></span> : null}
+      </div>
+      <select aria-label={`Use a known address for ${label}`} title="Use a known address" value="" disabled={disabled || suggestions.length === 0}
+        onChange={event => { if (event.currentTarget.value !== "") onInput(name, event.currentTarget.value) }}>
+        <option value="" aria-label="Choose an address"></option>
+        {suggestions.map(entry => <option key={entry.address.toLowerCase()} value={entry.address} title={entry.address} aria-label={`${entry.label} · ${entry.address}`}>{displayText(entry.label)} · {abbreviatedHex(entry.address)}</option>)}
+      </select>
+    </div>
   </div>
 }

@@ -14,7 +14,8 @@ export async function checkAddressEntry({ call, evaluate, viewerURL }) {
 
 async function checkKnownAddresses({ call, evaluate, wait }) {
   const field = name => `document.querySelector('input[name="${name}"]')`
-  const select = `document.querySelector('select[aria-label="Use a known address for arbitrator"]')`
+  const suggestionSelector = 'select[aria-label="Use a known address for arbitrator"]'
+  const select = `document.querySelector(${JSON.stringify(suggestionSelector)})`
   const options = `Array.from(${select}.options).map(option=>({value:option.value,label:option.textContent}))`
   const alice = '0x1111111111111111111111111111111111111111'
   const bob = '0x2222222222222222222222222222222222222222'
@@ -55,9 +56,21 @@ async function checkKnownAddresses({ call, evaluate, wait }) {
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'End', code: 'End', windowsVirtualKeyCode: 35 })
     await wait(`${field('arbitrator')}.value===${JSON.stringify(entered)}`)
     assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), 'known-address controls fit narrow layouts')
+    assert(await evaluate(`(()=>{const input=${field('arbitrator')};const bar=input.closest('.address-control');const chooser=bar.querySelector('select');const a=input.getBoundingClientRect(),b=chooser.getBoundingClientRect();const overlay=bar.querySelector('.address-display');const option=[...chooser.options].find(option=>option.value===${JSON.stringify(entered)});return Math.abs(a.top-b.top)<2&&Math.abs(a.height-b.height)<2&&b.width<=44&&overlay?.getAttribute('aria-hidden')==='true'&&overlay.querySelector('code').textContent===input.value&&option.textContent.includes('0x7777...7777')&&!option.textContent.includes(input.value)&&option.getAttribute('aria-label').includes(input.value)})()`), 'typing and abbreviated address choices share one bar while exact values remain available')
+    await evaluate(`${field('arbitrator')}.focus()`)
+    await wait(`!${field('arbitrator')}.closest('.address-control').querySelector('.address-display')`)
+    assert.equal(await evaluate(`${field('arbitrator')}.value`), entered, 'focusing exposes the full editable value')
+    await evaluate(`${field('arbitrator')}.blur()`)
+    await wait(`!!${field('arbitrator')}.closest('.address-control').querySelector('.address-display')`)
+
     const doc = await call('DOM.getDocument', {})
-    const node = await call('DOM.querySelector', { nodeId: doc.root.nodeId, selector: 'select[aria-label="Use a known address for arbitrator"]' })
+    const node = await call('DOM.querySelector', { nodeId: doc.root.nodeId, selector: suggestionSelector })
     const ax = await call('Accessibility.getPartialAXTree', { nodeId: node.nodeId, fetchRelatives: false })
+    const inputSelector = 'input[name=arbitrator]'
+    const inputNode = await call('DOM.querySelector', { nodeId: doc.root.nodeId, selector: inputSelector })
+    const inputAX = await call('Accessibility.getPartialAXTree', { nodeId: inputNode.nodeId, fetchRelatives: false })
+    assert(inputAX.nodes.some(node => !node.ignored && node.role?.value === 'textbox' && node.name?.value === 'arbitrator' && node.value?.value === entered), 'the compact field exposes its exact full value to accessibility')
+
     assert(ax.nodes.some(node => !node.ignored && node.role?.value === 'combobox' && node.name?.value === 'Use a known address for arbitrator'))
   }
   await evaluate('connectionFixture.state.holdPublicRead=true')

@@ -28,11 +28,8 @@ function CopyableHex({ value, label, href }: HexValueProps): ReactElement {
     }
   }
 
-  const prefix = value.startsWith("sha256:") ? "sha256:" : ""
-  const hex = value.slice(prefix.length)
-  const revision = /^[0-9a-fA-F]{40}$/.test(value)
   const failure = typeof result === "object" ? result : undefined
-  const code = <code title={value}>{revision ? <><span>{hex.slice(0, 8)}</span><span className="visually-hidden">{hex.slice(8)}</span></> : <><span>{prefix}{hex.slice(0, 6)}</span><span className="hex-middle">{hex.slice(6, -4)}<span className="hex-ellipsis" aria-hidden="true" /></span><span>{hex.slice(-4)}</span></>}</code>
+  const code = <HexText value={value} />
   return <span className="hex-value">
     <span className="hex-value-controls">
       {href === undefined ? code : <a href={href} target="_blank" rel="noopener noreferrer" title={`View ${label}`}>{code}</a>}
@@ -43,4 +40,23 @@ function CopyableHex({ value, label, href }: HexValueProps): ReactElement {
     </span>
     {failure === undefined ? null : <span className="hex-copy-error" role="alert">{failure.message} <input aria-label={`Full value: ${label}`} readOnly value={value} />{failure.diagnostic === undefined ? null : <span className="feedback-diagnostic">{failure.diagnostic}</span>}</span>}
   </span>
+}
+
+function hexParts(value: string) {
+  const prefix = value.startsWith("sha256:") ? "sha256:" : ""
+  const hex = value.slice(prefix.length)
+  const revision = /^[0-9a-fA-F]{40}$/.test(value)
+  return revision
+    ? { start: hex.slice(0, 8), middle: hex.slice(8), end: "", revision }
+    : { start: prefix + hex.slice(0, 6), middle: hex.slice(6, -4), end: hex.slice(-4), revision }
+}
+
+export function abbreviatedHex(value: string): string {
+  const parts = hexParts(value)
+  return parts.revision ? parts.start : `${parts.start}...${parts.end}`
+}
+
+export function HexText({ value }: { readonly value: string }): ReactElement {
+  const parts = hexParts(value)
+  return <code title={value}><span>{parts.start}</span><span className={parts.revision ? "visually-hidden" : "hex-middle"}>{parts.middle}{parts.revision ? null : <span className="hex-ellipsis" aria-hidden="true" />}</span><span>{parts.end}</span></code>
 }
