@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { assertNoHiddenEditorLayout } from './layout-stability.mjs'
+import { assertNoHiddenEditorLayout, assertSingleLineControlSizing } from './layout-stability.mjs'
 
 export async function assertBuildFooter({ call, evaluate, wait }) {
   const footer = `document.querySelector('footer[aria-label="Viewer build"]')`
@@ -33,6 +33,7 @@ export async function assertBuildFooter({ call, evaluate, wait }) {
 
 export async function assertDisplayedValues({ call, evaluate }) {
   await assertNoHiddenEditorLayout(evaluate)
+  await assertSingleLineControlSizing(evaluate)
   await assertFeedbackPresentation(evaluate)
   await assertContentSeparation(evaluate)
   const rows = await evaluate(`(()=>{const rows=[...document.querySelectorAll('dl')];return rows.map(row=>{const outer=row.parentElement.closest('dl');return {tags:[...row.children].map(child=>child.tagName),invalidParent:outer!==null&&row.parentElement.closest('dd')?.parentElement!==outer,label:row.firstElementChild?.textContent,overflow:row.checkVisibility()&&row.scrollWidth>row.clientWidth+1}})})()`)

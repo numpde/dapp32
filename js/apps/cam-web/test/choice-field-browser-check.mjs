@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { assertSingleLineControlSizing } from './layout-stability.mjs'
 import { navigateBrowserDocument, waitForBrowserCondition, finishDisplayFixture } from './escrow-browser-fixture.mjs'
 
 export async function checkChoiceField({ call, evaluate, viewerURL }) {
@@ -11,8 +12,20 @@ export async function checkChoiceField({ call, evaluate, viewerURL }) {
     assert.deepEqual(await evaluate(`Array.from(${select}.options).map(option=>[option.value,option.textContent])`), [['1', 'Client'], ['2', 'Contractor']])
     assert(await evaluate(`${select}.labels[0].textContent.includes('Arbitration timeout recipient')`))
     assert(await evaluate(`document.querySelector('select[name="disabledRecipient"]').disabled`))
+    const originalSize = await evaluate(`${select}.style.blockSize`)
+    await evaluate(`${select}.style.blockSize='1em'`)
+    try { await assert.rejects(() => assertSingleLineControlSizing(evaluate), /single-line controls/) }
+    finally { await evaluate(`${select}.style.blockSize=${JSON.stringify(originalSize)}`) }
+    const originalFont = await evaluate('document.documentElement.style.fontSize')
+    const height = await evaluate(`${select}.getBoundingClientRect().height`)
+    try {
+      await evaluate(`document.documentElement.style.fontSize='20px'`)
+      await assertSingleLineControlSizing(evaluate)
+      assert(await evaluate(`${select}.getBoundingClientRect().height>${height}`), 'control sizing grows with the text size')
+    } finally { await evaluate(`document.documentElement.style.fontSize=${JSON.stringify(originalFont)}`) }
     for (const width of [1280, 320]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      await assertSingleLineControlSizing(evaluate)
       await evaluate(`${select}.value='1';${select}.dispatchEvent(new Event('change',{bubbles:true}))`)
       await wait(`${select}.value==='1'`)
       await evaluate(`${select}.focus()`)
@@ -25,6 +38,7 @@ export async function checkChoiceField({ call, evaluate, viewerURL }) {
     const reads = await evaluate('connectionFixture.state.subjects.length')
     await evaluate(`[...document.querySelectorAll('.ui-meta>button')].find(button=>button.textContent==='Refresh').click()`)
     await wait(`connectionFixture.state.subjects.length>${reads}&&${select}.disabled`)
+    await assertSingleLineControlSizing(evaluate)
     await evaluate('connectionFixture.releasePublicReads()')
     await wait(`!${select}.disabled&&${select}.value==='2'`)
     assert.equal(await evaluate('connectionFixture.state.sends'), 0)

@@ -1,5 +1,19 @@
 import assert from 'node:assert/strict'
 
+export async function assertSingleLineControlSizing(evaluate) {
+  const controls = await evaluate(`Array.from(document.querySelectorAll('input,select,.address-control')).filter(element=>{
+    if(!element.checkVisibility()||(element.tagName==='INPUT'&&element.closest('.address-control')))return false;
+    const style=getComputedStyle(element),bounds=element.getBoundingClientRect();
+    if(['absolute','fixed'].includes(style.position)&&bounds.width<=1&&bounds.height<=1)return false;
+    return element.tagName!=='INPUT'||['text','url','email','tel','search','password','number'].includes(element.type);
+  }).map(element=>({kind:element.tagName,name:element.getAttribute('name'),font:getComputedStyle(element).fontSize,height:element.getBoundingClientRect().height}))`)
+  const heights = new Map()
+  for (const control of controls) {
+    if (!heights.has(control.font)) heights.set(control.font, control.height)
+    assert(Math.abs(control.height - heights.get(control.font)) <= 1, `single-line controls with the same text size must share a height: ${JSON.stringify(controls)}`)
+  }
+}
+
 export async function assertNoHiddenEditorLayout(evaluate) {
   const offenders = await evaluate(`(()=>{const editors=[...document.querySelectorAll('fieldset')];return editors.flatMap(editor=>[...editor.querySelectorAll('*')].filter(element=>{
     const style=getComputedStyle(element),bounds=element.getBoundingClientRect();

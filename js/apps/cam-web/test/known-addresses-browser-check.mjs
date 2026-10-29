@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { assertSingleLineControlSizing } from './layout-stability.mjs'
 import { navigateBrowserDocument, waitForBrowserCondition, finishDisplayFixture } from './escrow-browser-fixture.mjs'
 
 export async function checkAddressEntry({ call, evaluate, viewerURL }) {
@@ -80,6 +81,7 @@ async function checkKnownAddresses({ call, evaluate, wait }) {
   assert(!afterNavigation.some(option => option.value === alice), 'old current-view roles are not retained')
   for (const width of [1280, 320]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+    await assertSingleLineControlSizing(evaluate)
     await edit('arbitrator', `0x${'0'.repeat(40)}`)
     await evaluate(`${input}.scrollIntoView({block:'end'})`)
     await open()
@@ -108,6 +110,7 @@ async function checkKnownAddresses({ call, evaluate, wait }) {
   for (const [value, invalid] of [['0xabc', true], ['not an address', true], ['', false], [entered, false]]) {
     await edit('arbitrator', value)
     await wait(`${input}.getAttribute('aria-invalid')===${JSON.stringify(String(invalid))}`)
+    await assertSingleLineControlSizing(evaluate)
     assert.equal(await evaluate(`(()=>{const bar=${input}.closest('.address-control'),probe=document.createElement('span');probe.style.color='var(--danger)';bar.append(probe);const red=getComputedStyle(probe).color;probe.remove();return getComputedStyle(bar).borderTopColor===red})()`), invalid, 'only nonempty malformed addresses have a red field border')
     assert(await evaluate(`(()=>{const bar=${input}.closest('.address-control'),style=getComputedStyle(bar);return parseFloat(style.outlineWidth)>0&&getComputedStyle(${input}).outlineStyle==='none'&&(${invalid} ? style.outlineColor===style.borderTopColor : true)})()`), 'focus surrounds the whole address control and uses red for invalid input')
   }

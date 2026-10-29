@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition, withBrowserFocus } from './escrow-browser-fixture.mjs'
-import { assertStableLayout } from './layout-stability.mjs'
+import { assertStableLayout, assertSingleLineControlSizing } from './layout-stability.mjs'
 
 export async function checkViewerConnection({ call, evaluate, viewerURL }) {
   const wait = expression => waitForBrowserCondition(() => evaluate(expression), `connection fixture: ${expression}`, Date.now() + 15000)
@@ -70,6 +70,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await open('public')
     await wait('!!document.querySelector("input[name=draft]")')
     assert(await evaluate(publicView), 'public EVM reads are not presented as a selected account')
+    await assertSingleLineControlSizing(evaluate)
     assert(await evaluate(`connectionFixture.state.subjects.every(subject=>subject==='0x0000000000000000000000000000000000000000')&&!new URL(location.href).searchParams.has('account')`), 'the public read subject stays out of the shared account URL')
     assert(await evaluate(`${button}.disabled`), 'even a manifest-exposed transaction is unavailable in public mode')
     await wait(`!!document.querySelector('[aria-label="RPC connection checked"]')`)
