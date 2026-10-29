@@ -1,4 +1,7 @@
-{"ui":"1.0.0","nodes":{"app":{
+{
+  "ui": "1.0.0",
+  "nodes": {
+    "app": {
       "requires": [
         "view"
       ],
@@ -18,4 +21,1659 @@
           }
         }
       ]
-    },"escrow.create":{"requires":["view"],"element":"Fragment","children":[{"element":"Screen","props":{"title":"Account and agreement reference"},"children":[{"element":"Text","props":{"text":"The client funds the escrow and reviews the contractor’s work. The account that sends the successful creation transaction becomes the client; the address below is the account being viewed."}},{"element":"Address","props":{"label":"Proposed client (address being viewed)","address":"$view.client"}},{"element":"Status","props":{"label":"Reference limit","value":"$view.maxAgreementRefBytes","format":"bytes"}},{"element":"Text","props":{"text":"Reference and URI limits count UTF-8 bytes; some characters use more than one byte."}},{"element":"Text","props":{"text":"Required: choose a reference such as invoice-2026-01. It must be unique for this client in this escrow contract, even after closure. Lookup uses the exact text, including case and spaces. The contract derives a separate agreement ID from the client address and reference."}},{"element":"TextField","props":{"label":"Agreement reference"},"state":{"key":"agreementRef","defaultValue":""}}]},{"element":"Screen","props":{"title":"Create and fund an escrow agreement"},"children":[{"element":"Screen","props":{"title":"Parties"},"children":[{"element":"Text","props":{"text":"The contractor accepts and submits work. The arbitrator can award disputed funds to either party. Both addresses are required: 0x followed by 40 hexadecimal characters. Replace the all-zero placeholders. Client, contractor and arbitrator must differ; neither entered address may be this escrow contract."}},{"element":"TextField","props":{"label":"Contractor address"},"state":{"key":"contractor","defaultValue":"0x0000000000000000000000000000000000000000"}},{"element":"Text","props":{"text":"The arbitrator has no on-chain acceptance step. Naming an arbitrator does not confirm they have agreed to arbitrate."}},{"element":"TextField","props":{"label":"Arbitrator address"},"state":{"key":"arbitrator","defaultValue":"0x0000000000000000000000000000000000000000"}}]},{"element":"Screen","props":{"title":"Funding"},"children":[{"element":"Text","props":{"text":"Enter a positive amount. Creation locks this amount; transaction fees are separate."}},{"element":"AmountField","props":{"label":"Escrow amount","unit":{"assetId":"native","baseLabel":"wei","displayLabel":"Native asset","decimals":18}},"state":{"key":"amount","defaultValue":""}}]},{"element":"Screen","props":{"title":"Deadlines"},"children":[{"element":"Status","props":{"label":"Maximum phase duration","value":"$view.maxPhaseDuration","format":"durationSeconds"}},{"element":"Text","props":{"text":"All four durations are required, from 1 second to the maximum shown above. Phases start at the successful transaction’s block time; deadlines do not execute automatically. Finalizing a timeout requires a transaction."}},{"element":"Text","props":{"text":"Starts at creation. Before the deadline, the contractor can accept or the client can cancel. At or after it, anyone can finalize full credit to the client if acceptance is still pending."}},{"element":"DurationField","props":{"label":"Acceptance duration","min":"1","max":"$view.maxPhaseDuration"},"state":{"key":"acceptanceDuration","defaultValue":""}},{"element":"Text","props":{"text":"Starts at acceptance. The contractor must submit before the deadline. At or after it, anyone can finalize full credit to the client if work is still unsubmitted."}},{"element":"DurationField","props":{"label":"Work duration","min":"1","max":"$view.maxPhaseDuration"},"state":{"key":"workDuration","defaultValue":""}},{"element":"Text","props":{"text":"Starts at submission. The client can approve or dispute before the deadline. At or after it, anyone can finalize full credit to the contractor if review is still pending."}},{"element":"DurationField","props":{"label":"Review duration","min":"1","max":"$view.maxPhaseDuration"},"state":{"key":"reviewDuration","defaultValue":""}},{"element":"Text","props":{"text":"Starts at dispute. The arbitrator can award the full escrow before the deadline. At or after it, anyone can finalize full credit to the chosen timeout recipient if the dispute is still unresolved."}},{"element":"DurationField","props":{"label":"Arbitration duration","min":"1","max":"$view.maxPhaseDuration"},"state":{"key":"arbitrationDuration","defaultValue":""}},{"element":"Status","props":{"label":"Allowed arbitration timeout recipients","value":"$view.arbitrationTimeoutBeneficiaryIds","format":"stringList"}},{"element":"Text","props":{"text":"The client chooses this recipient at creation; it cannot be changed later. At or after an unresolved arbitration deadline, anyone can finalize full credit to the chosen recipient. Withdrawal is separate."}},{"element":"TextField","props":{"label":"Arbitration timeout recipient (1 = client, 2 = contractor)"},"state":{"key":"arbitrationTimeoutBeneficiary","defaultValue":"1"}}]},{"element":"Screen","props":{"title":"Terms document"},"children":[{"element":"Status","props":{"label":"Document URI limit","value":"$view.maxDocumentUriBytes","format":"bytes"}},{"element":"Text","props":{"text":"Publish the agreed terms and enter their URI. Calculate SHA-256 from the exact document bytes using a local file or a browser-readable URL, or enter it manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."}},{"element":"TextField","props":{"label":"Terms URI"},"state":{"key":"termsUri","defaultValue":""}},{"element":"DocumentHashField","props":{"label":"Terms SHA-256 digest","algorithm":"sha256","sourceURI":"$state.termsUri"},"state":{"key":"termsDigest","defaultValue":"0x0000000000000000000000000000000000000000000000000000000000000000"}}]},{"element":"Include","call":{"namespace":"ui","function":"$view.actions","args":{"view":"$view"}}}]},{"element":"Screen","props":{"title":"Find an existing agreement"},"children":[{"element":"Text","props":{"text":"Use the account and exact agreement reference above to find an existing agreement. Other creation fields are not used for lookup."}},{"element":"Include","call":{"namespace":"ui","function":"lookupAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"lookupFragment","args":{"view":{"initialAgreementId":""}}}}]},{"element":"Screen","props":{"title":"Account credit"},"children":[{"element":"Include","call":{"namespace":"ui","function":"openAccountCredit","args":{"view":"$view"}}}]}]},"escrow.agreement.absent":{"requires":["view"],"element":"Screen","children":[{"element":"Text","props":{"text":"No agreement is stored for this ID in this escrow contract. Check the ID and selected contract/network."}},{"element":"Status","props":{"label":"Agreement ID","value":"$view.machine.instanceId"}},{"element":"Include","call":{"namespace":"ui","function":"openCreateAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"openAccountCredit","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"lookupFragment","args":{"view":{"initialAgreementId":"$view.machine.instanceId"}}}}],"props":{"title":"Agreement not found"}},"agreement.common":{"requires":["view"],"element":"Fragment","children":[{"element":"Status","props":{"label":"Agreement ID","value":"$view.machine.instanceId"}},{"element":"Text","props":{"text":"Copy this ID to reopen the agreement in this escrow contract. It is derived from the client address and exact reference."}},{"element":"Status","props":{"label":"State","value":"$view.machine.stateId"}},{"element":"Text","props":{"text":"funded means awaiting acceptance; accepted, awaiting work; submitted, awaiting client review; disputed, awaiting arbitration. cancelled and refunded states credit the client; released states credit the contractor. Closure records settlement, not withdrawal."}},{"element":"Status","props":{"label":"Role of the address being viewed","value":"$view.actorRoleId"}},{"element":"Text","props":{"text":"none means the viewed address is not a named party, or no account is selected. Any account can finalize an expired deadline."}},{"element":"Text","props":{"text":"The client funds and reviews; the contractor accepts and submits work; the arbitrator can award disputed funds. Naming the arbitrator does not confirm their consent: there is no on-chain acceptance step."}},{"element":"Address","props":{"label":"Client","address":"$view.agreement.client"}},{"element":"Address","props":{"label":"Contractor","address":"$view.agreement.contractor"}},{"element":"Address","props":{"label":"Arbitrator","address":"$view.agreement.arbitrator"}},{"element":"Status","props":{"label":"Original escrow amount in wei","value":"$view.agreement.amount"}},{"element":"Text","props":{"text":"The amount funded at creation, also shown after settlement."}},{"element":"Status","props":{"label":"Current deadline","value":"$view.agreement.deadline","format":"timestampSeconds","zeroText":"No active deadline"}},{"element":"Text","props":{"text":"For an active phase, ordinary phase actions stop at or after this deadline; finalizing its timeout still needs a transaction."}},{"element":"Status","props":{"label":"Agreement reference","value":"$view.agreement.agreementRef"}},{"element":"Text","props":{"text":"The client’s exact lookup reference; use it with the client address to find this agreement."}},{"element":"Text","props":{"text":"These durations were fixed at creation. Each phase starts at its successful transaction’s block time. The current phase is acceptance when funded, work when accepted, review when submitted, or arbitration when disputed."}},{"element":"Status","props":{"label":"Acceptance duration","value":"$view.agreement.acceptanceDuration","format":"durationSeconds"}},{"element":"Text","props":{"text":"Starts at creation. Before the deadline, the contractor can accept or the client can cancel. At or after it, anyone can finalize full credit to the client if acceptance is still pending."}},{"element":"Status","props":{"label":"Work duration","value":"$view.agreement.workDuration","format":"durationSeconds"}},{"element":"Text","props":{"text":"Starts at acceptance. The contractor must submit before the deadline. At or after it, anyone can finalize full credit to the client if work is still unsubmitted."}},{"element":"Status","props":{"label":"Review duration","value":"$view.agreement.reviewDuration","format":"durationSeconds"}},{"element":"Text","props":{"text":"Starts at submission. The client can approve or dispute before the deadline. At or after it, anyone can finalize full credit to the contractor if review is still pending."}},{"element":"Status","props":{"label":"Arbitration duration","value":"$view.agreement.arbitrationDuration","format":"durationSeconds"}},{"element":"Text","props":{"text":"Starts at dispute. The arbitrator can award the full escrow before the deadline. At or after it, anyone can finalize full credit to the chosen timeout recipient if the dispute is still unresolved."}},{"element":"Status","props":{"label":"Arbitration timeout recipient","value":"$view.arbitrationTimeoutBeneficiaryId"}},{"element":"Text","props":{"text":"The client chose this recipient at creation; it cannot change. An unresolved arbitration timeout credits them the full escrow when anyone finalizes it. Withdrawal is separate."}},{"element":"Text","props":{"text":"Terms are recorded by the client at creation, submission evidence by the contractor, and dispute evidence by the client. An empty evidence URI and all-zero digest mean it has not been recorded. A URI locates a document; the digest is the party’s claimed SHA-256 fingerprint of its exact bytes. Retrieve the file independently and compare its SHA-256 to check for matching bytes. This view and the contract do not fetch or verify documents."}},{"element":"Status","props":{"label":"Terms URI","value":"$view.agreement.terms.uri"}},{"element":"Status","props":{"label":"Terms SHA-256 digest","value":"$view.agreement.terms.sha256Digest"}},{"element":"Status","props":{"label":"Submission URI","value":"$view.agreement.submission.uri"}},{"element":"Status","props":{"label":"Submission SHA-256 digest","value":"$view.agreement.submission.sha256Digest"}},{"element":"Status","props":{"label":"Dispute URI","value":"$view.agreement.dispute.uri"}},{"element":"Status","props":{"label":"Dispute SHA-256 digest","value":"$view.agreement.dispute.sha256Digest"}}]},"escrow.agreement.active":{"requires":["view"],"element":"Screen","children":[{"element":"Text","props":{"text":"Actions depend on the agreement’s state, deadline and the address being viewed."}},{"element":"Include","call":{"namespace":"ui","function":"agreement.common","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"agreement.actions","args":{"view":"$view"}}},{"element":"Text","props":{"text":"Settlement adds the full escrow to the recipient’s account credit. Withdrawing that credit is a separate transaction."}},{"element":"Include","call":{"namespace":"ui","function":"openAccountCredit","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"openCreateAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"lookupFragment","args":{"view":{"initialAgreementId":"$view.machine.instanceId"}}}}],"props":{"title":"View and manage an escrow agreement"}},"escrow.agreement.terminal":{"requires":["view"],"element":"Screen","children":[{"element":"Text","props":{"text":"Actions depend on the agreement’s state, deadline and the address being viewed."}},{"element":"Include","call":{"namespace":"ui","function":"agreement.common","args":{"view":"$view"}}},{"element":"Text","props":{"text":"This agreement is closed and has no further agreement-changing actions."}},{"element":"Include","call":{"namespace":"ui","function":"agreement.actions","args":{"view":"$view"}}},{"element":"Text","props":{"text":"Settlement adds the full escrow to the recipient’s account credit. Withdrawing that credit is a separate transaction."}},{"element":"Include","call":{"namespace":"ui","function":"openAccountCredit","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"openCreateAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"lookupFragment","args":{"view":{"initialAgreementId":"$view.machine.instanceId"}}}}],"props":{"title":"View a closed escrow agreement"}},"escrow.credit.empty":{"requires":["view"],"element":"Screen","children":[{"element":"Address","props":{"label":"Account being viewed","address":"$view.account"}},{"element":"Status","props":{"label":"Total withdrawable credit for this account (wei)","value":"$view.amount"}},{"element":"Text","props":{"text":"When an agreement ends, this escrow assigns its funds to one party as withdrawable credit. This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements."}},{"element":"Text","props":{"text":"When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable."}},{"element":"Text","props":{"text":"No credit is available to withdraw."}},{"element":"Include","call":{"namespace":"ui","function":"credit.withdrawal","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"openCreateAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"lookupFragment","args":{"view":{"initialAgreementId":""}}}}],"props":{"title":"Withdraw account credit"}},"escrow.credit.available":{"requires":["view"],"element":"Screen","children":[{"element":"Address","props":{"label":"Account being viewed","address":"$view.account"}},{"element":"Status","props":{"label":"Total withdrawable credit for this account (wei)","value":"$view.amount"}},{"element":"Text","props":{"text":"When an agreement ends, this escrow assigns its funds to one party as withdrawable credit. This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements."}},{"element":"Text","props":{"text":"When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable."}},{"element":"Include","call":{"namespace":"ui","function":"credit.withdrawal","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"openCreateAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"lookupFragment","args":{"view":{"initialAgreementId":""}}}}],"props":{"title":"Withdraw account credit"}},"createAgreement":{"requires":["view"],"element":"Button","props":{"label":"Create agreement"},"call":{"namespace":"routes","function":"createAgreement","args":{"params":{"agreementRef":"$state.agreementRef","contractor":"$state.contractor","arbitrator":"$state.arbitrator","arbitrationTimeoutBeneficiary":"$state.arbitrationTimeoutBeneficiary","amount":"$state.amount","acceptanceDuration":"$state.acceptanceDuration","workDuration":"$state.workDuration","reviewDuration":"$state.reviewDuration","arbitrationDuration":"$state.arbitrationDuration","terms":{"uri":"$state.termsUri","sha256Digest":"$state.termsDigest"}}}}},"lookupAgreement":{"requires":["view"],"element":"Button","props":{"label":"Find agreement by client and reference"},"call":{"namespace":"routes","function":"lookupAgreement","args":{"client":"$view.client","agreementRef":"$state.agreementRef"}}},"openAccountCredit":{"requires":["view"],"element":"Button","props":{"label":"View account credit"},"call":{"namespace":"routes","function":"accountCredit","args":{}}},"openCreateAgreement":{"requires":["view"],"element":"Button","props":{"label":"Create an agreement"},"call":{"namespace":"routes","function":"createAgreementForm","args":{}}},"cancelAgreement":{"requires":["view"],"element":"Button","props":{"label":"Cancel agreement"},"call":{"namespace":"routes","function":"cancelAgreement","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"cancelAgreement","in":"$view.machine.transitionIds"}},"acceptAgreement":{"requires":["view"],"element":"Button","props":{"label":"Accept agreement"},"call":{"namespace":"routes","function":"acceptAgreement","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"acceptAgreement","in":"$view.machine.transitionIds"}},"approveAgreement":{"requires":["view"],"element":"Button","props":{"label":"Approve work and credit contractor"},"call":{"namespace":"routes","function":"approveAgreement","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"approveAgreement","in":"$view.machine.transitionIds"}},"finalizeAcceptanceTimeout":{"requires":["view"],"element":"Button","props":{"label":"Finalize acceptance timeout"},"call":{"namespace":"routes","function":"finalizeAcceptanceTimeout","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"finalizeAcceptanceTimeout","in":"$view.machine.transitionIds"}},"finalizeWorkTimeout":{"requires":["view"],"element":"Button","props":{"label":"Finalize work timeout"},"call":{"namespace":"routes","function":"finalizeWorkTimeout","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"finalizeWorkTimeout","in":"$view.machine.transitionIds"}},"finalizeReviewTimeout":{"requires":["view"],"element":"Button","props":{"label":"Finalize review timeout"},"call":{"namespace":"routes","function":"finalizeReviewTimeout","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"finalizeReviewTimeout","in":"$view.machine.transitionIds"}},"resolveForClient":{"requires":["view"],"element":"Button","props":{"label":"Award escrow to client"},"call":{"namespace":"routes","function":"resolveForClient","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"resolveForClient","in":"$view.machine.transitionIds"}},"resolveForContractor":{"requires":["view"],"element":"Button","props":{"label":"Award escrow to contractor"},"call":{"namespace":"routes","function":"resolveForContractor","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"resolveForContractor","in":"$view.machine.transitionIds"}},"finalizeArbitrationTimeout":{"requires":["view"],"element":"Button","props":{"label":"Finalize arbitration timeout"},"call":{"namespace":"routes","function":"finalizeArbitrationTimeout","args":{"agreementId":"$view.machine.instanceId"}},"enabledWhen":{"member":"finalizeArbitrationTimeout","in":"$view.machine.transitionIds"}},"submitAgreement":{"requires":["view"],"element":"Button","props":{"label":"Submit work evidence"},"call":{"namespace":"routes","function":"submitAgreement","args":{"agreementId":"$view.machine.instanceId","submission":{"uri":"$state.submissionUri","sha256Digest":"$state.submissionDigest"}}},"enabledWhen":{"member":"submitAgreement","in":"$view.machine.transitionIds"}},"disputeAgreement":{"requires":["view"],"element":"Button","props":{"label":"Dispute submission"},"call":{"namespace":"routes","function":"disputeAgreement","args":{"agreementId":"$view.machine.instanceId","dispute":{"uri":"$state.disputeUri","sha256Digest":"$state.disputeDigest"}}},"enabledWhen":{"member":"disputeAgreement","in":"$view.machine.transitionIds"}},"withdrawTo":{"requires":["view"],"element":"Button","props":{"label":"Withdraw credit"},"call":{"namespace":"routes","function":"withdrawTo","args":{"recipient":"$state.recipient"}},"enabledWhen":{"member":"withdrawTo","in":"$view.actions"}},"agreement.actions":{"requires":["view"],"element":"Fragment","children":[{"element":"Include","call":{"namespace":"ui","function":"cancelAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"acceptAgreement","args":{"view":"$view"}}},{"element":"Text","props":{"text":"Publish the work evidence and enter its location in Submission URI (at most 512 UTF-8 bytes). Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder. A successful submission transaction starts client review."}},{"element":"TextField","props":{"label":"Submission URI"},"state":{"key":"submissionUri","defaultValue":""},"enabledWhen":{"member":"submitAgreement","in":"$view.machine.transitionIds"}},{"element":"DocumentHashField","props":{"label":"Submission SHA-256 digest","algorithm":"sha256","sourceURI":"$state.submissionUri"},"state":{"key":"submissionDigest","defaultValue":"0x0000000000000000000000000000000000000000000000000000000000000000"},"enabledWhen":{"member":"submitAgreement","in":"$view.machine.transitionIds"}},{"element":"Include","call":{"namespace":"ui","function":"submitAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"approveAgreement","args":{"view":"$view"}}},{"element":"Text","props":{"text":"Publish the reasons and evidence and enter their location in Dispute URI (at most 512 UTF-8 bytes). Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder. A successful dispute transaction starts arbitration."}},{"element":"TextField","props":{"label":"Dispute URI"},"state":{"key":"disputeUri","defaultValue":""},"enabledWhen":{"member":"disputeAgreement","in":"$view.machine.transitionIds"}},{"element":"DocumentHashField","props":{"label":"Dispute SHA-256 digest","algorithm":"sha256","sourceURI":"$state.disputeUri"},"state":{"key":"disputeDigest","defaultValue":"0x0000000000000000000000000000000000000000000000000000000000000000"},"enabledWhen":{"member":"disputeAgreement","in":"$view.machine.transitionIds"}},{"element":"Include","call":{"namespace":"ui","function":"disputeAgreement","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"finalizeAcceptanceTimeout","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"finalizeWorkTimeout","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"finalizeReviewTimeout","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"resolveForClient","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"resolveForContractor","args":{"view":"$view"}}},{"element":"Include","call":{"namespace":"ui","function":"finalizeArbitrationTimeout","args":{"view":"$view"}}}]},"lookupFragment":{"requires":["view"],"element":"Fragment","children":[{"element":"Text","props":{"text":"Paste an agreement ID copied from an agreement view: 0x followed by 64 hexadecimal characters. This differs from the client’s reference. Use the same escrow contract and network where it was created."}},{"element":"TextField","props":{"label":"Agreement ID"},"state":{"key":"agreementId","defaultValue":"$view.initialAgreementId"}},{"element":"Button","props":{"label":"Open agreement by ID"},"call":{"namespace":"routes","function":"agreement","args":{"agreementId":"$state.agreementId"}}}]},"credit.withdrawal":{"requires":["view"],"element":"Fragment","children":[{"element":"Text","props":{"text":"The recipient may differ from the credit owner and defaults to the account being viewed. Enter 0x followed by 40 hexadecimal characters. The zero address and this escrow contract are rejected. The recipient must be able to receive this chain’s native asset."}},{"element":"TextField","props":{"label":"Withdrawal recipient"},"state":{"key":"recipient","defaultValue":"$view.account"},"enabledWhen":{"member":"withdrawTo","in":"$view.actions"}},{"element":"Include","call":{"namespace":"ui","function":"withdrawTo","args":{"view":"$view"}}}]}}}
+    },
+    "escrow.create": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Account and agreement reference"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Use an agreement reference to connect this escrow to the job or invoice it covers. When creation succeeds, the sending wallet becomes the client."
+              }
+            },
+            {
+              "element": "Address",
+              "props": {
+                "label": "Proposed client (address being viewed)",
+                "address": "$view.client"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Reference limit",
+                "value": "$view.maxAgreementRefBytes",
+                "format": "bytes"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Reference and URI limits count UTF-8 bytes; some characters use more than one byte."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Required: choose a reference such as invoice-2026-01. It must be unique for this client in this escrow contract, even after closure. Lookup uses the exact text, including case and spaces. The contract derives a separate agreement ID from the client address and reference."
+              }
+            },
+            {
+              "element": "TextField",
+              "props": {
+                "label": "Agreement reference"
+              },
+              "state": {
+                "key": "agreementRef",
+                "defaultValue": ""
+              }
+            }
+          ]
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Create and fund an escrow agreement"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Set up an agreement that holds the client’s money while the contractor carries out the work. Choose the parties, amount, deadlines and terms, then create and fund it in one transaction."
+              }
+            },
+            {
+              "element": "Screen",
+              "props": {
+                "title": "Parties"
+              },
+              "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "This agreement has three roles: the client funds and reviews, the contractor accepts and submits work, and the arbitrator can decide who receives disputed funds."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Both addresses are required: 0x followed by 40 hexadecimal characters. Replace the all-zero placeholders. Client, contractor and arbitrator must differ; neither entered address may be this escrow contract."
+                  }
+                },
+                {
+                  "element": "TextField",
+                  "props": {
+                    "label": "Contractor address"
+                  },
+                  "state": {
+                    "key": "contractor",
+                    "defaultValue": "0x0000000000000000000000000000000000000000"
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "The arbitrator has no on-chain acceptance step. Naming an arbitrator does not confirm they have agreed to arbitrate."
+                  }
+                },
+                {
+                  "element": "TextField",
+                  "props": {
+                    "label": "Arbitrator address"
+                  },
+                  "state": {
+                    "key": "arbitrator",
+                    "defaultValue": "0x0000000000000000000000000000000000000000"
+                  }
+                }
+              ]
+            },
+            {
+              "element": "Screen",
+              "props": {
+                "title": "Funding"
+              },
+              "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Enter the money to commit to this agreement. It is funded at creation and held in escrow rather than sent straight to the contractor."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Enter a positive amount. Creation locks this amount; transaction fees are separate."
+                  }
+                },
+                {
+                  "element": "AmountField",
+                  "props": {
+                    "label": "Escrow amount",
+                    "unit": {
+                      "assetId": "native",
+                      "baseLabel": "wei",
+                      "displayLabel": "Native asset",
+                      "decimals": 18
+                    }
+                  },
+                  "state": {
+                    "key": "amount",
+                    "defaultValue": ""
+                  }
+                }
+              ]
+            },
+            {
+              "element": "Screen",
+              "props": {
+                "title": "Deadlines"
+              },
+              "children": [
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Maximum phase duration",
+                    "value": "$view.maxPhaseDuration",
+                    "format": "durationSeconds"
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Choose how long each stage gives someone to act. A stage’s clock starts only when that stage begins, and an expired deadline still needs a transaction to finish its timeout."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "All four durations are required, from 1 second to the maximum shown above. Phases start at the successful transaction’s block time."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "The acceptance period gives the contractor time to accept after the agreement is created. Before its deadline the client may also cancel; if acceptance remains pending at or after it, anyone can finalize the full escrow as client credit. Withdrawal is separate."
+                  }
+                },
+                {
+                  "element": "DurationField",
+                  "props": {
+                    "label": "Acceptance duration",
+                    "min": "1",
+                    "max": "$view.maxPhaseDuration"
+                  },
+                  "state": {
+                    "key": "acceptanceDuration",
+                    "defaultValue": ""
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Work time begins when the contractor accepts. The contractor can submit evidence before the deadline; once it is reached, anyone can finalize a still-unsubmitted agreement as full client credit. The deadline does not finalize or withdraw funds by itself."
+                  }
+                },
+                {
+                  "element": "DurationField",
+                  "props": {
+                    "label": "Work duration",
+                    "min": "1",
+                    "max": "$view.maxPhaseDuration"
+                  },
+                  "state": {
+                    "key": "workDuration",
+                    "defaultValue": ""
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Review time begins when work evidence is submitted. The client can approve or dispute before the deadline; at or after it, anyone can finalize a pending review as full contractor credit. Neither finalization nor withdrawal happens automatically."
+                  }
+                },
+                {
+                  "element": "DurationField",
+                  "props": {
+                    "label": "Review duration",
+                    "min": "1",
+                    "max": "$view.maxPhaseDuration"
+                  },
+                  "state": {
+                    "key": "reviewDuration",
+                    "defaultValue": ""
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "The arbitration period gives the named arbitrator time to decide a dispute. Before its deadline they may award the full escrow as credit to either party; at or after an unresolved deadline, anyone can finalize full credit to the fixed timeout recipient. Withdrawal is separate."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Starts at dispute."
+                  }
+                },
+                {
+                  "element": "DurationField",
+                  "props": {
+                    "label": "Arbitration duration",
+                    "min": "1",
+                    "max": "$view.maxPhaseDuration"
+                  },
+                  "state": {
+                    "key": "arbitrationDuration",
+                    "defaultValue": ""
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Allowed arbitration timeout recipients",
+                    "value": "$view.arbitrationTimeoutBeneficiaryIds",
+                    "format": "stringList"
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "This choice is the fallback outcome for an unresolved arbitration deadline. It names the client or contractor who receives full escrow credit when anyone finalizes that timeout. The client fixes it at creation, and the credit is withdrawn separately."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "This choice cannot be changed later."
+                  }
+                },
+                {
+                  "element": "TextField",
+                  "props": {
+                    "label": "Arbitration timeout recipient (1 = client, 2 = contractor)"
+                  },
+                  "state": {
+                    "key": "arbitrationTimeoutBeneficiary",
+                    "defaultValue": "1"
+                  }
+                }
+              ]
+            },
+            {
+              "element": "Screen",
+              "props": {
+                "title": "Terms document"
+              },
+              "children": [
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Document URI limit",
+                    "value": "$view.maxDocumentUriBytes",
+                    "format": "bytes"
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Use this to record which terms document the parties are working from. Its location and SHA-256 digest together let someone retrieve it and check for matching bytes."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Publish the agreed terms and enter their URI. Calculate SHA-256 from the exact document bytes using a local file or a browser-readable URL, or enter it manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
+                  }
+                },
+                {
+                  "element": "TextField",
+                  "props": {
+                    "label": "Terms URI"
+                  },
+                  "state": {
+                    "key": "termsUri",
+                    "defaultValue": ""
+                  }
+                },
+                {
+                  "element": "DocumentHashField",
+                  "props": {
+                    "label": "Terms SHA-256 digest",
+                    "algorithm": "sha256",
+                    "sourceURI": "$state.termsUri"
+                  },
+                  "state": {
+                    "key": "termsDigest",
+                    "defaultValue": "0x0000000000000000000000000000000000000000000000000000000000000000"
+                  }
+                }
+              ]
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "$view.actions",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Find an existing agreement"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Find an agreement you want to inspect. You can look it up with the client’s exact reference or open it directly with its agreement ID."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Use the account and exact agreement reference above for reference lookup. Other creation fields are not used for lookup."
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "lookupAgreement",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "lookupFragment",
+                "args": {
+                  "view": {
+                    "initialAgreementId": ""
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Account credit"
+          },
+          "children": [
+            {
+              "element": "Text",
+              "props": {
+                "text": "Account credit is where settled funds await withdrawal. Open it to check this account’s current credit and, if available, prepare its withdrawal."
+              }
+            },
+            {
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "openAccountCredit",
+                "args": {
+                  "view": "$view"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "escrow.agreement.absent": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "No matching agreement is stored here. Check the exact ID and whether this is the escrow contract and network where it was created."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Agreement ID",
+            "value": "$view.machine.instanceId"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openCreateAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openAccountCredit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupFragment",
+            "args": {
+              "view": {
+                "initialAgreementId": "$view.machine.instanceId"
+              }
+            }
+          }
+        }
+      ],
+      "props": {
+        "title": "Agreement not found"
+      }
+    },
+    "agreement.common": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Agreement ID",
+            "value": "$view.machine.instanceId"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Copy this ID to reopen the agreement in this escrow contract. It is derived from the client address and exact reference."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "State",
+            "value": "$view.machine.stateId"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The state records the stage the agreement has reached. Check it together with the current deadline and available actions to see what can happen next."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "funded means awaiting acceptance; accepted, awaiting work; submitted, awaiting client review; disputed, awaiting arbitration. cancelled and refunded states credit the client; released states credit the contractor. Closure records settlement, not withdrawal."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Role of the address being viewed",
+            "value": "$view.actorRoleId"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "none means the viewed address is not a named party, or no account is selected. Any account can finalize an expired deadline."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The client funds and reviews; the contractor accepts and submits work; the arbitrator can award disputed funds. Naming the arbitrator does not confirm their consent: there is no on-chain acceptance step."
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Client",
+            "address": "$view.agreement.client"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Contractor",
+            "address": "$view.agreement.contractor"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Arbitrator",
+            "address": "$view.agreement.arbitrator"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Original escrow amount in wei",
+            "value": "$view.agreement.amount"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The amount funded at creation, also shown after settlement."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current deadline",
+            "value": "$view.agreement.deadline",
+            "format": "timestampSeconds",
+            "zeroText": "No active deadline"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "For an active phase, ordinary phase actions stop at or after this deadline; finalizing its timeout still needs a transaction."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Agreement reference",
+            "value": "$view.agreement.agreementRef"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The client’s exact lookup reference; use it with the client address to find this agreement."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "These durations were fixed at creation. Each phase starts at its successful transaction’s block time. The current phase is acceptance when funded, work when accepted, review when submitted, or arbitration when disputed."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Acceptance duration",
+            "value": "$view.agreement.acceptanceDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The acceptance period gives the contractor time to accept after the agreement is created. Before its deadline the client may also cancel; if acceptance remains pending at or after it, anyone can finalize the full escrow as client credit. Withdrawal is separate."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Work duration",
+            "value": "$view.agreement.workDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Work time begins when the contractor accepts. The contractor can submit evidence before the deadline; once it is reached, anyone can finalize a still-unsubmitted agreement as full client credit. The deadline does not finalize or withdraw funds by itself."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Review duration",
+            "value": "$view.agreement.reviewDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Review time begins when work evidence is submitted. The client can approve or dispute before the deadline; at or after it, anyone can finalize a pending review as full contractor credit. Neither finalization nor withdrawal happens automatically."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Arbitration duration",
+            "value": "$view.agreement.arbitrationDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The arbitration period gives the named arbitrator time to decide a dispute. Before its deadline they may award the full escrow as credit to either party; at or after an unresolved deadline, anyone can finalize full credit to the fixed timeout recipient. Withdrawal is separate."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Starts at dispute."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Arbitration timeout recipient",
+            "value": "$view.arbitrationTimeoutBeneficiaryId"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This choice is the fallback outcome for an unresolved arbitration deadline. It names the client or contractor who receives full escrow credit when anyone finalizes that timeout. The client fixes it at creation, and the credit is withdrawn separately."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This choice cannot be changed later."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Review the document references behind the agreement: terms from the client, submission from the contractor, and any dispute from the client. The recorded digest can be compared with a retrieved file."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "An empty evidence URI and all-zero digest mean it has not been recorded. A URI locates a document; the digest is the party’s claimed SHA-256 fingerprint of its exact bytes. Retrieve the file independently and compare its SHA-256 to check for matching bytes. This view and the contract do not fetch or verify documents."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Terms URI",
+            "value": "$view.agreement.terms.uri"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Terms SHA-256 digest",
+            "value": "$view.agreement.terms.sha256Digest"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Submission URI",
+            "value": "$view.agreement.submission.uri"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Submission SHA-256 digest",
+            "value": "$view.agreement.submission.sha256Digest"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Dispute URI",
+            "value": "$view.agreement.dispute.uri"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Dispute SHA-256 digest",
+            "value": "$view.agreement.dispute.sha256Digest"
+          }
+        }
+      ]
+    },
+    "escrow.agreement.active": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The agreement moves through acceptance, work and client review, with arbitration if disputed. Here you can inspect its record and use the actions currently available."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "agreement.common",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "agreement.actions",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Settlement adds the full escrow to the recipient’s account credit. Withdrawing that credit is a separate transaction."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openAccountCredit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openCreateAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupFragment",
+            "args": {
+              "view": {
+                "initialAgreementId": "$view.machine.instanceId"
+              }
+            }
+          }
+        }
+      ],
+      "props": {
+        "title": "View and manage an escrow agreement"
+      }
+    },
+    "escrow.agreement.terminal": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Use this view to inspect how the agreement ended. Settlement created credit for one party, while withdrawal of that credit happens separately."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "agreement.common",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This agreement is closed and has no further agreement-changing actions."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "agreement.actions",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openAccountCredit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openCreateAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupFragment",
+            "args": {
+              "view": {
+                "initialAgreementId": "$view.machine.instanceId"
+              }
+            }
+          }
+        }
+      ],
+      "props": {
+        "title": "View a closed escrow agreement"
+      }
+    },
+    "escrow.credit.empty": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "children": [
+        {
+          "element": "Address",
+          "props": {
+            "label": "Account being viewed",
+            "address": "$view.account"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Total withdrawable credit for this account (wei)",
+            "value": "$view.amount"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Settling an agreement records credit rather than sending money straight to a wallet. Here you can check that account’s remaining credit and prepare its withdrawal when available."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "No credit is available to withdraw."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "credit.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openCreateAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupFragment",
+            "args": {
+              "view": {
+                "initialAgreementId": ""
+              }
+            }
+          }
+        }
+      ],
+      "props": {
+        "title": "Withdraw account credit"
+      }
+    },
+    "escrow.credit.available": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "children": [
+        {
+          "element": "Address",
+          "props": {
+            "label": "Account being viewed",
+            "address": "$view.account"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Total withdrawable credit for this account (wei)",
+            "value": "$view.amount"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Settling an agreement records credit rather than sending money straight to a wallet. Here you can check that account’s remaining credit and prepare its withdrawal when available."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "credit.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openCreateAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupFragment",
+            "args": {
+              "view": {
+                "initialAgreementId": ""
+              }
+            }
+          }
+        }
+      ],
+      "props": {
+        "title": "Withdraw account credit"
+      }
+    },
+    "createAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Create agreement"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "createAgreement",
+        "args": {
+          "params": {
+            "agreementRef": "$state.agreementRef",
+            "contractor": "$state.contractor",
+            "arbitrator": "$state.arbitrator",
+            "arbitrationTimeoutBeneficiary": "$state.arbitrationTimeoutBeneficiary",
+            "amount": "$state.amount",
+            "acceptanceDuration": "$state.acceptanceDuration",
+            "workDuration": "$state.workDuration",
+            "reviewDuration": "$state.reviewDuration",
+            "arbitrationDuration": "$state.arbitrationDuration",
+            "terms": {
+              "uri": "$state.termsUri",
+              "sha256Digest": "$state.termsDigest"
+            }
+          }
+        }
+      }
+    },
+    "lookupAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Find agreement by client and reference"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "lookupAgreement",
+        "args": {
+          "client": "$view.client",
+          "agreementRef": "$state.agreementRef"
+        }
+      }
+    },
+    "openAccountCredit": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "View account credit"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "accountCredit",
+        "args": {}
+      }
+    },
+    "openCreateAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Create an agreement"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "createAgreementForm",
+        "args": {}
+      }
+    },
+    "cancelAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Cancel agreement"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "cancelAgreement",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "cancelAgreement",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "acceptAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Accept agreement"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "acceptAgreement",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "acceptAgreement",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "approveAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Approve work and credit contractor"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "approveAgreement",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "approveAgreement",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "finalizeAcceptanceTimeout": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Finalize acceptance timeout"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "finalizeAcceptanceTimeout",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "finalizeAcceptanceTimeout",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "finalizeWorkTimeout": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Finalize work timeout"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "finalizeWorkTimeout",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "finalizeWorkTimeout",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "finalizeReviewTimeout": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Finalize review timeout"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "finalizeReviewTimeout",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "finalizeReviewTimeout",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "resolveForClient": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Award escrow to client"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "resolveForClient",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "resolveForClient",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "resolveForContractor": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Award escrow to contractor"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "resolveForContractor",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "resolveForContractor",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "finalizeArbitrationTimeout": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Finalize arbitration timeout"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "finalizeArbitrationTimeout",
+        "args": {
+          "agreementId": "$view.machine.instanceId"
+        }
+      },
+      "enabledWhen": {
+        "member": "finalizeArbitrationTimeout",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "submitAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Submit work evidence"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "submitAgreement",
+        "args": {
+          "agreementId": "$view.machine.instanceId",
+          "submission": {
+            "uri": "$state.submissionUri",
+            "sha256Digest": "$state.submissionDigest"
+          }
+        }
+      },
+      "enabledWhen": {
+        "member": "submitAgreement",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "disputeAgreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Dispute submission"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "disputeAgreement",
+        "args": {
+          "agreementId": "$view.machine.instanceId",
+          "dispute": {
+            "uri": "$state.disputeUri",
+            "sha256Digest": "$state.disputeDigest"
+          }
+        }
+      },
+      "enabledWhen": {
+        "member": "disputeAgreement",
+        "in": "$view.machine.transitionIds"
+      }
+    },
+    "withdrawTo": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Withdraw credit"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "withdrawTo",
+        "args": {
+          "recipient": "$state.recipient"
+        }
+      },
+      "enabledWhen": {
+        "member": "withdrawTo",
+        "in": "$view.actions"
+      }
+    },
+    "agreement.actions": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "cancelAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "acceptAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Link the work evidence so the client can review it against the terms. The agreement stores the document reference and starts the review period when submission succeeds."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "“Submission URI” is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Submission URI"
+          },
+          "state": {
+            "key": "submissionUri",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "submitAgreement",
+            "in": "$view.machine.transitionIds"
+          }
+        },
+        {
+          "element": "DocumentHashField",
+          "props": {
+            "label": "Submission SHA-256 digest",
+            "algorithm": "sha256",
+            "sourceURI": "$state.submissionUri"
+          },
+          "state": {
+            "key": "submissionDigest",
+            "defaultValue": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "enabledWhen": {
+            "member": "submitAgreement",
+            "in": "$view.machine.transitionIds"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "submitAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "approveAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Record why the client disputes the submission and where the supporting evidence can be found. A successful dispute starts the arbitration period."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "“Dispute URI” is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Dispute URI"
+          },
+          "state": {
+            "key": "disputeUri",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "disputeAgreement",
+            "in": "$view.machine.transitionIds"
+          }
+        },
+        {
+          "element": "DocumentHashField",
+          "props": {
+            "label": "Dispute SHA-256 digest",
+            "algorithm": "sha256",
+            "sourceURI": "$state.disputeUri"
+          },
+          "state": {
+            "key": "disputeDigest",
+            "defaultValue": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "enabledWhen": {
+            "member": "disputeAgreement",
+            "in": "$view.machine.transitionIds"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "disputeAgreement",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "finalizeAcceptanceTimeout",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "finalizeWorkTimeout",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "finalizeReviewTimeout",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "resolveForClient",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "resolveForContractor",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "finalizeArbitrationTimeout",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "lookupFragment": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Use an agreement ID to open one specific record directly. It is the long identifier copied from an agreement view, not the client’s own reference."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Enter 0x followed by 64 hexadecimal characters. Use the same escrow contract and network where the agreement was created."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Agreement ID"
+          },
+          "state": {
+            "key": "agreementId",
+            "defaultValue": "$view.initialAgreementId"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Open agreement by ID"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "agreement",
+            "args": {
+              "agreementId": "$state.agreementId"
+            }
+          }
+        }
+      ]
+    },
+    "credit.withdrawal": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Choose an address to receive the full withdrawal. It may differ from the credit owner, but only that owner can submit the withdrawal transaction."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The recipient defaults to the account being viewed. Enter 0x followed by 40 hexadecimal characters. The zero address and this escrow contract are rejected. The recipient must be able to receive this chain’s native asset."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Withdrawal recipient"
+          },
+          "state": {
+            "key": "recipient",
+            "defaultValue": "$view.account"
+          },
+          "enabledWhen": {
+            "member": "withdrawTo",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "withdrawTo",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

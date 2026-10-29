@@ -122,7 +122,7 @@ test("creation distinguishes client-reference lookup from independent ID lookup 
   assert.match(String(requiredButton(resolvedUi, "lookupAgreement").props.label), /client and reference/i)
   assert.deepEqual(plain(requiredButton(resolvedUi, "lookupAgreement").call.args), { client: ACCOUNT, agreementRef: "" })
   assert.match(String(requiredButton(resolvedUi, "agreement").props.label), /by ID/)
-  assert.ok(texts.some((text) => text.includes("account that sends the successful creation transaction becomes the client")))
+  assert.ok(texts.some((text) => text.includes("sending wallet becomes the client")))
 })
 
 test("creation explains required party, reference and document inputs beside their fields", async () => {
@@ -139,7 +139,7 @@ test("creation explains required party, reference and document inputs beside the
   assert.match(precedingHelp(resolvedUi, "arbitrator"), /does not confirm they have agreed to arbitrate/)
   const timeoutRecipient = precedingHelp(resolvedUi, "arbitrationTimeoutBeneficiary")
   assert.match(timeoutRecipient, /cannot be changed later/)
-  assert.match(timeoutRecipient, /Withdrawal is separate/)
+  assert.match(timeoutRecipient, /withdrawn separately/)
   assert.match(precedingHelp(resolvedUi, "amount"), /positive amount/)
   assert.match(precedingHelp(resolvedUi, "amount"), /Creation locks this amount; transaction fees are separate/)
   const terms = precedingHelp(resolvedUi, "termsUri")
@@ -149,7 +149,7 @@ test("creation explains required party, reference and document inputs beside the
   assert.match(terms, /enter it manually/)
   assert.match(terms, /not uploaded or checked against the URI/)
   assert.match(precedingHelp(resolvedUi, "agreementId"), /0x followed by 64 hexadecimal/)
-  assert.match(precedingHelp(resolvedUi, "agreementId"), /differs from the client’s reference/)
+  assert.match(precedingHelp(resolvedUi, "agreementId"), /not the client’s own reference/)
 })
 
 test("each creation duration explains its start and timeout beneficiary beside the field", async () => {
@@ -159,22 +159,21 @@ test("each creation duration explains its start and timeout beneficiary beside t
   const general = nodes.findIndex(node => node.element === "Text" && String(node.props.text).includes("All four durations are required"))
   const firstDuration = nodes.findIndex(node => "state" in node && node.state.key === "acceptanceDuration")
   assert(general >= 0 && general < firstDuration)
-  const generalHelp = nodes[general]
-  assert.ok(generalHelp?.element === "Text")
-  assert.match(String(generalHelp.props.text), /do not execute automatically/)
-  assert.match(String(generalHelp.props.text), /requires a transaction/)
+  const generalHelp = precedingHelp(resolvedUi, "acceptanceDuration")
+  assert.match(generalHelp, /expired deadline still needs a transaction/)
+  assert.match(generalHelp, /successful transaction’s block time/)
   for (const [field, start, recipient] of [
-    ["acceptanceDuration", "creation", "client"],
-    ["workDuration", "acceptance", "client"],
-    ["reviewDuration", "submission", "contractor"],
-    ["arbitrationDuration", "dispute", "chosen timeout recipient"],
-  ]) {
-    const index = nodes.findIndex((node) => "state" in node && node.state.key === field)
-    const help = nodes[index - 1]
-    assert.ok(help?.element === "Text", `${field} has adjacent phase help`)
-    const text = String(help.props.text)
-    assert.ok(text.includes(`Starts at ${start}.`))
-    assert.ok(text.includes(`At or after it, anyone can finalize full credit to the ${recipient}`))
+    ["acceptanceDuration", /after the agreement is created/, /full escrow as client credit/],
+    ["workDuration", /begins when the contractor accepts/, /full client credit/],
+    ["reviewDuration", /begins when work evidence is submitted/, /full contractor credit/],
+    ["arbitrationDuration", /Starts at dispute\./, /full credit to the fixed timeout recipient/],
+  ] as const) {
+    const text = precedingHelp(resolvedUi, field)
+    assert.match(text, start)
+    assert.match(text, /before (?:its |the )?deadline/i)
+    assert.match(text, /at or after|once it is reached/)
+    assert.match(text, /anyone can finalize/)
+    assert.match(text, recipient)
   }
 })
 
@@ -221,7 +220,7 @@ test("credit distinguishes the credit owner, full amount and withdrawal destinat
       if (node.element === "Status") statusLabels.push(String(node.props.label))
     })
     assert.ok(statusLabels.includes("Total withdrawable credit for this account (wei)"))
-    assert.ok(texts.some((text) => /When an agreement ends, this escrow assigns its funds to one party as withdrawable credit\./.test(text)))
+    assert.ok(texts.some((text) => /Settling an agreement records credit rather than sending money straight to a wallet\./.test(text)))
     assert.ok(texts.some((text) => /This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals\./.test(text)))
     assert.ok(texts.some((text) => /It excludes funds still locked in open agreements\./.test(text)))
     assert.ok(texts.some((text) => /When credit is available, send the withdrawal transaction from the account shown/.test(text)))
@@ -716,9 +715,14 @@ function precedingHelp(resolvedUi: ResolvedUiNode, name: string): string {
   forEachResolvedUiNode(resolvedUi, (node) => nodes.push(node))
   const index = nodes.findIndex((node) => "state" in node && node.state.key === name)
   assert.ok(index > 0, `missing field or preceding help: ${name}`)
-  const help = nodes[index - 1]
-  assert.ok(help?.element === "Text", `${name} has adjacent help`)
-  return String(help.props.text)
+  const paragraphs: string[] = []
+  for (let i = index - 1; i >= 0; i--) {
+    const node = nodes[i]
+    if (node?.element !== "Text") break
+    paragraphs.unshift(String(node.props.text))
+  }
+  assert.ok(paragraphs.length > 0, `${name} has adjacent help`)
+  return paragraphs.join(" ")
 }
 
 function requiredButton(

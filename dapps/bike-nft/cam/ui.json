@@ -2,36 +2,244 @@
   "ui": "1.0.0",
   "nodes": {
     "deploymentHandovers": {
-      "element": "Screen", "requires": ["view"], "props": {"title": "Deployment handovers"},
+      "element": "Screen",
+      "requires": [
+        "view"
+      ],
+      "props": {
+        "title": "Deployment handovers"
+      },
       "children": [
-        {"element": "Text", "props": {"text": "Each authority transfers separately. Connect the nominated wallet to accept. The current owner or administrator keeps authority until acceptance succeeds. The two admin waits use chain time; refresh after the acceptance time has passed."}},
-        {"element": "Button", "props": {"label": "Refresh handovers"}, "call": {"namespace": "routes", "function": "deploymentHandovers", "args": {}}},
-        {"element": "Screen", "props": {"title": "CAM ownership"}, "children": [
-          {"element": "Status", "props": {"label": "CAM host", "value": "$view.cam.target"}},
-          {"element": "Status", "props": {"label": "Current owner", "value": "$view.cam.current"}},
-          {"element": "Status", "props": {"label": "Nominated owner (zero means none)", "value": "$view.cam.pending"}},
-          {"element": "Status", "props": {"label": "Acceptance", "value": "$view.cam.status"}},
-          {"element": "Text", "props": {"text": "The owner can change the CAM manifest and contract bindings. There is no acceptance delay."}},
-          {"element": "Button", "props": {"label": "Accept CAM ownership"}, "enabledWhen": {"member": "acceptCamOwnership", "in": "$view.actions"}, "call": {"namespace": "routes", "function": "acceptCamOwnership", "args": {}}}
-        ]},
-        {"element": "Screen", "props": {"title": "Components administrator"}, "children": [
-          {"element": "Status", "props": {"label": "NFT collection", "value": "$view.components.target"}},
-          {"element": "Status", "props": {"label": "Current administrator", "value": "$view.components.current"}},
-          {"element": "Status", "props": {"label": "Nominated administrator (zero means none)", "value": "$view.components.pending"}},
-          {"element": "Status", "props": {"label": "Acceptance time", "value": "$view.components.readyAt", "format": "timestampSeconds", "zeroText": "Not scheduled"}},
-          {"element": "Status", "props": {"label": "Acceptance", "value": "$view.components.status"}},
-          {"element": "Text", "props": {"text": "The administrator manages the collection's operational roles and future administrator transfers."}},
-          {"element": "Button", "props": {"label": "Accept Components administration"}, "enabledWhen": {"member": "acceptComponentsAdmin", "in": "$view.actions"}, "call": {"namespace": "routes", "function": "acceptComponentsAdmin", "args": {}}}
-        ]},
-        {"element": "Screen", "props": {"title": "Manager administrator"}, "children": [
-          {"element": "Status", "props": {"label": "Registry manager", "value": "$view.manager.target"}},
-          {"element": "Status", "props": {"label": "Current administrator", "value": "$view.manager.current"}},
-          {"element": "Status", "props": {"label": "Nominated administrator (zero means none)", "value": "$view.manager.pending"}},
-          {"element": "Status", "props": {"label": "Acceptance time", "value": "$view.manager.readyAt", "format": "timestampSeconds", "zeroText": "Not scheduled"}},
-          {"element": "Status", "props": {"label": "Acceptance", "value": "$view.manager.status"}},
-          {"element": "Text", "props": {"text": "The administrator manages registrar and operational roles and future administrator transfers."}},
-          {"element": "Button", "props": {"label": "Accept Manager administration"}, "enabledWhen": {"member": "acceptManagerAdmin", "in": "$view.actions"}, "call": {"namespace": "routes", "function": "acceptManagerAdmin", "args": {}}}
-        ]}
+        {
+          "element": "Text",
+          "props": {
+            "text": "Here you can review and accept pending handovers for three independent authorities. The CAM host, NFT collection and registry manager do not share one acceptance step."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Connect the nominated wallet to accept. The current owner or administrator keeps authority until acceptance succeeds. The two admin waits use chain time; refresh after the acceptance time has passed."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Refresh handovers"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "deploymentHandovers",
+            "args": {}
+          }
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "CAM ownership"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "CAM host",
+                "value": "$view.cam.target"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Current owner",
+                "value": "$view.cam.current"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Nominated owner (zero means none)",
+                "value": "$view.cam.pending"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Acceptance",
+                "value": "$view.cam.status"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "The CAM host tells the viewer which resources and contracts make up the app. Its owner can change those references, and this section handles accepting that ownership."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "There is no acceptance delay for CAM ownership."
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Accept CAM ownership"
+              },
+              "enabledWhen": {
+                "member": "acceptCamOwnership",
+                "in": "$view.actions"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "acceptCamOwnership",
+                "args": {}
+              }
+            }
+          ]
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Components administrator"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "NFT collection",
+                "value": "$view.components.target"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "This changes who administers the contract. Any existing operational access, including roles held by the previous administrator, must be changed separately if it should end."
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Current administrator",
+                "value": "$view.components.current"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Nominated administrator (zero means none)",
+                "value": "$view.components.pending"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Acceptance time",
+                "value": "$view.components.readyAt",
+                "format": "timestampSeconds",
+                "zeroText": "Not scheduled"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Acceptance",
+                "value": "$view.components.status"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "The collection administrator manages its role assignments and future administrator handovers. Holding this administrator position alone does not authorize minting, metadata changes, or pausing; those actions use separate roles."
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Accept Components administration"
+              },
+              "enabledWhen": {
+                "member": "acceptComponentsAdmin",
+                "in": "$view.actions"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "acceptComponentsAdmin",
+                "args": {}
+              }
+            }
+          ]
+        },
+        {
+          "element": "Screen",
+          "props": {
+            "title": "Manager administrator"
+          },
+          "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Registry manager",
+                "value": "$view.manager.target"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "This changes who administers the contract. Any existing operational access, including roles held by the previous administrator, must be changed separately if it should end."
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Current administrator",
+                "value": "$view.manager.current"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Nominated administrator (zero means none)",
+                "value": "$view.manager.pending"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Acceptance time",
+                "value": "$view.manager.readyAt",
+                "format": "timestampSeconds",
+                "zeroText": "Not scheduled"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Acceptance",
+                "value": "$view.manager.status"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Once the required onchain wait has passed, accept your nomination here to administer the component registry. You can manage who holds the registry’s registration, pause and configuration roles, but this does not make you an NFT owner or give you authority over a physical bike."
+              }
+            },
+            {
+              "element": "Button",
+              "props": {
+                "label": "Accept Manager administration"
+              },
+              "enabledWhen": {
+                "member": "acceptManagerAdmin",
+                "in": "$view.actions"
+              },
+              "call": {
+                "namespace": "routes",
+                "function": "acceptManagerAdmin",
+                "args": {}
+              }
+            }
+          ]
+        }
       ]
     },
     "app": {
@@ -83,6 +291,12 @@
       },
       "children": [
         {
+          "element": "Text",
+          "props": {
+            "text": "The registry and its NFT collection can be paused independently. These flags help explain why a particular update or transfer may be unavailable."
+          }
+        },
+        {
           "element": "Status",
           "props": {
             "label": "Registry paused",
@@ -113,7 +327,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial, then choose Look up component to find it or Check registration to check whether it can be registered."
+                "text": "Enter the component’s serial to find its record in this registry. Looking it up only reads the record; registration is a separate action."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Case and spaces matter; the contract does not trim or normalize the serial."
               }
             },
             {
@@ -171,7 +391,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Account info URI is an optional public profile or contact-document location for the account sending the update. Enter an empty value to clear it."
+                "text": "Publish a profile link so people inspecting your components can find public information about you. The update belongs to the account that sends it."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Enter an empty value to clear the current profile link."
               }
             },
             {
@@ -217,7 +443,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
+                "text": "Enter the component’s serial to find its record in this registry. Looking it up only reads the record; registration is a separate action."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Case and spaces matter; the contract does not trim or normalize the serial."
               }
             },
             {
@@ -269,7 +501,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "No component is registered for this exact serial in this registry. Check the serial, contract and network before registering."
+                "text": "No matching component was found here. You can correct the serial and search again, or check registration if this is the intended unused serial."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Check the serial, contract and network before registering."
               }
             },
             {
@@ -354,11 +592,23 @@
               }
             },
             {
+              "element": "Text",
+              "props": {
+                "text": "Here you can see which component is open, who owns its NFT and how the registry currently labels it. Changes on this page apply to that loaded record."
+              }
+            },
+            {
               "element": "Screen",
               "props": {
                 "title": "Access for viewed account"
               },
               "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "This is an account-specific view of the component’s permissions. A workshop grant can allow selected registry updates without making that workshop the NFT owner."
+                  }
+                },
                 {
                   "element": "Status",
                   "props": {
@@ -403,6 +653,12 @@
               },
               "children": [
                 {
+                  "element": "Text",
+                  "props": {
+                    "text": "See who originally registered this component and how its serial is identified in the registry. Registration history is separate from current NFT ownership."
+                  }
+                },
+                {
                   "element": "Address",
                   "props": {
                     "label": "Registered by",
@@ -427,6 +683,12 @@
           },
           "children": [
             {
+              "element": "Text",
+              "props": {
+                "text": "This is the component’s NFT presentation: its metadata document can provide a name, description and image. The registry’s operational status is shown separately."
+              }
+            },
+            {
               "element": "Nft",
               "props": {
                 "contractAddress": "$view.tokenContract",
@@ -440,6 +702,12 @@
                 "title": "Edit NFT details"
               },
               "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "This edits how the component NFT is described in other apps. Choose a hosted JSON document or embedded JSON, then review the update before sending it."
+                  }
+                },
                 {
                   "element": "NftMetadataField",
                   "props": {
@@ -477,6 +745,12 @@
             {
               "element": "Text",
               "props": {
+                "text": "Use missing reports to record that a component is missing and later resolve that report. This changes its reported status, not its owner or separate service state."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
                 "text": "Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report."
               }
             },
@@ -490,7 +764,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Publish the missing report and enter its nonempty URI. Confirmation changes an active component to missing and stores this report URI."
+                "text": "Publish a report explaining that the component is missing, then enter its URI. A successful report marks the component missing and keeps that URI with the record."
               }
             },
             {
@@ -520,7 +794,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Publish the explanation for resolving the report and enter its nonempty URI. Confirmation clears the report and records the resolution URI in the transaction event. It does not change whether the component is out of service."
+                "text": "To resolve a missing report, an authorized actor submits a nonempty URI to a published explanation. This returns the component to Active, clears its current report URI, and records the resolution URI in a public event; prior report transactions remain."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Resolving the report does not change whether the component is out of service."
               }
             },
             {
@@ -565,7 +845,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Only the current owner can take a component out of service or reactivate it. Metadata corrections and ordinary NFT transfers remain available in either state."
+                "text": "The owner can take a component out of service and reactivate it later. This is a separate, reversible choice rather than a missing report or an ownership change."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Metadata corrections and ordinary NFT transfers remain available in either service state."
               }
             },
             {
@@ -599,13 +885,19 @@
             {
               "element": "Text",
               "props": {
-                "text": "Workshop grants permit selected registry updates. They do not approve NFT transfers. Grants expire and are permanently invalidated by a change of owner, even if the NFT later returns."
+                "text": "Give a workshop limited permission to update this component’s registry record without making it the NFT owner. Inspect the workshop first, then choose the permissions and expiry."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Enter a workshop address and choose an access duration to inspect its grant and preview an expiry. This registry does not enumerate every workshop grant."
+                "text": "Workshop grants do not approve NFT transfers. Grants expire and are permanently invalidated by a change of owner, even if the NFT later returns."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "This registry does not enumerate every workshop grant."
               }
             },
             {
@@ -659,7 +951,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Handover transfers the loaded component NFT directly. It does not settle payment or prove physical delivery or recipient consent. Check the recipient carefully; contract recipients must accept ERC-721 NFTs. Missing reports and out-of-service status remain attached to the record."
+                "text": "Transfer this component’s NFT to a new owner. This changes token ownership directly; it does not handle a sale payment or prove that the physical component was delivered."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "This does not prove recipient consent. Check the recipient carefully; contract recipients must accept ERC-721 NFTs. Missing reports and out-of-service status remain attached to the record."
               }
             },
             {
@@ -735,7 +1033,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Legacy retired record: retirement was permanent in that deployment. This view is read-only and does not convert retirement into reversible inactivity."
+            "text": "This is a retired record from an older deployment. Retirement there was permanent, so it should not be read as the reversible out-of-service state used by the current app."
           }
         },
         {
@@ -964,7 +1262,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
+                "text": "Check whether the component serial already exists here. If it is unused and registration is permitted, you can continue to the registration form."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Case and spaces matter; the contract does not trim or normalize the serial."
               }
             },
             {
@@ -1004,7 +1308,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "A registrar sends registration; the initial NFT owner may be a different account. The serial must be unused in this registry. Registration creates an active record and mints its component NFT to that owner."
+                "text": "Registration creates a registry record for an unused serial and mints its component NFT to the initial owner. A registrar sends the transaction; that registrar can be different from the owner."
               }
             },
             {
@@ -1061,6 +1365,12 @@
                 "title": "NFT details"
               },
               "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Prepare the document that will describe the new component NFT. You can use a JSON document URL or embed the JSON that supplies its name, description and image reference."
+                  }
+                },
                 {
                   "element": "NftMetadataField",
                   "props": {
@@ -1250,6 +1560,12 @@
               }
             },
             {
+              "element": "Text",
+              "props": {
+                "text": "These are the recorded permissions for the inspected workshop and component. Check whether the grant is active; an expired or invalidated grant does not give current access."
+              }
+            },
+            {
               "element": "Address",
               "props": {
                 "label": "Delegation grantor",
@@ -1294,7 +1610,13 @@
             {
               "element": "Text",
               "props": {
-                "text": "Inspect a workshop grant by address. Editing the address or duration does not change the inspected grant or its previewed expiry until you preview again."
+                "text": "Choose the workshop account you want to inspect and an access duration to preview. This is a read step; it does not grant or change permissions."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Editing the address or duration does not change the inspected grant or its previewed expiry until you preview again."
               }
             },
             {
@@ -1350,6 +1672,12 @@
               "props": {
                 "label": "Previewed expiry (Unix seconds)",
                 "value": "$view.validUntil"
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Set the workshop’s next grant by choosing a preset, or revoke its access altogether. Confirm the inspected account and previewed expiry before submitting."
               }
             },
             {

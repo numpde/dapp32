@@ -58,7 +58,8 @@ function assertContractStatusNearTop(snapshot: CamViewerSnapshot, paused: boolea
   const status = root.children[1]
   assert.ok(navigation?.element === "Screen" && navigation.props.title === "App navigation")
   assert.ok(status?.element === "Screen" && status.props.title === "Contract status", "contract status must precede task content")
-  assert.deepEqual(status.children.map(node => node.element === "Status" ? [node.props.label, node.props.value] : undefined), [
+  assert.ok(status.children.every(node => node.element === "Status" || node.element === "Text"))
+  assert.deepEqual(status.children.filter(node => node.element === "Status").map(node => [node.props.label, node.props.value]), [
     ["Registry paused", paused], ["Component token paused", tokenPaused],
   ])
   let headers = 0

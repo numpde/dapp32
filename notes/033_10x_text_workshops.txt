@@ -387,3 +387,663 @@ Before:
 
 After:
 The confirmed transaction created this channel. Use its recorded ID to open your balance in it; creating a channel does not deposit any funds.
+
+
+Bike / Deployment handovers
+
+Before:
+Each authority transfers separately. Connect the nominated wallet to accept. The current owner or administrator keeps authority until acceptance succeeds. The two admin waits use chain time; refresh after the acceptance time has passed.
+
+→
+
+After:
+Here you can review and accept pending handovers for three independent authorities. The CAM host, NFT collection and registry manager do not share one acceptance step.
+
+Connect the nominated wallet to accept. The current owner or administrator keeps authority until acceptance succeeds. The two admin waits use chain time; refresh after the acceptance time has passed.
+
+
+Bike / CAM ownership
+
+Before:
+The owner can change the CAM manifest and contract bindings. There is no acceptance delay.
+
+→
+
+After:
+The CAM host tells the viewer which resources and contracts make up the app. Its owner can change those references, and this section handles accepting that ownership.
+
+There is no acceptance delay for CAM ownership.
+
+
+Bike / Components administrator
+
+Before:
+The administrator manages the collection's operational roles and future administrator transfers.
+
+→
+
+After:
+This changes who administers the contract. Any existing operational access, including roles held by the previous administrator, must be changed separately if it should end.
+
+The collection administrator manages its role assignments and future administrator handovers. Holding this administrator position alone does not authorize minting, metadata changes, or pausing; those actions use separate roles.
+
+
+Bike / Manager administrator
+
+Before:
+The administrator manages registrar and operational roles and future administrator transfers.
+
+→
+
+After:
+This changes who administers the contract. Any existing operational access, including roles held by the previous administrator, must be changed separately if it should end.
+
+Once the required onchain wait has passed, accept your nomination here to administer the component registry. You can manage who holds the registry’s registration, pause and configuration roles, but this does not make you an NFT owner or give you authority over a physical bike.
+
+
+Bike / Contract status
+
+Before:
+(none)
+
+→
+
+After:
+The registry and its NFT collection can be paused independently. These flags help explain why a particular update or transfer may be unavailable.
+
+
+Bike / Find a component
+
+Before:
+Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial, then choose Look up component to find it or Check registration to check whether it can be registered.
+
+→
+
+After:
+Enter the component’s serial to find its record in this registry. Looking it up only reads the record; registration is a separate action.
+
+Case and spaces matter; the contract does not trim or normalize the serial.
+
+
+Bike / Account profile
+
+Before:
+Account info URI is an optional public profile or contact-document location for the account sending the update. Enter an empty value to clear it.
+
+→
+
+After:
+Publish a profile link so people inspecting your components can find public information about you. The update belongs to the account that sends it.
+
+Enter an empty value to clear the current profile link.
+
+
+Bike / Find a component
+
+Before:
+Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component.
+
+→
+
+After:
+Enter the component’s serial to find its record in this registry. Looking it up only reads the record; registration is a separate action.
+
+Case and spaces matter; the contract does not trim or normalize the serial.
+
+
+Bike / Find a component
+
+Before:
+No component is registered for this exact serial in this registry. Check the serial, contract and network before registering.
+
+→
+
+After:
+No matching component was found here. You can correct the serial and search again, or check registration if this is the intended unused serial.
+
+Check the serial, contract and network before registering.
+
+
+Bike / Component details
+
+Before:
+(none)
+
+→
+
+After:
+Here you can see which component is open, who owns its NFT and how the registry currently labels it. Changes on this page apply to that loaded record.
+
+
+Bike / Access for viewed account
+
+Before:
+(none)
+
+→
+
+After:
+This is an account-specific view of the component’s permissions. A workshop grant can allow selected registry updates without making that workshop the NFT owner.
+
+
+Bike / Registration details
+
+Before:
+(none)
+
+→
+
+After:
+See who originally registered this component and how its serial is identified in the registry. Registration history is separate from current NFT ownership.
+
+
+Bike / NFT details
+
+Before:
+(none)
+
+→
+
+After:
+This is the component’s NFT presentation: its metadata document can provide a name, description and image. The registry’s operational status is shown separately.
+
+
+Bike / Edit NFT details
+
+Before:
+(none)
+
+→
+
+After:
+This edits how the component NFT is described in other apps. Choose a hosted JSON document or embedded JSON, then review the update before sending it.
+
+
+Bike / Missing reports
+
+Before:
+Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report.
+
+Publish the missing report and enter its nonempty URI. Confirmation changes an active component to missing and stores this report URI.
+
+Publish the explanation for resolving the report and enter its nonempty URI. Confirmation clears the report and records the resolution URI in the transaction event. It does not change whether the component is out of service.
+
+→
+
+After:
+Use missing reports to record that a component is missing and later resolve that report. This changes its reported status, not its owner or separate service state.
+
+Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report.
+
+Publish a report explaining that the component is missing, then enter its URI. A successful report marks the component missing and keeps that URI with the record.
+
+To resolve a missing report, an authorized actor submits a nonempty URI to a published explanation. This returns the component to Active, clears its current report URI, and records the resolution URI in a public event; prior report transactions remain.
+
+Resolving the report does not change whether the component is out of service.
+
+
+Bike / Service state
+
+Before:
+Only the current owner can take a component out of service or reactivate it. Metadata corrections and ordinary NFT transfers remain available in either state.
+
+→
+
+After:
+The owner can take a component out of service and reactivate it later. This is a separate, reversible choice rather than a missing report or an ownership change.
+
+Metadata corrections and ordinary NFT transfers remain available in either service state.
+
+
+Bike / Workshop access
+
+Before:
+Workshop grants permit selected registry updates. They do not approve NFT transfers. Grants expire and are permanently invalidated by a change of owner, even if the NFT later returns.
+
+Enter a workshop address and choose an access duration to inspect its grant and preview an expiry. This registry does not enumerate every workshop grant.
+
+→
+
+After:
+Give a workshop limited permission to update this component’s registry record without making it the NFT owner. Inspect the workshop first, then choose the permissions and expiry.
+
+Workshop grants do not approve NFT transfers. Grants expire and are permanently invalidated by a change of owner, even if the NFT later returns.
+
+This registry does not enumerate every workshop grant.
+
+
+Bike / Transfer ownership
+
+Before:
+Handover transfers the loaded component NFT directly. It does not settle payment or prove physical delivery or recipient consent. Check the recipient carefully; contract recipients must accept ERC-721 NFTs. Missing reports and out-of-service status remain attached to the record.
+
+→
+
+After:
+Transfer this component’s NFT to a new owner. This changes token ownership directly; it does not handle a sale payment or prove that the physical component was delivered.
+
+This does not prove recipient consent. Check the recipient carefully; contract recipients must accept ERC-721 NFTs. Missing reports and out-of-service status remain attached to the record.
+
+
+Bike / Legacy retired record
+
+Before:
+Legacy retired record: retirement was permanent in that deployment. This view is read-only and does not convert retirement into reversible inactivity.
+
+→
+
+After:
+This is a retired record from an older deployment. Retirement there was permanent, so it should not be read as the reversible out-of-service state used by the current app.
+
+
+Bike / Check a serial
+
+Before:
+Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component.
+
+To check an edited serial, choose Look up component. If it is unused and registration is available, choose Check registration in the lookup result. Registration preparation is disabled when the contracts are paused, the record exists or the viewed account lacks the registrar role.
+
+→
+
+After:
+Check whether the component serial already exists here. If it is unused and registration is permitted, you can continue to the registration form.
+
+Case and spaces matter; the contract does not trim or normalize the serial.
+
+To check an edited serial, choose Look up component. If it is unused and registration is available, choose Check registration in the lookup result. Registration preparation is disabled when the contracts are paused, the record exists or the viewed account lacks the registrar role.
+
+
+Bike / Register component
+
+Before:
+A registrar sends registration; the initial NFT owner may be a different account. The serial must be unused in this registry. Registration creates an active record and mints its component NFT to that owner.
+
+Initial NFT owner is required: 0x followed by 40 hexadecimal characters, other than the zero address. The recipient must accept an ERC-721 NFT; contract recipients need the ERC-721 receiver interface.
+
+→
+
+After:
+Registration creates a registry record for an unused serial and mints its component NFT to the initial owner. A registrar sends the transaction; that registrar can be different from the owner.
+
+Initial NFT owner is required: 0x followed by 40 hexadecimal characters, other than the zero address. The recipient must accept an ERC-721 NFT; contract recipients need the ERC-721 receiver interface.
+
+
+Bike / NFT details
+
+Before:
+(none)
+
+→
+
+After:
+Prepare the document that will describe the new component NFT. You can use a JSON document URL or embed the JSON that supplies its name, description and image reference.
+
+
+Bike / Inspected workshop grant
+
+Before:
+Workshop grants allow registry updates only. They do not approve NFT transfers. A change of owner permanently invalidates the grant.
+
+→
+
+After:
+These are the recorded permissions for the inspected workshop and component. Check whether the grant is active; an expired or invalidated grant does not give current access.
+
+Workshop grants allow registry updates only. They do not approve NFT transfers. A change of owner permanently invalidates the grant.
+
+
+Bike / Inspect a workshop
+
+Before:
+Inspect a workshop grant by address. Editing the address or duration does not change the inspected grant or its previewed expiry until you preview again.
+
+→
+
+After:
+Choose the workshop account you want to inspect and an access duration to preview. This is a read step; it does not grant or change permissions.
+
+Editing the address or duration does not change the inspected grant or its previewed expiry until you preview again.
+
+
+Bike / Change workshop permissions
+
+Before:
+Each preset replaces the workshop's existing permissions and expiry with the selected permissions and previewed expiry shown above. Preview again after changing the workshop or duration. Revocation targets the inspected workshop.
+
+→
+
+After:
+Set the workshop’s next grant by choosing a preset, or revoke its access altogether. Confirm the inspected account and previewed expiry before submitting.
+
+Each preset replaces the workshop's existing permissions and expiry with the selected permissions and previewed expiry shown above. Preview again after changing the workshop or duration. Revocation targets the inspected workshop.
+
+
+Escrow / Account and agreement reference
+
+Before:
+The client funds the escrow and reviews the contractor’s work. The account that sends the successful creation transaction becomes the client; the address below is the account being viewed.
+
+Reference and URI limits count UTF-8 bytes; some characters use more than one byte.
+
+Required: choose a reference such as invoice-2026-01. It must be unique for this client in this escrow contract, even after closure. Lookup uses the exact text, including case and spaces. The contract derives a separate agreement ID from the client address and reference.
+
+→
+
+After:
+Use an agreement reference to connect this escrow to the job or invoice it covers. When creation succeeds, the sending wallet becomes the client.
+
+Reference and URI limits count UTF-8 bytes; some characters use more than one byte.
+
+Required: choose a reference such as invoice-2026-01. It must be unique for this client in this escrow contract, even after closure. Lookup uses the exact text, including case and spaces. The contract derives a separate agreement ID from the client address and reference.
+
+
+Escrow / Create and fund an escrow agreement
+
+Before:
+(none)
+
+→
+
+After:
+Set up an agreement that holds the client’s money while the contractor carries out the work. Choose the parties, amount, deadlines and terms, then create and fund it in one transaction.
+
+
+Escrow / Parties
+
+Before:
+The contractor accepts and submits work. The arbitrator can award disputed funds to either party. Both addresses are required: 0x followed by 40 hexadecimal characters. Replace the all-zero placeholders. Client, contractor and arbitrator must differ; neither entered address may be this escrow contract.
+
+The arbitrator has no on-chain acceptance step. Naming an arbitrator does not confirm they have agreed to arbitrate.
+
+→
+
+After:
+This agreement has three roles: the client funds and reviews, the contractor accepts and submits work, and the arbitrator can decide who receives disputed funds.
+
+Both addresses are required: 0x followed by 40 hexadecimal characters. Replace the all-zero placeholders. Client, contractor and arbitrator must differ; neither entered address may be this escrow contract.
+
+The arbitrator has no on-chain acceptance step. Naming an arbitrator does not confirm they have agreed to arbitrate.
+
+
+Escrow / Funding
+
+Before:
+Enter a positive amount. Creation locks this amount; transaction fees are separate.
+
+→
+
+After:
+Enter the money to commit to this agreement. It is funded at creation and held in escrow rather than sent straight to the contractor.
+
+Enter a positive amount. Creation locks this amount; transaction fees are separate.
+
+
+Escrow / Deadlines
+
+Before:
+All four durations are required, from 1 second to the maximum shown above. Phases start at the successful transaction’s block time; deadlines do not execute automatically. Finalizing a timeout requires a transaction.
+
+Starts at creation. Before the deadline, the contractor can accept or the client can cancel. At or after it, anyone can finalize full credit to the client if acceptance is still pending.
+
+Starts at acceptance. The contractor must submit before the deadline. At or after it, anyone can finalize full credit to the client if work is still unsubmitted.
+
+Starts at submission. The client can approve or dispute before the deadline. At or after it, anyone can finalize full credit to the contractor if review is still pending.
+
+Starts at dispute. The arbitrator can award the full escrow before the deadline. At or after it, anyone can finalize full credit to the chosen timeout recipient if the dispute is still unresolved.
+
+The client chooses this recipient at creation; it cannot be changed later. At or after an unresolved arbitration deadline, anyone can finalize full credit to the chosen recipient. Withdrawal is separate.
+
+→
+
+After:
+Choose how long each stage gives someone to act. A stage’s clock starts only when that stage begins, and an expired deadline still needs a transaction to finish its timeout.
+
+All four durations are required, from 1 second to the maximum shown above. Phases start at the successful transaction’s block time.
+
+The acceptance period gives the contractor time to accept after the agreement is created. Before its deadline the client may also cancel; if acceptance remains pending at or after it, anyone can finalize the full escrow as client credit. Withdrawal is separate.
+
+Work time begins when the contractor accepts. The contractor can submit evidence before the deadline; once it is reached, anyone can finalize a still-unsubmitted agreement as full client credit. The deadline does not finalize or withdraw funds by itself.
+
+Review time begins when work evidence is submitted. The client can approve or dispute before the deadline; at or after it, anyone can finalize a pending review as full contractor credit. Neither finalization nor withdrawal happens automatically.
+
+The arbitration period gives the named arbitrator time to decide a dispute. Before its deadline they may award the full escrow as credit to either party; at or after an unresolved deadline, anyone can finalize full credit to the fixed timeout recipient. Withdrawal is separate.
+
+Starts at dispute.
+
+This choice is the fallback outcome for an unresolved arbitration deadline. It names the client or contractor who receives full escrow credit when anyone finalizes that timeout. The client fixes it at creation, and the credit is withdrawn separately.
+
+This choice cannot be changed later.
+
+
+Escrow / Terms document
+
+Before:
+Publish the agreed terms and enter their URI. Calculate SHA-256 from the exact document bytes using a local file or a browser-readable URL, or enter it manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder.
+
+→
+
+After:
+Use this to record which terms document the parties are working from. Its location and SHA-256 digest together let someone retrieve it and check for matching bytes.
+
+Publish the agreed terms and enter their URI. Calculate SHA-256 from the exact document bytes using a local file or a browser-readable URL, or enter it manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder.
+
+
+Escrow / Find an existing agreement
+
+Before:
+Use the account and exact agreement reference above to find an existing agreement. Other creation fields are not used for lookup.
+
+→
+
+After:
+Find an agreement you want to inspect. You can look it up with the client’s exact reference or open it directly with its agreement ID.
+
+Use the account and exact agreement reference above for reference lookup. Other creation fields are not used for lookup.
+
+
+Escrow / Account credit
+
+Before:
+(none)
+
+→
+
+After:
+Account credit is where settled funds await withdrawal. Open it to check this account’s current credit and, if available, prepare its withdrawal.
+
+
+Escrow / Agreement not found
+
+Before:
+No agreement is stored for this ID in this escrow contract. Check the ID and selected contract/network.
+
+→
+
+After:
+No matching agreement is stored here. Check the exact ID and whether this is the escrow contract and network where it was created.
+
+
+Escrow / Agreement details
+
+Before:
+Copy this ID to reopen the agreement in this escrow contract. It is derived from the client address and exact reference.
+
+funded means awaiting acceptance; accepted, awaiting work; submitted, awaiting client review; disputed, awaiting arbitration. cancelled and refunded states credit the client; released states credit the contractor. Closure records settlement, not withdrawal.
+
+none means the viewed address is not a named party, or no account is selected. Any account can finalize an expired deadline.
+
+The client funds and reviews; the contractor accepts and submits work; the arbitrator can award disputed funds. Naming the arbitrator does not confirm their consent: there is no on-chain acceptance step.
+
+The amount funded at creation, also shown after settlement.
+
+For an active phase, ordinary phase actions stop at or after this deadline; finalizing its timeout still needs a transaction.
+
+The client’s exact lookup reference; use it with the client address to find this agreement.
+
+These durations were fixed at creation. Each phase starts at its successful transaction’s block time. The current phase is acceptance when funded, work when accepted, review when submitted, or arbitration when disputed.
+
+Starts at creation. Before the deadline, the contractor can accept or the client can cancel. At or after it, anyone can finalize full credit to the client if acceptance is still pending.
+
+Starts at acceptance. The contractor must submit before the deadline. At or after it, anyone can finalize full credit to the client if work is still unsubmitted.
+
+Starts at submission. The client can approve or dispute before the deadline. At or after it, anyone can finalize full credit to the contractor if review is still pending.
+
+Starts at dispute. The arbitrator can award the full escrow before the deadline. At or after it, anyone can finalize full credit to the chosen timeout recipient if the dispute is still unresolved.
+
+The client chose this recipient at creation; it cannot change. An unresolved arbitration timeout credits them the full escrow when anyone finalizes it. Withdrawal is separate.
+
+Terms are recorded by the client at creation, submission evidence by the contractor, and dispute evidence by the client. An empty evidence URI and all-zero digest mean it has not been recorded. A URI locates a document; the digest is the party’s claimed SHA-256 fingerprint of its exact bytes. Retrieve the file independently and compare its SHA-256 to check for matching bytes. This view and the contract do not fetch or verify documents.
+
+→
+
+After:
+Copy this ID to reopen the agreement in this escrow contract. It is derived from the client address and exact reference.
+
+The state records the stage the agreement has reached. Check it together with the current deadline and available actions to see what can happen next.
+
+funded means awaiting acceptance; accepted, awaiting work; submitted, awaiting client review; disputed, awaiting arbitration. cancelled and refunded states credit the client; released states credit the contractor. Closure records settlement, not withdrawal.
+
+none means the viewed address is not a named party, or no account is selected. Any account can finalize an expired deadline.
+
+The client funds and reviews; the contractor accepts and submits work; the arbitrator can award disputed funds. Naming the arbitrator does not confirm their consent: there is no on-chain acceptance step.
+
+The amount funded at creation, also shown after settlement.
+
+For an active phase, ordinary phase actions stop at or after this deadline; finalizing its timeout still needs a transaction.
+
+The client’s exact lookup reference; use it with the client address to find this agreement.
+
+These durations were fixed at creation. Each phase starts at its successful transaction’s block time. The current phase is acceptance when funded, work when accepted, review when submitted, or arbitration when disputed.
+
+The acceptance period gives the contractor time to accept after the agreement is created. Before its deadline the client may also cancel; if acceptance remains pending at or after it, anyone can finalize the full escrow as client credit. Withdrawal is separate.
+
+Work time begins when the contractor accepts. The contractor can submit evidence before the deadline; once it is reached, anyone can finalize a still-unsubmitted agreement as full client credit. The deadline does not finalize or withdraw funds by itself.
+
+Review time begins when work evidence is submitted. The client can approve or dispute before the deadline; at or after it, anyone can finalize a pending review as full contractor credit. Neither finalization nor withdrawal happens automatically.
+
+The arbitration period gives the named arbitrator time to decide a dispute. Before its deadline they may award the full escrow as credit to either party; at or after an unresolved deadline, anyone can finalize full credit to the fixed timeout recipient. Withdrawal is separate.
+
+Starts at dispute.
+
+This choice is the fallback outcome for an unresolved arbitration deadline. It names the client or contractor who receives full escrow credit when anyone finalizes that timeout. The client fixes it at creation, and the credit is withdrawn separately.
+
+This choice cannot be changed later.
+
+Review the document references behind the agreement: terms from the client, submission from the contractor, and any dispute from the client. The recorded digest can be compared with a retrieved file.
+
+An empty evidence URI and all-zero digest mean it has not been recorded. A URI locates a document; the digest is the party’s claimed SHA-256 fingerprint of its exact bytes. Retrieve the file independently and compare its SHA-256 to check for matching bytes. This view and the contract do not fetch or verify documents.
+
+
+Escrow / View and manage an escrow agreement
+
+Before:
+Actions depend on the agreement’s state, deadline and the address being viewed.
+
+Settlement adds the full escrow to the recipient’s account credit. Withdrawing that credit is a separate transaction.
+
+→
+
+After:
+The agreement moves through acceptance, work and client review, with arbitration if disputed. Here you can inspect its record and use the actions currently available.
+
+Settlement adds the full escrow to the recipient’s account credit. Withdrawing that credit is a separate transaction.
+
+
+Escrow / View a closed escrow agreement
+
+Before:
+Actions depend on the agreement’s state, deadline and the address being viewed.
+
+This agreement is closed and has no further agreement-changing actions.
+
+Settlement adds the full escrow to the recipient’s account credit. Withdrawing that credit is a separate transaction.
+
+→
+
+After:
+Use this view to inspect how the agreement ended. Settlement created credit for one party, while withdrawal of that credit happens separately.
+
+This agreement is closed and has no further agreement-changing actions.
+
+
+Escrow / Withdraw account credit
+
+Before:
+When an agreement ends, this escrow assigns its funds to one party as withdrawable credit. This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements.
+
+When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable.
+
+No credit is available to withdraw.
+
+→
+
+After:
+Settling an agreement records credit rather than sending money straight to a wallet. Here you can check that account’s remaining credit and prepare its withdrawal when available.
+
+This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements.
+
+When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable.
+
+No credit is available to withdraw.
+
+
+Escrow / Withdraw account credit
+
+Before:
+When an agreement ends, this escrow assigns its funds to one party as withdrawable credit. This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements.
+
+When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable.
+
+→
+
+After:
+Settling an agreement records credit rather than sending money straight to a wallet. Here you can check that account’s remaining credit and prepare its withdrawal when available.
+
+This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements.
+
+When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable.
+
+
+Escrow / Agreement actions
+
+Before:
+Publish the work evidence and enter its location in Submission URI (at most 512 UTF-8 bytes). Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder. A successful submission transaction starts client review.
+
+Publish the reasons and evidence and enter their location in Dispute URI (at most 512 UTF-8 bytes). Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder. A successful dispute transaction starts arbitration.
+
+→
+
+After:
+Link the work evidence so the client can review it against the terms. The agreement stores the document reference and starts the review period when submission succeeds.
+
+“Submission URI” is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder.
+
+Record why the client disputes the submission and where the supporting evidence can be found. A successful dispute starts the arbitration period.
+
+“Dispute URI” is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder.
+
+
+Escrow / Open agreement by ID
+
+Before:
+Paste an agreement ID copied from an agreement view: 0x followed by 64 hexadecimal characters. This differs from the client’s reference. Use the same escrow contract and network where it was created.
+
+→
+
+After:
+Use an agreement ID to open one specific record directly. It is the long identifier copied from an agreement view, not the client’s own reference.
+
+Enter 0x followed by 64 hexadecimal characters. Use the same escrow contract and network where the agreement was created.
+
+
+Escrow / Withdrawal recipient
+
+Before:
+The recipient may differ from the credit owner and defaults to the account being viewed. Enter 0x followed by 40 hexadecimal characters. The zero address and this escrow contract are rejected. The recipient must be able to receive this chain’s native asset.
+
+→
+
+After:
+Choose an address to receive the full withdrawal. It may differ from the credit owner, but only that owner can submit the withdrawal transaction.
+
+The recipient defaults to the account being viewed. Enter 0x followed by 40 hexadecimal characters. The zero address and this escrow contract are rejected. The recipient must be able to receive this chain’s native asset.

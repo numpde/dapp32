@@ -19,10 +19,15 @@ class EscrowCreditCopyTest(unittest.TestCase):
                     if child["element"] == "Status"
                     and child["props"]["label"] == "Total withdrawable credit for this account (wei)"
                 )
-                description = children[credit_status + 1]["props"]["text"]
+                paragraphs = []
+                for child in children[credit_status + 1:]:
+                    if child["element"] != "Text":
+                        break
+                    paragraphs.append(child["props"]["text"])
+                description = " ".join(paragraphs)
 
                 self.assertIn(
-                    "When an agreement ends, this escrow assigns its funds to one party as withdrawable credit.",
+                    "Settling an agreement records credit rather than sending money straight to a wallet.",
                     description,
                 )
                 self.assertIn(
