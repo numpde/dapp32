@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { requireHttpURL } from '@cam/protocol'
 import { awaitFixtureSocketOpen } from './browser-fixture-wallet.mjs'
 import { browserFixtureFailureDetails, BrowserFixtureError, createCdpCommands } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
+import { checkTransactionLabels } from '../apps/cam-web/test/transaction-label-browser-check.mjs'
 import { checkChoiceField } from '../apps/cam-web/test/choice-field-browser-check.mjs'
 import { checkAddressEntry } from '../apps/cam-web/test/known-addresses-browser-check.mjs'
 import { checkActionStyles } from '../apps/cam-web/test/action-style-browser-check.mjs'
@@ -38,13 +39,13 @@ async function main() {
     const call = (method, params) => commands.call(method, params, session)
     const evaluate = async expression => {
       const result = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
-      if (result.exceptionDetails) throw new BrowserFixtureError('The viewer UI test script failed', { cause: result.exceptionDetails })
+      if (result.exceptionDetails) throw new BrowserFixtureError(`The viewer UI test script failed: ${JSON.stringify(result.exceptionDetails).slice(0, 2000)}`)
       return result.result.value
     }
     await call('Page.enable', {})
     await call('Runtime.enable', {})
     await call('Emulation.setFocusEmulationEnabled', { enabled: true })
-    for (const check of [checkAddressEntry, checkChoiceField, checkActionStyles, checkNftMetadata, checkViewerConnection]) {
+    for (const check of [checkAddressEntry, checkChoiceField, checkTransactionLabels, checkActionStyles, checkNftMetadata, checkViewerConnection]) {
       console.log(`Running ${check.name}`)
       await call('Emulation.setFocusEmulationEnabled', { enabled: true })
       console.log(JSON.stringify(await check({ call, evaluate, viewerURL: viewer.href })))

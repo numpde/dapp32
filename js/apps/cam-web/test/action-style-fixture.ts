@@ -103,7 +103,7 @@ function render(): void {
     createElement(IntegrityWarnings, { warnings: [{ hashSource: "contract", status: "unverified", uri: "https://example.test/manifest.json", expectedHash: `0x${"00".repeat(32)}`, actualHash: fixtureDigest }, { hashSource: "manifest", status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
     prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy, stage: sending ? sendStage : undefined, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
     transactionReport === undefined ? null : createElement("section", { className: "transaction-feedback" }, createElement(TransactionFeedback, {
-      report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },
+      actionLabel: "Update fixture", report: { message: "Confirmation could not be checked. Check the transaction before sending another.", diagnostic: "Receipt wait timed out." },
       kind: "error", transaction: transactionReport.transaction,
     })),
   ),

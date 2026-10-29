@@ -4,6 +4,7 @@ import { transactionExplorer } from "./transactions.ts"
 import type { SubmittedTransactionReference } from "./transactions.ts"
 import { failureReport } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
+import { displayText } from "./display.ts"
 import { HexValue } from "./hex-value.tsx"
 
 export function FeedbackBox({ kind, message, className, messageRef, children }: {
@@ -36,9 +37,10 @@ type ExplorerResult = { readonly transaction: SubmittedTransactionReference } & 
   | { readonly status: "failed"; readonly failure: FailureReport }
 )
 
-export function TransactionFeedback({ report, kind, transaction, messageRef }: {
+export function TransactionFeedback({ actionLabel, report, kind, transaction, messageRef }: {
   readonly report: FailureReport
   readonly kind: "error" | "status"
+  readonly actionLabel: string
   readonly transaction: SubmittedTransactionReference | undefined
   readonly messageRef?: Ref<HTMLParagraphElement>
 }): ReactElement {
@@ -56,7 +58,7 @@ export function TransactionFeedback({ report, kind, transaction, messageRef }: {
   const explorer = current?.status === "ready" ? current.explorer : undefined
   return <>
     <Feedback report={report} kind={kind} className="notice" {...(messageRef === undefined ? {} : { messageRef })}>
-      {report.message}{transaction === undefined ? null : <> Transaction hash: <HexValue value={transaction.hash} label="transaction hash" {...(explorer === undefined ? {} : { href: explorer.url })} /></>}
+      {displayText(actionLabel)}: {report.message}{transaction === undefined ? null : <> Transaction hash: <HexValue value={transaction.hash} label="transaction hash" {...(explorer === undefined ? {} : { href: explorer.url })} /></>}
     </Feedback>
     {current?.status === "failed" ? <Feedback report={current.failure} kind="error" /> : null}
   </>

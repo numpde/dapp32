@@ -22,6 +22,7 @@ const screen = (title: string) => ({ element: "Screen", requires: [], props: { t
     { element: "ChoiceField", props: { label: "Disabled choice", options: [{ value: "1", label: "Client" }] }, state: { key: "disabledRecipient", defaultValue: "1" }, enabledWhen: { member: "actor", in: [] } },
   ]),
   { element: "TextField", props: { label: "Draft" }, state: { key: "draft", defaultValue: "" } },
+  ...(scenario?.startsWith("transaction-label") !== true ? [] : [{ element: "Button", props: { label: "Update another record" }, call: { namespace: "routes", function: "anotherUpdate", args: {} } }]),
   { element: "Button", props: { label: "Next view" }, call: { namespace: "routes", function: "detail", args: {} } },
   { element: "Button", props: { label: "Update record" }, call: { namespace: "routes", function: "update", args: {} } },
   { element: "NftMetadataField", props: { label: "NFT details" }, state: { key: "tokenURI", defaultValue: "" } },
@@ -34,10 +35,14 @@ const read = (node: string) => ({ kind: "read", inputs: [], call: { namespace: "
 const cam = encode({ cam: "1.3.0", protocol: { uri: "./protocol.html", integrity: `sha256:${sha256(protocol)}` }, entry: "home",
   namespaces: { "contracts.App": { type: "contract", abiURI: "./abi.json", integrity: `sha256:${sha256(abiBytes)}` },
     ui: { type: "ui", uri: "./ui.json", integrity: `sha256:${sha256(ui)}` }, routes: { type: "routes" } },
-  routes: { home: read("home"), detail: read("detail"), update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: { amount: "9007199254740993" } }, then: { namespace: "routes", function: "detail", args: {} } }, metadata: { kind: "write", inputs: ["uri"], call: { namespace: "contracts.App", function: "updateMetadata", args: { tokenURI: "$inputs.uri" } }, then: { namespace: "routes", function: "detail", args: {} } } },
+  routes: { home: read("home"), detail: read("detail"), anotherUpdate: { kind: "write", inputs: [], call: { namespace: "contracts.App", function: "update", args: { amount: "42" } }, then: { namespace: "routes", function: "detail", args: {} } }, update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: { amount: "9007199254740993" } }, then: { namespace: "routes", function: "detail", args: {} } }, metadata: { kind: "write", inputs: ["uri"], call: { namespace: "contracts.App", function: "updateMetadata", args: { tokenURI: "$inputs.uri" } }, then: { namespace: "routes", function: "detail", args: {} } } },
 })
 const resources = new Map([["main.json", cam], ["protocol.html", protocol], ["abi.json", abiBytes], ["ui.json", ui]])
 const state = { holdRoot: false, failRoot: false, rootDownloads: 0, rootHash: sha256(cam), holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
+const transactionHash = `0x${"ab".repeat(32)}`
+const transactionBlockHash = `0x${"cd".repeat(32)}`
+let holdReceipt = scenario === "transaction-label"
+const receiptReads: (() => void)[] = []
 const rootReads: (() => void)[] = []
 let holdWallet = false
 let rejectWallet: ((error: unknown) => void) | undefined
@@ -73,7 +78,7 @@ window.fetch = async (input, init) => {
     await new Promise<void>(resolve => candidateReads.push(resolve))
     return Response.json({ jsonrpc: "2.0", id: rpc.id, result: "0xa869" })
   }
-  let result: string
+  let result: string | Record<string, unknown>
   if (rpc.method === "eth_chainId") result = "0x7a69"
   else if (rpc.method === "eth_getCode") result = String(rpc.params[0]).toLowerCase() === "0x0000000000000000000000000000000000000004" ? "0x" : "0x6000"
   else if (rpc.method === "eth_call") {
@@ -99,7 +104,13 @@ window.fetch = async (input, init) => {
       state.simulations++
       result = "0x"
     } else throw new Error(`Unexpected fixture selector: ${selector}`)
-  } else throw new Error(`Unexpected fixture RPC method: ${rpc.method}`)
+  } else if (scenario?.startsWith("transaction-label") === true && rpc.method === "eth_getTransactionByHash") {
+    result = { hash: transactionHash, blockHash: transactionBlockHash, blockNumber: "0x10", from: wallet, to: target, nonce: "0x1", input: "0x", value: "0x0", gas: "0x10000", gasPrice: "0x1", type: "0x0", transactionIndex: "0x0", v: "0x1b", r: zeroHash, s: zeroHash }
+  } else if (scenario?.startsWith("transaction-label") === true && rpc.method === "eth_getTransactionReceipt") {
+    if (holdReceipt) await new Promise<void>(resolve => receiptReads.push(resolve))
+    result = { transactionHash, blockHash: transactionBlockHash, blockNumber: "0x10", from: wallet, to: target, contractAddress: null, transactionIndex: "0x0", status: "0x1", type: "0x0", gasUsed: "0x5208", cumulativeGasUsed: "0x5208", effectiveGasPrice: "0x1", logs: [], logsBloom: `0x${"00".repeat(256)}` }
+  } else if (scenario?.startsWith("transaction-label") === true && rpc.method === "eth_blockNumber") result = "0x10"
+  else throw new Error(`Unexpected fixture RPC method: ${rpc.method}`)
   return Response.json({ jsonrpc: "2.0", id: rpc.id, result })
 }
 const listeners = new Map<string, Set<(value: unknown) => void>>()
@@ -111,6 +122,8 @@ const provider = {
     if (method === "wallet_switchEthereumChain") return null
     if (method === "eth_sendTransaction" || method === "wallet_sendTransaction") {
       state.sends++
+      if (scenario === "transaction-label") return transactionHash
+      if (scenario === "transaction-label-unknown") throw new Error("Fixture transport disconnected without returning a hash")
       if (holdWallet) return new Promise<never>((_resolve, reject) => { rejectWallet = reject })
       throw new Error("The connection fixture never signs or sends transactions")
     }
@@ -123,6 +136,7 @@ const provider = {
   removeListener(event: string, listener: (value: unknown) => void) { listeners.get(event)?.delete(listener) },
 }
 Object.assign(window, { ethereum: scenario === "no-wallet" ? undefined : provider, connectionFixture: { state, wallet, listeners,
+  releaseReceipt() { holdReceipt = false; receiptReads.splice(0).forEach(release => release()) },
   holdConnection() { holdConnection = true },
   releaseConnection() { holdConnection = false; releaseConnection?.(); releaseConnection = undefined },
   holdWallet() { holdWallet = true },
