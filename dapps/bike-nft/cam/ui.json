@@ -391,19 +391,19 @@
             {
               "element": "Text",
               "props": {
-                "text": "Publish a profile link so people inspecting your components can find public information about you. The update belongs to the account that sends it."
+                "text": "Add public information about yourself, or a link to your profile. This is saved for the account that sends the update."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Enter an empty value to clear the current profile link."
+                "text": "Leave the field empty to clear your saved profile information."
               }
             },
             {
               "element": "TextField",
               "props": {
-                "label": "Account info URI"
+                "label": "Public profile text or link"
               },
               "state": {
                 "key": "accountInfo",
@@ -587,7 +587,7 @@
             {
               "element": "Status",
               "props": {
-                "label": "Owner's public info URI",
+                "label": "Owner's public information",
                 "value": "$view.ownerInfo"
               }
             },
@@ -757,20 +757,20 @@
             {
               "element": "Status",
               "props": {
-                "label": "Current missing report URI",
+                "label": "Current missing report",
                 "value": "$view.missingReportURI"
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Publish a report explaining that the component is missing, then enter its URI. A successful report marks the component missing and keeps that URI with the record."
+                "text": "Describe what happened, or provide a link to a report. Your text or link is recorded publicly when you mark the component missing."
               }
             },
             {
               "element": "TextField",
               "props": {
-                "label": "Missing report URI"
+                "label": "Missing report text or link"
               },
               "state": {
                 "key": "reportURI",
@@ -794,7 +794,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "To resolve a missing report, an authorized actor submits a nonempty URI to a published explanation. This returns the component to Active, clears its current report URI, and records the resolution URI in a public event; prior report transactions remain."
+                "text": "Explain how the missing report was resolved, or provide a link to an explanation. Resolving it returns the component to Active and clears the current report; the resolution and earlier reports remain in the public transaction history."
               }
             },
             {
@@ -806,7 +806,7 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Resolution URI"
+                "label": "Resolution text or link"
               },
               "state": {
                 "key": "resolutionURI",

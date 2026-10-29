@@ -2316,7 +2316,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
   routeResults[BIKE_VIEW_COMPONENT] = missingResult
   const missingSnapshot = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
   assert.equal(
-    resolvedStatusValue(missingSnapshot.resolvedUi, "Current missing report URI"),
+    resolvedStatusValue(missingSnapshot.resolvedUi, "Current missing report"),
     BIKE_MISSING_REPORT_URI,
   )
   const resolutionSnapshot = session.updateState({

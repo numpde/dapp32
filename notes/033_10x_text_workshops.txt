@@ -1047,3 +1047,32 @@ After:
 Choose an address to receive the full withdrawal. It may differ from the credit owner, but only that owner can submit the withdrawal transaction.
 
 The recipient defaults to the account being viewed. Enter 0x followed by 40 hexadecimal characters. The zero address and this escrow contract are rejected. The recipient must be able to receive this chain’s native asset.
+
+
+Bike / Missing report
+
+Before:
+Publish a report explaining that the component is missing, then enter its URI. A successful report marks the component missing and keeps that URI with the record.
+
+After:
+Describe what happened, or provide a link to a report. Your text or link is recorded publicly when you mark the component missing.
+
+
+Bike / Missing report resolution
+
+Before:
+To resolve a missing report, an authorized actor submits a nonempty URI to a published explanation. This returns the component to Active, clears its current report URI, and records the resolution URI in a public event; prior report transactions remain.
+
+After:
+Explain how the missing report was resolved, or provide a link to an explanation. Resolving it returns the component to Active and clears the current report; the resolution and earlier reports remain in the public transaction history.
+
+
+Bike / Public profile
+
+Before:
+Publish a profile link so people inspecting your components can find public information about you. The update belongs to the account that sends it.
+Enter an empty value to clear the current profile link.
+
+After:
+Add public information about yourself, or a link to your profile. This is saved for the account that sends the update.
+Leave the field empty to clear your saved profile information.
