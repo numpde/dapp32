@@ -1544,8 +1544,8 @@ define refresh_demo_viewer
 	@$(MAKE) --no-print-directory cam/integrity/refresh cam/conformance/check dapps/deps/verify
 	@$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) run --rm --no-deps -T \
 	  -e FOUNDRY_BROADCAST=/foundry-broadcast/cam-refresh --entrypoint bash deploy-$(4)-local \
-	  -eu -c 'deployment="$$(cat "$$2")"; exec forge script --offline cam/script/RefreshLocalCam.s.sol \
-	    --sig "run(string,string)" "$$deployment" "$$1/cam/main.json" \
+	  -eu -c 'exec forge script --offline cam/script/RefreshLocalCam.s.sol \
+	    --sig "run(string,string)" "$$2" "$$1/cam/main.json" \
 	    --rpc-url "http://$$1-anvil:8545" --broadcast --slow' sh '$(4)' '$(5)'
 	@$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) exec -T cam-web \
 	  touch /work/js/apps/cam-web/.env.local

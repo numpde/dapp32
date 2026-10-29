@@ -7,8 +7,9 @@ import {CamRoot} from "../src/CamRoot.sol";
 contract RefreshLocalCam is Script {
     uint256 private constant FIXTURE_KEY = 0xbabababababababababababababababababababababababababababababababa;
 
-    function run(string memory deploymentJSON, string memory manifestPath) external {
+    function run(string memory deploymentPath, string memory manifestPath) external {
         require(block.chainid == 31337, "CAM refresh requires local fixture chain 31337");
+        string memory deploymentJSON = vm.readFile(deploymentPath);
         require(vm.parseJsonUint(deploymentJSON, ".chain") == 31337, "Saved deployment is not a local fixture");
         (CamRoot root, string memory uri) = recordedRoot(deploymentJSON);
         require(root.owner() == vm.addr(FIXTURE_KEY), "CAM root is not owned by the public fixture account");

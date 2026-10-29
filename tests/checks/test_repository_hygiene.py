@@ -175,13 +175,15 @@ class RepositoryHygieneTest(unittest.TestCase):
             with self.assertRaisesRegex(AssertionError, "must match provenance"):
                 self.verified_research_source_paths()
 
-    def test_foundry_file_permissions_are_exact_release_inputs(self) -> None:
+    def test_foundry_file_permissions_are_exact(self) -> None:
         config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
         self.assertEqual(
             [
                 {"access": "read", "path": "./bike-nft/cam/main.json"},
                 {"access": "read", "path": "./escrow/cam/main.json"},
                 {"access": "read", "path": "./pay-to-play/cam/main.json"},
+                {"access": "read", "path": "/foundry-broadcast"},
+                {"access": "read-write", "path": "/tmp/local-cam-refresh"},
                 {"access": "read", "path": "/out/deployment.json"},
                 {"access": "read", "path": "/release-plan/release-plan.json"},
                 {"access": "read", "path": "/ui-candidate/ui-deployment.json"},
