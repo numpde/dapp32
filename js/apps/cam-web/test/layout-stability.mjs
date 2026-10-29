@@ -1,5 +1,24 @@
 import assert from 'node:assert/strict'
 
+export async function assertNoHiddenEditorLayout(evaluate) {
+  const offenders = await evaluate(`(()=>{const editors=[...document.querySelectorAll('fieldset')];return editors.flatMap(editor=>[...editor.querySelectorAll('*')].filter(element=>{
+    const style=getComputedStyle(element),bounds=element.getBoundingClientRect();
+    if((style.visibility!=='hidden'&&style.visibility!=='collapse'&&!element.hidden)||bounds.width<=1||bounds.height<=1)return false;
+    for(let ancestor=element;ancestor&&ancestor!==editor;ancestor=ancestor.parentElement){if(['absolute','fixed'].includes(getComputedStyle(ancestor).position))return false}
+    return true;
+  }).map(element=>({editor:editor.querySelector('legend')?.textContent,element:element.tagName,role:element.getAttribute('role')})))})()`)
+  assert.deepEqual(offenders, [], 'invisible editor content must not reserve layout space')
+}
+
+export async function assertHiddenEditorLayoutWitnesses(evaluate) {
+  await evaluate(`(()=>{const probe=document.createElement('div');probe.dataset.layoutWitness='';probe.style.cssText='visibility:hidden;height:72px';document.querySelector('fieldset').append(probe)})()`)
+  try { await assert.rejects(() => assertNoHiddenEditorLayout(evaluate), /invisible editor content/) }
+  finally { await evaluate(`document.querySelector('[data-layout-witness]').remove()`) }
+  await evaluate(`(()=>{const probe=document.createElement('div');probe.dataset.layoutWitness='';probe.innerHTML='<span class="visually-hidden">Accessible description</span><div hidden>Inactive content</div><div style="position:absolute;visibility:hidden;width:72px;height:72px">Overlay</div>';document.querySelector('fieldset').append(probe)})()`)
+  try { await assertNoHiddenEditorLayout(evaluate) }
+  finally { await evaluate(`document.querySelector('[data-layout-witness]').remove()`) }
+}
+
 // Adapted from nmr-gui-v1/tests/e2e/layout-stability.mjs at df172527409c.
 // The transition must expose the intermediate state; completed content growth
 // is intentional and belongs outside this state-only comparison.

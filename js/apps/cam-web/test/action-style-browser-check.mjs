@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { assertStableLayout } from './layout-stability.mjs'
+import { assertHiddenEditorLayoutWitnesses, assertNoHiddenEditorLayout } from './layout-stability.mjs'
 import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
 import { assertBuildFooter, assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery, assertNumericValidationPresentation } from './display-contracts.mjs'
 
@@ -152,12 +152,24 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       await wait(`innerWidth===${width}`)
       await evaluate(`window.actionFixture.hashPhase('idle')`)
       await wait(`!document.querySelector('.document-hash-field button[aria-busy="true"]')`)
-      const anchors = { digest: 'input[name="document"]', field: '.document-hash-field', following: '.elements>.key-value:last-child' }
+      const hashGeometry = `(()=>{const field=document.querySelector('.document-hash-field'),input=field.querySelector('input[name="document"]'),box=field.getBoundingClientRect(),buttons=[...field.querySelectorAll('button')].filter(button=>button.getClientRects().length);return {top:box.top,height:box.height,inputTop:input.getBoundingClientRect().top,bottomGap:box.bottom-Math.max(...buttons.map(button=>button.getBoundingClientRect().bottom)),status:field.querySelector('[role=status].resource-status').textContent.trim(),cancel:!!field.querySelector('.resource-cancel').getClientRects().length}})()`
+      const idle = await evaluate(hashGeometry)
+      assert(idle.bottomGap <= 14 && !idle.cancel && idle.status === '', 'idle digest controls end at their normal padding without reserved feedback or cancellation rows')
+      await assertHiddenEditorLayoutWitnesses(evaluate)
+      const document = await call('DOM.getDocument', {})
+      const textbox = await call('DOM.querySelector', { nodeId: document.root.nodeId, selector: 'input[name="document"]' })
+      const accessible = await call('Accessibility.getPartialAXTree', { nodeId: textbox.nodeId, fetchRelatives: false })
+      assert(accessible.nodes.some(node => !node.ignored && node.role?.value === 'textbox' && node.name?.value === 'Document'), 'the visible legend names the digest textbox without a repeated caption')
       for (const phase of ['pending', 'succeeded', 'idle']) {
-        await assertStableLayout(evaluate, anchors, async () => {
-          await evaluate(`window.actionFixture.hashPhase('${phase}')`)
-          await wait(`document.querySelector('.document-hash-field button[aria-busy="true"]')!==null === ${phase === 'pending'}`)
-        }, `${width}px document hash ${phase}`)
+        await evaluate(`window.actionFixture.hashPhase('${phase}')`)
+        await wait(`document.querySelector('.document-hash-field button[aria-busy="true"]')!==null === ${phase === 'pending'}`)
+        const current = await evaluate(hashGeometry)
+        assert.equal(current.top, idle.top, 'feedback does not move the editor start')
+        assert.equal(current.inputTop, idle.inputTop, 'feedback does not move the digest input')
+        assert.equal(current.cancel, phase === 'pending')
+        assert.equal(current.status.length > 0, phase !== 'idle')
+        await assertNoHiddenEditorLayout(evaluate)
+        if (phase === 'idle') assert.equal(current.height, idle.height, 'the editor returns to its compact idle height')
       }
       const layout = await evaluate(`(() => {
         const rows = [...document.querySelectorAll('.elements>.key-value')]

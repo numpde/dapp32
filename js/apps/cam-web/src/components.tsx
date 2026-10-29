@@ -381,6 +381,7 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
   readonly onCalculate: DocumentHashCalculate
   readonly onCancel: (name: string) => void
 }): ReactElement {
+  const labelId = useId()
   const hintId = useId()
   const issueId = useId()
   const fileInput = useRef<HTMLInputElement>(null)
@@ -389,17 +390,14 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
   const pending = status?.status === "pending"
   const invalid = value !== "" && !isDocumentHashDigest(value)
   const statusMessages = [
-    { kind: "pending", visible: pending, text: "Calculating SHA-256… Your current digest is kept until calculation succeeds." },
-    { kind: "file", visible: status?.status === "succeeded" && status.source === "file", text: "SHA-256 calculated from local file bytes. The URI has not been checked." },
-    { kind: "url", visible: status?.status === "succeeded" && status.source === "url", text: "SHA-256 calculated from the bytes returned by this URL after HTTP decoding." },
+    { visible: pending, text: "Calculating SHA-256… Your current digest is kept until calculation succeeds." },
+    { visible: status?.status === "succeeded" && status.source === "file", text: "SHA-256 calculated from local file bytes. The URI has not been checked." },
+    { visible: status?.status === "succeeded" && status.source === "url", text: "SHA-256 calculated from the bytes returned by this URL after HTTP decoding." },
   ]
   return <fieldset className="document-hash-field">
-    <legend>{displayText(node.props.label)}</legend>
-    <label className="field">
-      <span>SHA-256 digest</span>
-      <input disabled={disabled} name={node.state.key} value={value} autoComplete="off" spellCheck={false} aria-invalid={invalid} aria-describedby={invalid ? `${hintId} ${issueId}` : hintId}
-        onChange={event => onInput(node.state.key, event.currentTarget.value)} />
-    </label>
+    <legend id={labelId}>{displayText(node.props.label)}</legend>
+    <input disabled={disabled} name={node.state.key} value={value} autoComplete="off" spellCheck={false} aria-labelledby={labelId} aria-invalid={invalid} aria-describedby={invalid ? `${hintId} ${issueId}` : hintId}
+      onChange={event => onInput(node.state.key, event.currentTarget.value)} />
     <p id={hintId} className="field-hint">Enter 0x followed by 64 hexadecimal characters, or calculate from exact document bytes. Files stay on this device; selecting one does not upload it or check the URI. Limit: 8 MiB and 15 seconds.</p>
     {invalid ? <p id={issueId} className="visually-hidden" role="status">The digest must be 0x followed by exactly 64 hexadecimal characters. Your entry is kept unchanged.</p> : null}
     <button ref={fileAction} disabled={disabled} className="resource-load" aria-busy={pending && status.source === "file"} type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>
@@ -416,7 +414,7 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
       if (restoreFocus) requestAnimationFrame(() => action?.focus())
     }}>Cancel calculation</button>
     <p className="resource-status" role="status">
-      {statusMessages.map(message => <span key={message.kind} className={message.visible ? undefined : "status-placeholder"} aria-hidden={!message.visible}>{message.text}</span>)}
+      {statusMessages.find(message => message.visible)?.text}
     </p>
     {status?.status === "failed" ? <Feedback report={status} kind="error" /> : null}
   </fieldset>
