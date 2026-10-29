@@ -38,6 +38,7 @@ let busy = false
 let sending = false
 let draft: string | null = "unchanged"
 let viewingAccount = "0x1111111111111111111111111111111111111111"
+let connectionChainId = "eip155:31337"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
 function monetaryFact(label: string, value: string) {
@@ -99,7 +100,7 @@ function render(): void {
   }
   root.render(createElement(Fragment, null, createElement("main", { className: "app-shell" },
     createElement(ConnectionSummary, {
-      chainId: "eip155:31337", host: "0x3333333333333333333333333333333333333333",
+      chainId: connectionChainId, host: "0x3333333333333333333333333333333333333333",
       account: viewingAccount,
       wallet: "0x2222222222222222222222222222222222222222",
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
@@ -124,6 +125,7 @@ Object.assign(window, { actionFixture: { events, reviewJson, reviewURI, reviewCa
   stage(value: TransactionStage) { sendStage = value; sending = true; render() },
   build(mode: "known" | "modified" | "development" | "unknown") { buildMode = mode; render() },
   account(value: string) { viewingAccount = value; render() },
+  connectionChain(value: string) { connectionChainId = value; render() },
   transaction(chainId: string, hash: `0x${string}` | undefined) { transactionReport = { transaction: hash === undefined ? undefined : { chainId, hash } }; render() },
   hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
 render()

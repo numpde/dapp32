@@ -13,19 +13,28 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       ready: () => evaluate(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`) })
     await evaluate(`document.querySelector('.nft-row .resource-load').click()`)
     await wait(`document.querySelector('.nft-row img')?.naturalWidth===2`)
-    assert(await evaluate(`(() => {
+    const displayedChain = `[...document.querySelectorAll('.connection-facts dt')].find(term=>term.textContent==='Chain').nextElementSibling.textContent`
+    await wait(`${displayedChain}==='Anvil (eip155:31337)'`)
+    await evaluate(`window.actionFixture.connectionChain('eip155:43113')`)
+    await wait(`${displayedChain}==='Fuji (eip155:43113)'`)
+    await evaluate(`window.actionFixture.connectionChain('eip155:2147483646')`)
+    await wait(`${displayedChain}==='eip155:2147483646'`)
+    await evaluate(`window.actionFixture.connectionChain('eip155:31337')`)
+    await wait(`${displayedChain}==='Anvil (eip155:31337)'`)
+    const preamble = await evaluate(`(() => {
       const connection=document.querySelector('section[aria-label="Account and wallet"]')
       const labels=[...connection.querySelectorAll('dt')]
       const value=label=>labels.find(term=>term.textContent===label)?.nextElementSibling
-      return !connection.querySelector('details')
-        && value('Viewing as')?.querySelector('code')?.textContent==='0x1111111111111111111111111111111111111111'
-        && value('Signing wallet')?.querySelector('code')?.textContent==='0x2222222222222222222222222222222222222222'
-        && value('Chain')?.textContent==='eip155:31337'
-        && value('CAM contract')?.querySelector('code')?.textContent==='0x3333333333333333333333333333333333333333'
-        && ['Viewing as','Signing wallet','Chain','CAM contract'].every(label=>value(label)?.getClientRects().length>0)
-        && !!value('Signing wallet').querySelector('[role="status"]')
-        && !connection.querySelector('.wallet-button').disabled
-    })()`), 'account, wallet, chain and contract facts are visible without expansion, with the wallet action available')
+      return {expanded:!connection.querySelector('details'),
+        account:value('Viewing as')?.querySelector('code')?.textContent,
+        wallet:value('Signing wallet')?.querySelector('code')?.textContent,
+        chain:value('Chain')?.textContent,
+        host:value('CAM contract')?.querySelector('code')?.textContent,
+        visible:['Viewing as','Signing wallet','Chain','CAM contract'].every(label=>value(label)?.getClientRects().length>0),
+        walletStatus:!!value('Signing wallet').querySelector('[role="status"]'),
+        walletEnabled:!connection.querySelector('.wallet-button').disabled}
+    })()`)
+    assert.deepEqual(preamble, { expanded: true, account: '0x1111111111111111111111111111111111111111', wallet: '0x2222222222222222222222222222222222222222', chain: 'Anvil (eip155:31337)', host: '0x3333333333333333333333333333333333333333', visible: true, walletStatus: true, walletEnabled: true }, 'account, wallet, chain and contract facts are visible without expansion, with the wallet action available')
     await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedIdentifier=value}}})`)
     await assertDisplayedValues({ call, evaluate })
     await assertDisplayFailureWitnesses({ call, evaluate })

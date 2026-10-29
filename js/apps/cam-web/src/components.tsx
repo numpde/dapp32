@@ -3,7 +3,8 @@ import type { ReactElement, ReactNode, Ref } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import { isDocumentHashDigest } from "@cam/protocol"
-import { encodeCamContractCall } from "@cam/evm-viem"
+import { encodeCamContractCall, evmChainMetadata } from "@cam/evm-viem"
+import { evmNetworkChoices } from "@cam/viewer"
 import { formatRelativeTimestamp, DURATION_PARTS, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
 import type {
   ResolvedButtonNode,
@@ -57,12 +58,28 @@ export function ConnectionSummary({
       <div className="connection-facts">
         <PropertyRow label="Viewing as" value={account === undefined ? "Public view" : account} />
         <PropertyRow label="Signing wallet" value={<span className="wallet-value">{wallet === undefined ? null : <span role="status"><HexValue value={wallet} label="wallet address" /></span>}{walletAction}</span>} />
-        <PropertyRow label="Chain" value={chainId} />
+        <PropertyRow label="Chain" value={<ChainLabel key={chainId} chainId={chainId} />} />
         <PropertyRow label="CAM contract" value={host} />
         {children}
       </div>
     </section>
   )
+}
+
+function ChainLabel({ chainId }: { readonly chainId: string }): ReactElement {
+  const catalogName = evmNetworkChoices().find(network => network.chainId === chainId)?.name
+  const [name, setName] = useState<string | undefined>()
+  useEffect(() => {
+    if (catalogName !== undefined) return
+    let active = true
+    void evmChainMetadata(chainId).then(
+      metadata => { if (active) setName(metadata?.name) },
+      cause => { if (active) console.error("Cannot load the chain name from the EVM catalog.", cause) },
+    )
+    return () => { active = false }
+  }, [chainId, catalogName])
+  const chainName = catalogName ?? name
+  return <>{chainName === undefined ? chainId : `${chainName} (${chainId})`}</>
 }
 
 export function UiView({
