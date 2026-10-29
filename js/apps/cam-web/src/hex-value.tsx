@@ -51,11 +51,6 @@ function hexParts(value: string) {
     : { start: prefix + hex.slice(0, 6), middle: hex.slice(6, -4), end: hex.slice(-4), revision }
 }
 
-export function abbreviatedHex(value: string): string {
-  const parts = hexParts(value)
-  return parts.revision ? parts.start : `${parts.start}...${parts.end}`
-}
-
 export function HexText({ value }: { readonly value: string }): ReactElement {
   const parts = hexParts(value)
   return <code title={value}><span>{parts.start}</span><span className={parts.revision ? "visually-hidden" : "hex-middle"}>{parts.middle}{parts.revision ? null : <span className="hex-ellipsis" aria-hidden="true" />}</span><span>{parts.end}</span></code>

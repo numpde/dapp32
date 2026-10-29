@@ -14,73 +14,104 @@ export async function checkAddressEntry({ call, evaluate, viewerURL }) {
 
 async function checkKnownAddresses({ call, evaluate, wait }) {
   const field = name => `document.querySelector('input[name="${name}"]')`
-  const suggestionSelector = 'select[aria-label="Use a known address for arbitrator"]'
-  const select = `document.querySelector(${JSON.stringify(suggestionSelector)})`
-  const options = `Array.from(${select}.options).map(option=>({value:option.value,label:option.textContent}))`
+  const input = field('arbitrator')
+  const trigger = `document.querySelector('button[aria-label="Use a known address for arbitrator"]')`
+  const popup = `document.querySelector('.address-popover')`
+  const options = `[...${popup}.querySelectorAll('[role=option]')].map(option=>({value:option.querySelector('code').title,label:option.getAttribute('aria-label')}))`
   const alice = '0x1111111111111111111111111111111111111111'
   const bob = '0x2222222222222222222222222222222222222222'
   const entered = '0x7777777777777777777777777777777777777777'
+  async function key(name, code, number) {
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: name, code, windowsVirtualKeyCode: number })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: name, code, windowsVirtualKeyCode: number })
+  }
+  async function click(expression) {
+    const point = await evaluate(`(()=>{const element=${expression};element.scrollIntoView({block:'nearest'});const r=element.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}})()`)
+    await call('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point })
+    await call('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point })
+  }
+  async function open() {
+    await click(trigger)
+    await wait(`${input}.getAttribute('aria-expanded')==='true'&&!!${popup}`)
+  }
+  async function close() {
+    await key('Escape', 'Escape', 27)
+    await wait(`${input}.getAttribute('aria-expanded')==='false'&&!${popup}`)
+  }
+  async function choices() {
+    await open()
+    const result = await evaluate(options)
+    await close()
+    return result
+  }
   async function edit(name, value) {
     await evaluate(`(()=>{const input=${field(name)};input.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
     await wait(`${field(name)}.value===${JSON.stringify(value)}`)
   }
   await wait(`!!${field('contractor')}`)
-  const initial = await evaluate(options)
+  const initial = await choices()
   assert(initial.some(option => option.value === alice && option.label.includes('Current view: Owner')))
   assert(initial.some(option => option.label.includes('Loaded contract: contracts.App')))
   assert(!initial.some(option => option.label.includes('Entered in:')), 'programmatic defaults are never learned')
   await edit('draft', bob)
   await evaluate(`${field('draft')}.blur()`)
-  assert(!(await evaluate(options)).some(option => option.value === bob), 'untyped address-looking text is not learned')
+  assert(!(await choices()).some(option => option.value === bob), 'untyped address-looking text is not learned')
   await edit('contractor', entered)
   await evaluate(`${field('contractor')}.blur()`)
-  await wait(`${options}.some(option=>option.value===${JSON.stringify(entered)}&&option.label.includes('Entered in: contractor'))`)
-  assert.equal(await evaluate(`${field('arbitrator')}.value`), `0x${'0'.repeat(40)}`, 'learning does not overwrite another field')
+  assert((await choices()).some(option => option.value === entered && option.label.includes('Entered in: contractor')))
+  assert.equal(await evaluate(`${input}.value`), `0x${'0'.repeat(40)}`, 'learning does not overwrite another field')
   await evaluate(`document.querySelector('.wallet-button').click()`)
-  await wait(`${options}.some(option=>option.label.includes('Signing wallet'))`)
+  await wait(`document.querySelector('.wallet-button').textContent==='Reconnect wallet'`)
+  assert((await choices()).some(option => option.label.includes('Signing wallet')))
   await evaluate(`document.querySelector('button[aria-label="Update record"]').click()`)
   await wait(`!!document.querySelector('.prepared-call')`)
-  await evaluate(`${select}.value=${JSON.stringify(entered)};${select}.dispatchEvent(new Event('change',{bubbles:true}))`)
-  await wait(`${field('arbitrator')}.value===${JSON.stringify(entered)}&&!document.querySelector('.prepared-call')`)
+  await open()
+  await key('ArrowDown', 'ArrowDown', 40)
+  await close()
+  assert(await evaluate(`!!document.querySelector('.prepared-call')&&${input}.value==='0x${'0'.repeat(40)}'`), 'opening, browsing and cancelling do not change a value or discard its review')
+  await open()
+  await click(`${popup}.querySelector('code[title="${entered}"]').closest('[role=option]')`)
+  await wait(`${input}.value===${JSON.stringify(entered)}&&!document.querySelector('.prepared-call')`)
   await evaluate(`document.querySelector('button[aria-label="Next view"]').click()`)
   await wait(`document.querySelector('h1').textContent==='Connection detail'`)
-  const afterNavigation = await evaluate(options)
+  const afterNavigation = await choices()
   assert(afterNavigation.some(option => option.value === entered), 'manual entries survive navigation')
   assert(afterNavigation.some(option => option.value === bob && option.label.includes('Current view: Owner')))
-  assert(!afterNavigation.some(option => option.value === alice), 'an old current-view role does not become historical authority')
+  assert(!afterNavigation.some(option => option.value === alice), 'old current-view roles are not retained')
   for (const width of [1280, 320]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
     await edit('arbitrator', `0x${'0'.repeat(40)}`)
-    await evaluate(`${select}.focus()`)
-    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'End', code: 'End', windowsVirtualKeyCode: 35 })
-    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'End', code: 'End', windowsVirtualKeyCode: 35 })
-    await wait(`${field('arbitrator')}.value===${JSON.stringify(entered)}`)
-    assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), 'known-address controls fit narrow layouts')
-    assert(await evaluate(`(()=>{const input=${field('arbitrator')};const bar=input.closest('.address-control');const chooser=bar.querySelector('select');const a=input.getBoundingClientRect(),b=chooser.getBoundingClientRect();const overlay=bar.querySelector('.address-display');const option=[...chooser.options].find(option=>option.value===${JSON.stringify(entered)});return Math.abs(a.top-b.top)<2&&Math.abs(a.height-b.height)<2&&b.width<=44&&overlay?.getAttribute('aria-hidden')==='true'&&overlay.querySelector('code').textContent===input.value&&option.textContent.includes('0x7777...7777')&&!option.textContent.includes(input.value)&&option.getAttribute('aria-label').includes(input.value)})()`), 'typing and abbreviated address choices share one bar while exact values remain available')
-    await evaluate(`${field('arbitrator')}.focus()`)
-    await wait(`!${field('arbitrator')}.closest('.address-control').querySelector('.address-display')`)
-    assert.equal(await evaluate(`${field('arbitrator')}.value`), entered, 'focusing exposes the full editable value')
-    await evaluate(`${field('arbitrator')}.blur()`)
-    await wait(`!!${field('arbitrator')}.closest('.address-control').querySelector('.address-display')`)
-
+    await evaluate(`${input}.scrollIntoView({block:'end'})`)
+    await open()
+    const geometry = await evaluate(`(()=>{const menu=${popup},list=menu.querySelector('[role=listbox]'),bar=${input}.closest('.address-control');const a=bar.getBoundingClientRect(),b=menu.getBoundingClientRect();return {fits:b.left>=0&&b.right<=innerWidth&&b.top>=0&&b.bottom<=innerHeight,wholeField:Math.abs(a.width-b.width)<2,flipped:menu.dataset.side==='top',labelsFit:[...list.children].every(option=>option.scrollWidth<=option.clientWidth),noPageOverflow:document.documentElement.scrollWidth<=innerWidth}})()`)
+    assert(geometry.fits && geometry.wholeField && geometry.flipped && geometry.labelsFit && geometry.noPageOverflow, 'the opened popup fits the viewport, anchors to the full field and flips above its bottom-edge trigger')
+    await key('ArrowUp', 'ArrowUp', 38)
+    await wait(`(()=>{const id=${input}.getAttribute('aria-activedescendant');return document.getElementById(id)?.querySelector('code')?.title===${JSON.stringify(entered)}})()`)
+    assert.equal(await evaluate(`${input}.value`), `0x${'0'.repeat(40)}`, 'highlighting an option does not commit it')
+    await key('Enter', 'Enter', 13)
+    await wait(`${input}.value===${JSON.stringify(entered)}&&!${popup}`)
+    await evaluate(`${input}.blur()`)
+    await wait(`!!${input}.closest('.address-control').querySelector('.address-display')`)
+    assert(await evaluate(`${input}.closest('.address-control').querySelector('.address-display code').textContent===${JSON.stringify(entered)}`), 'the compact display retains the exact identifier once')
+    await evaluate(`${input}.focus()`)
+    await wait(`!${input}.closest('.address-control').querySelector('.address-display')`)
     const doc = await call('DOM.getDocument', {})
-    const node = await call('DOM.querySelector', { nodeId: doc.root.nodeId, selector: suggestionSelector })
-    const ax = await call('Accessibility.getPartialAXTree', { nodeId: node.nodeId, fetchRelatives: false })
     const inputSelector = 'input[name=arbitrator]'
-    const inputNode = await call('DOM.querySelector', { nodeId: doc.root.nodeId, selector: inputSelector })
-    const inputAX = await call('Accessibility.getPartialAXTree', { nodeId: inputNode.nodeId, fetchRelatives: false })
-    assert(inputAX.nodes.some(node => !node.ignored && node.role?.value === 'textbox' && node.name?.value === 'arbitrator' && node.value?.value === entered), 'the compact field exposes its exact full value to accessibility')
-
-    assert(ax.nodes.some(node => !node.ignored && node.role?.value === 'combobox' && node.name?.value === 'Use a known address for arbitrator'))
+    const node = await call('DOM.querySelector', { nodeId: doc.root.nodeId, selector: inputSelector })
+    const ax = await call('Accessibility.getPartialAXTree', { nodeId: node.nodeId, fetchRelatives: false })
+    assert(ax.nodes.some(node => !node.ignored && node.role?.value === 'combobox' && node.name?.value === 'arbitrator' && node.value?.value === entered), 'one editable combobox exposes the full value to accessibility')
   }
+  await edit('arbitrator', '0xabc')
+  await evaluate(`${input}.blur()`)
+  assert.equal(await evaluate(`${input}.value`), '0xabc', 'custom incomplete text is not silently replaced on blur')
   await evaluate('connectionFixture.state.holdPublicRead=true')
   const beforeRefresh = await evaluate('connectionFixture.state.subjects.length')
   await evaluate(`[...document.querySelectorAll('.ui-meta>button')].find(button=>button.textContent==='Refresh').click()`)
   await wait(`connectionFixture.state.subjects.length>${beforeRefresh}&&${field('contractor')}.disabled`)
-  assert(await evaluate(`${select}.disabled`), 'busy views block both typing and explicit address insertion')
+  assert(await evaluate(`${trigger}.disabled`), 'busy views block typing and suggestion selection')
   await evaluate('connectionFixture.releasePublicReads()')
   await wait(`!${field('contractor')}.disabled`)
-  assert((await evaluate(options)).some(option => option.value === entered), 'refresh retains entered suggestions')
+  assert((await choices()).some(option => option.value === entered), 'refresh retains entered suggestions')
   assert.equal(await evaluate('connectionFixture.state.sends'), 0)
-  return { knownAddresses: true, explicitInsertion: true, nativeKeyboard: true, currentViewRoles: true, paymentWrites: 0 }
+  return { knownAddresses: true, editableCombobox: true, openedPopupFits: true, bottomEdgeFlip: true, keyboardCommit: true, escapePreservesReview: true, paymentWrites: 0 }
 }

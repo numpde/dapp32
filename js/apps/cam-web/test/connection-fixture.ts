@@ -15,6 +15,7 @@ const rootAbi = parseAbi(["function camManifest() view returns ((string uri, byt
 const screen = (title: string) => ({ element: "Screen", requires: [], props: { title }, children: [
   ...(scenario !== "addresses" && scenario !== "choices" ? [] : [
     { element: "Address", props: { label: "Owner", address: title === "Connection fixture" ? "0x1111111111111111111111111111111111111111" : "0x2222222222222222222222222222222222222222" } },
+    { element: "Address", props: { label: "Registered workshop responsible for maintaining and repairing this component", address: "0x8888888888888888888888888888888888888888" } },
     ...["contractor", "arbitrator"].map(key => ({ element: "TextField", props: { label: key, format: "address" }, state: { key, defaultValue: zeroAddress } })),
   ]),
   ...(scenario !== "choices" ? [] : [
