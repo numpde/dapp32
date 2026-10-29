@@ -1,6 +1,8 @@
 import type { InertValue } from "@cam/protocol"
 
-import { isRecordObject } from "@cam/protocol"
+import { UI_STATUS_FORMATS, isRecordObject } from "@cam/protocol"
+import { formatAmountDisplay } from "./amount.ts"
+import type { AmountUnit } from "./types.ts"
 import { SECONDS_PER_PART } from "./duration.ts"
 import { UiError } from "./errors.ts"
 
@@ -12,15 +14,20 @@ export function formatStatusLabel(value: InertValue, labels: InertValue, path: s
   return labels[String(value)] as string
 }
 
-export function formatStatusValue(value: InertValue, format: InertValue, path: string, zeroText?: InertValue): string {
+export function formatStatusValue(value: InertValue, format: InertValue, path: string, zeroText?: InertValue, unit?: AmountUnit): string {
   if (format === "stringList") {
     if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
       throw new UiError("UI_INVALID_FIELD", "Cannot display Status as a list: its value must be an array of strings.", `${path}.value`)
     }
     return value.length === 0 ? "None" : value.join(", ")
   }
+  if (format === "amount") {
+    if (unit === undefined) throw new UiError("UI_INVALID_FIELD", "Cannot display an amount without its declared unit.", `${path}.unit`)
+    const amount = statusInteger(value, path)
+    return `${formatAmountDisplay(amount.toString(), unit)} ${unit.displayLabel} (${groupedInteger(amount)} ${unit.baseLabel})`
+  }
   if (format !== "bytes" && format !== "durationSeconds" && format !== "timestampSeconds") {
-    throw new UiError("UI_INVALID_FIELD", "Cannot display Status: format must be bytes, durationSeconds, timestampSeconds, or stringList.", `${path}.format`)
+    throw new UiError("UI_INVALID_FIELD", `Cannot display Status: format must be one of ${UI_STATUS_FORMATS.join(", ")}.`, `${path}.format`)
   }
   const amount = statusInteger(value, path)
   if (format === "timestampSeconds") {
@@ -45,7 +52,7 @@ export function formatRelativeTimestamp(value: InertValue, nowSeconds: number, p
 }
 
 function statusInteger(value: InertValue, path: string): bigint {
-  if (!(typeof value === "string" && /^\d+$/.test(value))
+  if (!(typeof value === "string" && value.length > 0 && !/[^0-9]/u.test(value))
     && !(typeof value === "number" && Number.isSafeInteger(value) && value >= 0)) {
     throw new UiError("UI_INVALID_FIELD", "Cannot display Status with units: its value must be a non-negative decimal integer string or safe integer.", `${path}.value`)
   }

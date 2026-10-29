@@ -11,10 +11,10 @@ const MAX_AMOUNT_DECIMALS = 255
 
 export function parseAmountUnit(value: unknown, path: string): AmountUnit {
   if (!isRecordObject(value) || Object.keys(value).some((key) => !["assetId", "baseLabel", "displayLabel", "decimals"].includes(key))) {
-    throw new UiError("UI_INVALID_FIELD", "AmountField unit must declare assetId, baseLabel, displayLabel and decimals", path)
+    throw new UiError("UI_INVALID_FIELD", "Amount unit must declare assetId, baseLabel, displayLabel and decimals", path)
   }
   for (const key of ["assetId", "baseLabel", "displayLabel", "decimals"]) {
-    if (!Object.hasOwn(value, key)) throw new UiError("UI_INVALID_FIELD", `AmountField unit must declare its own ${key}`, `${path}.${key}`)
+    if (!Object.hasOwn(value, key)) throw new UiError("UI_INVALID_FIELD", `Amount unit must declare its own ${key}`, `${path}.${key}`)
   }
   // Snapshot each scalar before validation. Public parsing also accepts plain
   // objects with accessors, so returning a later read would bypass the bound.
@@ -23,7 +23,7 @@ export function parseAmountUnit(value: unknown, path: string): AmountUnit {
   const displayLabel = requiredNonEmptyString(value.displayLabel, `${path}.displayLabel`)
   const decimals = value.decimals
   if (typeof decimals !== "number" || !Number.isInteger(decimals) || decimals < 0 || decimals > MAX_AMOUNT_DECIMALS) {
-    throw new UiError("UI_INVALID_FIELD", `AmountField decimals must be an integer from 0 to ${MAX_AMOUNT_DECIMALS}`, `${path}.decimals`)
+    throw new UiError("UI_INVALID_FIELD", `Amount decimals must be an integer from 0 to ${MAX_AMOUNT_DECIMALS}`, `${path}.decimals`)
   }
   return { assetId, baseLabel, displayLabel, decimals }
 }
@@ -63,11 +63,13 @@ export function projectAmountDraft(source: AmountDraft): { canonical: string | n
   const canonical = canonicalUnsignedDigits(digits === "" ? "0" : digits)
   if (canonical === null) return unavailable("invalid", "syntax")
   if (canonical.length > MAX_NUMERIC_DIGITS) return unavailable("invalid", "tooLong")
-  let display = canonical
-  if (unit.decimals > 0) {
-    const padded = canonical.padStart(unit.decimals + 1, "0")
-    const fraction = padded.slice(-unit.decimals).replace(/0+$/u, "")
-    display = padded.slice(0, -unit.decimals) + (fraction === "" ? "" : `.${fraction}`)
-  }
+  const display = formatAmountDisplay(canonical, unit)
   return { canonical, draft: { representation, baseText: representation === "base" ? text : canonical, displayText: representation === "display" ? text : display, status: "valid" } }
+}
+
+export function formatAmountDisplay(canonical: string, unit: AmountUnit): string {
+  if (unit.decimals === 0) return canonical
+  const padded = canonical.padStart(unit.decimals + 1, "0")
+  const fraction = padded.slice(-unit.decimals).replace(/0+$/u, "")
+  return padded.slice(0, -unit.decimals) + (fraction === "" ? "" : `.${fraction}`)
 }

@@ -180,6 +180,7 @@ export type ResolvedAmountFieldNode = {
 export type StatusNode = UiNodeBase & {
   readonly element: "Status"
   readonly props: InertRecord
+  readonly unit?: AmountUnit
 }
 
 export type NftNode = UiNodeBase & {

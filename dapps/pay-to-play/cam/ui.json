@@ -43,15 +43,29 @@
             {
               "element": "Status",
               "props": {
-                "label": "Current balance (wei)",
-                "value": "$view.balance"
+                "label": "Current balance",
+                "value": "$view.balance",
+                "format": "amount",
+                "unit": {
+                  "assetId": "native",
+                  "baseLabel": "Wei (smallest unit)",
+                  "displayLabel": "Native coins",
+                  "decimals": 18
+                }
               }
             },
             {
               "element": "Status",
               "props": {
-                "label": "Total paid by vouchers (wei)",
-                "value": "$view.voucherPaid"
+                "label": "Total paid by vouchers",
+                "value": "$view.voucherPaid",
+                "format": "amount",
+                "unit": {
+                  "assetId": "native",
+                  "baseLabel": "Wei (smallest unit)",
+                  "displayLabel": "Native coins",
+                  "decimals": 18
+                }
               }
             }
           ]
@@ -179,8 +193,15 @@
             {
               "element": "Status",
               "props": {
-                "label": "Withdrawal requested (wei)",
-                "value": "$view.requestedAmount"
+                "label": "Withdrawal requested",
+                "value": "$view.requestedAmount",
+                "format": "amount",
+                "unit": {
+                  "assetId": "native",
+                  "baseLabel": "Wei (smallest unit)",
+                  "displayLabel": "Native coins",
+                  "decimals": 18
+                }
               }
             },
             {
@@ -195,8 +216,15 @@
             {
               "element": "Status",
               "props": {
-                "label": "Balance minus withdrawal request (wei)",
-                "value": "$view.effectiveBalance"
+                "label": "Balance minus withdrawal request",
+                "value": "$view.effectiveBalance",
+                "format": "amount",
+                "unit": {
+                  "assetId": "native",
+                  "baseLabel": "Wei (smallest unit)",
+                  "displayLabel": "Native coins",
+                  "decimals": 18
+                }
               }
             },
             {
@@ -819,8 +847,15 @@
                 {
                   "element": "Status",
                   "props": {
-                    "label": "Authorized total so far (wei)",
-                    "value": "$view.cumulativeTotal"
+                    "label": "Authorized total so far",
+                    "value": "$view.cumulativeTotal",
+                    "format": "amount",
+                    "unit": {
+                      "assetId": "native",
+                      "baseLabel": "Wei (smallest unit)",
+                      "displayLabel": "Native coins",
+                      "decimals": 18
+                    }
                   }
                 },
                 {
@@ -1215,8 +1250,15 @@
             {
               "element": "Status",
               "props": {
-                "label": "Current balance (wei)",
-                "value": "$view.balance"
+                "label": "Current balance",
+                "value": "$view.balance",
+                "format": "amount",
+                "unit": {
+                  "assetId": "native",
+                  "baseLabel": "Wei (smallest unit)",
+                  "displayLabel": "Native coins",
+                  "decimals": 18
+                }
               }
             },
             {
@@ -1432,8 +1474,15 @@
             {
               "element": "Status",
               "props": {
-                "label": "Total channel escrow (wei)",
-                "value": "$view.escrowTotal"
+                "label": "Total channel escrow",
+                "value": "$view.escrowTotal",
+                "format": "amount",
+                "unit": {
+                  "assetId": "native",
+                  "baseLabel": "Wei (smallest unit)",
+                  "displayLabel": "Native coins",
+                  "decimals": 18
+                }
               }
             },
             {
@@ -1589,8 +1638,15 @@
         {
           "element": "Status",
           "props": {
-            "label": "Estimated payment (wei; may change before confirmation)",
-            "value": "$view.amount"
+            "label": "Estimated payment (may change before confirmation)",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
           }
         },
         {
@@ -1620,8 +1676,15 @@
         {
           "element": "Status",
           "props": {
-            "label": "Paid (wei)",
-            "value": "$view.amount"
+            "label": "Paid",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
           }
         },
         {
@@ -1663,8 +1726,15 @@
         {
           "element": "Status",
           "props": {
-            "label": "Paid (wei)",
-            "value": "0"
+            "label": "Paid",
+            "value": "0",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
           }
         }
       ]

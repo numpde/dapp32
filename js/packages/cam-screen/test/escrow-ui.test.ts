@@ -219,7 +219,7 @@ test("credit distinguishes the credit owner, full amount and withdrawal destinat
       if (node.element === "Text") texts.push(String(node.props.text))
       if (node.element === "Status") statusLabels.push(String(node.props.label))
     })
-    assert.ok(statusLabels.includes("Total withdrawable credit for this account (wei)"))
+    assert.ok(statusLabels.includes("Total withdrawable credit for this account"))
     assert.ok(texts.some((text) => /Settling an agreement records credit rather than sending money straight to a wallet\./.test(text)))
     assert.ok(texts.some((text) => /This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals\./.test(text)))
     assert.ok(texts.some((text) => /It excludes funds still locked in open agreements\./.test(text)))
@@ -259,7 +259,7 @@ test("escrow limits declare exact readable units without changing contract value
   assert.equal(displayed.get("Allowed arbitration timeout recipients"), "client, contractor")
 })
 
-test("agreement durations use declared units while monetary values remain exact wei", async () => {
+test("agreement durations and amounts use declared units while retaining exact base values", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(agreementView({
     viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [],
   })), CONTEXT)
@@ -273,7 +273,7 @@ test("agreement durations use declared units while monetary values remain exact 
   assert.equal(displayed.get("Work duration"), "2 hours (7,200 seconds)")
   assert.equal(displayed.get("Review duration"), "1 hour (3,600 seconds)")
   assert.equal(displayed.get("Arbitration duration"), "1 day (86,400 seconds)")
-  assert.equal(displayed.get("Original escrow amount in wei"), "1000000000000000000")
+  assert.equal(displayed.get("Original escrow amount"), "1 Native asset (1,000,000,000,000,000,000 wei)")
 })
 
 test("escrow creation screen resolves nested payable calldata from one form", async () => {

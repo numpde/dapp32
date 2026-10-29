@@ -165,9 +165,9 @@ function resolveNode(
       const props = resolveProps(node.element, node.props, context, `${path}.props`)
       return [{
         element: node.element,
-        props,
+        props: { ...props, ...(node.unit === undefined ? {} : { unit: node.unit }) },
         ...(props.valueLabels !== undefined ? { formattedValue: formatStatusLabel(props.value, props.valueLabels, `${path}.props`) }
-          : props.format === undefined ? {} : { formattedValue: formatStatusValue(props.value, props.format, `${path}.props`, props.zeroText) }),
+          : props.format === undefined ? {} : { formattedValue: formatStatusValue(props.value, props.format, `${path}.props`, props.zeroText, node.unit) }),
         children: [] as const,
       }]
     }

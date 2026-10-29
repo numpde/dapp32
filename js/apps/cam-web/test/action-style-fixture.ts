@@ -2,7 +2,7 @@ import { createElement, Fragment } from "react"
 import type { ComponentProps } from "react"
 import { createRoot } from "react-dom/client"
 import { encodeFunctionData, parseAbi } from "viem"
-import { editAmountDraft, editIntegerDraft, durationDraftFromSeconds, editDurationDraft, projectAmountDraft, projectIntegerDraft, projectDurationDraft } from "@cam/screen"
+import { parseUi, resolveUiNode, editAmountDraft, editIntegerDraft, durationDraftFromSeconds, editDurationDraft, projectAmountDraft, projectIntegerDraft, projectDurationDraft } from "@cam/screen"
 import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
@@ -40,6 +40,11 @@ let draft: string | null = "unchanged"
 let viewingAccount = "0x1111111111111111111111111111111111111111"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
+function monetaryFact(label: string, value: string) {
+  const ui = parseUi({ ui: "1.0.0", nodes: { fact: { requires: [], element: "Status", props: { label, value, format: "amount", unit: { assetId: "native", baseLabel: "wei", displayLabel: "Native asset", decimals: 18 } } } } })
+  return resolveUiNode(ui, "fact", {}, { host: { chainId: "eip155:31337", address: "0x0000000000000000000000000000000000000001" }, inputs: {}, outputs: [], state: {} })
+}
+const monetaryFacts = [monetaryFact("Readonly amount", "1000000000000000"), monetaryFact("Zero amount", "0")]
 const numericUnit = { assetId: "fixture:asset", baseLabel: "Base units", displayLabel: "Display units", decimals: 2 }
 let integerDraft = editIntegerDraft("1")
 let durationDraft = durationDraftFromSeconds("60")
@@ -60,6 +65,7 @@ function render(): void {
     { element: "Screen", props: { title: "Overview" }, children: [
       { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
     ] },
+    ...monetaryFacts,
     { element: "Status", props: { label: "Before actions", value: "Before" }, children: [] },
     { element: "Status", props: { label: "Document digest", value: fixtureDigest }, children: [] },
     { element: "Screen", props: { title: "Fixture actions" }, children: [

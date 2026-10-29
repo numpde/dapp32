@@ -1350,3 +1350,45 @@ test("ChoiceField rejects unusable options and defaults instead of making an imp
   const ui = parseUi(declaration(options, "3"))
   assert.throws(() => resolveInitialUiNode(ui, "input", {}, { ...context, state: {} }), /state must match a declared option/)
 })
+
+test("amount Status preserves raw base values and displays both exact declared units", () => {
+  const unit = { assetId: "native", baseLabel: "wei", displayLabel: "Native asset", decimals: 18 }
+  for (const [value, decimals, expected] of [
+    ["0", 18, "0 Native asset (0 wei)"],
+    ["1", 18, "0.000000000000000001 Native asset (1 wei)"],
+    ["1000000000000000", 18, "0.001 Native asset (1,000,000,000,000,000 wei)"],
+    ["9007199254740993", 2, "90071992547409.93 Native asset (9,007,199,254,740,993 wei)"],
+    ["000125", 2, "1.25 Native asset (125 wei)"],
+    [125, 0, "125 Native asset (125 wei)"],
+  ] as const) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: { fact: { requires: [], element: "Status", props: { label: "Balance", value, format: "amount", unit: { ...unit, decimals } } } } })
+    const resolved = resolveUiNode(ui, "fact", {}, context)
+    if (resolved.element !== "Status") assert.fail("Expected amount Status")
+    assert.equal(resolved.props.value, value)
+    assert.equal(resolved.formattedValue, expected)
+  }
+  const literalUnit = { ...unit, displayLabel: "$view.currency" }
+  const literal = parseUi({ ui: UI_VERSION, nodes: { fact: { requires: [], element: "Status", props: { label: "Balance", value: "0", format: "amount", unit: literalUnit } } } })
+  const resolved = resolveUiNode(literal, "fact", {}, context)
+  if (resolved.element !== "Status") assert.fail("Expected amount Status")
+  assert.deepEqual(resolved.props.unit, literalUnit)
+  assert.equal(resolved.formattedValue, "0 $view.currency (0 wei)")
+})
+
+test("amount Status requires explicit literal unit metadata and rejects unusable numeric facts", () => {
+  const unit = { assetId: "native", baseLabel: "wei", displayLabel: "Native asset", decimals: 18 }
+  const declaration = (props: Record<string, unknown>) => ({ ui: UI_VERSION, nodes: { fact: { requires: [], element: "Status", props: { label: "Balance", value: "0", ...props } } } })
+  for (const props of [
+    { format: "amount" }, { format: "amount", unit: "$view.unit" },
+    { format: "amount", unit: { ...unit, decimals: -1 } }, { format: "amount", unit, zeroText: "Nothing" },
+    { format: "amount", unit, valueLabels: { "0": "Empty" } }, { unit }, { format: "bytes", unit },
+  ]) assert.throws(() => parseUi(declaration(props)), UiError)
+  const ui = parseUi(declaration({ format: "amount", unit, value: "$inputs.amount" }))
+  for (const amount of ["1\n", " 1", "1.2", "-1", "", Number.MAX_SAFE_INTEGER + 1, true, null]) {
+    assert.throws(() => resolveUiNode(ui, "fact", {}, { ...context, inputs: { amount } }), /non-negative decimal integer string or safe integer/)
+  }
+  for (const format of ["bytes", "durationSeconds", "timestampSeconds"]) {
+    const invalid = parseUi(declaration({ format, value: "1\n" }))
+    assert.throws(() => resolveUiNode(invalid, "fact", {}, context), UiError)
+  }
+})

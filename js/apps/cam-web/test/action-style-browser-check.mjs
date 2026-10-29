@@ -142,6 +142,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
         return JSON.stringify(window.actionFixture.events) === before
           && commands.every(button => getComputedStyle(button).cursor === 'not-allowed')
       })()`), `${state} blocks edits and business commands without disabling read-only displays`)
+      assert(await evaluate(`(()=>{const facts=Object.fromEntries([...document.querySelectorAll('.elements>.key-value')].map(row=>[row.querySelector('dt').textContent,row.querySelector('dd').textContent]));return facts['Readonly amount']==='0.001 Native asset (1,000,000,000,000,000 wei)'&&facts['Zero amount']==='0 Native asset (0 wei)'})()`), 'read-only amounts expose readable and exact base units at each viewport')
       await assertDisplayedValues({ call, evaluate })
       await evaluate(`window.actionFixture.${state}(false)`)
       await wait(`!document.querySelector('.elements input').matches(':disabled')`)

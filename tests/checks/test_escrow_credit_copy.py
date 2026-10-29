@@ -17,7 +17,7 @@ class EscrowCreditCopyTest(unittest.TestCase):
                     index
                     for index, child in enumerate(children)
                     if child["element"] == "Status"
-                    and child["props"]["label"] == "Total withdrawable credit for this account (wei)"
+                    and child["props"]["label"] == "Total withdrawable credit for this account"
                 )
                 paragraphs = []
                 for child in children[credit_status + 1:]:

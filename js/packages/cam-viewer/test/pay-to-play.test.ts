@@ -256,7 +256,7 @@ test("payment tasks keep their controls together and separate channel administra
     ["setCollector", ["Pay-to-Play", "Channel settings", "Change collector"]],
   ] as const) assert.deepEqual(groups[route], [path], route)
   assert.equal(groups.createChannel, undefined, "creating another channel is outside this selected balance")
-  for (const label of ["Withdrawal requested (wei)", "Withdrawal ready at", "Balance minus withdrawal request (wei)"]) {
+  for (const label of ["Withdrawal requested", "Withdrawal ready at", "Balance minus withdrawal request"]) {
     const withdrawal = taskSections(opened.resolvedUi).find(node => node.props.title === "Withdraw or move funds")!
     assert(withdrawal.element === "Screen")
     assert(withdrawal.children.some(node => node.element === "Status" && node.props.label === label), label)
@@ -786,7 +786,7 @@ test("collection shows its estimate, then the mined amount and actual recipient,
     simulateContract: async request => { assert.equal(request.address, contract); assert.equal(request.blockNumber, 18n); return { result: 30n } },
   }, other)
   assert.deepEqual(presentationFacts(review.ui), {
-    "Estimated payment (wei; may change before confirmation)": "30",
+    "Estimated payment (may change before confirmation)": "30",
     "Current payee (may change before confirmation)": other.toLowerCase(),
   })
   chainState.payee = customer
@@ -796,11 +796,11 @@ test("collection shows its estimate, then the mined amount and actual recipient,
     data: encodeAbiParameters([{ type: "uint256" }, { type: "uint256" }, { type: "bytes32" }], [20n, 20n, invoiceHash]),
   }])
   const paid = call.receipt!(proof.receipt, proof.transaction, other)
-  assert.deepEqual(presentationFacts(paid), { "Paid (wei)": "20", "Paid to": customer.toLowerCase(), "Balance owner": customer.toLowerCase(), "Channel ID": "1" })
+  assert.deepEqual(presentationFacts(paid), { "Paid": "20", "Paid to": customer.toLowerCase(), "Balance owner": customer.toLowerCase(), "Channel ID": "1" })
   const zeroPayment = call.receipt!({ ...proof.receipt, logs: [] }, proof.transaction, other)
   assert.equal(zeroPayment.element, "Screen")
   assert.equal(zeroPayment.props.title, "No payment collected")
-  assert.deepEqual(presentationFacts(zeroPayment), { "Paid (wei)": "0" })
+  assert.deepEqual(presentationFacts(zeroPayment), { "Paid": "0" })
 })
 
 test("presentation parsing and preparation fail before RPC at unavailable expression phases", async () => {

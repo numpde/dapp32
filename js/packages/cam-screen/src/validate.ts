@@ -19,7 +19,7 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import type { InertRecord, InertValue } from "@cam/protocol"
-import type { ChoiceOption, UiCall, UiDocument, UiMembership, UiNode } from "./types.ts"
+import type { AmountUnit, ChoiceOption, UiCall, UiDocument, UiMembership, UiNode } from "./types.ts"
 
 const NAMED_NODE_KEYS = new Set(["requires", "element", "props", "state", "children", "call", "enabledWhen"])
 const INLINE_NODE_KEYS = new Set(["element", "props", "state", "children", "call", "enabledWhen"])
@@ -159,7 +159,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         element,
-        props: parseStatusProps(source.props, `${path}.props`),
+        ...parseStatusProps(source.props, `${path}.props`),
       }
     case "Nft": {
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
@@ -295,8 +295,10 @@ function parseTextFieldProps(value: unknown, path: string): InertRecord {
   return props
 }
 
-function parseStatusProps(value: unknown, path: string): InertRecord {
-  const props = parseProps(value, path, UI_PROP_SCHEMAS.Status)
+function parseStatusProps(value: unknown, path: string): { readonly props: InertRecord; readonly unit?: AmountUnit } {
+  const source = requiredRecord(value, path)
+  const { unit, ...expressionProps } = source
+  const props = parseProps(expressionProps, path, UI_PROP_SCHEMAS.Status)
   if (Object.hasOwn(props, "valueLabels")) {
     if (Object.hasOwn(props, "format") || Object.hasOwn(props, "zeroText")) {
       throw new UiError("UI_INVALID_FIELD", "Status valueLabels cannot be combined with format or zeroText.", path)
@@ -310,13 +312,15 @@ function parseStatusProps(value: unknown, path: string): InertRecord {
     }
   }
   if (Object.hasOwn(props, "format") && !(UI_STATUS_FORMATS as readonly unknown[]).includes(props.format)) {
-    throw new UiError("UI_INVALID_FIELD", "Cannot display Status: format must be bytes, durationSeconds, timestampSeconds, or stringList.", `${path}.format`)
+    throw new UiError("UI_INVALID_FIELD", `Cannot display Status: format must be one of ${UI_STATUS_FORMATS.join(", ")}.`, `${path}.format`)
   }
   if (Object.hasOwn(props, "zeroText")
     && (props.format !== "timestampSeconds" || typeof props.zeroText !== "string" || props.zeroText.trim().length === 0)) {
     throw new UiError("UI_INVALID_FIELD", "Cannot display Status absence: zeroText requires timestampSeconds and a nonempty string.", `${path}.zeroText`)
   }
-  return props
+  if (props.format === "amount") return { props, unit: parseAmountUnit(unit, `${path}.unit`) }
+  if (Object.hasOwn(source, "unit")) throw new UiError("UI_INVALID_FIELD", "Cannot display Status unit without the amount format.", `${path}.unit`)
+  return { props }
 }
 
 function parseStateBinding(value: unknown, path: string): {

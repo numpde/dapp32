@@ -13,6 +13,10 @@ import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } 
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from '../../../tools/pay-to-play-vouchers/protocol.ts'
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
 
+function showsExactWei(value, wei) {
+  return typeof value === 'string' && value.endsWith(`(${BigInt(wei).toLocaleString('en-US')} Wei (smallest unit))`)
+}
+
 function localURL(value, label) {
   const url = requireHttpURL(value, label)
   assert(url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname), `${label} must use loopback HTTP`)
@@ -324,7 +328,7 @@ try {
   disabled(registered, 'Register permanent voucher key')
   await fill('fundAmount', '100')
   await send('Deposit')
-  await wait(state => state.values['Current balance (wei)'] === '100', 'funded balance')
+  await wait(state => showsExactWei(state.values['Current balance'], '100'), 'funded balance')
   assert(await evaluate(`(()=>{const row=[...document.querySelectorAll('dl')].find(row=>row.querySelector('dt')?.textContent==='Withdrawal ready at');return row&&!row.querySelector('.timestamp-options')})()`), 'the absent withdrawal timestamp has no display switch even while recovery deadlines exist')
   await fill('fundAmount', '23')
   await click('Deposit')
@@ -334,7 +338,7 @@ try {
   assert(await evaluate(`document.querySelector('input[name="fundAmount"]').value === "23"`), 'refresh preserves the amount draft')
   await fill('withdrawAmount', '40')
   await send('Request withdrawal')
-  await wait(state => state.values['Balance minus withdrawal request (wei)'] === '60', 'request effective balance')
+  await wait(state => showsExactWei(state.values['Balance minus withdrawal request'], '60'), 'request effective balance')
   phase = 'timestamp display preference'
   await evaluate(`(()=>{const originalSet=window.setInterval,originalClear=window.clearInterval,active=new Set();window.__timestampTimers={originalSet,originalClear,active};window.setInterval=(...args)=>{const id=originalSet.apply(window,args);active.add(id);return id};window.clearInterval=id=>{active.delete(id);return originalClear.call(window,id)}})()`)
   assert(await evaluate(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')==='false'`), 'timestamps default to Date')
@@ -343,7 +347,7 @@ try {
   assert(await evaluate(`window.__timestampTimers.active.size===1`), 'relative display owns one timer')
   await fill('withdrawAmount', '80')
   await send('Replace withdrawal request')
-  await wait(state => state.values['Balance minus withdrawal request (wei)'] === '20' && state.values['Withdrawal requested (wei)'] === '80', 'renewed effective balance')
+  await wait(state => showsExactWei(state.values['Balance minus withdrawal request'], '20') && showsExactWei(state.values['Withdrawal requested'], '80'), 'renewed effective balance')
   assert(await evaluate(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')==='true'`), 'same-field timestamp updates retain the display preference')
   await fill('fundAmount', '23')
   await click('Deposit')
@@ -417,7 +421,7 @@ try {
     await fill('invoiceHash', invoiceHash)
     await fill('signature', signature)
     await send('Collect voucher payment', async review => {
-      assert.equal(review.reviewValues['Estimated payment (wei; may change before confirmation)'], '30')
+      assert.equal(review.reviewValues['Estimated payment (may change before confirmation)'], '0.00000000000000003 Native coins (30 Wei (smallest unit))')
       assert.equal(review.reviewValues['Current payee (may change before confirmation)'].toLowerCase(), accounts.recipient.address.toLowerCase())
       if (paidTotal === 30n) {
         await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: false })
@@ -425,8 +429,8 @@ try {
         await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
       }
     })
-    const paid = await wait(state => state.values['Current balance (wei)'] === String(100n - paidTotal) && state.values['Total paid by vouchers (wei)'] === String(paidTotal), 'partial voucher payment')
-    assert.equal(paid.resultValues['Paid (wei)'], '30')
+    const paid = await wait(state => showsExactWei(state.values['Current balance'], 100n - paidTotal) && showsExactWei(state.values['Total paid by vouchers'], paidTotal), 'partial voucher payment')
+    assert.equal(paid.resultValues['Paid'], '0.00000000000000003 Native coins (30 Wei (smallest unit))')
     assert.equal(paid.resultValues['Paid to'].toLowerCase(), accounts.recipient.address.toLowerCase())
     const collectionReceipt = await publicClient.getTransactionReceipt({ hash: lastHash })
     const collectionLogs = collectionReceipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
@@ -443,8 +447,8 @@ try {
   await fill('maxAmount', '30')
   await fill('invoiceHash', invoiceHash)
   await fill('signature', signature)
-  await send('Collect voucher payment', review => assert.equal(review.reviewValues['Estimated payment (wei; may change before confirmation)'], '0'))
-  const zeroPayment = await wait(state => state.resultValues['Paid (wei)'] === '0' && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), 'successful zero collection')
+  await send('Collect voucher payment', review => assert.equal(review.reviewValues['Estimated payment (may change before confirmation)'], '0 Native coins (0 Wei (smallest unit))'))
+  const zeroPayment = await wait(state => showsExactWei(state.resultValues['Paid'], '0') && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), 'successful zero collection')
   assert(zeroPayment.transaction.includes('No payment collected'))
   assert.equal(zeroPayment.resultValues['Paid to'], undefined, 'zero result cannot retain an earlier payment recipient')
   const zeroReceipt = await publicClient.getTransactionReceipt({ hash: lastHash })
@@ -452,7 +456,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: false })
   assert(!(await evaluate(snapshot)).overflow, 'the zero-payment receipt fits a narrow viewport')
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  process.stdout.write(`${JSON.stringify({ event: 'ok', test: 'payment outcomes and actual channel handoff', created: { hash: receipt.transactionHash, channelId: id, simulatedId: String(simulatedId), interveningCreation }, payments: paymentReceipts, zero: { hash: zeroReceipt.transactionHash, paid: zeroPayment.resultValues['Paid (wei)'] }, widths: [1280, 320] })}\n`)
+  process.stdout.write(`${JSON.stringify({ event: 'ok', test: 'payment outcomes and actual channel handoff', created: { hash: receipt.transactionHash, channelId: id, simulatedId: String(simulatedId), interveningCreation }, payments: paymentReceipts, zero: { hash: zeroReceipt.transactionHash, paid: zeroPayment.resultValues['Paid'] }, widths: [1280, 320] })}\n`)
   phase = 'zero-wait recovery channel'
   await role('admin')
   await inspect(accounts.admin.address, '0')
@@ -484,7 +488,7 @@ try {
   await role('relayer')
   await wait(state => state.buttons.some(button => button.name === 'Refund full balance' && !button.disabled), 'relayer recovery')
   await send('Refund full balance')
-  await wait(state => state.values['Current balance (wei)'] === '0', 'fully refunded balance')
+  await wait(state => showsExactWei(state.values['Current balance'], '0'), 'fully refunded balance')
   assert.equal(await publicClient.getBalance({ address: accounts.recipient.address }), recipientBefore + 40n, 'refund follows the owner-chosen recipient')
   disabled(await evaluate(snapshot), 'Refund full balance')
   phase = 'cold-start integrity warning'

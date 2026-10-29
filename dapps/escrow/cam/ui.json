@@ -588,8 +588,15 @@
         {
           "element": "Status",
           "props": {
-            "label": "Original escrow amount in wei",
-            "value": "$view.agreement.amount"
+            "label": "Original escrow amount",
+            "value": "$view.agreement.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
           }
         },
         {
@@ -935,8 +942,15 @@
         {
           "element": "Status",
           "props": {
-            "label": "Total withdrawable credit for this account (wei)",
-            "value": "$view.amount"
+            "label": "Total withdrawable credit for this account",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
           }
         },
         {
@@ -1016,8 +1030,15 @@
         {
           "element": "Status",
           "props": {
-            "label": "Total withdrawable credit for this account (wei)",
-            "value": "$view.amount"
+            "label": "Total withdrawable credit for this account",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
           }
         },
         {
