@@ -61,3 +61,22 @@ App-specific work remains in the walkthrough notes. The next Pay-to-Play
 items are linking the external-signing guide, intentional voucher reuse after
 partial collection, distinguishing initial and replacement withdrawals, and
 giving reserve-channel tasks appropriate prominence (note 032, P2).
+
+6. Open question: share prepared forms through links and QR codes
+
+   Status: open design question; implementation not selected.
+   Owner: shared viewer form sharing/navigation, with app-specific use cases.
+   Example: prepare Bike registration with serial number, intended NFT owner
+   and metadata, then give someone a QR/link that opens the populated form.
+   Existing links restore a route and its inputs, but not the editable draft.
+
+   Decide which draft values are shareable, how recipients inspect/edit them,
+   and how URL/QR size limits affect embedded metadata. Also decide how a
+   shared draft behaves if the app's fields or contract bindings have changed.
+   Sharing must not carry wallet credentials or transaction approval, select
+   a signing wallet, or automatically submit a transaction. Form values in a
+   shared link are disclosed to anyone who receives it.
+
+   The historical PoC QR renderer is a reference, not a migration decision.
+   A QR represents the same prepared-form link; URL/draft construction belongs
+   to its existing shared owner rather than the QR display component.
