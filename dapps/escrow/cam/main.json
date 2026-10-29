@@ -2,7 +2,7 @@
   "cam": "1.3.0",
   "protocol": {
     "uri": "./protocol.html",
-    "integrity": "sha256:0x3ff6a9ad761dfa176b28e531365c261c510ff87d378ad9797e1e30f6d8078c34"
+    "integrity": "sha256:0xe8aa0637371a449d7bb4861388757dbf4ed48ac58191a3383580d2635b9e9733"
   },
   "entry": "createAgreementForm",
   "namespaces": {
@@ -22,7 +22,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xd11437c2bb205f691062bcac0b29414c047a5ea0f24aa5a484a531767bf6f4f5"
+      "integrity": "sha256:0x6c6b4369919aadf113a0654a1fcdb7305ae4a87289c94c30d0cb8192ba20c983"
     }
   },
   "routes": {

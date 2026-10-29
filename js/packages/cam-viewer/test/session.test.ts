@@ -78,6 +78,10 @@ test("viewer renders changed or unpinned CAM resources and retains their integri
       loadResource: async resourceURI => { reads.push(resourceURI); return resources[resourceURI] },
     }))
     const loaded = await session.load()
+    assert.equal(loaded.contractAddresses["contracts.BicycleComponentManager"], managerAddress)
+    const addresses = loaded.contractAddresses as Record<string, string>
+    addresses["contracts.BicycleComponentManager"] = otherUserAddress
+    assert.equal(session.snapshot().contractAddresses?.["contracts.BicycleComponentManager"], managerAddress)
     assert.ok(loaded.resolvedUi)
     const warnings = loaded.integrityWarnings
     assert.equal(warnings.length, 1)

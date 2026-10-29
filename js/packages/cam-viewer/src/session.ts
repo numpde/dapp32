@@ -124,6 +124,7 @@ export function createCamViewerSession({
       documentHashes: cloneViewerData(documentHashes, "documentHashes"),
       route: view.route,
       state: cloneViewerData<InertRecord>(view.state, "state"),
+      contractAddresses: Object.fromEntries(Object.entries(current.contracts).map(([name, contract]) => [name, contract.address])),
       uiURI: current.uiURI,
       resolvedUi: cloneViewerData<ResolvedUiNode>(view.resolvedUi, "resolvedUi"),
       values: cloneViewerData<readonly InertValue[]>(view.values, "values"),

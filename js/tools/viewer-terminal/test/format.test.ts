@@ -328,6 +328,7 @@ function statusTerminalOutput(
   snapshotOverrides?: Partial<Pick<CamViewerLoadedSnapshot, "route" | "uiURI" | "state" | "integrityWarnings">>,
 ): string {
   const snapshot: CamViewerLoadedSnapshot = {
+    contractAddresses: {},
     visitId: 1,
     integrityWarnings: [],
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",

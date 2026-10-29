@@ -1007,6 +1007,8 @@ export function App(): ReactElement {
 
       {loadState.status === "ready" ? (
         <UiView
+          {...(wallet.status === "connected" && walletChainMatches ? { walletAddress: wallet.address } : {})}
+          hostAddress={loadState.runtime.startup.host}
           snapshot={{ ...loadState.snapshot, canGoBack: browserHistory.canGoBack() }}
           actionKind={loadState.runtime.session.actionKind}
           canReviewTransaction={loadState.runtime.viewingMode === "account"}

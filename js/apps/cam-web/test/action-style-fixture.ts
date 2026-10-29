@@ -56,7 +56,7 @@ function render(): void {
   const integer = projectIntegerDraft(integerDraft, { min: "0", max: "100" })
   const duration = projectDurationDraft(durationDraft, { min: "0", max: "100" })
   const amount = projectAmountDraft(amountDraft)
-  const snapshot: CamViewerLoadedSnapshot = { visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "", metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "", metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Screen", props: { title: "Overview" }, children: [
       { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
     ] },

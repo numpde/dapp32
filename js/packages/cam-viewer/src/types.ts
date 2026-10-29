@@ -40,6 +40,7 @@ export type CamViewerSnapshot = {
   readonly documentHashes?: Readonly<Record<string, CamViewerDocumentHashStatus>>
   readonly state?: InertRecord
   readonly account?: CamViewerAccount
+  readonly contractAddresses?: Readonly<Record<string, string>>
   readonly uiURI?: string
   readonly resolvedUi?: ResolvedUiNode
   readonly values?: readonly InertValue[]
@@ -53,6 +54,7 @@ export type CamViewerLoadedSnapshot =
     readonly route: string
     readonly inputs: InertRecord
     readonly state: InertRecord
+    readonly contractAddresses: Readonly<Record<string, string>>
     readonly uiURI: string
     readonly resolvedUi: ResolvedUiNode
     readonly values: readonly InertValue[]

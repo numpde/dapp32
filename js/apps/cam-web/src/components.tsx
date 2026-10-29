@@ -33,6 +33,8 @@ import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
 import { Feedback, FeedbackBox } from "./feedback.tsx"
 import type { TransactionStage } from "./transactions.ts"
 import { HexValue } from "./hex-value.tsx"
+import { AddressInput, AddressSuggestions } from "./address-input.tsx"
+import { currentViewAddresses } from "./known-addresses.ts"
 import { PropertyRow } from "./property-row.tsx"
 
 export function ConnectionSummary({
@@ -65,6 +67,8 @@ export function ConnectionSummary({
 
 export function UiView({
   snapshot,
+  walletAddress,
+  hostAddress,
   actionKind,
   canReviewTransaction,
   viewRef,
@@ -80,6 +84,8 @@ export function UiView({
   onDocumentHash,
   onCancelDocumentHash,
 }: {
+  readonly walletAddress?: string
+  readonly hostAddress?: string
   readonly snapshot: CamViewerLoadedSnapshot
   readonly actionKind: (action: ResolvedButtonNode) => CamViewerActionKind
   readonly canReviewTransaction: boolean
@@ -96,6 +102,13 @@ export function UiView({
   readonly onDocumentHash: DocumentHashCalculate
   readonly onCancelDocumentHash: (name: string) => void
 }): ReactElement {
+  const addresses = [
+    ...(walletAddress === undefined ? [] : [{ address: walletAddress, label: "Signing wallet" }]),
+    ...(snapshot.account === undefined ? [] : [{ address: snapshot.account.address, label: "Viewing as" }]),
+    ...(hostAddress === undefined ? [] : [{ address: hostAddress, label: "CAM contract" }]),
+    ...Object.entries(snapshot.contractAddresses).map(([name, address]) => ({ address, label: `Loaded contract: ${name}` })),
+    ...currentViewAddresses(snapshot.resolvedUi),
+  ]
   return (
     <section className="ui" ref={viewRef} tabIndex={-1} aria-label="Current view">
       <div className="ui-meta">
@@ -112,7 +125,9 @@ export function UiView({
         </details>
       </div>
       <div className="elements" role="group" aria-label="Current view">
+        <AddressSuggestions sources={addresses}>
         <UiNodeView busy={changingView || sending} root={true} headingLevel={2} scopeKey={JSON.stringify([snapshot.route, snapshot.inputs, snapshot.account?.address, snapshot.uiURI])} node={snapshot.resolvedUi} actionKind={actionKind} canReviewTransaction={canReviewTransaction} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        </AddressSuggestions>
       </div>
     </section>
   )
@@ -224,6 +239,7 @@ function UiNodeView({
       return factNodeView(node, [], root, headingLevel)
     case "TextField": {
       const name = stateKey(node)
+      if (node.props.format === "address") return <AddressInput key={JSON.stringify([scopeKey, name])} name={name} label={stringProp(node.props, "label")} value={stateString(state, name)} disabled={busy || node.disabled === true} onInput={onInput} />
       return (
         <label className="field">
           <span>{displayText(stringProp(node.props, "label"))}</span>

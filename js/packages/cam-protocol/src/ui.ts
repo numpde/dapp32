@@ -53,6 +53,8 @@ export const UI_PROP_SCHEMAS = {
   },
   TextField: {
     required: ["label"],
+    optional: ["format"],
+    literal: ["format"],
     string: ["label"],
     address: [],
   },

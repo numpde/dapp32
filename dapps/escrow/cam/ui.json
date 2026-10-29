@@ -112,7 +112,8 @@
                 {
                   "element": "TextField",
                   "props": {
-                    "label": "Contractor address"
+                    "label": "Contractor address",
+                    "format": "address"
                   },
                   "state": {
                     "key": "contractor",
@@ -128,7 +129,8 @@
                 {
                   "element": "TextField",
                   "props": {
-                    "label": "Arbitrator address"
+                    "label": "Arbitrator address",
+                    "format": "address"
                   },
                   "state": {
                     "key": "arbitrator",
@@ -1652,7 +1654,8 @@
         {
           "element": "TextField",
           "props": {
-            "label": "Withdrawal recipient"
+            "label": "Withdrawal recipient",
+            "format": "address"
           },
           "state": {
             "key": "recipient",

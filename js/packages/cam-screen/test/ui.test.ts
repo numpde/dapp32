@@ -1305,3 +1305,17 @@ test("Nft accepts an optional metadata URI string while retaining arbitrary iner
   assert.throws(() => parseUi(makeUi({ metadataURI: 3 })), /metadataURI/)
   assert.throws(() => resolveUiNode(ui, "app", {}, { ...context, inputs: { uri: 3 } }), /metadataURI/)
 })
+
+test("TextField address format is explicit literal metadata and preserves ordinary string editing", () => {
+  const field = (format: unknown) => ({ ui: UI_VERSION, nodes: { input: {
+    requires: [], element: "TextField", props: { label: "Recipient", format }, state: { key: "recipient", defaultValue: "" },
+  } } })
+  const ui = parseUi(field("address"))
+  const { state, resolvedUi } = resolveInitialUiNode(ui, "input", {}, { ...context, state: {} })
+  assert.equal(state.recipient, "")
+  assert.equal(resolvedUi.element, "TextField")
+  if (resolvedUi.element !== "TextField") throw new Error("Address input was not resolved")
+  assert.equal(resolvedUi.props.format, "address")
+  assert.equal(resolveUiNode(ui, "input", {}, { ...context, state: { recipient: "still editing" } }).element, "TextField")
+  for (const format of ["hash", "$view.format", null, 1]) assert.throws(() => parseUi(field(format)), /format.*literal/)
+})

@@ -365,7 +365,8 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Voucher signing key address"
+                "label": "Voucher signing key address",
+                "format": "address"
               },
               "state": {
                 "key": "newVoucherKey",
@@ -583,7 +584,8 @@
                 {
                   "element": "TextField",
                   "props": {
-                    "label": "New recipient for this channel"
+                    "label": "New recipient for this channel",
+                    "format": "address"
                   },
                   "state": {
                     "key": "replacementPayee",
@@ -636,7 +638,8 @@
                 {
                   "element": "TextField",
                   "props": {
-                    "label": "New collector for this channel (zero pauses collection)"
+                    "label": "New collector for this channel (zero pauses collection)",
+                    "format": "address"
                   },
                   "state": {
                     "key": "newCollector",
@@ -976,7 +979,8 @@
         {
           "element": "TextField",
           "props": {
-            "label": "Payment recipient for new channel"
+            "label": "Payment recipient for new channel",
+            "format": "address"
           },
           "state": {
             "key": "newPayee",
@@ -990,7 +994,8 @@
         {
           "element": "TextField",
           "props": {
-            "label": "Collector for the new channel (zero starts paused)"
+            "label": "Collector for the new channel (zero starts paused)",
+            "format": "address"
           },
           "state": {
             "key": "newChannelCollector",
@@ -1060,7 +1065,8 @@
         {
           "element": "TextField",
           "props": {
-            "label": "Balance owner address"
+            "label": "Balance owner address",
+            "format": "address"
           },
           "state": {
             "key": "lookupCustomer",
@@ -1300,7 +1306,8 @@
                 {
                   "element": "TextField",
                   "props": {
-                    "label": "New full-refund recipient"
+                    "label": "New full-refund recipient",
+                    "format": "address"
                   },
                   "state": {
                     "key": "newRefundRecipient",

@@ -113,7 +113,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
       return {
         element,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS[element]),
+        props: element === "TextField" ? parseTextFieldProps(source.props, `${path}.props`) : parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS[element]),
         state: parseStateBinding(source.state, `${path}.state`),
         ...parseOptionalMembership(source, path),
       }
@@ -261,6 +261,14 @@ function parseProps(value: unknown, path: string, schema: {
   }
 
   return parseInertRecord(source, path)
+}
+
+function parseTextFieldProps(value: unknown, path: string): InertRecord {
+  const props = parseProps(value, path, UI_PROP_SCHEMAS.TextField)
+  if (Object.hasOwn(props, "format") && props.format !== "address") {
+    throw new UiError("UI_INVALID_FIELD", 'Cannot display TextField: format must be the literal "address".', `${path}.format`)
+  }
+  return props
 }
 
 function parseStatusProps(value: unknown, path: string): InertRecord {

@@ -13,6 +13,10 @@ const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value
 const abi = parseAbi(["function read(address subject) view returns (uint256)", "function review() view returns (address)", "function update(uint256 amount)", "function updateMetadata(string tokenURI)"])
 const rootAbi = parseAbi(["function camManifest() view returns ((string uri, bytes32 sha256Digest))"])
 const screen = (title: string) => ({ element: "Screen", requires: [], props: { title }, children: [
+  ...(scenario !== "addresses" ? [] : [
+    { element: "Address", props: { label: "Owner", address: title === "Connection fixture" ? "0x1111111111111111111111111111111111111111" : "0x2222222222222222222222222222222222222222" } },
+    ...["contractor", "arbitrator"].map(key => ({ element: "TextField", props: { label: key, format: "address" }, state: { key, defaultValue: zeroAddress } })),
+  ]),
   { element: "TextField", props: { label: "Draft" }, state: { key: "draft", defaultValue: "" } },
   { element: "Button", props: { label: "Next view" }, call: { namespace: "routes", function: "detail", args: {} } },
   { element: "Button", props: { label: "Update record" }, call: { namespace: "routes", function: "update", args: {} } },
@@ -79,7 +83,7 @@ window.fetch = async (input, init) => {
       const subject = String(decoded.args?.[0])
       state.subjects.push(subject)
       state.readOrigins.push(url.origin)
-      if (state.holdPublicRead && subject === zeroAddress) await new Promise<void>(resolve => publicReads.push(resolve))
+      if (state.holdPublicRead && (subject === zeroAddress || scenario === "addresses")) await new Promise<void>(resolve => publicReads.push(resolve))
       if ((scenario === "account-required" && subject === zeroAddress) || (state.failAccountRead && subject !== zeroAddress) || (state.failCandidateRead && url.origin === "https://candidate.fixture.test")) {
         return Response.json({ jsonrpc: "2.0", id: rpc.id, error: { code: -32000, message: "Fixture account read rejected" } })
       }
