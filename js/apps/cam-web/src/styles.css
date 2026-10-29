@@ -397,7 +397,7 @@ summary:focus-visible {
 .address-trigger { flex: 0 0 40px; align-self: stretch; padding: 0; border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent; }
 .address-positioner { width: var(--anchor-width); max-inline-size: calc(100vw - 24px); z-index: 10; }
 .address-popover { display: flex; flex-direction: column; max-height: min(320px, var(--available-height)); border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); color: var(--ink); box-shadow: 0 4px 16px #0002; }
-.address-options { min-height: 0; overflow: auto; padding: 4px; outline: none; }
+.address-options { min-height: 0; overflow: auto; padding: 4px; outline: none; font-size: 0.86rem; }
 .address-option { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 8px; border-radius: 3px; cursor: default; }
 .address-option-label { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
 .address-option > code { flex: 0 0 auto; white-space: nowrap; }
