@@ -218,7 +218,7 @@ function validateAvailability(
   path: string,
   context: AbiContext,
 ): void {
-  if (element !== "TextField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField" && element !== "Button") return
+  if (element !== "ChoiceField" && element !== "TextField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField" && element !== "Button") return
   if (!isRecordObject(node.enabledWhen)) return
   validateBoundValue(scope, `${path}.enabledWhen.in`, "UI enabledWhen.in", node.enabledWhen.in, "string-array", context)
 }
@@ -267,7 +267,7 @@ function validateStateBinding(
   path: string,
   context: AbiContext,
 ): void {
-  if ((element !== "TextField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField") || !isRecordObject(node.state)) return
+  if ((element !== "ChoiceField" && element !== "TextField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField") || !isRecordObject(node.state)) return
 
   // Addresses normalize to strings accepted by editable text fields. Hash
   // defaults retain their stricter string expectation; numeric fields separately
@@ -986,7 +986,7 @@ function resolvedInputName(
   path: string,
   context: AbiContext,
 ): string | undefined {
-  if ((node.element !== "TextField" && node.element !== "NftMetadataField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") || !isRecordObject(node.state)) return undefined
+  if ((node.element !== "ChoiceField" && node.element !== "TextField" && node.element !== "NftMetadataField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") || !isRecordObject(node.state)) return undefined
 
   const staticName = staticString(node.state.key)
   const name = staticName === undefined ? knownLiteralString(node.state.key, context) : staticName

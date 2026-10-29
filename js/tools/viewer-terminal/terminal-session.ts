@@ -274,6 +274,11 @@ function renderNode(
     case "NftMetadataField":
       output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(textFieldValue(node, state))}\n`)
       return
+    case "ChoiceField":
+      output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(state[node.state.key])}\n`)
+      for (const option of node.options) output.write(`  ${formatValue(option.value)}: ${formatValue(option.label)}\n`)
+      output.write(`  Choose with set ${formatValue(node.state.key)} <value>.\n`)
+      return
     case "AmountField":
       output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}\n`)
       output.write(`  ${formatValue(node.unit.baseLabel)}: ${formatValue(node.draft.baseText)}\n`)

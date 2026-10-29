@@ -176,6 +176,14 @@ function resolveNode(
       if (props.sourceURI !== undefined && typeof props.sourceURI !== "string") throw new UiError("UI_INVALID_FIELD", "DocumentHashField sourceURI must resolve to a string", `${path}.props.sourceURI`)
       return [{ element: node.element, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), props: { label: props.label as string, algorithm: "sha256", ...(props.sourceURI === undefined ? {} : { sourceURI: props.sourceURI }) }, state: resolveStateBinding(node.state, context, `${path}.state`, false, node.element), children: [] }]
     }
+    case "ChoiceField": {
+      const state = resolveStateBinding(node.state, context, `${path}.state`, false, node.element)
+      if (!node.options.some(option => option.value === context.state[state.key])) {
+        throw new UiError("UI_INVALID_FIELD", "Cannot select ChoiceField value: state must match a declared option.", `${path}.state.${state.key}`)
+      }
+      return [{ element: node.element, props: resolveProps(node.element, node.props, context, `${path}.props`),
+        options: node.options, state, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), children: [] }]
+    }
     case "TextField":
     case "NftMetadataField":
       return [{
@@ -323,6 +331,7 @@ function collectInitialStateFromNode(
 ): void {
   switch (node.element) {
     case "DocumentHashField":
+    case "ChoiceField":
     case "TextField":
     case "NftMetadataField":
     case "AmountField": {
@@ -426,6 +435,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
 
   switch (node.element) {
     case "DocumentHashField":
+    case "ChoiceField":
     case "TextField":
     case "NftMetadataField":
     case "AmountField":
@@ -451,6 +461,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
 function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): boolean {
   switch (node.element) {
     case "DocumentHashField":
+    case "ChoiceField":
     case "TextField":
     case "NftMetadataField":
     case "AmountField":
@@ -479,7 +490,7 @@ function resolveStateBinding(
   context: UiRuntimeContext,
   path: string,
   includeDefault: boolean,
-  element: "TextField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField",
+  element: "ChoiceField" | "TextField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField",
 ): {
   readonly key: string
   readonly defaultValue?: string

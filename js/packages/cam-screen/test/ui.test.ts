@@ -1319,3 +1319,34 @@ test("TextField address format is explicit literal metadata and preserves ordina
   assert.equal(resolveUiNode(ui, "input", {}, { ...context, state: { recipient: "still editing" } }).element, "TextField")
   for (const format of ["hash", "$view.format", null, 1]) assert.throws(() => parseUi(field(format)), /format.*literal/)
 })
+
+test("ChoiceField keeps ordered literal options and exact state through Includes", () => {
+  const options = [{ value: "1", label: "Client" }, { value: "2", label: "Contractor" }, { value: "$literal", label: "$literal label" }]
+  const ui = parseUi({ ui: UI_VERSION, nodes: {
+    app: { requires: [], element: "Include", call: { namespace: "ui", function: "choice", args: { view: { selected: "1" } } } },
+    choice: { requires: ["view"], element: "ChoiceField", props: { label: "Timeout recipient", options }, state: { key: "recipient", defaultValue: "$view.selected" } },
+  } })
+  const initial = resolveInitialUiNode(ui, "app", {}, { ...context, state: {} })
+  assert.equal(initial.state.recipient, "1")
+  assert.deepEqual(resolvedUiInputNames(initial.resolvedUi), ["recipient"])
+  const resolved = resolveUiNode(ui, "app", {}, { ...context, state: { recipient: "$literal" } })
+  assert.equal(resolved.element, "ChoiceField")
+  if (resolved.element !== "ChoiceField") assert.fail("Expected a choice field")
+  assert.deepEqual(resolved.options, options)
+  for (const recipient of ["3", "", 1, null]) {
+    assert.throws(() => resolveUiNode(ui, "app", {}, { ...context, state: { recipient } }), /state must match a declared option/)
+  }
+})
+
+test("ChoiceField rejects unusable options and defaults instead of making an implicit selection", () => {
+  const declaration = (options: unknown, defaultValue: unknown = "1") => ({ ui: UI_VERSION, nodes: { input: {
+    requires: [], element: "ChoiceField", props: { label: "Recipient", options }, state: { key: "recipient", defaultValue },
+  } } })
+  for (const options of [[], "$view.options", [{ value: "1", label: "" }], [{ value: "", label: "Client" }],
+    [{ value: "1", label: "Client", extra: true }], [{ value: "1", label: "Client" }, { value: "1", label: "Other" }]]) {
+    assert.throws(() => parseUi(declaration(options)), UiError)
+  }
+  const options = [{ value: "1", label: "Party" }, { value: "2", label: "Party" }]
+  const ui = parseUi(declaration(options, "3"))
+  assert.throws(() => resolveInitialUiNode(ui, "input", {}, { ...context, state: {} }), /state must match a declared option/)
+})

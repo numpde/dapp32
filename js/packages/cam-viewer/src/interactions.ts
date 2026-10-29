@@ -70,7 +70,7 @@ export function assertStatePatchTargets(resolvedUi: ResolvedUiNode, patch: Inert
   const renderedInputs = new Set<string>()
   const enabledInputs = new Set<string>()
   forEachResolvedUiNode(resolvedUi, (node) => {
-    if (node.element !== "TextField" && node.element !== "NftMetadataField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") return
+    if (node.element !== "ChoiceField" && node.element !== "TextField" && node.element !== "NftMetadataField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") return
     renderedInputs.add(node.state.key)
     if (node.disabled !== true) enabledInputs.add(node.state.key)
   })

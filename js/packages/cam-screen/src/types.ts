@@ -10,6 +10,7 @@ export type UiNode =
   | FragmentNode
   | TextNode
   | TextFieldNode
+  | ChoiceFieldNode
   | NftMetadataFieldNode
   | DocumentHashFieldNode
   | AmountFieldNode
@@ -45,6 +46,16 @@ export type TextFieldNode = UiNodeBase & {
   readonly element: "TextField"
   readonly enabledWhen?: UiMembership
   readonly props: InertRecord
+  readonly state: UiStateBinding
+}
+
+export type ChoiceOption = { readonly value: string; readonly label: string }
+
+export type ChoiceFieldNode = UiNodeBase & {
+  readonly element: "ChoiceField"
+  readonly enabledWhen?: UiMembership
+  readonly props: InertRecord
+  readonly options: readonly ChoiceOption[]
   readonly state: UiStateBinding
 }
 
@@ -218,6 +229,7 @@ export type ResolvedElementNode =
   | ResolvedContainerNode
   | ResolvedLeafElementNode
   | ResolvedTextFieldNode
+  | ResolvedChoiceFieldNode
   | ResolvedNftMetadataFieldNode
   | ResolvedDocumentHashFieldNode
   | ResolvedStatusNode
@@ -232,7 +244,7 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField" | "Status">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "ChoiceField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField" | "Status">
   readonly props: InertRecord
   readonly children: readonly []
 }
@@ -248,6 +260,15 @@ export type ResolvedTextFieldNode = {
   readonly element: "TextField"
   readonly disabled?: boolean
   readonly props: InertRecord
+  readonly state: ResolvedUiStateBinding
+  readonly children: readonly []
+}
+
+export type ResolvedChoiceFieldNode = {
+  readonly element: "ChoiceField"
+  readonly disabled?: boolean
+  readonly props: InertRecord
+  readonly options: readonly ChoiceOption[]
   readonly state: ResolvedUiStateBinding
   readonly children: readonly []
 }

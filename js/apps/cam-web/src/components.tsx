@@ -255,6 +255,13 @@ function UiNodeView({
         </label>
       )
     }
+    case "ChoiceField":
+      return <label className="field">
+        <span>{displayText(stringProp(node.props, "label"))}</span>
+        <select name={node.state.key} disabled={busy || node.disabled === true} value={stateString(state, node.state.key)} onChange={event => onInput(node.state.key, event.currentTarget.value)}>
+          {node.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </label>
     case "Address":
       return factNodeView(node, [], root, headingLevel)
     case "AmountField":

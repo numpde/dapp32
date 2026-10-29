@@ -80,7 +80,7 @@ export function generatedStatePatch({
   const patch: Record<string, InertValue> = {}
   const renderedKeys = new Set<string>()
   forEachResolvedUiNode(resolved, node => {
-    if ((node.element === "TextField" || node.element === "NftMetadataField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.disabled !== true) renderedKeys.add(node.state.key)
+    if ((node.element === "ChoiceField" || node.element === "TextField" || node.element === "NftMetadataField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.disabled !== true) renderedKeys.add(node.state.key)
   })
   const types = directStateTypes(resolvedUiButtons(resolved), renderedKeys, routes, contracts)
   forEachResolvedUiNode(resolved, (node) => {
@@ -104,6 +104,8 @@ export function generatedStatePatch({
       if (candidate < minimum) candidate = minimum
       if (maximum !== undefined && candidate > maximum) candidate = maximum
       patch[node.state.key] = mode === "broad" ? prng.pick(["", candidate.toString()]) : candidate.toString()
+    } else if (node.element === "ChoiceField") {
+      patch[node.state.key] = prng.pick(node.options).value
     } else if (node.element === "TextField" || node.element === "NftMetadataField" || node.element === "AmountField") {
       patch[node.state.key] = generatedAbiValue(types.get(node.state.key), node.state.key, account, prng, mode)
     }

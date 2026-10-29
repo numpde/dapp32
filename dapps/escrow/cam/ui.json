@@ -300,9 +300,19 @@
                   }
                 },
                 {
-                  "element": "TextField",
+                  "element": "ChoiceField",
                   "props": {
-                    "label": "Arbitration timeout recipient (1 = client, 2 = contractor)"
+                    "label": "Arbitration timeout recipient",
+                    "options": [
+                      {
+                        "value": "1",
+                        "label": "Client"
+                      },
+                      {
+                        "value": "2",
+                        "label": "Contractor"
+                      }
+                    ]
                   },
                   "state": {
                     "key": "arbitrationTimeoutBeneficiary",

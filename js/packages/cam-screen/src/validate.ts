@@ -19,7 +19,7 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import type { InertRecord, InertValue } from "@cam/protocol"
-import type { UiCall, UiDocument, UiMembership, UiNode } from "./types.ts"
+import type { ChoiceOption, UiCall, UiDocument, UiMembership, UiNode } from "./types.ts"
 
 const NAMED_NODE_KEYS = new Set(["requires", "element", "props", "state", "children", "call", "enabledWhen"])
 const INLINE_NODE_KEYS = new Set(["element", "props", "state", "children", "call", "enabledWhen"])
@@ -117,6 +117,13 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         state: parseStateBinding(source.state, `${path}.state`),
         ...parseOptionalMembership(source, path),
       }
+    case "ChoiceField": {
+      rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
+      const props = requiredRecord(source.props, `${path}.props`)
+      rejectUnknownUiFields(props, new Set(UI_PROP_SCHEMAS.ChoiceField.required), `${path}.props`)
+      return { element, props: parseProps({ label: props.label }, `${path}.props`, UI_PROP_SCHEMAS.TextField), options: parseChoiceOptions(props.options, `${path}.props.options`),
+        state: parseStateBinding(source.state, `${path}.state`), ...parseOptionalMembership(source, path) }
+    }
     case "DocumentHashField": {
       rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
       const props = parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.DocumentHashField)
@@ -261,6 +268,23 @@ function parseProps(value: unknown, path: string, schema: {
   }
 
   return parseInertRecord(source, path)
+}
+
+function parseChoiceOptions(value: unknown, path: string): readonly ChoiceOption[] {
+  const options = requiredArray(value, path)
+  if (options.length === 0) throw new UiError("UI_INVALID_FIELD", "Cannot display ChoiceField without options.", path)
+  const values = new Set<string>()
+  return options.map((option, index) => {
+    const optionPath = `${path}.${index}`
+    const source = requiredRecord(option, optionPath)
+    rejectUnknownUiFields(source, new Set(["value", "label"]), optionPath)
+    const value = requiredNonEmptyString(source.value, `${optionPath}.value`)
+    const label = requiredNonEmptyString(source.label, `${optionPath}.label`)
+    if (value.trim().length === 0 || label.trim().length === 0) throw new UiError("UI_INVALID_FIELD", "ChoiceField option values and labels must contain visible text.", optionPath)
+    if (values.has(value)) throw new UiError("UI_INVALID_FIELD", "ChoiceField option values must be unique.", `${optionPath}.value`)
+    values.add(value)
+    return { value, label }
+  })
 }
 
 function parseTextFieldProps(value: unknown, path: string): InertRecord {

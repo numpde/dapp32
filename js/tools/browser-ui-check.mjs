@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { requireHttpURL } from '@cam/protocol'
 import { awaitFixtureSocketOpen } from './browser-fixture-wallet.mjs'
 import { browserFixtureFailureDetails, BrowserFixtureError, createCdpCommands } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
+import { checkChoiceField } from '../apps/cam-web/test/choice-field-browser-check.mjs'
 import { checkAddressEntry } from '../apps/cam-web/test/known-addresses-browser-check.mjs'
 import { checkActionStyles } from '../apps/cam-web/test/action-style-browser-check.mjs'
 import { checkNftMetadata } from '../apps/cam-web/test/nft-metadata-browser-check.mjs'
@@ -43,7 +44,7 @@ async function main() {
     await call('Page.enable', {})
     await call('Runtime.enable', {})
     await call('Emulation.setFocusEmulationEnabled', { enabled: true })
-    for (const check of [checkAddressEntry, checkActionStyles, checkNftMetadata, checkViewerConnection]) {
+    for (const check of [checkAddressEntry, checkChoiceField, checkActionStyles, checkNftMetadata, checkViewerConnection]) {
       console.log(`Running ${check.name}`)
       await call('Emulation.setFocusEmulationEnabled', { enabled: true })
       console.log(JSON.stringify(await check({ call, evaluate, viewerURL: viewer.href })))

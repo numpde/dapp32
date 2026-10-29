@@ -377,3 +377,14 @@ test("terminal renders NFT metadata URI fields without treating local preparatio
   assert.ok(output.includes("Disabled metadata (disabled): https://example.test/locked.json"))
   assert.ok(output.includes("Metadata URI: https://example.test/token.json"))
 })
+
+
+test("terminal names choice values and the ordinary edit command", () => {
+  const output = statusTerminalOutput([
+    { element: "ChoiceField", props: { label: "Timeout recipient" }, options: [{ value: "1", label: "Client" }, { value: "2", label: "Contractor" }], state: { key: "recipient" }, children: [] },
+  ], undefined, undefined, undefined, undefined, { state: { recipient: "2" } })
+  assert.match(output, /Timeout recipient: 2/)
+  assert.match(output, /1: Client/)
+  assert.match(output, /2: Contractor/)
+  assert.match(output, /set recipient <value>/)
+})

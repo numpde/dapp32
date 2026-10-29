@@ -27,7 +27,7 @@ export function resolvedUiButtons(root: ResolvedUiNode): readonly ResolvedButton
 export function resolvedUiInputNames(root: ResolvedUiNode): readonly string[] {
   const names = new Set<string>()
   forEachResolvedUiNode(root, (node) => {
-    if (node.element === "TextField" || node.element === "NftMetadataField" || node.element === "DocumentHashField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") {
+    if (node.element === "ChoiceField" || node.element === "TextField" || node.element === "NftMetadataField" || node.element === "DocumentHashField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") {
       names.add(node.state.key)
     }
   })

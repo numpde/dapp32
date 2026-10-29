@@ -58,6 +58,7 @@ export const UI_PROP_SCHEMAS = {
     string: ["label"],
     address: [],
   },
+  ChoiceField: { required: ["label", "options"], string: ["label"], address: [], literal: ["options"] },
   NftMetadataField: { required: ["label"], string: ["label"], address: [] },
   DocumentHashField: { required: ["label", "algorithm"], optional: ["sourceURI"], string: ["label"], address: [], literal: ["algorithm"] },
   AmountField: { required: ["label", "unit"], string: ["label"], address: [], literal: ["unit"] },

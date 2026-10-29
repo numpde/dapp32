@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs"
 import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, InertValueError, toInertValue, UI_VERSION, type InertRecord, type InertValue } from "@cam/protocol"
-import { CamEvmError } from "@cam/evm-viem"
+import { CamEvmError, encodeCamContractCall } from "@cam/evm-viem"
 import { parseCam } from "@cam/core"
 import { forEachResolvedUiNode, resolvedUiButtons, UiError, type ResolvedAmountFieldNode, type ResolvedNonNegativeIntegerFieldNode, type ResolvedUiNode } from "@cam/screen"
 
@@ -18,6 +18,7 @@ import type {
   CamPublicClient,
 } from "@cam/evm-viem"
 import type { CamViewerLoadedSnapshot, CreateCamViewerSessionOptions } from "../src/index.ts"
+import { decodeFunctionData } from "viem"
 import type { Address, Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
@@ -2595,3 +2596,27 @@ test("document hash replacement and all view transition intents invalidate pendi
 function fixtureDigest(bytes: Uint8Array): Hex {
   return `0x${createHash("sha256").update(bytes).digest("hex")}`
 }
+
+test("ChoiceField edits preserve exact values, reject invalid patches atomically and prepare the selected ABI value", async () => {
+  const input = { element: "ChoiceField", props: { label: "Recipient", options: [
+    { value: "1", label: "Client" }, { value: "2", label: "Contractor" },
+  ] }, state: { key: "amount", defaultValue: "1" } }
+  const payment = { amount: "$state.amount", recipients: [registeredOwnerAddress] }
+  const { session } = paymentPreparationSession(payment, undefined, "nonpayable", input)
+  await session.load()
+  const selected = session.updateState({ amount: "2" })
+  for (const value of ["3", "", 2, null]) {
+    assert.throws(() => session.updateState({ amount: value }), /state must match a declared option/)
+    assert.deepEqual(session.snapshot(), selected)
+  }
+  const prepared = await session.dispatchAction(resolvedUiButtons(selected.resolvedUi)[0])
+  if (prepared.type !== "contractCall") assert.fail("Expected a contract call")
+  assert.equal(mutableRecord(prepared.call.args.payment).amount, "2")
+  const decoded = decodeFunctionData({ abi: prepared.call.abi, data: encodeCamContractCall(prepared.call) })
+  assert.deepEqual(decoded.args?.[0], { amount: 2n, recipients: [registeredOwnerAddress] })
+  assert.equal((await session.refresh()).state.amount, "2")
+  const disabled = paymentPreparationSession(payment, undefined, "nonpayable", { ...input, enabledWhen: { member: "actor", in: [] } }).session
+  const before = await disabled.load()
+  assert.throws(() => disabled.updateState({ amount: "2" }), /disabled/)
+  assert.deepEqual(disabled.snapshot(), before)
+})
