@@ -60,6 +60,7 @@ class PayToPlayLocalComposeTest(unittest.TestCase):
             "/work/dapps/pay-to-play/src", "/work/dapps/pay-to-play/script",
             "/work/dapps/pay-to-play/cam/main.json", "/work/dapps/cam/src",
             "/work/dapps/cam/script/UIReleaseScript.sol",
+            "/work/dapps/cam/script/RefreshLocalCam.s.sol",
         }, readonly)
         self.assertNotIn("CAM_HASH", compose_mapping(service, "environment"))
 

@@ -33,6 +33,7 @@ services:
       - ../../../dapps/pay-to-play/cam/main.json:/work/dapps/pay-to-play/cam/main.json:ro
       - ../../../dapps/cam/src:/work/dapps/cam/src:ro
       - ../../../dapps/cam/script/UIReleaseScript.sol:/work/dapps/cam/script/UIReleaseScript.sol:ro
+      - ../../../dapps/cam/script/RefreshLocalCam.s.sol:/work/dapps/cam/script/RefreshLocalCam.s.sol:ro
       - "pay-to-play_broadcast:${PAY_TO_PLAY_BROADCAST_DIR:?missing_PAY_TO_PLAY_BROADCAST_DIR}"
     networks:
       - pay-to-play_local

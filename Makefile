@@ -935,12 +935,14 @@ help:
 	  '    Select the same Docker context for build and start. Rootless resource limits need cgroup v2/systemd delegation.' \
 	  '    Forward an existing HTTPS proxy to the selected listener. The browser needs a chain/host/account/RPC link.' \
 	  '' \
-	  'Refresh a running local demo viewer (keeps its chain and records):' \
+	  'Refresh a running local demo (keeps its contracts, balances and records):' \
 	  '  make bike-nft/local/demo/gui/refresh' \
 	  '  make escrow/local/demo/gui/refresh' \
 	  '  make pay-to-play/local/demo/gui/refresh' \
-	  '    Use the same COMPOSE_PROJECT_NAME and GUI settings as gui/up. Reload the tab after the build.' \
-	  '    Source changes are applied in place; fix any build error and repeat the refresh.' \
+	  '    Use the same COMPOSE_PROJECT_NAME and GUI settings as gui/up. Reload the tab afterward.' \
+	  '    Builds the viewer, validates CAM files and updates their on-chain fixture hash if needed.' \
+	  '    Reattach the test wallet after a hash change; existing attachments keep their original pins.' \
+	  '  make cam/local/refresh/check    Check local CAM republication and fixture-only guards.' \
 	  '' \
 	  'Prepare CAM publication (validate local files; no upload or contract deployment):' \
 	  '  make bike-nft/cam/publication/preflight CAM_URI=URI      Print CAM_HASH for the local Bike NFT bundle.' \
@@ -1538,16 +1540,28 @@ define refresh_demo_viewer
 	done; \
 	$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) exec -T cam-web \
 	  sh /tmp/viewer-refresh/run-js-workspace --refresh sh -eu -c \
-	  'npm run build:packages; touch apps/cam-web/.env.local'
+	  'npm run build:packages'
+	@$(MAKE) --no-print-directory cam/integrity/refresh cam/conformance/check dapps/deps/verify
+	@$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) run --rm --no-deps -T \
+	  -e FOUNDRY_BROADCAST=/foundry-broadcast/cam-refresh --entrypoint bash deploy-$(4)-local \
+	  -eu -c 'deployment="$$(cat "$$2")"; exec forge script --offline cam/script/RefreshLocalCam.s.sol \
+	    --sig "run(string,string)" "$$deployment" "$$1/cam/main.json" \
+	    --rpc-url "http://$$1-anvil:8545" --broadcast --slow' sh '$(4)' '$(5)'
+	@$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) exec -T cam-web \
+	  touch /work/js/apps/cam-web/.env.local
 endef
 
 .PHONY: bike-nft/local/demo/gui/refresh escrow/local/demo/gui/refresh pay-to-play/local/demo/gui/refresh
+.PHONY: cam/local/refresh/check
+cam/local/refresh/check: dapps/deps/verify
+	$(call compose_run,forge.yml,forge-test forge test --offline --match-contract RefreshLocalCamTest -vvv)
+
 bike-nft/local/demo/gui/refresh:
-	$(call refresh_demo_viewer,$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV),$(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES),$(BIKE_NFT_GUI_BIND_GUARD))
+	$(call refresh_demo_viewer,$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV),$(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES),$(BIKE_NFT_GUI_BIND_GUARD),bike-nft,$(BIKE_NFT_BROADCAST_PATH))
 escrow/local/demo/gui/refresh:
-	$(call refresh_demo_viewer,$(ESCROW_VIEWER_GUI_COMPOSE_ENV),$(ESCROW_VIEWER_GUI_COMPOSE_FILES),$(ESCROW_GUI_BIND_GUARD))
+	$(call refresh_demo_viewer,$(ESCROW_VIEWER_GUI_COMPOSE_ENV),$(ESCROW_VIEWER_GUI_COMPOSE_FILES),$(ESCROW_GUI_BIND_GUARD),escrow,$(ESCROW_BROADCAST_PATH))
 pay-to-play/local/demo/gui/refresh:
-	$(call refresh_demo_viewer,$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV),$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES),$(PAY_TO_PLAY_GUI_BIND_GUARD))
+	$(call refresh_demo_viewer,$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV),$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES),$(PAY_TO_PLAY_GUI_BIND_GUARD),pay-to-play,$(PAY_TO_PLAY_BROADCAST_PATH))
 
 cam/integrity/refresh:
 	@$(LANE_GUARD); \
