@@ -27,7 +27,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xe5472c68f3dadf9d16bbe3794ee686805bca9b2dc91c9f7804bc218750b92e00"
+      "integrity": "sha256:0x238d709587443c826519daada9af898984fa375c0d9c492d33cca097b91c03e9"
     },
     "contracts.BicycleComponents": {
       "type": "contract",

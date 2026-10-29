@@ -746,7 +746,7 @@ test("invalid projected presentation preserves the current view, drafts and navi
   const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
   const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
   const children = mutableRecord(mutableRecord(ui.nodes)["component.active"]).children as unknown[]
-  children.push({ element: "Status", props: { label: "Declared size", value: "$view.statusId", format: "bytes" } })
+  children.push({ element: "Status", props: { label: "Declared size", value: "$view.accountInfo", format: "bytes" } })
   const uiBytes = encodeJson(ui)
   const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
   mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
@@ -763,7 +763,7 @@ test("invalid projected presentation preserves the current view, drafts and navi
   await assert.rejects(() => session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER }),
     (error) => error instanceof UiError && error.code === "UI_INVALID_FIELD" && /non-negative.*integer/.test(error.message))
   assert.deepEqual(session.snapshot(), before)
-  routeResults[BIKE_VIEW_COMPONENT] = { ...bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "active"), statusId: "64" }
+  routeResults[BIKE_VIEW_COMPONENT] = { ...bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "active"), accountInfo: "64" }
   const opened = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
   let displayed: string | undefined
   forEachResolvedUiNode(opened.resolvedUi, (node) => {

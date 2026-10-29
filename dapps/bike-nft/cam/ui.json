@@ -571,13 +571,6 @@
               }
             },
             {
-              "element": "Status",
-              "props": {
-                "label": "Registry status",
-                "value": "$view.statusId"
-              }
-            },
-            {
               "element": "Address",
               "props": {
                 "label": "Owner",
@@ -613,7 +606,12 @@
                   "element": "Status",
                   "props": {
                     "label": "Authority of address being viewed",
-                    "value": "$view.authorityId"
+                    "value": "$view.authorityId",
+                    "valueLabels": {
+                      "none": "No owner or workshop role",
+                      "owner": "NFT owner",
+                      "delegate": "Workshop delegate"
+                    }
                   }
                 },
                 {
@@ -685,7 +683,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "This is the component’s NFT presentation: its metadata document can provide a name, description and image. The registry’s operational status is shown separately."
+                "text": "This is the component’s NFT presentation: its metadata document can provide a name, description and image. Missing reports and service state are shown in their own sections."
               }
             },
             {
@@ -745,13 +743,26 @@
             {
               "element": "Text",
               "props": {
-                "text": "Use missing reports to record that a component is missing and later resolve that report. This changes its reported status, not its owner or separate service state."
+                "text": "Record that a component is missing, or resolve an earlier report. The NFT owner or a workshop with the relevant permission can do this."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report."
+                "text": "Reporting a component missing does not change whether it is out of service."
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Reported missing",
+                "value": "$view.statusId",
+                "valueLabels": {
+                  "active": "No",
+                  "missing": "Yes",
+                  "retired": "Not applicable (retired record)",
+                  "none": "Not registered"
+                }
               }
             },
             {
@@ -794,7 +805,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Explain how the missing report was resolved, or provide a link to an explanation. Resolving it returns the component to Active and clears the current report; the resolution and earlier reports remain in the public transaction history."
+                "text": "Explain how the missing report was resolved, or provide a link to an explanation. Resolving it changes Reported missing to No and clears the current report; the resolution and earlier reports remain in the public transaction history."
               }
             },
             {
@@ -839,7 +850,11 @@
               "element": "Status",
               "props": {
                 "label": "Out of service",
-                "value": "$view.inactive"
+                "value": "$view.inactive",
+                "valueLabels": {
+                  "false": "No",
+                  "true": "Yes"
+                }
               }
             },
             {

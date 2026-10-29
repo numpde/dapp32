@@ -46,6 +46,38 @@ const CONTEXT: UiRuntimeContext = {
   state: EMPTY_RECORD,
 }
 
+test("agreement statuses name the stage or settlement reason and credited party", async () => {
+  const ui = await escrowUi()
+  const cases = [
+    ["funded", /awaiting contractor acceptance/i],
+    ["accepted", /awaiting work submission/i],
+    ["submitted", /awaiting client review/i],
+    ["disputed", /awaiting arbitration/i],
+    ["cancelled.client", /cancelled by client; client credited/i],
+    ["refunded.acceptanceTimeout", /acceptance timed out; client credited/i],
+    ["refunded.workTimeout", /work timed out; client credited/i],
+    ["refunded.arbitratorToClient", /arbitrator decided for client; client credited/i],
+    ["refunded.arbitrationTimeout", /arbitration timed out; client credited/i],
+    ["released.clientApproval", /approved by client; contractor credited/i],
+    ["released.reviewTimeout", /review timed out; contractor credited/i],
+    ["released.arbitratorToContractor", /arbitrator decided for contractor; contractor credited/i],
+    ["released.arbitrationTimeout", /arbitration timed out; contractor credited/i],
+  ] as const
+  for (const [stateId, expected] of cases) {
+    const viewId = stateId.includes(".") ? "escrow.agreement.terminal" : "escrow.agreement.active"
+    const { resolvedUi } = resolveInitialUiNode(ui, "app", args(agreementView({ viewId, stateId, transitionIds: [] })), CONTEXT)
+    const shown = new Map<string, string>()
+    const text: string[] = []
+    forEachResolvedUiNode(resolvedUi, node => {
+      if (node.element === "Status") shown.set(String(node.props.label), String(node.formattedValue))
+      if (node.element === "Text") text.push(String(node.props.text))
+    })
+    assert.match(shown.get("Agreement status")!, expected)
+    assert.equal(shown.get("Role of the address being viewed"), "Client")
+    assert.ok(text.some(value => value.includes("must withdraw the credit separately")))
+  }
+})
+
 test("escrow tasks own their screen titles and place ID lookup after the task", async () => {
   const ui = await escrowUi()
   for (const [view, title, primaryField] of [

@@ -1076,3 +1076,40 @@ Enter an empty value to clear the current profile link.
 After:
 Add public information about yourself, or a link to your profile. This is saved for the account that sends the update.
 Leave the field empty to clear your saved profile information.
+
+
+Bike / Visible missing and service statuses
+
+Before:
+Registry status: active / missing (under Component details).
+Active means no missing report is open. Missing means a report is open. Out of service is a separate, reversible owner decision; changing it does not open or resolve a missing report.
+Out of service: true / false.
+
+After:
+Reported missing: No / Yes (beside the current report; legacy retired records show Not applicable).
+Reporting a component missing does not change whether it is out of service.
+Out of service: Yes / No.
+
+
+Bike / Missing-report resolution outcome
+
+Before:
+Explain how the missing report was resolved, or provide a link to an explanation. Resolving it returns the component to Active and clears the current report; the resolution and earlier reports remain in the public transaction history.
+
+After:
+Explain how the missing report was resolved, or provide a link to an explanation. Resolving it changes Reported missing to No and clears the current report; the resolution and earlier reports remain in the public transaction history.
+
+
+Escrow / Agreement status and role
+
+Before:
+State: funded / accepted / submitted / disputed / cancelled.client / refunded.* / released.*.
+funded means awaiting acceptance; accepted, awaiting work; submitted, awaiting client review; disputed, awaiting arbitration. cancelled and refunded states credit the client; released states credit the contractor. Closure records settlement, not withdrawal.
+Role of the address being viewed: none / client / contractor / arbitrator.
+none means the viewed address is not a named party, or no account is selected. Any account can finalize an expired deadline.
+
+After:
+Agreement status names the stage directly: Awaiting contractor acceptance / Awaiting work submission / Awaiting client review / Awaiting arbitration. Closed statuses name the settlement reason and credited party, such as Work timed out; client credited.
+When an agreement closes, its funds become credit for the client or contractor shown in Agreement status. That account must withdraw the credit separately.
+Role of the address being viewed: No agreement role / Client / Contractor / Arbitrator.
+Any account can finalize an expired deadline, including an account with no agreement role.

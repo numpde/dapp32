@@ -194,9 +194,22 @@ for (const inactive of [false, true]) {
     const displayed = new Map<string, unknown>()
     forEachResolvedUiNode(resolved, node => { if (node.element === "Status") displayed.set(String(node.props.label), node.props.value) })
     assert.equal(displayed.get("Out of service"), inactive, "lifecycle disclosure is independent of missing report")
+    const reportGroups: ResolvedUiNode[] = []
+    forEachResolvedUiNode(resolved, node => { if (node.element === "Screen" && node.props.title === "Missing reports") reportGroups.push(node) })
+    assert.equal(reportGroups.length, 1)
+    const reported: string[] = []
+    forEachResolvedUiNode(reportGroups[0]!, node => { if (node.element === "Status" && node.props.label === "Reported missing") reported.push(String(node.formattedValue)) })
+    assert.deepEqual(reported, [missing ? "Yes" : "No"], "missing status is readable beside its report, independently of service state")
   })
  }
 }
+
+test("a legacy retired record is not presented as an active or missing component", () => {
+  const { resolvedUi } = render(ownerComponentView({ statusId: "retired", viewId: "component.retired" }))
+  const statuses: string[] = []
+  forEachResolvedUiNode(resolvedUi, node => { if (node.element === "Status" && node.props.label === "Reported missing") statuses.push(String(node.formattedValue)) })
+  assert.deepEqual(statuses, ["Not applicable (retired record)"])
+})
 
 test("handover becomes unavailable when its record token is paused or viewer is not owner", () => {
   for (const changes of [{ componentTokenPaused: true }, { isOwner: false, authorityId: "delegate" }]) {

@@ -529,8 +529,23 @@
         {
           "element": "Status",
           "props": {
-            "label": "State",
-            "value": "$view.machine.stateId"
+            "label": "Agreement status",
+            "value": "$view.machine.stateId",
+            "valueLabels": {
+              "funded": "Awaiting contractor acceptance",
+              "accepted": "Awaiting work submission",
+              "submitted": "Awaiting client review",
+              "disputed": "Awaiting arbitration",
+              "cancelled.client": "Cancelled by client; client credited",
+              "refunded.acceptanceTimeout": "Acceptance timed out; client credited",
+              "refunded.workTimeout": "Work timed out; client credited",
+              "refunded.arbitratorToClient": "Arbitrator decided for client; client credited",
+              "refunded.arbitrationTimeout": "Arbitration timed out; client credited",
+              "released.clientApproval": "Approved by client; contractor credited",
+              "released.reviewTimeout": "Review timed out; contractor credited",
+              "released.arbitratorToContractor": "Arbitrator decided for contractor; contractor credited",
+              "released.arbitrationTimeout": "Arbitration timed out; contractor credited"
+            }
           }
         },
         {
@@ -542,20 +557,26 @@
         {
           "element": "Text",
           "props": {
-            "text": "funded means awaiting acceptance; accepted, awaiting work; submitted, awaiting client review; disputed, awaiting arbitration. cancelled and refunded states credit the client; released states credit the contractor. Closure records settlement, not withdrawal."
+            "text": "When an agreement closes, its funds become credit for the client or contractor shown in Agreement status. That account must withdraw the credit separately."
           }
         },
         {
           "element": "Status",
           "props": {
             "label": "Role of the address being viewed",
-            "value": "$view.actorRoleId"
+            "value": "$view.actorRoleId",
+            "valueLabels": {
+              "none": "No agreement role",
+              "client": "Client",
+              "contractor": "Contractor",
+              "arbitrator": "Arbitrator"
+            }
           }
         },
         {
           "element": "Text",
           "props": {
-            "text": "none means the viewed address is not a named party, or no account is selected. Any account can finalize an expired deadline."
+            "text": "Any account can finalize an expired deadline, including an account with no agreement role."
           }
         },
         {
@@ -636,7 +657,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "These durations were fixed at creation. Each phase starts at its successful transaction’s block time. The current phase is acceptance when funded, work when accepted, review when submitted, or arbitration when disputed."
+            "text": "These durations were fixed at creation. Each phase starts when its preceding action succeeds: creation starts acceptance, acceptance starts work, submission starts review, and a dispute starts arbitration."
           }
         },
         {
@@ -705,7 +726,11 @@
           "element": "Status",
           "props": {
             "label": "Arbitration timeout recipient",
-            "value": "$view.arbitrationTimeoutBeneficiaryId"
+            "value": "$view.arbitrationTimeoutBeneficiaryId",
+            "valueLabels": {
+              "client": "Client",
+              "contractor": "Contractor"
+            }
           }
         },
         {
