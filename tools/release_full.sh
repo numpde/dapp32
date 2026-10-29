@@ -3,6 +3,16 @@
 # approval, source checks and immutable artifacts. Existing records never grant
 # permission to deploy a replacement phase.
 
+release_full_retry_preparation() {
+  local records="$1" previous
+  if [[ ! -e "$records/preparation-only" && ! -L "$records/preparation-only" ]]; then return; fi
+  reject_release_path_symlinks "$records/preparation-only" 'Release preparation marker' || return
+  require_release_file "$records/preparation-only" 'Release preparation marker' || return
+  previous=$(mktemp -d -- "$records-preparation-XXXXXXXX") || return
+  mv -T -- "$records" "$previous/records" || return
+  printf 'Signing never started for this preparation attempt. Retained records: %s/records\n' "$previous"
+}
+
 release_full_read_uri_presence() {
   local CONFIG="$1" app="$2" status=0 release_config_input="$1" release_config_credentials="$1"
   require_release_config "$CONFIG"
@@ -37,6 +47,8 @@ release_full_cam() {
   while [[ -e "$records/continuation" || -L "$records/continuation" ]]; do
     attempt="$records/artifact/cam-attempt.json"
     continuation="$records/continuation"
+    if [[ "$operation" != verify ]]; then release_full_retry_preparation "$continuation" || return; fi
+    if [[ ! -e "$continuation" && ! -L "$continuation" ]]; then break; fi
     require_release_file "$attempt" 'Preceding CAM attempt'
     require_release_file "$continuation/root-proof/root.json" 'Retained continuation root evidence'
     if ! cmp -s -- "$attempt" "$continuation/root-proof/root.json"; then
@@ -46,6 +58,7 @@ release_full_cam() {
     records="$continuation"
   done
 
+  if [[ "$operation" != verify ]]; then release_full_retry_preparation "$records" || return; fi
   if [[ "$operation" == verify || -e "$records/artifact/cam-publication.json" || -L "$records/artifact/cam-publication.json" ]]; then
     release_full_make "$app/release/cam/artifact" "CONFIG=$config" "CAM_RECORDS=$records" "CAM_BUNDLE=$prepared" || return
   elif [[ ! -e "$records" && ! -L "$records" ]]; then
@@ -189,6 +202,7 @@ release_full() {
   fi
 
   if [[ "$operation" == full ]]; then
+    release_full_retry_preparation "$contracts" || return
     if [[ -e "$contracts" || -L "$contracts" ]]; then
       release_full_make "$app/release/contracts/artifact" "CONFIG=$main_config" "CONTRACT_RECORDS=$contracts" || return
     else
@@ -199,6 +213,7 @@ release_full() {
   if [[ "$operation" == update && -n "${UI_ARTIFACT-}" ]]; then
     ui_artifact="$UI_ARTIFACT"
   else
+    release_full_retry_preparation "$ui" || return
     if [[ -e "$ui" || -L "$ui" ]]; then
       release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$ui" || return
     else

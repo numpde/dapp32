@@ -116,6 +116,8 @@ release_approval_prepare() {
   RELEASE_APPROVAL_REFERENCE_FILE="$RELEASE_APPROVAL_REFERENCE_DIR/reference.json"
   RELEASE_APPROVAL_AUDIT_DIR="$output/approval-audit"
   RELEASE_APPROVAL_SOCKET_DIR="$ceremony_root/socket"
+  # Only this launcher may assert that no approval service has been started.
+  (umask 077; set -o noclobber; : > "$output/preparation-only") || return
   export RELEASE_APPROVAL_APP RELEASE_APPROVAL_DEPLOYER RELEASE_APPROVAL_CHAIN_ID RELEASE_APPROVAL_SOURCE_COMMIT
   export RELEASE_APPROVAL_ARTIFACTS_DIR RELEASE_APPROVAL_REFERENCE_DIR RELEASE_APPROVAL_REFERENCE_FILE
   export RELEASE_APPROVAL_AUDIT_DIR RELEASE_APPROVAL_SOCKET_DIR
@@ -299,6 +301,13 @@ release_approval_attachment_running() {
   fi
 }
 
+release_approval_end_preparation() {
+  local output="$1"
+  rm -f -- "$output/preparation-only" || return
+  # Persist the transition before any service can obtain signing authority.
+  sync -f -- "$output"
+}
+
 release_materialize_independent() {
   local output="$1" operation="$2" prefix="$3" native="$4" label="$5" candidate_dir log
   local candidate_name="${prefix}_RELEASE_CANDIDATE_DIR" app_name="${prefix}_RELEASE_APP" records_name="${prefix}_RECORDS"
@@ -380,7 +389,8 @@ release_approval_run() {
   release_approval_output="$output"
   if [[ "$release_operation" == cam && "$CAM_RELEASE_REMAINING_TRANSACTIONS" == 0 ]]; then
     printf '%s\n' 'CAM root already has the desired composition. No signing session or transaction is needed.'
-    release_materialize_cam "$output"
+    release_materialize_cam "$output" || return
+    release_approval_end_preparation "$output"
     return
   fi
 
@@ -391,6 +401,7 @@ release_approval_run() {
   # The plan already ran to produce the reference. Never restart a completed
   # predecessor or an approval service that the operator has cancelled.
   compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-rpc-proxy
+  release_approval_end_preparation "$output" || return
   compose_release up -d --no-build --no-deps release-approval
   gate_id="$(release_approval_service_id release-approval)" || return
   release_approval_show_startup "$gate_id"

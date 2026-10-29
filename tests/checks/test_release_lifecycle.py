@@ -160,6 +160,69 @@ release_config_teardown() { fake_down config; }
 
 
 class ReleaseLifecycleTest(unittest.TestCase):
+    def test_preparation_is_retryable_only_until_signing_authority_can_start(self):
+        for failure in ("reserve", "sync", "approval"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "output/plan").mkdir(parents=True)
+                script = r'''
+source "$LAUNCHER"
+ceremony_root="$CASE_ROOT"
+ceremony_source="$CASE_ROOT/source"
+release_operation=contracts
+release_phase_overlays=()
+release_approval_require_deployer() { :; }
+release_approval_wait_service() { :; }
+release_approval_snapshot_digest() { printf 'fixture-digest'; }
+compose_release() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/events"
+  if [[ "${@: -1}" == release-reference-prepare ]]; then
+    printf '{}\n' > "$CASE_ROOT/output/plan/release-plan.json"
+    printf '{}\n' > "$RELEASE_APPROVAL_REFERENCE_FILE"
+  elif [[ "$*" == 'up --no-start '* && "$FAILURE" == reserve ]]; then return 7
+  elif [[ "${@: -1}" == release-approval ]]; then
+    [[ ! -e "$CASE_ROOT/output/preparation-only" ]] || return 90
+    return 8
+  fi
+}
+sync() {
+  [[ ! -e "$CASE_ROOT/output/preparation-only" ]] || return 91
+  printf 'sync\n' >> "$CASE_ROOT/events"
+  [[ "$FAILURE" != sync ]]
+}
+release_approval_prepare escrow fixture "$(printf 'a%.0s' {1..40})" 31338 "$CASE_ROOT/output"
+[[ -f "$CASE_ROOT/output/preparation-only" ]] || exit 92
+release_approval_run "$CASE_ROOT/output"
+'''
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
+                                        env={**os.environ, "LAUNCHER": str(LAUNCHER), "CASE_ROOT": str(root), "FAILURE": failure},
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual({"reserve": 7, "sync": 1, "approval": 8}[failure], result.returncode, result.stdout + result.stderr)
+                self.assertEqual(failure == "reserve", (root / "output/preparation-only").exists(), result.stdout + result.stderr)
+                events = (root / "events").read_text().splitlines()
+                approval = "up -d --no-build --no-deps release-approval"
+                self.assertEqual(failure == "approval", approval in events)
+                if failure == "approval": self.assertLess(events.index("sync"), events.index(approval))
+                self.assertFalse(any(event.endswith(" deploy-release") for event in events))
+
+    def test_cam_without_transactions_retains_preparation_until_materialization_succeeds(self):
+        for success in (False, True):
+            with self.subTest(success=success), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "preparation-only").touch()
+                script = r'''
+source "$LAUNCHER"
+release_operation=cam
+CAM_RELEASE_REMAINING_TRANSACTIONS=0
+release_materialize_cam() { [[ "$SUCCESS" == 1 ]]; }
+release_approval_run "$CASE_ROOT"
+'''
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
+                                        env={**os.environ, "LAUNCHER": str(LAUNCHER), "CASE_ROOT": str(root), "SUCCESS": str(int(success))},
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(0 if success else 1, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(not success, (root / "preparation-only").exists())
+
     def test_post_send_artifact_failures_preserve_evidence_and_offer_read_only_recovery(self):
         for failure in ("proxy", "collector"):
             for phase in ("contracts", "ui", "cam"):
@@ -1319,7 +1382,10 @@ release_full_make() {
   done
   if [[ "$target" == "${FAIL_TARGET-}" ]]; then
     mkdir -p -- "$destination"
-    if [[ "$target" == */cam/publish ]]; then
+    if [[ "${FAIL_PREPARATION-}" == 1 ]]; then
+      touch "$destination/preparation-only"
+      printf 'retained preparation\n' > "$destination/diagnostics"
+    elif [[ "$target" == */cam/publish ]]; then
       printf 'confirmed root, unfinished bindings\n' > "$destination/partial"
     fi
     return 23
@@ -1402,6 +1468,68 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
                 self.assertEqual([f"{app}/release/{phase}" for phase in
                                   ("contracts/artifact", "ui/artifact", "cam/artifact")], [call[0] for call in calls])
                 self.assertEqual(original, (root / "release/cam/artifact/cam-publication.json").read_bytes())
+
+    def test_preparation_failures_resume_all_apps_without_discarding_records(self) -> None:
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            for phase, records in (("contracts/deploy", "contracts"), ("ui/deploy", "ui"), ("cam/publish", "cam")):
+                with self.subTest(app=app, phase=phase), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    self.fixture(root)
+                    result, _ = self.invoke(root, app=app, operation="full", uri=True,
+                                            FAIL_TARGET=f"{app}/release/{phase}", FAIL_PREPARATION="1")
+                    self.assertEqual(23, result.returncode, result.stderr)
+                    result, calls = self.invoke(root, app=app, operation="full", uri=True)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    self.assertEqual(1, sum(call[0] == f"{app}/release/{phase}" for call in calls))
+                    previous = list((root / "release").glob(f"{records}-preparation-*/records"))
+                    self.assertEqual(1, len(previous))
+                    self.assertEqual("retained preparation\n", (previous[0] / "diagnostics").read_text())
+                    self.assertTrue((previous[0] / "preparation-only").is_file())
+
+    def test_unmarked_or_keyless_records_never_authorize_preparation_retry(self) -> None:
+        for marked in (False, True):
+            with self.subTest(marked=marked), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                result, _ = self.invoke(root, app="pay-to-play", operation="full", uri=True,
+                                        FAIL_TARGET="pay-to-play/release/contracts/deploy", FAIL_PREPARATION=str(int(marked)))
+                self.assertEqual(23, result.returncode, result.stderr)
+                result, calls = self.invoke(root, app="pay-to-play", operation="verify" if marked else "full", uri=True)
+                self.assertEqual(24, result.returncode, result.stderr)
+                self.assertEqual(["pay-to-play/release/contracts/artifact"], [call[0] for call in calls])
+                self.assertTrue((root / "release/contracts").is_dir())
+                self.assertEqual([], list((root / "release").glob("contracts-preparation-*")))
+
+    def test_invalid_preparation_marker_cannot_restart_a_phase(self) -> None:
+        for kind in ("symlink", "directory"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                records = root / "release/contracts"
+                records.mkdir(parents=True, mode=0o700)
+                records.parent.chmod(0o700)
+                if kind == "symlink": (records / "preparation-only").symlink_to(root / "selected-business.json")
+                else: (records / "preparation-only").mkdir()
+                result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertEqual([], calls)
+                self.assertTrue(records.is_dir())
+
+    def test_cam_continuation_can_retry_preparation_before_root_proof_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            result, _ = self.invoke(root, app="escrow", operation="full", uri=True,
+                                    FAIL_TARGET="escrow/release/cam/publish")
+            self.assertEqual(23, result.returncode, result.stderr)
+            result, _ = self.invoke(root, app="escrow", operation="full", uri=True,
+                                    FAIL_TARGET="escrow/release/cam/publish", FAIL_PREPARATION="1")
+            self.assertEqual(23, result.returncode, result.stderr)
+            result, calls = self.invoke(root, app="escrow", operation="full", uri=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn(f"ROOT_ARTIFACT={root / 'release/cam/artifact/cam-attempt.json'}", calls[-1])
+            self.assertIn(f"OUTPUT_DIR={root / 'release/cam/continuation'}", calls[-1])
+            self.assertEqual(1, len(list((root / "release/cam").glob("continuation-preparation-*/records/diagnostics"))))
 
     def test_partial_publication_requires_new_invocation_and_only_continues_remaining_work(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

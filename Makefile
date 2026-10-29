@@ -1072,6 +1072,7 @@ help:
 	  '    Histories are offered as choices, never selected by newest timestamp. Resume uses its original saved inputs.' \
 	  '    Separate business, UI and CAM configurations can select different actors; each transaction still needs approval.' \
 	  '    Keep all records after failure; rerun the same INSTANCE command to reconcile and resume.' \
+	  '    If approval never started, resume preserves the preparation records separately and retries that phase.' \
 	  '    Full deployment and UI update pause for hosting when CAM_URI is unset. Set it after hosting, then resume.' \
 	  '  make release/cam/check           Typecheck and test CAM component admission and publication tools.' \
 	  '  make release/contracts/check     Typecheck and test shared business deployment plans and approval recipes.' \
