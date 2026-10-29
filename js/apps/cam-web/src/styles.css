@@ -6,6 +6,8 @@
   --muted: #5e6c80;
   --line: #d8e0ea;
   --control-border: #7b8796;
+  --control-height: 2.25em;
+  --control-padding-inline: 11px;
   --accent: #176b5f;
   --danger: #9a342e;
 }
@@ -311,14 +313,14 @@ select,
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  block-size: 3em;
+  block-size: var(--control-height);
   color: var(--ink);
   border: 1px solid var(--control-border);
   border-radius: 6px;
   background: #fbfcfe;
 }
 
-input, select { padding: 10px 11px; }
+input, select { padding: 0.25em var(--control-padding-inline); }
 
 input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
 
@@ -398,10 +400,10 @@ summary:focus-visible {
 .address-entry { position: relative; flex: 1; min-width: 0; }
 .address-entry > input { block-size: 100%; border: 0; background: transparent; }
 .address-entry[data-compact="true"] > input { color: transparent; }
-.address-display { position: absolute; inset: 0; display: flex; align-items: center; padding-inline: 11px; pointer-events: none; overflow: hidden; }
+.address-display { position: absolute; inset: 0; display: flex; align-items: center; padding-inline: var(--control-padding-inline); pointer-events: none; overflow: hidden; }
 .address-display > code { font-size: inherit; white-space: nowrap; }
 .address-entry > input:disabled + .address-display { color: var(--muted); }
-.address-trigger { flex: 0 0 40px; align-self: stretch; padding: 0; border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent; }
+.address-trigger { flex: 0 0 40px; align-self: stretch; min-height: 0; padding: 0; border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent; }
 .address-positioner { width: var(--anchor-width); max-inline-size: calc(100vw - 24px); z-index: 10; }
 .address-popover { display: flex; flex-direction: column; max-height: min(320px, var(--available-height)); border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); color: var(--ink); box-shadow: 0 4px 16px #0002; }
 .address-options { min-height: 0; overflow: auto; padding: 4px; outline: none; font-size: 0.86rem; }

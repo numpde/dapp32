@@ -12,6 +12,7 @@ export async function checkChoiceField({ call, evaluate, viewerURL }) {
     assert.deepEqual(await evaluate(`Array.from(${select}.options).map(option=>[option.value,option.textContent])`), [['1', 'Client'], ['2', 'Contractor']])
     assert(await evaluate(`${select}.labels[0].textContent.includes('Arbitration timeout recipient')`))
     assert(await evaluate(`document.querySelector('select[name="disabledRecipient"]').disabled`))
+    assert.equal(Math.round(await evaluate(`${select}.getBoundingClientRect().height`)), 36, 'regular controls use the requested 36px default height')
     const originalSize = await evaluate(`${select}.style.blockSize`)
     await evaluate(`${select}.style.blockSize='1em'`)
     try { await assert.rejects(() => assertSingleLineControlSizing(evaluate), /single-line controls/) }
