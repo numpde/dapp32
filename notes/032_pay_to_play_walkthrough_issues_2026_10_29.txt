@@ -130,18 +130,22 @@ P2 — Complete the task flow
     Distinguish permanent channel restrictions from temporary actor restrictions;
     do not hide every disabled control or introduce a role framework.
 
-[ ] Identify retained confirmations when preparing the next transaction.
+[x] Identify retained confirmations when preparing the next transaction.
     (Shared: Escrow issue 31)
     Name the confirmed operation and distinguish its receipt from the current
     review, preserving evidence needed for reconciliation.
     Evidence: the previous confirmation remains beside the next preparation
     without clear operation or previous/latest context.
+    Implemented at the shared owner in 883e10de; retained outcomes name their
+    operation, with browser coverage for preparing a later transaction.
 
-[ ] Use readable monetary facts alongside exact transaction values.
+[x] Use readable monetary facts alongside exact transaction values.
     (Shared: Escrow issues 21/30)
     Apply shared amount formatting and business summaries to Pay-to-Play review
     and read-only facts while preserving exact units/values. Coordinate with
     finding 7 above; do not count collection outcomes as a second implementation.
+    Implemented at the shared amount presentation owner in 12f14929; exact
+    base units remain visible alongside readable amounts.
 
 P3 — Navigation and input ergonomics
 ------------------------------------
@@ -153,12 +157,14 @@ P3 — Navigation and input ergonomics
     the sampled narrow balance body measured about 7,505 CSS pixels.
     This is an authoring convention, not a CAM conformance requirement.
 
-[ ] Offer known-address suggestions across address fields.
+[x] Offer known-address suggestions across address fields.
     (Shared: Escrow issue 7)
     Include the active wallet and valid addresses entered elsewhere, with clear
     provenance and an explicit choice to insert. Apply to owner, payee,
     collector, signing key and refund recipient without guessing their roles.
     Evidence: no such picker was offered in these tasks.
+    Implemented by the shared address input; 2e0d9353 replaces the initial
+    picker with the bounded editable autocomplete and native keyboard checks.
 
 [ ] Make Enter submit a valid balance lookup.
     (Shared: Escrow issue 20)

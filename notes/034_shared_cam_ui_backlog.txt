@@ -1,0 +1,63 @@
+Shared CAM UI backlog
+=====================
+
+1. Shared URI input and display components
+
+   Requested: 2026-10-29. Status: queued.
+   Owner: shared CAM UI authoring/rendering, with adoption across Bike,
+   Escrow, Pay-to-Play and other apps wherever a value is a document location.
+
+   Preserve the exact input, provide syntax feedback and explicit open/load
+   actions, and reuse existing resource validators and download permissions.
+   Supported schemes must match the consumer: HTTPS, IPFS and embedded data
+   URIs are not interchangeable everywhere. Do not fetch automatically or
+   imply that valid syntax proves reachability, safety or matching content.
+
+   Coordinate URI input with recorded URI/digest presentation: opening a
+   document and verifying its bytes are separate actions. This capability
+   belongs to shared UI, not an app-specific plugin.
+
+   Fields accepting prose as well as links, such as Bike missing reports,
+   resolutions and public profiles, remain text fields.
+
+   Related evidence: note 031, issue 28 (Escrow recorded documents).
+
+2. Compact shared document-hash editor
+
+   Status: complete. Commit: f8226888.
+   Owner: shared viewer DocumentHashFieldView.
+   Remove the repeated visible digest caption and idle space reserved for
+   hidden cancellation/status content. Keep the contextual accessible input
+   name, explicit calculation controls, cancellation and error feedback.
+   Real feedback may add height; it must not move the input above it.
+   Related evidence: note 031, issues 2 and 4.
+   Verification: focused viewer browser checks at 1280/761/320. Shared display
+   checks now reject invisible normal-flow reservations in native fieldset
+   editors, with an injected spacer rejection and accessible-description,
+   collapsed-content and overlay positives. This is a rendered-state check,
+   not a semantic classifier for all empty space or arbitrary app markup.
+
+3. Field hints and useful field-local validation
+
+   Status: queued. Owner: shared CAM UI input/action boundary, then authored
+   app forms. Support concise examples and associate failures with their
+   fields; required numeric input and malformed address feedback are already
+   implemented. Agreement reference/ID and document inputs remain to review.
+
+4. Complete navigation and visible app details
+
+   Status: queued. Owners: app-authored navigation across all apps; shared
+   viewer for visible route/resource details in the preamble. Preserve object
+   and account context. Complete navigation is an authoring convention, not a
+   protocol requirement.
+
+5. Readable transaction review for nested inputs
+
+   Status: queued. Owner: shared viewer transaction-review presentation.
+   Escrow's nested agreement settings still need a readable review while
+   retaining exact raw values and calldata. Do not duplicate contract facts.
+
+App-specific work remains in the walkthrough notes. The next Pay-to-Play
+items are linking the external-signing guide, intentional voucher reuse after
+partial collection, distinguishing initial and replacement withdrawals, and
+giving reserve-channel tasks appropriate prominence (note 032, P2).
