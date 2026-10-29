@@ -82,6 +82,7 @@ async function main() {
   const COLLECTED = parseAbiItem("event VoucherCollected(address indexed customer,uint256 indexed channelId,address indexed payee,uint256 amount,uint256 voucherPaid,bytes32 invoiceHash)")
   async function create() {
     await open("admin", accounts.admin.address, "0", false)
+    await session.navigate("choosePosition", inert({ customer: accounts.admin.address, channelId: "0" }))
     const receipt = await write("admin", "createChannel", { newPayee: accounts.payee.address, newChannelCollector: accounts.relayer.address, newClaimPeriod: "60" })
     const logs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && log.topics[0] === toEventSelector(CREATED))
     assert.equal(logs.length, 1)

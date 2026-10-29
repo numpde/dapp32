@@ -31,7 +31,7 @@
         {
           "element": "Screen",
           "props": {
-            "title": "Balance"
+            "title": "Balance overview"
           },
           "children": [
             {
@@ -44,31 +44,8 @@
             {
               "element": "Status",
               "props": {
-                "label": "Balance minus withdrawal request (wei)",
-                "value": "$view.effectiveBalance"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
                 "label": "Total paid by vouchers (wei)",
                 "value": "$view.voucherPaid"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Withdrawal requested (wei)",
-                "value": "$view.requestedAmount"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Withdrawal ready at",
-                "value": "$view.readyAt",
-                "format": "timestampSeconds",
-                "zeroText": "No active withdrawal request"
               }
             }
           ]
@@ -138,6 +115,12 @@
             {
               "element": "Text",
               "props": {
+                "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
                 "text": "The deposit credits the sender\u2019s balance in this channel, not the recipient. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
               }
             },
@@ -187,6 +170,29 @@
             "title": "Withdraw or move funds"
           },
           "children": [
+            {
+              "element": "Status",
+              "props": {
+                "label": "Withdrawal requested (wei)",
+                "value": "$view.requestedAmount"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Withdrawal ready at",
+                "value": "$view.readyAt",
+                "format": "timestampSeconds",
+                "zeroText": "No active withdrawal request"
+              }
+            },
+            {
+              "element": "Status",
+              "props": {
+                "label": "Balance minus withdrawal request (wei)",
+                "value": "$view.effectiveBalance"
+              }
+            },
             {
               "element": "Text",
               "props": {
@@ -511,96 +517,102 @@
         {
           "element": "Screen",
           "props": {
-            "title": "Channel administration"
+            "title": "Channel settings"
           },
           "children": [
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "Only the admin can create channels or change recipients. A recipient change redirects unpaid voucher payments from every customer in this channel, including already-signed vouchers. Customer balances and withdrawal waits stay the same."
-              }
-            },
-            {
-              "element": "TextField",
-              "props": {
-                "label": "New recipient for this channel"
+                "title": "Change payment recipient"
               },
-              "state": {
-                "key": "replacementPayee",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "setPayee",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Change channel payee"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "setPayee",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId",
-                  "payee": "$state.replacementPayee"
+              "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Only the admin can change the payment recipient. A recipient change redirects unpaid voucher payments from every customer in this channel, including already-signed vouchers. Customer balances and withdrawal waits stay the same."
+                  }
+                },
+                {
+                  "element": "TextField",
+                  "props": {
+                    "label": "New recipient for this channel"
+                  },
+                  "state": {
+                    "key": "replacementPayee",
+                    "defaultValue": ""
+                  },
+                  "enabledWhen": {
+                    "member": "setPayee",
+                    "in": "$view.actions"
+                  }
+                },
+                {
+                  "element": "Button",
+                  "props": {
+                    "label": "Change channel payee"
+                  },
+                  "call": {
+                    "namespace": "routes",
+                    "function": "setPayee",
+                    "args": {
+                      "customer": "$view.customer",
+                      "channelId": "$view.channelId",
+                      "payee": "$state.replacementPayee"
+                    }
+                  },
+                  "enabledWhen": {
+                    "member": "setPayee",
+                    "in": "$view.actions"
+                  }
                 }
-              },
-              "enabledWhen": {
-                "member": "setPayee",
-                "in": "$view.actions"
-              }
+              ]
             },
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "The admin can change this channel\u2019s collector or set it to zero to pause its collection. Withdrawals and refunds do not require the collector."
-              }
-            },
-            {
-              "element": "TextField",
-              "props": {
-                "label": "New collector for this channel (zero pauses collection)"
+                "title": "Change collector"
               },
-              "state": {
-                "key": "newCollector",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "setCollector",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Change collector"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "setCollector",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId",
-                  "collector": "$state.newCollector"
+              "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "The admin can change this channel\u2019s collector or set it to zero to pause its collection. Withdrawals and refunds do not require the collector."
+                  }
+                },
+                {
+                  "element": "TextField",
+                  "props": {
+                    "label": "New collector for this channel (zero pauses collection)"
+                  },
+                  "state": {
+                    "key": "newCollector",
+                    "defaultValue": ""
+                  },
+                  "enabledWhen": {
+                    "member": "setCollector",
+                    "in": "$view.actions"
+                  }
+                },
+                {
+                  "element": "Button",
+                  "props": {
+                    "label": "Change collector"
+                  },
+                  "call": {
+                    "namespace": "routes",
+                    "function": "setCollector",
+                    "args": {
+                      "customer": "$view.customer",
+                      "channelId": "$view.channelId",
+                      "collector": "$state.newCollector"
+                    }
+                  },
+                  "enabledWhen": {
+                    "member": "setCollector",
+                    "in": "$view.actions"
+                  }
                 }
-              },
-              "enabledWhen": {
-                "member": "setCollector",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "createChannelFields",
-                "args": {
-                  "view": "$view"
-                }
-              }
+              ]
             }
           ]
         }
@@ -610,10 +622,7 @@
       "requires": [
         "view"
       ],
-      "element": "Screen",
-      "props": {
-        "title": "Voucher signing details"
-      },
+      "element": "Fragment",
       "children": [
         {
           "element": "Screen",
@@ -642,6 +651,12 @@
               }
             },
             {
+              "element": "Text",
+              "props": {
+                "text": "Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs opens the balance without those drafts."
+              }
+            },
+            {
               "element": "Button",
               "props": {
                 "label": "View balance with fresh inputs"
@@ -660,92 +675,102 @@
         {
           "element": "Screen",
           "props": {
-            "title": "Signing domain"
+            "title": "Voucher signing details"
           },
           "children": [
             {
-              "element": "Status",
+              "element": "Screen",
               "props": {
-                "label": "Domain name",
-                "value": "$view.domainName"
-              }
+                "title": "Signing domain"
+              },
+              "children": [
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Domain name",
+                    "value": "$view.domainName"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Domain version",
+                    "value": "$view.domainVersion"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Chain ID",
+                    "value": "$view.chainId"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Payment contract (verifyingContract)",
+                    "value": "$view.verifyingContract"
+                  }
+                }
+              ]
             },
             {
-              "element": "Status",
+              "element": "Screen",
               "props": {
-                "label": "Domain version",
-                "value": "$view.domainVersion"
-              }
+                "title": "Signing key"
+              },
+              "children": [
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Registered voucher key",
+                    "value": "$view.voucherKey"
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "A zero address means no voucher key is registered for this account and channel."
+                  }
+                }
+              ]
             },
             {
-              "element": "Status",
+              "element": "Screen",
               "props": {
-                "label": "Chain ID",
-                "value": "$view.chainId"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Payment contract (verifyingContract)",
-                "value": "$view.verifyingContract"
-              }
+                "title": "Voucher message"
+              },
+              "children": [
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Authorized total so far (wei)",
+                    "value": "$view.cumulativeTotal"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Invoice hash (bytes32)",
+                    "value": "$view.invoiceHash"
+                  }
+                },
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Signing hash (EIP-712 digest)",
+                    "value": "$view.digest"
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain\u2019s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
+                  }
+                }
+              ]
             }
           ]
-        },
-        {
-          "element": "Screen",
-          "props": {
-            "title": "Signing key and message"
-          },
-          "children": [
-            {
-              "element": "Status",
-              "props": {
-                "label": "Registered voucher key",
-                "value": "$view.voucherKey"
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "A zero address means no voucher key is registered for this account and channel."
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Authorized total so far (wei)",
-                "value": "$view.cumulativeTotal"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Invoice hash (bytes32)",
-                "value": "$view.invoiceHash"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Signing hash (EIP-712 digest)",
-                "value": "$view.digest"
-              }
-            }
-          ]
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain\u2019s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs opens the balance without those drafts."
-          }
         }
       ]
     },
@@ -753,10 +778,7 @@
       "requires": [
         "view"
       ],
-      "element": "Screen",
-      "props": {
-        "title": "Account balance"
-      },
+      "element": "Fragment",
       "children": [
         {
           "element": "Screen",
@@ -772,6 +794,12 @@
                 "args": {
                   "view": "$view"
                 }
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner\u2019s account. Only the channel\u2019s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
               }
             },
             {
@@ -811,18 +839,6 @@
           }
         },
         {
-          "element": "Text",
-          "props": {
-            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner\u2019s account. Only the channel\u2019s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance."
-          }
-        },
-        {
           "element": "Include",
           "call": {
             "namespace": "ui",
@@ -840,15 +856,9 @@
       ],
       "element": "Screen",
       "props": {
-        "title": "Find a channel ID"
+        "title": "Open a balance"
       },
       "children": [
-        {
-          "element": "Text",
-          "props": {
-            "text": "Use the channel ID from the ChannelCreated event in the creation transaction\u2019s receipt."
-          }
-        },
         {
           "element": "Include",
           "call": {
@@ -1046,10 +1056,7 @@
       "requires": [
         "view"
       ],
-      "element": "Screen",
-      "props": {
-        "title": "Recovery for this account and channel"
-      },
+      "element": "Fragment",
       "children": [
         {
           "element": "Screen",
@@ -1106,7 +1113,7 @@
         {
           "element": "Screen",
           "props": {
-            "title": "Account recovery"
+            "title": "Balance recovery"
           },
           "children": [
             {
@@ -1114,13 +1121,6 @@
               "props": {
                 "label": "Current balance (wei)",
                 "value": "$view.balance"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Full-refund recipient",
-                "value": "$view.refundRecipient"
               }
             },
             {
@@ -1147,113 +1147,152 @@
               }
             },
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "Only the balance owner can renew, and only before settlement begins. A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery. Renewal does not change an ordinary withdrawal request."
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Renew position"
+                "title": "Renew funding period"
               },
-              "call": {
-                "namespace": "routes",
-                "function": "renewPosition",
-                "args": {
-                  "channelId": "$view.channelId"
+              "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Only the balance owner can renew, and only before settlement begins. A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery. Renewal does not change an ordinary withdrawal request."
+                  }
+                },
+                {
+                  "element": "Button",
+                  "props": {
+                    "label": "Renew position"
+                  },
+                  "call": {
+                    "namespace": "routes",
+                    "function": "renewPosition",
+                    "args": {
+                      "channelId": "$view.channelId"
+                    }
+                  },
+                  "enabledWhen": {
+                    "member": "renewPosition",
+                    "in": "$view.actions"
+                  }
                 }
-              },
-              "enabledWhen": {
-                "member": "renewPosition",
-                "in": "$view.actions"
-              }
+              ]
             },
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "Only the balance owner can choose the full-refund recipient. This does not change ordinary withdrawals, which still pay the owner. It changes no deadline or voucher authority. A failed refund retains the balance and can be retried after the owner corrects the recipient."
-              }
-            },
-            {
-              "element": "TextField",
-              "props": {
-                "label": "New full-refund recipient"
+                "title": "Choose refund recipient"
               },
-              "state": {
-                "key": "newRefundRecipient",
-                "defaultValue": "$view.refundRecipient"
-              },
-              "enabledWhen": {
-                "member": "setRefundRecipient",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Set refund recipient"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "setRefundRecipient",
-                "args": {
-                  "channelId": "$view.channelId",
-                  "recipient": "$state.newRefundRecipient"
+              "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Only the balance owner can choose the full-refund recipient. This does not change ordinary withdrawals, which still pay the owner. It changes no deadline or voucher authority. A failed refund retains the balance and can be retried after the owner corrects the recipient."
+                  }
+                },
+                {
+                  "element": "TextField",
+                  "props": {
+                    "label": "New full-refund recipient"
+                  },
+                  "state": {
+                    "key": "newRefundRecipient",
+                    "defaultValue": "$view.refundRecipient"
+                  },
+                  "enabledWhen": {
+                    "member": "setRefundRecipient",
+                    "in": "$view.actions"
+                  }
+                },
+                {
+                  "element": "Button",
+                  "props": {
+                    "label": "Set refund recipient"
+                  },
+                  "call": {
+                    "namespace": "routes",
+                    "function": "setRefundRecipient",
+                    "args": {
+                      "channelId": "$view.channelId",
+                      "recipient": "$state.newRefundRecipient"
+                    }
+                  },
+                  "enabledWhen": {
+                    "member": "setRefundRecipient",
+                    "in": "$view.actions"
+                  }
                 }
-              },
-              "enabledWhen": {
-                "member": "setRefundRecipient",
-                "in": "$view.actions"
-              }
+              ]
             },
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "The balance owner, admin, or current payee can end this funding cycle early. This immediately stops deposits, incoming moves and renewal. The final claim period cannot be restarted or cancelled; an earlier deadline is preserved. Existing withdrawal entitlements are not postponed."
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Start position wind-down"
+                "title": "Start wind-down"
               },
-              "call": {
-                "namespace": "routes",
-                "function": "closePosition",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId"
+              "children": [
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "The balance owner, admin, or current payee can end this funding cycle early. This immediately stops deposits, incoming moves and renewal. The final claim period cannot be restarted or cancelled; an earlier deadline is preserved. Existing withdrawal entitlements are not postponed."
+                  }
+                },
+                {
+                  "element": "Button",
+                  "props": {
+                    "label": "Start position wind-down"
+                  },
+                  "call": {
+                    "namespace": "routes",
+                    "function": "closePosition",
+                    "args": {
+                      "customer": "$view.customer",
+                      "channelId": "$view.channelId"
+                    }
+                  },
+                  "enabledWhen": {
+                    "member": "closePosition",
+                    "in": "$view.actions"
+                  }
                 }
-              },
-              "enabledWhen": {
-                "member": "closePosition",
-                "in": "$view.actions"
-              }
+              ]
             },
             {
-              "element": "Text",
+              "element": "Screen",
               "props": {
-                "text": "A full refund pays only the displayed recipient, never the caller, and clears the withdrawal request and funding cycle. The key and lifetime paid total remain. If the channel is open, later funding starts a new annual cycle and old unpaid vouchers can collect again. Refunding an empty cycle may be necessary before reuse."
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Refund full balance"
+                "title": "Refund balance"
               },
-              "call": {
-                "namespace": "routes",
-                "function": "refund",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId"
+              "children": [
+                {
+                  "element": "Status",
+                  "props": {
+                    "label": "Full-refund recipient",
+                    "value": "$view.refundRecipient"
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "A full refund pays only the displayed recipient, never the caller, and clears the withdrawal request and funding cycle. The key and lifetime paid total remain. If the channel is open, later funding starts a new annual cycle and old unpaid vouchers can collect again. Refunding an empty cycle may be necessary before reuse."
+                  }
+                },
+                {
+                  "element": "Button",
+                  "props": {
+                    "label": "Refund full balance"
+                  },
+                  "call": {
+                    "namespace": "routes",
+                    "function": "refund",
+                    "args": {
+                      "customer": "$view.customer",
+                      "channelId": "$view.channelId"
+                    }
+                  },
+                  "enabledWhen": {
+                    "member": "refund",
+                    "in": "$view.actions"
+                  }
                 }
-              },
-              "enabledWhen": {
-                "member": "refund",
-                "in": "$view.actions"
-              }
+              ]
             }
           ]
         },

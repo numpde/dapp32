@@ -211,6 +211,25 @@ async function timestampMode(relative) {
   assert(await evaluate(`(()=>{const b=document.querySelector('button.timestamp-options');if(!b)return false;if(b.getAttribute('aria-pressed')!==${JSON.stringify(String(relative))})b.click();return true})()`), 'timestamp pill remains usable')
   await wait(state => state.timestampMode === String(relative), 'timestamp display mode')
 }
+async function assertHierarchy(route, peers, nested) {
+  const actual = await evaluate(`(()=>{
+    const body=document.querySelector('.elements');
+    const headings=[...body.querySelectorAll('h2')];
+    return {
+      brand:document.querySelector('h1')?.textContent,
+      peers:headings.map(node=>node.textContent),
+      direct:headings.every(node=>node.parentElement.parentElement===body),
+      boundaries:headings.slice(1).every(node=>parseFloat(getComputedStyle(node.parentElement).borderTopWidth)>0),
+      nested:[...body.querySelectorAll('h3')].map(node=>[node.textContent,node.parentElement.parentElement.closest('.ui-section')?.querySelector(':scope > h2')?.textContent])
+    };
+  })()`)
+  assert.equal((await evaluate(snapshot)).readRoute, route)
+  assert.equal(actual.brand, 'Pay-to-Play')
+  assert.deepEqual(actual.peers, peers, `${route} peer headings`)
+  assert(actual.direct && actual.boundaries, `${route} task sections own their boundaries`)
+  assert.deepEqual(actual.nested, nested, `${route} only genuine subtasks are nested`)
+}
+
 async function click(label) {
   assert(await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim()===${JSON.stringify(label)});if(!b||b.matches(':disabled'))return false;b.click();return true})()`), `button must be usable: ${label}`)
 }
@@ -227,7 +246,11 @@ async function send(label, inspectReview) {
   await wait(state => sent === before + 1 && state.transactionHash === lastHash && state.transaction.includes('Transaction confirmed in block') && !state.prepared && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), `${label} confirmation and refreshed view`)
 }
 async function inspect(customer, channelId) {
-  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) await click('Change account or channel')
+  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) {
+    await click('Change account or channel')
+    await wait(state => state.readRoute === 'choosePosition', 'context-preserving chooser')
+    await assertHierarchy('choosePosition', ['Open a balance', 'Create a channel (admin only)'], [])
+  }
   await wait(state => state.buttons.some(button => button.name === 'Open balance'), 'balance chooser')
   await fill('lookupCustomer', customer)
   await fill('lookupChannelId', channelId)
@@ -258,6 +281,7 @@ try {
   await call('Page.navigate', { url: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
+  await assertHierarchy('home', ['Open a balance', 'Create a channel (admin only)'], [])
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Reconnect wallet'), 'wallet connection')
   await fill('newPayee', accounts.recipient.address)
@@ -266,8 +290,9 @@ try {
   const { result: simulatedId } = await publicClient.simulateContract({ address: payments, abi, functionName: 'createChannel', args: [accounts.recipient.address, accounts.relayer.address, 60n], account: accounts.admin.address })
   interleaveCreation = true
   await send('Create channel')
-  const lookup = await wait(state => state.readRoute === 'channelLookup' && state.tasks.includes('Find a channel ID') && state.fields.includes('lookupChannelId'), 'creation receipt lookup')
+  const lookup = await wait(state => state.readRoute === 'channelLookup' && state.tasks.includes('Open a balance') && state.fields.includes('lookupChannelId'), 'creation receipt lookup')
   assert(!lookup.buttons.some(button => button.name === 'Create channel'), 'receipt lookup must not repeat the channel creation form')
+  await assertHierarchy('channelLookup', ['Open a balance'], [])
   assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')
   const receipt = await publicClient.getTransactionReceipt({ hash: lastHash })
   const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && decodeEventLog({ abi, ...log }).eventName === 'ChannelCreated')
@@ -282,6 +307,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await click('Open this channel')
   await wait(state => state.readRoute === 'position' && state.values['Channel ID'] === id, 'open mined channel from receipt')
+  await assertHierarchy('position', ['Account and channel', 'Position status', 'Balance overview', 'Channel', 'Deposit', 'Withdraw or move funds', 'Voucher signing key', 'Voucher payments', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
   await inspect(accounts.customer.address, id)
   disabled(await evaluate(snapshot), 'Register permanent voucher key')
   await role('customer')
@@ -373,6 +399,7 @@ try {
   phase = 'voucher signing details'
   await click('View signing details')
   const details = await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
+  await assertHierarchy('voucherDigest', ['Account and channel', 'Voucher signing details'], [['Signing domain', 'Voucher signing details'], ['Signing key', 'Voucher signing details'], ['Voucher message', 'Voucher signing details']])
   assert.equal(details.values['Invoice hash (bytes32)'], invoiceHash)
   assert.equal(details.values['Signing hash (EIP-712 digest)'], hashTypedData(typed))
   phase = 'voucher draft return'
@@ -429,6 +456,8 @@ try {
   phase = 'zero-wait recovery channel'
   await role('admin')
   await inspect(accounts.admin.address, '0')
+  await click('Change account or channel')
+  await wait(state => state.readRoute === 'choosePosition' && state.fields.includes('newPayee'), 'new channel task on chooser')
   await fill('newPayee', accounts.recipient.address)
   await fill('newChannelCollector', accounts.relayer.address)
   await fill('newClaimPeriod.seconds', '0')
@@ -444,6 +473,7 @@ try {
   await send('Deposit')
   await click('Manage recovery and channel closure')
   await wait(state => state.buttons.some(button => button.name === 'Set refund recipient' && !button.disabled), 'recovery controls')
+  await assertHierarchy('recovery', ['Account and channel', 'Position status', 'Balance recovery', 'Retire this channel'], [['Renew funding period', 'Balance recovery'], ['Choose refund recipient', 'Balance recovery'], ['Start wind-down', 'Balance recovery'], ['Refund balance', 'Balance recovery']])
   await fill('newRefundRecipient', accounts.recipient.address)
   await send('Set refund recipient')
   await send('Start position wind-down')

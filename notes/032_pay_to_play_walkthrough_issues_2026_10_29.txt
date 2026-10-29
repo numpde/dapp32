@@ -454,3 +454,38 @@ contract's 100 wei native balance matched before and after. The new review
 capability is present. The existing Escrow demo's services and chain were not restarted.
 The separate port-5294 qualification project is removed through its normal
 GUI-down target. No original deployment or wallet was replaced.
+
+Task hierarchy implementation
+-----------------------------
+Removed the broad Account balance and Recovery wrappers. Independent task
+sections now share the same heading level and normal section boundaries under
+the stable Pay-to-Play app identity. Shared account/channel identity and
+contextual navigation stay first, with current lifecycle facts before writes.
+
+Balance overview keeps financial summary facts; withdrawal request/readiness
+facts sit with withdrawal controls. Channel settings has recipient and collector
+subtasks. Creating another channel belongs only to home/the chooser, and the
+browser and both local scenario callers now use that path. Lookup is called
+Open a balance, without promising to discover an unknown ID.
+
+Balance recovery and channel retirement are peers. Renewal, recipient choice,
+wind-down and refund retain meaningful subheadings; the actual refund recipient
+is shown beside refund. Scheduled and effective deadlines remain separate.
+Signing context is outside one signing-details task, whose domain, key and
+message remain nested. Fresh-input navigation is explained before its action.
+
+Button calls, input state/defaults, availability and Status objects are exact
+multisets of their previous definitions; the four review/result templates are
+unchanged. Only the obsolete lookup event instruction was removed and the
+recipient-change authority sentence was narrowed to its current task.
+No contract, ABI, route, protocol or shared CSS change was needed.
+
+Qualification: 1,038 typed JS tests pass. The normal local payment and recovery
+scenario target passed both workflows and removed its disposable chain. All six
+real read routes were checked in an owned browser tab at 1280 and 320 CSS pixels:
+correct peer h2 headings, genuine h3 parentage, section boundaries, stable brand
+and no horizontal overflow. Those assertions also live in the maintained browser
+campaign; the full campaign was not rerun for this composition-only slice.
+The original viewer was reloaded after checking that no transaction or entered
+form values would be discarded. Existing chain state and other demos remain.
+The full TOC, reserve-mode tailoring and other P2/P3 behavior items remain queued.

@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 import { parseCam } from "@cam/core"
 import { parseJsonBytes, toInertValue, type InertRecord } from "@cam/protocol"
-import { parseUi, resolvedUiButtons, type ResolvedUiNode } from "@cam/screen"
+import { parseUi, resolvedUiButtons, type ResolvedUiNode, type ResolvedContainerNode } from "@cam/screen"
 import { encodeCamContractCall } from "@cam/evm-viem"
 import { encodeAbiParameters, toEventSelector, parseAbiItem } from "viem"
 import { transactionPresentationNavigation } from "../src/index.ts"
@@ -94,6 +94,35 @@ async function fixture() {
   return { cam, abi, ui, publicClient, session, chainState, readCalls }
 }
 
+function peerSections(node: ResolvedUiNode): readonly ResolvedContainerNode[] {
+  if (node.element === "Fragment") return node.children.flatMap(peerSections)
+  assert(node.element === "Screen", "peer tasks must be sections, not unscoped content")
+  return [node]
+}
+
+function taskSections(root: ResolvedUiNode) {
+  assert(root.element === "Screen")
+  assert.equal(root.props.title, "Pay-to-Play")
+  const body = root.children[0]
+  assert(body)
+  return peerSections(body)
+}
+
+function actionSections(root: ResolvedUiNode): Record<string, readonly (readonly string[])[]> {
+  const paths: Record<string, (readonly string[])[]> = {}
+  function visit(node: ResolvedUiNode, ancestors: readonly string[]): void {
+    const path = node.element === "Screen" ? [...ancestors, String(node.props.title)] : ancestors
+    if (node.element === "Button") {
+      const existing = paths[node.call.function]
+      if (existing === undefined) paths[node.call.function] = [path]
+      else existing.push(path)
+    }
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, path))
+  }
+  visit(root, [])
+  return paths
+}
+
 test("empty numeric actions identify their own fields before any RPC, while explicit zero stays valid", async () => {
   const { session, readCalls } = await fixture()
   await session.load()
@@ -177,8 +206,8 @@ test("opened balance identity precedes explanatory text and controls", async () 
   visit(opened.resolvedUi)
   assert.equal(opened.resolvedUi.element, "Screen")
   assert.equal(opened.resolvedUi.props.title, "Pay-to-Play")
-  assert.equal(opened.resolvedUi.children[0]?.element, "Screen")
-  assert.equal(opened.resolvedUi.children[0]?.props.title, "Account balance")
+  assert.equal(opened.resolvedUi.children[0]?.element, "Fragment")
+  assert.equal(taskSections(opened.resolvedUi)[0]?.props.title, "Account and channel")
   assert.deepEqual(content.slice(0, 2).map(node => node.element === "Status" ? [node.element, node.props.label, node.props.value] : [node.element]), [
     ["Status", "Balance owner", customer],
     ["Status", "Channel ID", "1"],
@@ -191,11 +220,11 @@ test("every read destination retains the application heading above its task", as
   const inputs = { customer, channelId: "1", cumulativeTotal: "20", invoiceHash }
   const titles: Record<string, readonly string[]> = {
     home: ["Open a balance", "Create a channel (admin only)"],
-    position: ["Account balance"],
-    voucherDigest: ["Voucher signing details"],
-    channelLookup: ["Find a channel ID"],
+    position: ["Account and channel", "Position status", "Balance overview", "Channel", "Deposit", "Withdraw or move funds", "Voucher signing key", "Voucher payments", "Channel settings"],
+    voucherDigest: ["Account and channel", "Voucher signing details"],
+    channelLookup: ["Open a balance"],
     choosePosition: ["Open a balance", "Create a channel (admin only)"],
-    recovery: ["Recovery for this account and channel"],
+    recovery: ["Account and channel", "Position status", "Balance recovery", "Retire this channel"],
   }
   for (const [route, declaration] of Object.entries(cam.routes)) {
     if (declaration.kind !== "read") continue
@@ -204,7 +233,7 @@ test("every read destination retains the application heading above its task", as
     assert.equal(opened.resolvedUi.props.title, "Pay-to-Play", route)
     const body = opened.resolvedUi.children[0]
     assert(body)
-    const tasks = body.element === "Fragment" ? body.children : [body]
+    const tasks = peerSections(body)
     assert.deepEqual(tasks.map(task => {
       assert.equal(task.element, "Screen")
       return task.props.title
@@ -216,41 +245,75 @@ test("payment tasks keep their controls together and separate channel administra
   const { session } = await fixture()
   await session.load()
   const opened = await session.navigate("position", { customer, channelId: "1" })
-  const groups: Record<string, string | undefined> = {}
-  function visit(node: ResolvedUiNode, title: string | undefined): void {
-    if (node.element === "Screen") title = String(node.props.title)
-    if (node.element === "Button") groups[node.call.function] = title
-    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, title))
+  const groups = actionSections(opened.resolvedUi)
+  for (const [route, path] of [
+    ["fund", ["Pay-to-Play", "Deposit"]],
+    ...["requestWithdrawal", "setWithdrawal", "withdraw", "move"].map(route => [route, ["Pay-to-Play", "Withdraw or move funds"]] as const),
+    ["registerVoucherKey", ["Pay-to-Play", "Voucher signing key"]],
+    ["voucherDigest", ["Pay-to-Play", "Voucher payments"]],
+    ["collect", ["Pay-to-Play", "Voucher payments"]],
+    ["setPayee", ["Pay-to-Play", "Channel settings", "Change payment recipient"]],
+    ["setCollector", ["Pay-to-Play", "Channel settings", "Change collector"]],
+  ] as const) assert.deepEqual(groups[route], [path], route)
+  assert.equal(groups.createChannel, undefined, "creating another channel is outside this selected balance")
+  for (const label of ["Withdrawal requested (wei)", "Withdrawal ready at", "Balance minus withdrawal request (wei)"]) {
+    const withdrawal = taskSections(opened.resolvedUi).find(node => node.props.title === "Withdraw or move funds")!
+    assert(withdrawal.element === "Screen")
+    assert(withdrawal.children.some(node => node.element === "Status" && node.props.label === label), label)
   }
-  visit(opened.resolvedUi, undefined)
-  for (const [group, routes] of [
-    ["Deposit", ["fund"]],
-    ["Withdraw or move funds", ["requestWithdrawal", "setWithdrawal", "withdraw", "move"]],
-    ["Voucher signing key", ["registerVoucherKey"]],
-    ["Voucher payments", ["voucherDigest", "collect"]],
-    ["Create a channel (admin only)", ["createChannel"]],
-    ["Channel administration", ["setPayee", "setCollector"]],
-  ] as const) for (const route of routes) assert.equal(groups[route], group, route)
 })
 
 test("recovery separates account actions from channel retirement and explains retirement before review", async () => {
   const { session } = await fixture()
   await session.load()
   const opened = await session.navigate("recovery", { customer, channelId: "1" })
-  const groups: Record<string, string | undefined> = {}
+  const groups = actionSections(opened.resolvedUi)
+  const tasks = taskSections(opened.resolvedUi)
+  assert(tasks.some(node => node.props.title === "Balance recovery"))
   const retirement: ResolvedUiNode[] = []
-  function visit(node: ResolvedUiNode, title: string | undefined): void {
-    if (node.element === "Screen") title = String(node.props.title)
-    if (title === "Retire this channel") retirement.push(node)
-    if (node.element === "Button") groups[node.call.function] = title
-    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(child => visit(child, title))
+  function visit(node: ResolvedUiNode): void {
+    retirement.push(node)
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(visit)
   }
-  visit(opened.resolvedUi, undefined)
-  for (const route of ["renewPosition", "setRefundRecipient", "closePosition", "refund"]) assert.equal(groups[route], "Account recovery", route)
-  assert.equal(groups.closeChannel, "Retire this channel")
+  visit(tasks.find(node => node.props.title === "Retire this channel")!)
+  for (const [route, title] of [["renewPosition", "Renew funding period"], ["setRefundRecipient", "Choose refund recipient"], ["closePosition", "Start wind-down"], ["refund", "Refund balance"]] as const) {
+    assert.deepEqual(groups[route], [["Pay-to-Play", "Balance recovery", title]], route)
+  }
+  assert.deepEqual(groups.closeChannel, [["Pay-to-Play", "Retire this channel"]])
   const warning = retirement.findIndex(node => node.element === "Text" && String(node.props.text).includes("every customer"))
   const action = retirement.findIndex(node => node.element === "Button" && node.call.function === "closeChannel")
   assert(warning >= 0 && warning < action, "the channel-wide consequence must precede the retirement action")
+})
+
+test("recovery preserves scheduled and effective deadlines and puts the actual recipient beside refund", async () => {
+  const { session, chainState } = await fixture()
+  chainState.scheduledRefundAt = 2000n
+  chainState.refundAt = 1000n
+  await session.load()
+  const opened = await session.navigate("recovery", { customer, channelId: "1" })
+  const facts = presentationFacts(opened.resolvedUi)
+  assert.equal(facts["Position’s scheduled refund"], "2000")
+  assert.equal(facts["Full refund available at"], "1000")
+  const tasks = taskSections(opened.resolvedUi)
+  const recovery = tasks.find(node => node.props.title === "Balance recovery")!
+  assert(recovery.element === "Screen")
+  const refund = recovery.children.find(node => node.element === "Screen" && node.props.title === "Refund balance")!
+  assert(refund.element === "Screen")
+  const recipient = refund.children[0]
+  assert(recipient?.element === "Status")
+  assert.equal(recipient.props.label, "Full-refund recipient")
+  assert.equal(recipient.props.value, customer)
+})
+
+test("signing context precedes the coherent domain, key and message task", async () => {
+  const { session } = await fixture()
+  await session.load()
+  const opened = await session.navigate("voucherDigest", { customer, channelId: "1", cumulativeTotal: "20", invoiceHash })
+  const [context, signing] = taskSections(opened.resolvedUi)
+  assert.equal(context?.props.title, "Account and channel")
+  assert(signing?.element === "Screen")
+  assert.equal(signing.props.title, "Voucher signing details")
+  assert.deepEqual(signing.children.map(node => { assert(node.element === "Screen"); return node.props.title }), ["Signing domain", "Signing key", "Voucher message"])
 })
 
 test("account destinations offer navigation with the inspected identity across wallet changes", async () => {
@@ -475,9 +538,10 @@ test("balance and recovery share current readable phase and deadlines before tas
     for (const route of ["position", "recovery"]) {
       const opened = await session.navigate(route, { customer, channelId: "1" })
       assert.equal(opened.resolvedUi.element, "Screen")
-      const task = opened.resolvedUi.children[0]!
-      assert.equal(task.element, "Screen")
-      const status = task.children[1]!
+      const tasks = taskSections(opened.resolvedUi)
+      const status = tasks[1]!
+      const firstWrite = tasks.findIndex(task => resolvedUiButtons(task).some(button => session.actionKind(button) === "contractCall"))
+      assert(firstWrite > 1, "current lifecycle facts precede every transaction task")
       assert.equal(status.element, "Screen")
       assert.equal(status.props.title, "Position status")
       assert.deepEqual(status.children.map(node => {

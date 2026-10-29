@@ -181,7 +181,7 @@ async function main(): Promise<void> {
   await write("admin", "createChannel", { newPayee: accounts.payee.address, newChannelCollector: accounts.relayer.address, newClaimPeriod: "60" })
   await position("customer", "1")
   assert.equal(String(view().payee).toLowerCase(), accounts.payee.address.toLowerCase())
-  action("createChannel", true)
+  assert(!resolvedUiButtons(loaded().resolvedUi).some(button => button.call.function === "createChannel"), "channel creation belongs to the chooser, not the selected balance")
   action("setPayee", true)
   action("withdraw", true)
   action("collect", true)
