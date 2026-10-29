@@ -80,3 +80,17 @@ giving reserve-channel tasks appropriate prominence (note 032, P2).
    The historical PoC QR renderer is a reference, not a migration decision.
    A QR represents the same prepared-form link; URL/draft construction belongs
    to its existing shared owner rather than the QR display component.
+
+7. Align text in shared single-line controls
+
+   Status: queued. User screenshot reported 2026-10-29 after height unification.
+   Owner: shared viewer control CSS and native/composite control rendering.
+   The controls now share a default 36px height, but their text appears to
+   start at different offsets. Compare native selects, text/URL inputs and
+   the address combobox at the same font size; inspect both inline inset and
+   vertical alignment, including browser-native internal spacing.
+
+   Establish the cause in the rendered controls before changing padding.
+   Use a shared alignment rule where possible, preserving native selection,
+   editing, focus and text scaling. Equal outer heights alone do not prove
+   that the text inside is aligned. No cause or implementation selected yet.
