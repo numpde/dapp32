@@ -1,14 +1,46 @@
 #!/usr/bin/env bash
 # Reusable release tools are keyed by their exact archived build contexts.
 
+release_acquire_image() {
+  local image="$1" observation
+  if [[ ! "$image" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]; then
+    printf 'Image acquisition requires a registry reference pinned by SHA-256: %s\n' "$image" >&2
+    return 2
+  fi
+  if observation=$(docker image inspect --format '{{.Id}}' "$image" 2>&1); then return; fi
+  if [[ "$observation" != *'No such image:'* ]]; then
+    printf 'Cannot inspect prerequisite image %s: %s\n' "$image" "$observation" >&2
+    return 2
+  fi
+  printf 'Downloading required pinned image: %s\n' "$image" >&2
+  if ! timeout -s TERM -k 15s 120s docker pull --quiet "$image" >&2; then
+    printf 'Could not acquire required image %s; retry this command after resolving the download error.\n' "$image" >&2
+    return 2
+  fi
+}
+
+release_acquire_compose_images() {
+  local images image
+  images=$("$@" config --images) || return
+  while IFS= read -r image; do
+    # Source-built image IDs have their own producer; never pull them.
+    if [[ -z "$image" || "$image" =~ ^sha256:[0-9a-f]{64}$ ]]; then continue; fi
+    release_acquire_image "$image" || return
+  done <<< "$images"
+}
+
 release_tool_image() {
-  local repository="$1" commit="$2" tool="$3" tree tag image metadata observed context extra reused=0
+  local repository="$1" commit="$2" tool="$3" tree tag image metadata observed context extra dockerfile base reused=0
   case "$tool" in checks|foundry|node-deps|rpc-proxy) ;; *) printf 'Unknown release tool: %s\n' "$tool" >&2; return 2 ;; esac
   tree=$(GIT_NO_REPLACE_OBJECTS=1 git -C "$repository" rev-parse "$commit:containers/$tool") || return
   if [[ ! "$tree" =~ ^[0-9a-f]{40}$ ]]; then printf 'Invalid Git context identity for %s.\n' "$tool" >&2; return 2; fi
   tag="cam-release-tool-$tool:$tree"
   image=$(docker image ls --filter "reference=$tag" --quiet --no-trunc) || return
   if [[ -z "$image" ]]; then
+    dockerfile=$(GIT_NO_REPLACE_OBJECTS=1 git -C "$repository" show "$commit:containers/$tool/Dockerfile") || return
+    while IFS= read -r base; do
+      release_acquire_image "$base" || return
+    done < <(sed -n 's/^FROM \([^ ]*\).*/\1/p' <<< "$dockerfile")
     printf 'Building release tool %s for changed or missing context %s.\n' "$tool" "$tree" >&2
     if ! image=$(GIT_NO_REPLACE_OBJECTS=1 git -C "$repository" archive --format=tar "$commit:containers/$tool" |
         timeout -s TERM -k 15s 120s docker build --pull=false --quiet --tag "$tag" \

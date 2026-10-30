@@ -155,6 +155,12 @@ export APPROVAL_TEST_SETSID
 setsid() {
   exec "$APPROVAL_TEST_SETSID" "$BASH" -c '"$@"' approval-test-owned "$@"
 }
+# Keep the fake Docker boundary inside Bash; no real network command is run.
+timeout() {
+  [[ "$1 $2 $3 $4 $5" == '-s TERM -k 15s 120s' ]] || return 96
+  shift 5
+  "$@"
+}
 docker() {
   printf '%s\\n' "$*" >> "$APPROVAL_TEST_DOCKER_LOG"
   if [[ "$1" == compose ]]; then
@@ -162,7 +168,14 @@ docker() {
     while [[ "$1" != -p ]]; do shift; done
     project="$2"
     [[ "$project" =~ ^cam-approval-image-[a-z0-9]+(-identity)?$ ]] || return 91
-    if [[ "$*" == *'release-approval-identity'* ]]; then printf '%s\\n' "$(printf 'c%.0s' {1..64})"; fi
+    if [[ "$*" == *'config --images'* ]]; then
+      printf 'docker.io/library/fixture@sha256:%064d\\n' 1
+      return 0
+    fi
+    if [[ "$*" == *'release-approval-identity'* ]]; then
+      if [[ "\${APPROVAL_TEST_MISSING_BASE-0}" == 1 && ! -f "$APPROVAL_TEST_WORK_ROOT/base-ready" ]]; then return 97; fi
+      printf '%s\\n' "$(printf 'c%.0s' {1..64})"
+    fi
     return 0
   fi
   if [[ "$1 $2" == 'image ls' ]]; then
@@ -170,7 +183,16 @@ docker() {
     return 0
   fi
   if [[ "$1" == build ]]; then printf '%s\\n' "$APPROVAL_TEST_IMAGE_ID"; return 0; fi
+  if [[ "$1" == pull ]]; then
+    [[ "$2" == --quiet && "$3" == "docker.io/library/fixture@sha256:$(printf '%064d' 1)" ]] || return 98
+    touch "$APPROVAL_TEST_WORK_ROOT/base-ready"
+    return 0
+  fi
   if [[ "$1 $2" == 'image inspect' ]]; then
+    if [[ "\${APPROVAL_TEST_MISSING_BASE-0}" == 1 && "\${!#}" == docker.io/library/fixture@sha256:* && ! -f "$APPROVAL_TEST_WORK_ROOT/base-ready" ]]; then
+      printf 'Error response from daemon: No such image: %s\\n' "\${!#}" >&2
+      return 1
+    fi
     if [[ "$*" == *org.opencontainers.image.revision* ]]; then
       local entrypoint='["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]'
       if [[ "\${APPROVAL_TEST_BAD_ENTRYPOINT-0}" == 1 ]]; then entrypoint='["node","unrelated.js"]'; fi
@@ -204,7 +226,7 @@ mktemp() {
     /usr/bin/mktemp "$@"
   fi
 }
-export -f setsid docker git mktemp
+export -f setsid timeout docker git mktemp
 exec bash "$@"
 `
   const testEnv = {
@@ -221,7 +243,10 @@ exec bash "$@"
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   const composeCalls = (await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('compose '))
-  assert.equal(composeCalls.length, 6)
+  const prerequisite = composeCalls.findIndex(call => call.includes('config --images'))
+  const identity = composeCalls.findIndex(call => call.includes(' run ') && call.includes('release-approval-identity'))
+  assert.ok(prerequisite >= 0, 'prerequisites are resolved before starting the identity container')
+  assert.ok(identity > prerequisite, 'the identity container starts after prerequisite resolution')
   for (const call of composeCalls) {
     assert.match(call, /\s-p cam-approval-image-[a-z0-9]+(?:-identity)?\s/)
     assert.doesNotMatch(call, /\s-p [^ ]*[A-Z]/)
@@ -231,6 +256,15 @@ exec bash "$@"
   assert.equal(artifact.approvalToolSourceCommit, sourceCommit)
   assert.match(composeCalls.at(-1), /\sdown(?:\s|$)/)
   assert.deepEqual(await readdir(workRoot), [])
+  await writeFile(log, '')
+  const cold = spawnSync('bash', ['-c', runner, 'approval-test', script, sourceCommit, join(output, 'cold-image')], {
+    encoding: 'utf8', env: { ...testEnv, APPROVAL_TEST_MISSING_BASE: '1' },
+  })
+  assert.equal(cold.status, 0, cold.stdout + cold.stderr)
+  const coldCalls = (await readFile(log, 'utf8')).split('\n')
+  const pull = coldCalls.findIndex(call => call.startsWith('pull --quiet docker.io/library/fixture@sha256:'))
+  const coldIdentity = coldCalls.findIndex(call => call.includes(' run ') && call.includes('release-approval-identity'))
+  assert.ok(pull >= 0 && coldIdentity > pull, 'the missing pinned image is pulled before the identity container starts')
   await writeFile(log, '')
   const reused = spawnSync('bash', ['-c', runner, 'approval-test', script, 'd'.repeat(40), join(output, 'reused-image')], {
     encoding: 'utf8', env: { ...testEnv, APPROVAL_TEST_CACHED: '1' },

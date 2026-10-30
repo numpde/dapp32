@@ -91,7 +91,7 @@ class _ReleaseCommandHarness:
         if kind in ("image", "image-target"):
             self.work.mkdir()
         self.events.touch()
-        for name in ("release_approval_image_build.sh", "release_approval_images.sh", "release_rehearsal.sh", "release_process.sh", "compose_cleanup.sh"):
+        for name in ("release_approval_image_build.sh", "release_approval_images.sh", "release_rehearsal.sh", "release_process.sh", "release_tool_images.sh", "compose_cleanup.sh"):
             destination = self.repo / "tools" / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / "tools" / name, destination)
@@ -102,10 +102,10 @@ class _ReleaseCommandHarness:
             "js/apps/example/package.json": "{}\n",
             "dapps/placeholder": "fixture\n",
             "dapps/escrow/cam/main.json": "{}\n",
-            "containers/release-approval/Dockerfile": "FROM fixture-base\n",
+            "containers/release-approval/Dockerfile": "FROM docker.io/library/fixture@sha256:" + "a" * 64 + "\n",
             "containers/release-approval/prepare-context.mjs": "// fixture\n",
-            "containers/node-deps/Dockerfile": "FROM fixture-base\n",
-            "containers/https-egress-proxy/Dockerfile": "FROM fixture-base\n",
+            "containers/node-deps/Dockerfile": "FROM docker.io/library/fixture@sha256:" + "a" * 64 + "\n",
+            "containers/https-egress-proxy/Dockerfile": "FROM docker.io/library/fixture@sha256:" + "a" * 64 + "\n",
             "compose/package-deps.yml": "services: {}\n",
             "compose/release/approval-image.yml": "services: {}\n",
             "compose/release/rehearsal.yml": "services: {}\n",
@@ -219,6 +219,7 @@ docker() {
   fi
   if [[ "$1" == logs ]]; then printf 'inspectReleaseCamBundle\n'; return; fi
   if [[ "$1" == image && "$2" == inspect ]]; then
+    event "image-inspect ${!#}"
     case "$*" in
       *org.opencontainers.image.revision*) printf '%s %s %s operator %s\n' "$TEST_IMAGE" "$TEST_COMMIT" "$(printf 'c%.0s' {1..64})" '["node","--experimental-strip-types","/app/tools/release-approval/run.ts"]' ;;
       *io.cam.approval-owner*) printf '%s %s\n' "$TEST_IMAGE" "$TEST_PROJECT" ;;
@@ -238,6 +239,7 @@ docker() {
   done
   event "compose $project $*"
   case " $* " in
+    *" config --images"*) printf 'docker.io/library/fixture@sha256:%064d\n' 1; return 0 ;;
     *" down "*)
       event "down-start $project"
       if [[ "$project" == *-identity ]]; then event "down-done $project"; return 0; fi
@@ -494,6 +496,9 @@ class ReleaseApprovalImageCancellationTest(unittest.TestCase):
         ) as run:
             self.assertEqual(0, run.finish())
             run.assert_owned_cleanup(self)
+            inspected = next(i for i, line in enumerate(run.lines()) if line.startswith("image-inspect docker.io/library/fixture@"))
+            identity = next(i for i, line in enumerate(run.lines()) if line.startswith("compose ") and " run " in line and "release-approval-identity" in line)
+            self.assertLess(inspected, identity)
             self.assertFalse(run.work.exists())
             provenance = json.loads((run.output / "approval-image.json").read_text(encoding="utf-8"))
             self.assertEqual("sha256:" + "b" * 64, provenance["imageId"])

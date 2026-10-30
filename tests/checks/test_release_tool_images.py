@@ -22,6 +22,7 @@ git() {
   tool="${expression##*/}"
   case "$3" in
     rev-parse) cat "$CASE_ROOT/trees/$tool" ;;
+    show) printf 'FROM docker.io/library/fixture@sha256:%064d\n' 1 ;;
     archive) printf 'archive:%s' "$(cat "$CASE_ROOT/trees/$tool")" ;;
     *) return 91 ;;
   esac
@@ -33,6 +34,8 @@ docker() {
     [[ "$TOOL_FAILURE" != inventory ]] || return 1
     for value in "$@"; do if [[ "$value" == reference=* ]]; then tag="${value#reference=}"; fi; done
     if [[ -f "$CASE_ROOT/cache/$tag" ]]; then cut -d ' ' -f1 "$CASE_ROOT/cache/$tag"; fi
+  elif [[ "$1" == pull ]]; then
+    touch "$CASE_ROOT/base-ready"
   elif [[ "$1" == build ]]; then
     [[ "$TOOL_FAILURE" != build ]] || return 1
     while [[ $# -gt 0 ]]; do
@@ -48,6 +51,10 @@ docker() {
   elif [[ "$1 $2" == 'image inspect' ]]; then
     [[ "$TOOL_FAILURE" != inspect ]] || return 1
     key="${!#}"
+    if [[ "$key" == docker.io/library/fixture@sha256:* && "$TOOL_FAILURE" == base-missing && ! -f "$CASE_ROOT/base-ready" ]]; then
+      printf 'No such image: %s\n' "$key" >&2; return 1
+    fi
+    if [[ "$key" == docker.io/library/fixture@sha256:* ]]; then printf 'sha256:%064d\n' 1; return; fi
     cat "$CASE_ROOT/cache/$key"
     if [[ "$TOOL_RETAG" == 1 ]]; then
       for tag in "$CASE_ROOT/cache/"cam-release-tool-*; do
@@ -76,6 +83,75 @@ class ReleaseToolImagesTest(unittest.TestCase):
                 capture_output=True, text=True, check=False, timeout=10)
             outputs = {path.name: path.read_text() for path in (root / "output").iterdir()}
             return result, int((root / "count").read_text()), outputs
+
+    def test_image_acquisition_precedes_consumers_and_preserves_failure_boundaries(self):
+        pin = "docker.io/library/fixture@sha256:" + "a" * 64
+        for state in ("present", "missing", "daemon-error", "pull-error"):
+            with self.subTest(state=state):
+                script = r'''source tools/release_tool_images.sh
+docker() {
+  if [[ "$1 $2" == "image inspect" ]]; then
+    case "$TEST_STATE" in
+      present) printf 'sha256:%064d\n' 1 ;;
+      daemon-error) printf 'Cannot connect to Docker daemon\n' >&2; return 1 ;;
+      *) printf 'Error response from daemon: No such image: %s\n' "${!#}" >&2; return 1 ;;
+    esac
+  elif [[ "$1" == pull ]]; then
+    printf 'pull:%s\n' "${!#}"
+    [[ "$TEST_STATE" != pull-error ]]
+  else return 99; fi
+}
+timeout() { shift 5; "$@"; }
+release_acquire_image "$TEST_PIN" || exit "$?"
+printf 'consumer\n'
+'''
+                result = subprocess.run(["bash", "-eu", "-c", script], cwd=ROOT,
+                    env={**os.environ, "TEST_STATE": state, "TEST_PIN": pin},
+                    capture_output=True, text=True, timeout=5, check=False)
+                self.assertEqual(state in ("present", "missing"), result.returncode == 0, result.stderr)
+                if state == "present":
+                    self.assertNotIn("pull:", result.stderr)
+                if state in ("missing", "pull-error"):
+                    self.assertIn("pull:" + pin, result.stderr)
+                if state == "daemon-error":
+                    self.assertNotIn("pull:", result.stderr)
+                    self.assertIn("Cannot connect to Docker daemon", result.stderr)
+                self.assertEqual(state in ("present", "missing"), "consumer" in result.stdout)
+
+    def test_local_image_ids_and_mutable_tags_cannot_be_acquired(self):
+        for image in ("sha256:" + "a" * 64, "node:latest"):
+            result = subprocess.run(["bash", "-eu", "-c",
+                'source tools/release_tool_images.sh; docker() { exit 99; }; release_acquire_image "$TEST_IMAGE"'],
+                cwd=ROOT, env={**os.environ, "TEST_IMAGE": image}, capture_output=True, text=True, timeout=5, check=False)
+            self.assertEqual(2, result.returncode)
+            self.assertIn("pinned by SHA-256", result.stderr)
+
+    def test_compose_prerequisites_skip_local_produced_image_ids(self):
+        pin = "registry.example/tool@sha256:" + "a" * 64
+        script = r'''source tools/release_tool_images.sh
+compose() { [[ "$*" == "config --images" ]] || return 91; printf '%s\n' "$TEST_PIN" "sha256:$(printf 'b%.0s' {1..64})"; }
+release_acquire_image() { printf 'acquire:%s\n' "$1"; }
+release_acquire_compose_images compose
+'''
+        result = subprocess.run(["bash", "-eu", "-c", script], cwd=ROOT,
+            env={**os.environ, "TEST_PIN": pin}, capture_output=True, text=True, timeout=5, check=False)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["acquire:" + pin], result.stdout.splitlines())
+
+    def test_archived_base_is_acquired_before_build_and_reused_from_cache(self):
+        result, builds, _ = self.run_case('''
+release_tool_image /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa node-deps
+release_tool_image /fixture aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa node-deps
+cat "$CASE_ROOT/calls"
+''', failure="base-missing")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(1, builds)
+        calls = result.stdout.splitlines()
+        pulls = [i for i, call in enumerate(calls) if call.startswith("pull --quiet ")]
+        self.assertEqual(1, len(pulls))
+        self.assertEqual("pull --quiet docker.io/library/fixture@sha256:" + f"{1:064d}", calls[pulls[0]])
+        build = next(i for i, call in enumerate(calls) if call.startswith("build "))
+        self.assertLess(pulls[0], build)
 
     def test_identical_tool_inputs_reuse_images_across_application_commits(self):
         for operation in ("contracts", "ui", "cam"):

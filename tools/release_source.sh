@@ -68,6 +68,7 @@ cleanup() {
 trap cleanup EXIT
 SOURCE_NODE_IMAGE=$(release_tool_image "$PWD" "$(git rev-parse HEAD)" node-deps)
 export SOURCE_NODE_IMAGE
+release_acquire_compose_images "${compose[@]}"
 
 source_prepare() {
   # Preparation must not consume a caller's terminal or the remaining records in a loop.

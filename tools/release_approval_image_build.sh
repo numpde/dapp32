@@ -61,6 +61,7 @@ fi
 
 source "$repo_root/tools/release_process.sh"
 source "$repo_root/tools/release_approval_images.sh"
+source "$repo_root/tools/release_tool_images.sh"
 release_process_init
 # Internal allocation state; not an optional operator input.
 declare work_dir=""
@@ -137,6 +138,7 @@ export PACKAGE_INPUT_DIR=$manifest_dir
 export RELEASE_APPROVAL_SOURCE_DIR=$source_dir RELEASE_APPROVAL_CONTEXT_DIR=$context_dir
 
 identity_compose=(docker compose --env-file /dev/null -p "$project_name-identity" -f "$repo_root/compose/release/approval-image.yml")
+release_acquire_compose_images "${identity_compose[@]}"
 identity_started=1
 release_run_owned 15 "${identity_compose[@]}" run --pull never --rm --no-deps -T release-approval-identity > "$work_dir/input-digest"
 input_digest=$(<"$work_dir/input-digest")
@@ -157,11 +159,7 @@ if [[ -z "$image_id" ]]; then
     $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/release-approval/Dockerfile") \
     $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/node-deps/Dockerfile") \
     $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/https-egress-proxy/Dockerfile"); do
-    if ! docker image inspect "$base" >/dev/null 2>&1; then
-      printf 'Pinned image prerequisite is absent locally: %s\n' "$base" >&2
-      printf '%s\n' 'Acquire and review this base explicitly before running the approval image build.' >&2
-      exit 2
-    fi
+    release_acquire_image "$base"
   done
 
   # The npm stage sees manifests through the registry-only proxy, not repository source.

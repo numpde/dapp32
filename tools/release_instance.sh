@@ -47,6 +47,8 @@ release_instance() {
     exit "$result"
   }
   trap cleanup_instance EXIT
+  source tools/release_tool_images.sh
+  release_acquire_compose_images "${compose[@]}"
   terminal=(-T)
   if [[ -t 0 && -t 1 ]]; then terminal=(-it); fi
   release_run_owned "$release_command_grace" "${compose[@]}" run --pull never --rm --no-deps "${terminal[@]}" release-instance prepare "$app" "$operation" "$instance" || exit "$?"
