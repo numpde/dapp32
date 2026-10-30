@@ -66,5 +66,6 @@ release_cam_prepare_root_proof() {
     selected_commit=$(< "$output/root-proof/source-commit")
     local CAM_RELEASE_PREPARED_DIR="$output/root-proof"
     release_cam_export root "$selected_commit" source-root
+    CAM_ROOT_SOURCE_PHASE=retain compose_release run --rm --no-deps -T release-cam-root-source
   fi
 }

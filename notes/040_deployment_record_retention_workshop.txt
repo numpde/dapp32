@@ -1,0 +1,174 @@
+Deployment record retention workshop
+2026-10-30
+
+Requirement
+
+Keep the material needed to explain, verify, resume, update and source-publish a
+deployment. A deployment directory is a durable operation record, not an expanded
+repository checkout. Retention must follow consumers and phase completion.
+
+Current evidence
+
+The inspected Documents root occupies about 163 MiB on disk. The Bike UI update
+accounts for about 80 MiB, predominantly four bundle source checkouts and another
+root-proof checkout. Four historical approval rehearsals account for another
+80 MiB. Whole repository exports include unrelated apps, reference projects and
+fixture images; the same roughly 1 MiB PNGs appear repeatedly.
+
+Current consumers prevent deleting all sources:
+
+- cam-release/prepared.ts reads retained compiler outputs and metadata-named
+  business/UI/root sources when planning and collecting a CAM publication.
+- cam-release/compilations.ts reads original root sources independently from the
+  bundle. Root provenance must remain separate even if source bytes coincide.
+- release-compiled-contract.ts verifies the hash of every metadata-named source.
+  It does not need the rest of the checkout.
+- source-publication-prepare.ts can consume retained root compiler artifacts;
+  release_source.sh separately materializes original source archives for source
+  publication. Publication requests already contain selected compiler inputs.
+- release_full.sh follows retained predecessor/root records across continuation.
+  Old attempts are not disposable just because a later attempt succeeded.
+
+Before this change, release_cam_sources_cleanup removed only Compose resources,
+and rehearsal cleanup retained expanded source trees. Those policies explained
+the bulk. Normal preparation now compacts selected sources; completed rehearsals
+retain a compressed Git bundle of their candidate.
+
+Alternatives considered
+
+1. Retain complete expanded checkouts.
+   Straightforward recovery and inspection, but retains irrelevant files and
+   duplicates dependencies/resources. Reject as the default durable format.
+
+2. Retain commits and receipts only; reconstruct everything from Git.
+   Small, but recovery depends on repository/object availability and cannot
+   reconstruct uncommitted rehearsal inputs. Compiler inputs also need dependency
+   bytes. Reject as the only evidence policy.
+
+3. Compress complete source checkouts.
+   Preserves exact snapshots and saves space, but keeps unnecessary inputs and
+   requires extraction before ordinary consumers can use them. Useful for an
+   explicitly requested full-run archive, not default deployment storage.
+
+4. Share source/compiler material through a content-addressed store.
+   Deduplicates across operations but adds reachability, garbage collection,
+   transport and missing-cache failure modes. No demonstrated need at this scale.
+   Do not introduce it now.
+
+5. Retain the selected evidence closure in each operation; discard workspaces.
+   Keeps records self-contained and existing consumer paths usable. Compiler
+   metadata supplies the source inventory; CAM declarations supply the resource
+   inventory. Choose this. A few small source copies are preferable to a new
+   shared cache and its lifetime machinery.
+
+Chosen boundaries
+
+Instance: keep config.json, instance.json and every referenced operation.
+Configuration remains protected; cleanup does not open, rewrite or duplicate it.
+
+Operation: keep immutable selected inputs, plans, approval reference/audit,
+broadcast transactions and receipts, verification results/diagnostics, final
+artifacts and predecessor references. Failed attempts explain effect uncertainty
+and must not be silently overwritten or discarded.
+
+Compilation evidence: keep the exact selected compiler artifacts, original
+compiler version/settings and every source file named by their metadata, at the
+existing relative paths. Take the union across selected artifacts. Keep source
+hash checks and existing provenance joins unchanged. Do not retain unrelated
+source files, docs, screenshots, other apps or images merely because Git exported
+them. Do not replace original sources with current-checkout sources.
+
+Bundle: keep exact prepared main/resource bytes, compiler evidence, selected
+component artifacts and bundle artifact. After successful preparation, the full
+authoring checkout is work material: the final bundle owns publication bytes.
+Do not delete its published images just because compiler inputs need no images.
+
+Rehearsal: keep invocation/source identity, result, receipts, approval evidence and
+logs. Remove disposable expanded source/build trees after confirmed teardown.
+For rehearsals with dirty inputs, reproducibility requires retaining the relevant
+input delta before removing its only copy; a commit alone is insufficient.
+A historical rehearsal checkout can also be explicitly discarded when retaining
+its complete reproduction inputs is no longer wanted.
+
+Lifecycle and paths
+
+Keep existing operator INSTANCE paths and artifact schemas. No new folder choice
+or manual cleanup command should be required in the ordinary workflow.
+
+Use existing temporary staging ownership for complete execution checkouts. Export
+only selected evidence to the existing compiler/, sources/, bundle/, inputs/ and
+artifact/ paths. Do not rename all records or add a second state manifest merely
+to distinguish scratch from evidence.
+
+The phase that creates a workspace owns its cleanup. It may compact evidence
+only after its output is complete and its containers/processes have retired.
+Partial output is not a completion signal. Unknown teardown retains mounted
+inputs and reports their location. Successful cleanup must not erase the failure
+that caused the operation to stop. Pruning must never change signed plans,
+artifact digests, original creation identity or selected source revisions.
+
+A failed phase retains what its actual recovery command consumes. A later
+successful reconciliation can retire that phase's workspace through the same
+owner; the operator should not infer this from folder age. Do not rewrite old
+historical execution sources to make them obey a newer retention policy.
+
+Implementation slices
+
+1. CAM bundle preparation now retains only metadata-named sources for the
+   selected business, UI and root compiler outputs. It removes the expanded
+   authoring checkout after writing the immutable bundle artifact. Existing
+   compiler and source paths remain readable by verification and recovery.
+   No generic ABI interpreter, shared blob store, new artifact schema or Make
+   target was added. The source bind mount is writable only for this bounded
+   compaction phase.
+2. Original-root preparation uses the same metadata-driven compaction after
+   its source-native compiler export. Independent root evidence stays separate.
+3. Rehearsal cleanup creates source.bundle from the exact private Git snapshot
+   after confirmed resource teardown, then removes the expanded checkout and
+   dependency copies. The snapshot already includes the caller's dirty inputs.
+   Later checkout changes keep the expanded tree; uncertain teardown also keeps
+   mounted inputs. Logs, source-commit and deployment evidence remain.
+   To inspect the archived candidate: git clone source.bundle restored-source.
+4. Full source checkouts still exist while compilation/staging needs them. They
+   are compacted through the normal producers rather than a new manual target.
+   Published resource bytes, artifact paths and continuation records are retained.
+
+Focused proof obligations
+
+- A compact record still loads through the ordinary compilation/prepared-bundle
+  consumer; unrelated fixture images are absent, metadata-named sources remain.
+- Removing or altering a required source still fails at the existing hash owner.
+- Publication bytes, artifact bytes and approval/transaction evidence are
+  byte-identical before and after compaction.
+- Failed/uncertain teardown preserves mounted inputs; unfinished operation
+  recovery has its inputs. No broad new test matrix.
+
+Existing-folder cleanup proposal
+
+For the completed Bike update, retain all metadata-named source files and compiler
+artifacts, final bundle/resources, plans, approvals, receipts and logs. Remove its
+expanded authoring checkout and files outside compiler metadata from the four
+compilation source trees. Explicitly retire the four old rehearsal source copies;
+retain their logs and receipts. Leave the entire unfinished PayToPlay instance
+alone. Tiny approval-image.json files stay; they are receipts, not Docker images.
+
+The dry run selected 11,800 files, 115,525,143 logical bytes, and retained 51
+compiler source copies plus 215 evidence files. Filesystem allocation differs
+from logical size. Applied on 2026-10-31 after explicit approval of the exact
+/tmp/dapp32-proposed-file-deletions.txt list and refreshed container mount checks.
+All 215 retained evidence files were byte-identical after deletion; all 51
+compiler source copies remain. PayToPlay was untouched.
+The transient cleanup script is /tmp/dapp32-retention-cleanup.py; it is not a new
+supported workflow. The hash comparison receipt is retained at
+/tmp/dapp32-retention-cleanup-receipt.json. The subsequent producer changes above implement automatic retention for future
+runs; the one-time cleanup itself did not establish that behavior.
+
+Implementation qualification (2026-10-31)
+
+make release/cam/check: 62 tests passed, including compact compiler evidence
+readback/hash rejection and authoring retirement preserving staged bundle bytes.
+Focused container checks: 25 rehearsal/tool-image repository checks passed.
+Shell syntax and diff whitespace checks passed. Luna-low independently audited
+consumer joins, recovery and teardown/archive boundaries; no actionable finding,
+including the existing-root case for non-Bike apps. This is focused source and
+unit qualification; no new full rehearsal, paid deployment or Fuji action ran.

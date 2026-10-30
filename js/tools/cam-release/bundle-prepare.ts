@@ -1,4 +1,5 @@
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
+import { readdir } from "node:fs/promises"
 import { createPublicClient, http, type Abi } from "viem"
 import { requiredEnv } from "../input.ts"
 import { businessFromDeployment } from "../contract-release/shared.ts"
@@ -8,6 +9,7 @@ import { requiredReleaseChainId, requiredSourceCommit, runReleaseTool } from "..
 import { admitCamComponents } from "./components.ts"
 import { bundleCompilationSources, selectBundleCompilations, readBusinessCompilations, readRootCompilation, readUICompilation } from "./compilations.ts"
 import { stageCamBundle } from "./bundle.ts"
+import { removeExpandedAuthoringSources, retainCompilationSources } from "./retain-sources.ts"
 
 async function main(): Promise<void> {
   const env = process.env
@@ -39,6 +41,11 @@ async function main(): Promise<void> {
     businessArtifactSha256: admitted.business.artifactSha256, uiArtifactSha256: admitted.ui.artifactSha256, abiSources,
     preparationBlock: { number: `0x${admitted.observationBlock.number.toString(16)}`, hash: admitted.observationBlock.hash } }
   await writeNewJson(artifactPath, artifact, "prepared CAM bundle artifact")
+  await retainCompilationSources(requiredEnv(env, "CAM_RELEASE_BUSINESS_ARTIFACTS_ROOT"), dirname(requiredEnv(env, "CAM_RELEASE_BUSINESS_SOURCES_ROOT")))
+  await retainCompilationSources(requiredEnv(env, "CAM_RELEASE_UI_ARTIFACTS_ROOT"), dirname(requiredEnv(env, "CAM_RELEASE_UI_SOURCES_ROOT")))
+  const rootArtifacts = requiredEnv(env, "CAM_RELEASE_ROOT_ARTIFACTS_ROOT")
+  if ((await readdir(rootArtifacts)).length !== 0) await retainCompilationSources(rootArtifacts, dirname(requiredEnv(env, "CAM_RELEASE_ROOT_SOURCES_ROOT")))
+  await removeExpandedAuthoringSources(dirname(dappsRootPath))
   process.stdout.write(`${JSON.stringify({ event: "cam_bundle_prepared", app, rootSha256: staged.rootSha256,
     bundleDir: outputDir, artifactPath })}\n`)
 }

@@ -5,6 +5,7 @@ services:
     working_dir: /work
     environment:
       CAM_RELEASE_APP: "${CAM_RELEASE_APP:?missing_CAM_RELEASE_APP}"
+      CAM_ROOT_SOURCE_PHASE: "${CAM_ROOT_SOURCE_PHASE-select}"
     volumes:
       - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js:/input/js:ro"
       - "${RELEASE_SOURCE_DIR:?missing_RELEASE_SOURCE_DIR}/js/node_modules:/work/js/node_modules:ro"

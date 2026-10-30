@@ -48,7 +48,7 @@ planner_started=0
 fixture_image_started=0
 
 cleanup() {
-  local status=$? cleanup_failed=0
+  local status=$? cleanup_failed=0 source_status
   set +e
   # The PTY driver owns its signer and must finish before fixture teardown.
   # Ignore repeated signals before emitting any potentially blocking progress.
@@ -82,7 +82,7 @@ cleanup() {
     fi
   fi
   if [[ -n "$RELEASE_REHEARSAL_DIR" ]]; then
-    # Snapshot scratch files are never mounted. Keep source and logs as evidence.
+    # Preserve the exact candidate in Git's compressed archive after teardown.
     if ! rm -f -- "$RELEASE_REHEARSAL_DIR/source.tar" "$RELEASE_REHEARSAL_DIR/candidate.tar" "$RELEASE_REHEARSAL_DIR/source-files" "$RELEASE_REHEARSAL_DIR/existing-files"; then
       printf '%s\n' 'Could not remove rehearsal snapshot scratch files.' >&2
       status=1
@@ -93,6 +93,21 @@ cleanup() {
         printf '%s\n' 'Could not remove rehearsal dependency copies.' >&2
         status=1
         cleanup_failed=1
+      fi
+      if [[ "$cleanup_failed" == 0 && -d "$RELEASE_REHEARSAL_DIR/source/.git" ]]; then
+        if ! source_status=$(git -C "$RELEASE_REHEARSAL_DIR/source" status --porcelain); then
+          printf '%s\n' 'Could not inspect rehearsal source changes; expanded source retained.' >&2
+          status=1; cleanup_failed=1
+        elif [[ -z "$source_status" ]]; then
+          if git -C "$RELEASE_REHEARSAL_DIR/source" bundle create "$RELEASE_REHEARSAL_DIR/source.bundle" HEAD; then
+            if ! (cd "$repository" && rm -rf -- "$RELEASE_REHEARSAL_DIR/source"); then status=1; cleanup_failed=1; fi
+          else
+            printf '%s\n' 'Could not archive rehearsal source; expanded source retained.' >&2
+            status=1; cleanup_failed=1
+          fi
+        else
+          printf 'Rehearsal source changed after its snapshot; retained %s/source.\n' "$RELEASE_REHEARSAL_DIR" >&2
+        fi
       fi
     fi
     if [[ "$cleanup_failed" != 0 ]]; then

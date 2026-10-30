@@ -83,7 +83,6 @@ services:
       - type: bind
         source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/sources"
         target: /sources
-        read_only: true
         bind: {create_host_path: false}
       - type: bind
         source: "${CAM_RELEASE_PREPARED_DIR:?missing_CAM_RELEASE_PREPARED_DIR}/compiler"
