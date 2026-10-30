@@ -185,8 +185,17 @@ load_release_config() {
   fi
   compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit" || status=$?
   if [[ "$status" == 3 && -f "$release_config_dir/retained-source" ]]; then
-    printf 'This operation uses source %s. Check out that commit to resume; its saved inputs were not changed.\n' "$(cat "$release_config_dir/retained-source")" >&2
-    return 2
+    case "$mode" in
+      contracts-deploy|ui-deploy|cam-publish)
+        if [[ -n "$records" && ! -e "$records" && ! -L "$records" ]]; then
+          printf 'The next phase has no saved records. Review its settings to start it from source %s. Earlier deployment records keep their original source.\n' "$source_commit" >&2
+          rm -- "$release_config_dir/retained-source" || return
+        fi ;;
+    esac
+    if [[ -f "$release_config_dir/retained-source" ]]; then
+      printf 'This phase uses source %s. Check out that commit to resume; its saved inputs were not changed.\n' "$(cat "$release_config_dir/retained-source")" >&2
+      return 2
+    fi
   fi
   if [[ "$status" == 3 ]]; then configuration_change=source; fi
   if [[ "$status" == 3 && ( ! -t 0 || ! -t 1 ) ]]; then

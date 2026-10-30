@@ -187,7 +187,7 @@ docker() {
 compose_release_config() {
   if [[ " $* " == *' release-config credential-source '* ]]; then
     printf '%s\n' "$CONFIG" > "$release_config_dir/credential-source"
-    if [[ "$MODE" == retained ]]; then printf saved-source > "$release_config_dir/retained-source"; fi
+    if [[ "$MODE" == retained* ]]; then printf saved-source > "$release_config_dir/retained-source"; fi
     return
   fi
   if [[ " $* " == *' release-config retain '* ]]; then
@@ -204,7 +204,7 @@ compose_release_config() {
     printf '{"settings":{"OUTPUT_DIR":"/tmp/saved-cam"}}' > "$release_config_dir/release.json"
     return
   fi
-  if [[ ( "$MODE" == update || "$MODE" == noninteractive || "$MODE" == retained ) && ! -f "$release_config_dir/release.json" ]]; then return 3; fi
+  if [[ ( "$MODE" == update || "$MODE" == noninteractive || "$MODE" == retained* ) && ! -f "$release_config_dir/release.json" ]]; then return 3; fi
   printf 'rpc fixture\n' > "$release_config_dir/rpc-url"
   printf 'CAM_RELEASE_APP=escrow\0' > "$release_config_dir/inputs"
   if [[ "$MODE" != cam-artifact ]]; then
@@ -212,7 +212,7 @@ compose_release_config() {
     if [[ "$MODE" == cam-bundle ]]; then selected_source=authored; fi
     printf 'CAM_RELEASE_SOURCE_COMMIT=%s\0CAM_RELEASE_EXPECTED_CHAIN_ID=84532\0CAM_RELEASE_OUTPUT_DIR=/tmp/saved-cam\0' "$selected_source" >> "$release_config_dir/inputs"
   fi
-  if [[ "$MODE" == cam-publish || "$MODE" == update ]]; then
+  if [[ "$MODE" == cam-publish || "$MODE" == update || "$MODE" == retained-new ]]; then
     printf 'CAM_RELEASE_SIGNER_ADDRESS=selected-signer\0CAM_RELEASE_URI=selected-uri\0CAM_RELEASE_INTENDED_OWNER=selected-owner\0RELEASE_APPROVAL_IMAGE=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\0' >> "$release_config_dir/inputs"
     printf 'key fixture\n' > "$release_config_dir/deployer-key"
   fi
@@ -224,11 +224,13 @@ CAM_RELEASE_OUTPUT_DIR=stale
 RELEASE_APPROVAL_IMAGE=stale
 DEPLOYER_PRIVATE_KEY_FILE=stale
 operation="$MODE"
-if [[ "$MODE" == update || "$MODE" == noninteractive || "$MODE" == retained ]]; then operation=cam-publish; fi
+if [[ "$MODE" == update || "$MODE" == noninteractive || "$MODE" == retained* ]]; then operation=cam-publish; fi
 OUTPUT_DIR="$CASE_ROOT/selected-output"
+if [[ "$MODE" == retained ]]; then mkdir "$OUTPUT_DIR"; fi
+if [[ "$MODE" == retained-reference ]]; then CAM_RECORDS="$CASE_ROOT/existing-phase"; mkdir "$CAM_RECORDS"; fi
 load_release_config escrow "$operation"
 [[ "$CAM_RELEASE_APP" == escrow && "$RPC_URL_FILE" == "$release_config_dir/rpc-url" ]]
-if [[ "$MODE" == cam-publish || "$MODE" == update ]]; then
+if [[ "$MODE" == cam-publish || "$MODE" == update || "$MODE" == retained-new ]]; then
   [[ "$CAM_RELEASE_SIGNER_ADDRESS" == selected-signer && "$CAM_RELEASE_URI" == selected-uri && "$CAM_RELEASE_INTENDED_OWNER" == selected-owner ]]
   [[ "$DEPLOYER_PRIVATE_KEY_FILE" == "$release_config_dir/deployer-key" ]]
 else
@@ -239,7 +241,7 @@ if [[ "$MODE" == cam-artifact ]]; then [[ ! -v CAM_RELEASE_OUTPUT_DIR ]];
 else [[ "$CAM_RELEASE_OUTPUT_DIR" == "$CASE_ROOT/selected-output" ]]; fi
 printf continued > "$CASE_ROOT/continued"
 '''
-        for mode in ("cam-bundle", "cam-artifact", "cam-publish", "update", "noninteractive", "retained"):
+        for mode in ("cam-bundle", "cam-artifact", "cam-publish", "update", "noninteractive", "retained", "retained-new", "retained-nontty", "retained-reference"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 config = root / "config.json"
@@ -249,20 +251,21 @@ printf continued > "$CASE_ROOT/continued"
                     result = subprocess.run(
                         ["bash", "-eu", "-o", "pipefail", "-c", script], cwd=ROOT,
                         env={**os.environ, "CASE_ROOT": str(root), "MODE": mode},
-                        stdin=slave if mode == "update" else subprocess.DEVNULL,
+                        stdin=slave if mode in ("update", "retained-new") else subprocess.DEVNULL,
                         stdout=slave, stderr=subprocess.PIPE, text=True, timeout=10, check=False,
                     )
                 finally:
                     os.close(master)
                     os.close(slave)
-                self.assertEqual(3 if mode == "noninteractive" else 2 if mode == "retained" else 0, result.returncode, result.stderr)
-                self.assertEqual(mode not in ("noninteractive", "retained"), (root / "continued").exists())
-                self.assertEqual(mode in ("cam-publish", "update"), (root / "image-checked").exists())
-                self.assertEqual(mode == "update", (root / "output-checked").exists())
-                if mode == "noninteractive":
+                expected_status = {"noninteractive": 3, "retained": 2, "retained-nontty": 3, "retained-reference": 2}.get(mode, 0)
+                self.assertEqual(expected_status, result.returncode, result.stderr)
+                self.assertEqual(expected_status == 0, (root / "continued").exists())
+                self.assertEqual(mode in ("cam-publish", "update", "retained-new"), (root / "image-checked").exists())
+                self.assertEqual(mode in ("update", "retained-new"), (root / "output-checked").exists())
+                if mode in ("noninteractive", "retained-nontty"):
                     self.assertIn("Run this command interactively", result.stderr)
                     self.assertIn("saved configuration will not change", result.stderr)
-                if mode == "update":
+                if mode in ("update", "retained-new"):
                     self.assertIn(" release-config update-cam ", (root / "events").read_text())
                 self.assertEqual("original", config.read_text())
 
