@@ -1,17 +1,32 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 
 from .cam_abi_resources import validate_local_abi_uri
 from .cam_manifest_resources import CamManifestResourceValidator
+from .common import ROOT
 from tools.cam_abi_plan import build_abi_plan_rows
 
 
 class CamAbiResourceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = CamManifestResourceValidator()
+
+    def test_isolated_cli_writes_the_manifest_declared_export_plan(self) -> None:
+        with TemporaryDirectory() as tmp:
+            output = Path(tmp) / "manifest.tsv"
+            completed = subprocess.run(
+                [sys.executable, "-I", "-B", str(ROOT / "tools/forge-abi-plan.py"), str(ROOT / "dapps"), str(output)],
+                cwd=tmp, capture_output=True, text=True, check=True, timeout=10,
+            )
+            rows = build_abi_plan_rows(ROOT / "dapps")
+            self.assertTrue(rows)
+            self.assertEqual("".join(row.as_tsv() for row in rows), output.read_text())
+            self.assertIn(f"wrote {len(rows)} manifest-declared ABI target(s)", completed.stdout)
 
     def test_cam_abi_resources_are_checked_in_and_manifest_referenced(self) -> None:
         failures = [
