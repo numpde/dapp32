@@ -1,0 +1,1312 @@
+Operations and tooling: structurally robust end state
+=====================================================
+
+Date: 2026-10-30.
+Status: design workshop; not an implemented or operationally qualified system.
+Scope: repository operations, their execution environments, operator-owned
+instances, and the public Make interface. No product protocol/UI refactor.
+This is a replacement design, not a requirement to preserve today's machinery.
+It develops note 035 and supersedes that note's provisional architecture choices
+where explicitly stated below. Historical deployment evidence remains intact.
+
+Executive decision
+------------------
+Make remains the supported operator entrypoint. Consequential workflow policy
+moves out of Make/shell into one typed host controller. Prefer a small Go
+executable built offline in pinned Docker, then executed on the host. It owns
+host processes, operation selection, resource ownership and recovery sequencing;
+it does not become an EVM client, ABI interpreter or CAM semantic validator.
+
+TypeScript jobs remain containerized, with their exact dependency/tool cohort.
+They own app-specific settings, plans, independent approval references, component
+admission, resource bundles, receipt interpretation and artifact meaning.
+Solidity constructors, initialization and source-native verification remain
+native and separately pinned. Compose remains the concrete authority grant.
+
+Independent business, UI and CAM operations are ordinary operations; full release
+composes them. A completed constructor and an incomplete initialization are
+different facts. Reconciliation operates on individual intended effects, not on
+whether an entire Forge script returned success or created a directory.
+
+Use a small, explicit filesystem commit protocol for durable local records.
+Separate immutable intent/evidence/artifacts from attempts, observations, runtime
+work, cache and secrets. A database or external workflow engine is an alternative,
+not a substitute for this separation or for remote-effect reconciliation.
+
+No architecture can make the RPC call and local disk commit atomic. The design
+must tolerate that uncertainty without repeating an unresolved paid effect.
+The acceptance bar is demonstrated safety and recovery under named failures,
+not a promise that the choice of language or directories eliminates every bug.
+
+Reading map: sections 1-3 state requirements/evidence/alternatives; 4-7 define
+code and execution boundaries; 8-12 define storage/source/effect recovery;
+13-16 cover interactive exploration and proof; 17-20 cover migration/decisions.
+The trees are an end-state ownership model, not instructions to create scaffolds.
+
+1. Completion contract
+----------------------
+The refactor is complete only when these are true through ordinary commands:
+
+1. An operator points each command at INSTANCE once. The system discovers its
+   own records, offers meaningful choices and never requests empty output dirs.
+2. The working checkout stays on the operator's branch. Current or recorded
+   orchestration for supported cohorts executes without changing that checkout
+   or saved intent; unsupported cohorts fail with a concrete recovery reason.
+3. Business deployment, UI deployment and CAM composition have independent
+   inputs/results; full release invokes those same implementations.
+4. An original business source/compiler cohort remains verifiable after tooling
+   and UI updates. A second UI update consumes the latest selected composition,
+   preserves business provenance and rejects a stale baseline before approval.
+5. Preparation failure is recoverable without renaming folders by hand. Possible
+   submission requires reconciliation. Neither path guesses from missing files.
+6. Successful creations survive later setup/publication failure. Resume selects
+   only the remaining admitted effects; completed CREATEs are not repeated.
+7. No bind consumes a simulated/predicted creation as mined verified evidence.
+8. Generated candidate, verified component and current live state cannot be
+   substituted for one another merely because their JSON fields look alike.
+9. Cache eviction, temporary-directory cleanup and service teardown cannot
+   delete the only evidence required to determine an external effect.
+10. Approval remains independent of the transaction producer. An executor's own
+    proposed transaction list cannot serve as the authority that approves it.
+11. No secret, signature or signed raw transaction is placed in public artifacts,
+    generic logs, command-line arguments or an indiscriminate environment dump.
+12. Every changed operation family is proved through its supported entrypoint,
+    with faults at consequential boundaries and evidence of the actual outcome.
+
+2. Current evidence: what failed and what to preserve
+----------------------------------------------------
+This section records inspected source, not a new live deployment audit.
+
+The public Makefile combines command definitions/help, environment transport,
+host guards, process ownership, source staging, Compose assembly, signing
+ceremonies, read-only completion, local scenarios and teardown. Its size is an
+indicator of mixed owners, not itself a defect or a reason for file splitting.
+
+tools/release_full.sh originally used a phase directory's existence to choose
+artifact collection. A Docker network-reservation failure could create that
+directory before a signer started. Collection then required a missing Forge
+broadcast journal. The later preparation marker is a bounded repair, not the
+desired durable operation model.
+
+tools/release_config.py validates one saved sourceCommit against the caller's
+commit for ordinary effectful phases. tools/release-config.sh tells the operator
+to check out that saved commit on mismatch. Current orchestration and selected
+contract sources are therefore not independent operational choices.
+
+Make's release_prepare_snapshot archives the selected source and uses that
+archive's scripts, JS dependency expectations and image definitions. Keyless
+artifact completion already passes deployment source and tooling source
+separately in some places. That precedent is useful, but does not establish a
+complete current-tooling/old-source execution protocol.
+
+The business collector requires its broadcast transaction count to equal the
+complete approval reference. DeployContracts.run deploys/configures/nominates
+through one script. In contrast CAM has an explicit partial attempt and a
+continuation path. This is a source-level recovery gap for partial business
+execution; it is not a claim that a particular Fuji constructor was repeated.
+
+Good existing owners to retain or deliberately replace with equivalent proof:
+- release_process.sh: bounded process-group cancellation, reaping and retention
+  of mounted inputs when shutdown is unconfirmed.
+- compose_cleanup.sh: project-scoped teardown and residual-resource checking for
+  COMPLETE DISPOSABLE owners; unsuitable for arbitrary persistent services.
+- release-approval: independently reconstructed reference, exact signed-byte
+  comparison and fsynced audit before transmission, uncertain-outcome handling.
+- contract/UI/CAM collectors: receipt identity, canonical inclusion, source/input
+  joins, pinned observation reads, native verification and exclusive publication.
+- dependency lanes: network stage with narrow inputs, verified upstream bytes,
+  offline apply and explicit metadata-update authority.
+- fixture owner: deterministic resource identity plus an invocation creation
+  token for recovery from uncertain Docker creation.
+- source publication: a separately retryable external action after deployment
+  completion; Sourcify failure does not make paid deployment pending again.
+
+Existing primitives are evidence, not sacred implementation. The target must
+delete displaced lifecycle owners rather than wrap all of them in a new layer.
+
+3. Alternatives seriously considered
+------------------------------------
+A. Keep Make/Bash; split into family-owned include files and scripts.
+   Lowest bootstrap cost, familiar process tools, preserves existing posture.
+   Good for simple lanes. It leaves source identity, lifecycle transitions and
+   ambient environment transport weakly expressed across shell boundaries.
+   Folder cleanup alone does not prevent the demonstrated category errors.
+   Retain as an implementation option for leaf adapters, not the release core.
+
+B. TypeScript lifecycle core inside locked containers; minimal host Bash adapter.
+   Reuses current language/dependencies and typed semantic models. Strong option
+   if almost all work is container-local. Here the host still owns locks, exact
+   paths, Docker context, child process groups, TTYs and secret descriptors.
+   A genuinely dumb adapter would need a command/receipt protocol; a less dumb
+   one becomes a second coordinator. Reject as the preferred full end state.
+
+C. Typed host controller, built in pinned Docker; native semantic jobs.
+   Selected. One process can own host locks, argv/env, signal handling, durable
+   file commits and resource lifetime. No host Node/Python/Go compiler assumed.
+   Cost: a new bootstrap/build product and another implementation language.
+   Earn that cost by REMOVING host Bash/Python transition policy, not retaining
+   them beneath it. Keep concrete release/service/fixture/dependency functions;
+   do not invent a universal workflow DSL, plugin scheduler or generic graph.
+
+D. SQLite journal plus a host CLI.
+   Gives local transactional updates, indexing and writer arbitration. Sensible
+   if concurrent operators, cross-record queries or multi-record local commits
+   become necessary. It does not transact with Ethereum, Docker or blob files.
+   Adds database backup, migration and recovery obligations to a small local
+   workflow. Reject as default now; retain a precise future trigger, not a hidden
+   database cache that becomes a second source of truth. See section 8.
+
+E. Temporal or another durable workflow service.
+   Offers durable histories, timers, human waits and worker recovery. Credible
+   for a multi-operator hosted deployment service. Adds server/storage/worker
+   operations, workflow-version compatibility and sensitive-history concerns.
+   Activity retries still require transaction-level idempotency/reconciliation.
+   Reject for this local operator tool; borrow explicit attempts and recorded
+   outcomes. Workflow replay is not exactly-once remote submission. [R6]
+
+F. Terraform/Pulumi-style desired-state management.
+   Useful for hosts/networks/service infrastructure, locking and reviewed plans.
+   A chain deployment is not an ordinary replaceable resource. Reconciliation
+   must not recreate a contract because an artifact is absent or a setting
+   changed. A custom provider would still need the same specialized recovery
+   model. Keep infrastructure provisioning separate; borrow explicit plan/apply
+   and stale-plan rejection without adopting destroy/recreate semantics. [R7]
+
+G. Nix or Dagger as the execution substrate.
+   Can improve environment reproducibility/build composition. Neither supplies
+   Ethereum evidence, authorization or durable operation meaning. They add a
+   second execution system and migration cost beside Compose. Reject as the
+   lifecycle solution; reevaluate for measured build/dependency needs only.
+   Pinned images and matching lock cohorts remain required either way. [R8]
+
+H. Static HTML operation console plus browser-wallet signing.
+   Useful for readable status, source/contract comparisons, links and wallet UX.
+   It cannot compile/verify historical source or own durable host state by
+   itself. A writable localhost control API creates a new authentication and
+   lifecycle boundary. Keep as a possible client of the SAME operation model,
+   not a second deployment implementation or an excuse to trust browser state.
+   A wallet request interface does not establish deployment provenance. [R9]
+
+I. Stateless prepare/export and manually send every transaction.
+   Very small automated authority; useful for offline review/hardware wallets.
+   Gives operators more copy/paste, receipt-import and dependency-order work.
+   Those actions are exactly where the tool should prevent mistakes. Support
+   export where useful, but ordinary release should own recovery and evidence.
+
+J. Deploy a factory/batch contract or smart-account transaction instead.
+   Can reduce on-chain intermediate states and change transaction atomicity.
+   Also changes creator/address/authority semantics and adds contract/audit risk.
+   Cannot make off-chain hosting, source publication and local records atomic.
+   A separate product/security decision, not an ops refactor shortcut.
+
+4. Repository layout: boundaries that survive ordinary change
+------------------------------------------------------------
+Proposed tree; names are chosen to make execution and ownership visible:
+
+  Makefile                         Public targets/help; simple composition only
+  make/                            Small target declarations, no shell workflows
+    dependencies.mk
+    checks.mk
+    services.mk
+    releases.mk
+  ops/                             HOST control program; one Go module
+    go.mod
+    cmd/cam-ops/                    Parse invocation and select operation family
+    internal/
+      release/                     Intent, resume decisions, step orchestration
+      services/                    Persistent service up/status/down
+      fixtures/                    Explicit disposable fixture ownership
+      dependencies/                Stage/apply host lifecycle where needed
+      store/                       Durable local record publication and locking
+      process/                     argv/env, FDs, groups, cancellation, terminal
+      docker/                      Pinned engine/context and Compose invocation
+      source/                      Immutable source/tool materialization
+  js/
+    package.json
+    package-lock.json              Sole JS dependency lock, as today
+    packages/...                   Product/protocol packages; no ops imports
+    operations/                    Container-only semantic jobs and their tests
+      release/                     Plans, references, provenance, component joins
+      approval/                    Independently owned approval service
+      publication/                 Source submission and CAM bundle semantics
+      fixtures/                    App scenario consumers and wallet fixtures
+  dapps/
+    cam/...                        Shared on-chain discovery/source-native tools
+    <app>/
+      src/                         Product contract source
+      script/                      Native deploy/init/verify operations
+      test/                        Contract product and native-operation tests
+      cam/                         Authored UI/manifest and declared generated ABI
+      operations.mk                Explicit app capability/target declarations
+  compose/
+    jobs/                          Finite read/build/generate/verify grants
+    services/                      Persistent service grants
+    fixtures/                      Disposable chain/browser/scenario grants
+    release/                       Signing/receipt/verification/publication grants
+    fragments/                     Demonstrated shared confinement only
+  containers/
+    ops-build/                     Pinned offline host-controller builder
+    ...                            Exact Node/Foundry/proxy/approval/runtime images
+  tests/
+    checks/                        Repo shapes and rendered runtime grants
+    operations/                    Full operator journeys and fault scenarios
+    fixtures/                      Shared supplied bytes/evidence, no runtime state
+
+The tree is not permission enforcement by itself. Import/build boundaries and
+explicit mounts implement it. Within the new controller, no common/core/utils
+package may become a bucket for unrelated operation policy. Necessary primitives
+keep concrete names such as process, store and source.
+
+tools/ ceases to be a flat mixture of state machines, process supervisors,
+producers and test drivers. Move each existing owner once to its proper home;
+leave a leaf script only where a native-language tool actually needs it.
+No parallel old and new release implementation remains in the shipped end state.
+
+A full directory migration is justified only with the owner migration and
+deletions. It is not a first step to ship on its own as a reliability claim.
+
+5. Dependency and authority direction
+-------------------------------------
+  make target -> host operation -> explicit container job -> native result
+                                  |                       -> durable evidence
+                                  +-> independently bounded signing service
+
+Host controller:
+- Receives an operation identifier and literal arguments, not shell fragments.
+- Owns operation and run identities, locks, prepared directories, child groups,
+  deterministic Docker resource ownership, durable progress and recovery choice.
+- Checks envelope/file identity, bounds and digests; delegates CAM/ABI/EVM and
+  app schema meaning to native semantic jobs. No duplicate Go artifact parser.
+- Cannot mark a candidate verified because a JSON boolean or exit code says so.
+  It admits the expected output through its owning semantic job and preserves
+  the exact verifier/publication receipts and output digest.
+
+Semantic jobs:
+- Own strict app settings, constructor/binding meaning, original-source joins,
+  approval reference construction and artifact interpretation.
+- Produce bounded typed result envelopes and explicit output files. Logs are
+  diagnostic; parsing console progress text cannot decide operation success.
+- Run with narrowly granted inputs/outputs. Verifier has read-only RPC and no
+  key; final publisher is offline and the sole writer of final artifact paths.
+
+Solidity:
+- Original source/compiler/settings/dependencies own creation/runtime proof.
+- Native operations express app-specific initialization and authority handoff.
+- Original business code need not equal current source or retain original roles
+  or pause values for an independent UI update to use it.
+
+Approval:
+- Independently derives allowed intents from selected reviewed app semantics,
+  source compilations and immutable settings. Never approves a list solely
+  because the executor produced that same list.
+- Binds exact candidate bytes, chain, sender and allowed step. A saved local
+  phase record cannot grant signing authority or refresh an expired approval.
+- Network broadcast remains behind this boundary, with durable audit before
+  transmission. The host receives safe identities/results, not key material.
+
+Compose/images:
+- Compose is the SSoT for mounts, network/secret grants, UID, capabilities,
+  resources and service topology. Host code supplies explicit values; it does
+  not mirror Compose into a second handwritten service description language.
+- Pin the Docker engine/context for the entire invocation. Cleanup must address
+  the same daemon even if the caller's ambient context later changes.
+- Resolve the explicitly chosen LOCAL engine/context to its concrete endpoint
+  at admission; record daemon identity and use that endpoint in every invocation.
+  Clear conflicting ambient DOCKER_HOST/DOCKER_CONTEXT and unrelated COMPOSE_*
+  controls. If daemon identity cannot be confirmed, do not send or remove a
+  different daemon's resources. Use explicit project/Compose-file arguments and
+  --env-file /dev/null (or the owned exact interpolation file) plus an allowlist
+  of interpolation inputs; implicit working-directory .env is disabled.
+- Do not mount the Docker socket into a semantic job or controller container.
+  The host controller already has engine authority; a container wrapper does
+  not reduce that authority. Rootless improves posture but is not a substitute
+  for explicit ownership and mounts. [R3]
+
+6. Make and app discovery without duplicate registries
+-----------------------------------------------------
+Public targets remain slash-separated, phony, documented and stable. help
+requires neither a build nor Docker. Read-only static operations do not acquire
+the release journal, clean-tree guard, signing prompt or service prerequisites.
+
+Effectful recipes dispatch once into the host controller. They do not recurse
+through Make to transport a mutable environment between state-machine stages.
+Use argv arrays, explicit input files and an allowlisted environment. Treat
+paths as literal values; prevent Make expansion/evaluation of user-supplied
+paths before shell quoting can even become relevant.
+
+Initial supported host contract is GNU Make/Bash on Linux with a qualified
+local filesystem and local Docker Engine/Compose. Build the host controller for
+qualified OS/architecture pairs; a static executable does not make TTY, locking
+or bind-mount behavior portable automatically. Remote Docker path translation,
+macOS and Windows require their own explicit adapters and qualification.
+
+Retain the existing literal-input discipline: freeze operator assignments with
+Make's value function into simply expanded variables BEFORE shell probes or
+includes can expand/export them. Export literal values; recipe text references
+the shell's quoted environment value, never interpolates $(INSTANCE) into code.
+The controller reads only declared input names, not inherited MAKEFLAGS or
+MAKEOVERRIDES. Test dollar/Make expressions, quotes, whitespace, semicolons and
+rejected control characters. help and target discovery perform no engine probe,
+source build or dynamic operation evaluation. This is a precise bootstrap/input
+contract, not a claim that shell quoting alone protects Make expressions.
+
+App-specific target/capability declarations have one owner per app. Mechanical
+inclusion can discover operations.mk; absence does not imply an app supports
+every release/scenario capability. An unfinished app must not silently acquire
+a deployment target because a directory exists.
+
+operations.mk is trusted repository code, never generated from operator input.
+It declares targets and explicit arguments, not an executable adapter language
+for the host controller. Generic operation kinds, contained repository-relative
+grant paths and app identifiers are admitted at their boundary. No eval of a
+command from an instance file, artifact, app label or generated JSON result.
+
+Host operations know concrete operation kinds, not a duplicated list of app
+names, contract roles, constructors or CAM bindings. App target declarations
+select concrete semantic adapters/grants. The selected semantic tool cohort
+owns its app recipe. Do not generate approval policy from Make or Compose.
+
+New-app test: add its actual contracts/native scripts, semantic recipe,
+capability declarations, confinement and qualification. No edits to generic
+source/recovery/process code, no new root app enum repeated in four languages.
+Security review of new authority grants and independent approval remains real
+work; it cannot be replaced by automatic folder inference.
+
+7. Host-controller bootstrap is a separate product
+-------------------------------------------------
+Prefer Go to avoid an implicit host Node/Python runtime and to give host process
+ownership a typed implementation. This is an architectural recommendation, not
+a claim that existing Go code has been implemented or qualified.
+
+Bootstrap inputs: controller source digest, exact builder-image digest, module
+lock, host OS/architecture and explicit build flags. Build in a pinned offline
+container with only controller source read-only and one bounded output staging
+directory. No operator instance, credential files, Docker socket or RPC access.
+Acquire missing build images/dependencies through the explicit dependency lane.
+Do not fetch code or select a new version while resuming a paid operation.
+
+For third-party Go modules, go.mod/go.sum own versions/checksums. Choose one
+explicit content-addressed module materialization, verified during the network
+dependency stage and mounted read-only for offline build. No unverified shared
+mutable GOPATH cache and no requirement to vendor another copy into source.
+Pin the compiler image/toolchain; use GOTOOLCHAIN=local, GOPROXY=off, disabled
+network and read-only module metadata so automatic toolchain/module downloads
+cannot happen. If only the standard library is needed, do not invent a Go
+dependency materialization lane. Exact versions/advisories belong to the future
+implementation choice, not an untested version copied into this design. [R22]
+
+Publish a verified host binary into a source/platform-keyed cache using exclusive
+publication. The binary runs on host and executes Docker/Compose with argv,
+not shell interpolation. Building it must not require the binary being built.
+Use Go's ordinary module/internal-package layout; no generic framework tree.
+Go's process API deliberately avoids an implicit shell. That removes one class
+of expansion bugs; it does not implement process-group/TTY correctness for us.
+Those remain explicit code and tests. [R10]
+
+Record the executable digest and source/build identity used by each run.
+Current source -> current controller build. Recorded source -> its recorded
+controller/tool bundle, restored from verified bytes or reproducibly rebuilt
+using its own locked inputs. No silent fallback to whichever image is installed.
+Recorded old cohorts that predate this interface require bounded import support
+or an explicit unsupported reason; never pretend their old source implements
+new host-controller capabilities.
+
+There is exactly ONE selected controller, not a current supervisor controlling
+a second historical controller. A small trusted bootstrap resolves/builds the
+chosen executable, presents tooling selection from read-only record identity,
+finishes its own build-resource cleanup and exec-replaces itself. It never
+mutates an operation or opens signing. The selected controller then acquires
+the instance lock, re-admits the selected intent/digest and owns all effectful
+resources, signals and recovery. A changed selection while the menu was open
+must be detected under that lock. A failed bootstrap has no workload authority;
+a killed selected controller leaves durable run evidence for the next invocation.
+Historical executables receive host authority only under the declared supported
+cohort policy and exact verified identity; no implicit execution of arbitrary
+Git history merely because an instance points at it.
+
+8. Durable local storage: facts, attempts and selections
+-------------------------------------------------------
+Use ordinary owner-only local files for the present single-host, single-writer
+operation. Do not introduce a database simply because state exists.
+
+Instance path remains operator-selected, outside the checkout. Suggested shape:
+
+  INSTANCE/
+    instance.json                  Stable instance/app/network identity
+    profiles/                      Mutable NONSECRET defaults for NEW operations
+      release.json
+    selection.json                 Explicit chosen baseline/candidates, not truth
+    operations/
+      <operation-id>/
+        intent.json                Immutable requested change and input references
+        inputs/                    Exact nonsecret values/selected artifact copies
+        attempts/
+          <attempt-id>/
+            execution.json         Immutable tooling/source/runtime identities
+            progress.json          Atomic local progress commit, refs to evidence
+            evidence/              Immutable plans, audits, observations, receipts
+            logs/                  Safe bounded diagnostics; never lifecycle truth
+        result.json                Immutable verified result refs when completed
+    artifacts/
+      business/<artifact-id>/      Immutable deployment result and required proof
+      ui/<artifact-id>/            Immutable UI result; explicit backing identity
+      bundles/<bundle-id>/         Exact prepared distributable files + commitment
+      compositions/<artifact-id>/  Root/bindings/manifest/authority observations
+    imports/<import-id>/           Original legacy bytes + provenance, read-only
+
+These are retention boundaries, not mandatory empty directories. Allocate a
+directory only when the first actual file for its purpose is published.
+Readable timestamps may decorate IDs; they cannot determine the latest valid
+baseline, artifact trust or precedence of a later UI update.
+
+Intent owns WHAT may change: app/network, component source selections, exact
+settings, backing artifacts, desired bindings/publication/authority decisions.
+An operation can involve old business source, newer UI source and a separate
+root/source cohort; one global sourceCommit cannot describe those identities.
+Allocate a stable random operation ID; store intentDigest separately. Identical
+settings may legitimately describe two separately requested deployments. Editing
+an intent instead creates an explicitly linked new operation, not a retry.
+
+execution.json owns HOW this attempt runs: selected orchestration, semantic job
+bundle, original compiler/source cohorts, approval executable, engine identity,
+runtime parameters and verified dependency inputs. Store public identities and
+credential references, never the credential contents.
+
+progress.json owns only local sequencing and evidence references. It cannot
+make an RPC acknowledgement canonical, turn a candidate into a verified artifact
+or promise no external transaction occurred. Typed local states narrow the next
+legal action, but remote truth still comes from admitted observations.
+
+selection.json owns operator choice. Selecting UI B does not assert that the
+chain still binds B. Reobserve before changing bindings and reject stale state.
+Profiles affect future intents; changing a profile cannot edit a saved operation.
+
+Commit protocol:
+1. Hold the appropriate local writer lock. Validate contained relative paths and
+   supported filesystem semantics; never follow a record symlink outside owner.
+2. Write referenced evidence to private same-filesystem staging; bound, flush,
+   close and hash bytes; publish exclusively and sync the parent directory.
+3. Atomically replace the local progress commit LAST, with references/digests
+   of those durable files; flush the parent. A crash can leave unreferenced
+   files, not a successful state pointing at never-published evidence.
+   Use an explicit generation to reject a stale local writer. Do not add an
+   ambiguous .bak fallback or choose progress by modification time. Disk/sync
+   failure stops progression before signing; unsupported durability is explicit.
+4. Recovery validates referenced evidence. Uncommitted staging is not success.
+   Corrupt/missing evidence is a specific blocked outcome, not permission to send.
+5. Keep the independent approval audit append-only. Local progress is not a
+   replacement for its before-transmission durability rule.
+
+A single committed progress record is enough for local sequencing. Avoid a
+homegrown general event-sourcing framework. If detailed transition history is
+needed, preserve prior immutable checkpoints or bounded run events; do not make
+two logs compete to decide the next paid action.
+
+SQLite alternative: appropriate when multi-record local atomicity, query volume
+or supported concurrent writers justify it. Its transaction would own the local
+metadata; evidence blobs must be durable BEFORE a DB commit references them.
+WAL has same-host filesystem requirements and backup/checkpoint concerns. Even
+then remote submission needs reconciliation; neither SQLite nor a global DB
+can serialize an external wallet on another host. [R5]
+
+9. Secrets, cache and runtime are separate lifecycles
+----------------------------------------------------
+  operator credential store        Keys/RPC credentials; explicit narrow grants
+  INSTANCE                        Durable portable operation/evidence records
+  XDG_CACHE_HOME/cam/               Rebuildable source/tool/dependency products
+  XDG_STATE_HOME/cam/               Host-local service/run recovery descriptors
+  XDG_RUNTIME_DIR/cam/              Live sockets, terminal/FD coordination
+
+An explicit INSTANCE under Documents remains supported. XDG locations are
+defaults for host-local concerns, not a demand to move the user's deployment
+records. The XDG distinction between state, cache and runtime is useful here;
+durable deployment evidence is user data and must not be treated as discardable
+runtime state. A runtime directory may disappear on logout/reboot. [R1]
+
+Caches are keyed by actual source/lock/compiler/platform/build inputs. A Git
+commit or image tag alone is insufficient for every cache. Never transplant
+current node_modules into archived JS source expecting a different lock/compiler.
+Missing exact dependencies cause an explicit materialization request, not an
+implicit upgrade or hidden network install during signing.
+
+Cache eviction must not make the sole copy of recorded source, a required
+original dependency or verification evidence unrecoverable. Decide what the
+instance backup retains for offline recovery: source archives and build-input
+digests at minimum, with exact dependency/tool products retained or retrievable
+under a documented policy. Reproducibility is not proof an upstream artifact
+will remain available forever.
+
+Runtime working directories may contain disposable compilation output and IPC.
+Persist the nonsecret resource descriptor before allocation and diagnostics
+needed for recovery before deleting runtime work. An orphaned service must be
+discoverable by immutable owner/run identity even when /tmp has disappeared.
+Do not keep service-owned data under a disposable invocation directory.
+
+Credential contents are read only by the service that needs them. Prefer the
+existing file-backed/agent boundary; do not invent a new secret store. Never
+mount a whole INSTANCE or repository into a signer to obtain one private file.
+Compose secret grants are per service; an ordinary local Compose secret mount
+is not a claim of an encrypted vault. [R4]
+
+Retention/authority matrix:
+  Object                 Mutable?          Cleanup/backup policy
+  Profile defaults       Yes, future only   User config; never edits saved intent
+  Intent/input originals No                Durable; backup with operation
+  Attempt progress       Atomic commit     Durable local coordination, not chain
+  Approval audit         Append-only       Durable before send; no generic export
+  Receipt observations   New observations  Durable evidence with named block/hash
+  Verified artifacts     No replacement    Durable historical proof; re-admit now
+  Runtime work/socket    Invocation-owned  Remove only after children quiesce
+  Service data           Service-owned     Explicit preserve/destroy policy
+  Dependency/build cache Rebuildable       Evict only without losing required proof
+  Credentials            Owner policy      Separate narrow custody; never artifact
+
+Deleting a run workspace is not deleting an operation. Deleting caches is not
+deleting historical build inputs needed for a promised offline restore. Garbage
+collection follows explicit owner/reference roots, not a newest-file heuristic
+or one blanket image/network/volume prune command.
+
+Exact signed transaction bytes are a submission capability. Keep them out of
+generic evidence exports and logs. Existing hash/sender/nonce/audit evidence
+supports observation and conservative blocking. If exact-byte rebroadcast
+becomes supported, it needs an explicit signer-owned restricted custody and
+retention policy; it is not an incidental journal field or fresh authorization.
+
+10. Current or recorded execution: a real choice, not checkout surgery
+---------------------------------------------------------------------
+On resume, first admit the saved operation and observe unresolved effects.
+When execution tooling differs, offer current or recorded tooling with exact
+identities and a cancel option. Noninteractive use must select explicitly.
+
+Separate these references:
+  productSource       Original contract tree + compiler settings/dependencies
+  releaseSemantics    Constructor/init/binding intent and independent reference
+  semanticTools       Plan/collector/bundle/compatibility implementation
+  hostController      This run's operation/process/resource coordinator
+  approvalTool        Independently selected/pinned signing approval executable
+  componentArtifacts  Previously verified creations and compositions
+
+Recorded execution restores its supported recorded controller/tool cohort in an
+owned workspace. Current execution selects current orchestration/tools through
+an explicitly qualified input/result protocol. Both keep the recorded product
+sources, settings and intended effects. A tool upgrade is not permission to
+change contracts, nominate another actor or reinterpret an old approval.
+
+Some semantic tools may also change the approved transaction derivation. Those
+changes require a newly prepared independently checked reference and fresh
+approval for remaining effects. Existing paid effects retain their original
+reference and evidence. Never silently bless a changed reference by copying its
+new digest into the old operation. Unsupported historical semantics block with
+an exact reason; no blanket sourceCommit-equals-current-HEAD requirement.
+
+Historical compiler versions/settings and their executable images must be a
+supported pair. Record both; source settings alone do not supply the compiler
+binary. A controller supporting an old record format does not imply every new
+TS compiler, Docker engine or native verifier supports every old source tree.
+
+Do not promise universal backward execution. Define a bounded support set from
+actual retained records. Import completed legacy artifacts read-only with their
+original bytes/digests and original-source verification. In-flight legacy work
+first enters reconciliation; conversion must never authorize replay of unknown
+effects. No compatibility branch that merely treats unknown data as current.
+
+11. Per-effect recovery and independently composable components
+---------------------------------------------------------------
+Each intended effect has a stable key within the immutable operation, distinct
+from the run ID, proposed nonce or transaction hash. For example, components
+creation, manager creation, registrar grant and admin nomination are separate
+effects in Bike. A simple ordered sequence is sufficient; no workflow graph
+language is required to express three current apps.
+
+A proposed signed candidate adds chain, sender, nonce, exact transaction hash,
+reference digest and safe reviewed facts. A fee replacement is another candidate
+for the SAME effect and nonce, requiring its own exact approval. Never allocate
+a new CREATE at another nonce merely to escape an unresolved earlier candidate.
+
+Represent local knowledge with distinct outcomes, including:
+  preparation incomplete; awaiting approval; transmission possible;
+  provider accepted; outcome unknown; receipt observed; mined revert;
+  historically verified; evidence unavailable; nonce conflict;
+  operator resolution required; cleanup incomplete.
+These are not interchangeable success/failure booleans. Current canonicality
+and service health are fresh observations, not permanent lifecycle milestones.
+
+Before network submission, the independent signing owner durably records the
+exact candidate identity and approval. If the host dies, its audit is still
+available by operation/effect/attempt ID. Lost response after node acceptance
+must yield reconciliation by recorded hash and sender/nonce, not another send.
+An absent receipt, transaction lookup or Forge run-latest file proves neither
+non-submission nor safe replay. The RPC receipt API itself permits null. [R2]
+
+Hard retry rule: before any send-capable service is exposed, durably commit that
+capability boundary. Before approval can authorize transmission, durably commit
+the exact candidate in its independently owned audit. Automatic fresh execution
+of an effect is allowed only with positive evidence that its earlier capability
+never existed or closed without transmission, with surviving children quiesced.
+That rule does not replace the explicit candidate outcomes below. If audit
+or candidate evidence is missing after capability exposure, the outcome is
+unknown/operator-resolution-required. A local 'awaiting approval' label cannot
+override that uncertainty. Receipt available but original transaction/input
+unavailable means verification evidence unavailable; never recreate to repair it.
+
+Per-effect next-action rules:
+  Verified success   Reuse admitted result; never perform that creation again.
+  Mined revert      Native re-admission may propose a new attempt with fresh
+                    approval; preserve the failed receipt and any fee expenditure.
+  Known pending     Wait/reobserve; optional explicit same-nonce replacement with
+                    independently reviewed fees/bytes, never implicit new CREATE.
+  Outcome unknown   Reconcile; no automatic fresh candidate or nonce reassignment.
+  Proven pre-effect Retry preparation, preserving intent and prior diagnostics.
+No common retry helper may turn one disposition into another. Replacements and
+reverted retries must preserve effect intent or become an explicit new operation.
+
+Concrete native-job seam, not a generic command DSL:
+  prepare/admit -> immutable app-native effect handle + prerequisite artifact
+                   digests + independent reference commitment;
+  reconcile    -> verified(artifactRef), unresolved(observationRef),
+                  before-effect(proofRef), or blocked(reason/evidenceRef);
+  execute      -> selected known native action for that admitted effect handle.
+The envelope carries operation/effect/attempt IDs, protocol/producer identity
+and output digests. Its owner validates actual artifact meaning. The host checks
+framing/identity and dispatches a fixed job capability; it cannot execute a
+command string from the result or decide remaining steps by reading ABI/receipts.
+The before-effect result alone cannot grant retry: the signing-boundary proof
+above is also required. Independent reference preparation and source-native
+verification remain distinct from the native transaction producer.
+
+For CREATE, predicted address is a comparison value. Only the mined successful
+receipt, exact original creation input and source/runtime verification produce
+a verified creation fact. Dependent setup/UI/bind operations consume that fact.
+An initializer failure does not invalidate the constructor's historical proof;
+it leaves initialization incomplete and dependent composition unavailable.
+
+Native executors must expose independently resumable intended actions or an
+explicit verified-prefix continuation. Do not rerun an all-at-once Forge script
+that starts by recreating successful contracts. Preserve an independent allowed
+intent builder; do not turn observed executor output into its own approval list.
+A literal-byte submitter need not interpret ABI, but authorization still comes
+from independently admitted app semantics, not its own output.
+
+Full release composes ordinary business/UI/CAM actions. Business creation and
+intrinsic initialization are explicit; CAM root binding/publication and remaining
+handoffs belong to composition. Delay authority transfer only where a declared
+remaining action requires that authority. No hidden UI prerequisite for core
+deployment and no core-source-current equality for a later UI deployment.
+
+Capture an observation header before dependent reads, pin them to that block
+and recheck its hash afterward. Admit canonical successful receipts and source
+proof before dependent effects. Use block-hash RPC references where supported;
+otherwise preserve the existing bounded anchor/recheck protocol and its limits.
+EIP-1898 provides canonicality-aware block references, not universal RPC support
+or a finality policy. Declare the selected chain's confirmation policy. [R2]
+
+A reorg changes present eligibility. Append a new canonicality assessment;
+never overwrite old evidence claiming it was never observed. A historical
+verification at block H is not a guarantee that H remains canonical today.
+
+Cross-instance sends from the same controlled signer/chain need local exclusion
+or explicit nonce coordination, not just per-instance locking. OS locks prevent
+cooperating local writers; they cannot reserve an external wallet's nonce or
+another host. Unexpected nonce use is a conflict to reconcile, not an invitation
+to renumber a prepared deployment automatically.
+
+Root-binding preflight is likewise an observation, not compare-and-set. Without
+a corresponding contract precondition, another authorized actor can change
+bindings between read, approval and mining. Reobserve at the effect boundary
+and verify the mined final composition; unexpected drift blocks completion and
+requires a new decision. A truly atomic conditional composition would require
+a separately reviewed contract capability, not an ops flag or a local lock.
+
+Host the exact coherent resource bundle before approving its publication.
+Preserve the selected manifest hash policy explicitly; a zero hash is not
+authenticated publication. Multiple root writes are not automatically atomic,
+and cached/open viewers may temporarily see mixed bindings/resources. Prove
+any claimed old-ABI/new-UI compatibility with the actual served bytes and
+planned result, select safe ordering per application, then verify final bindings
+and hosted bytes. Do not advertise reload as a repair for persistent misbinding.
+
+12. Prerequisite ownership and process/resource recovery
+--------------------------------------------------------
+Resolve identity -> admit inputs -> reserve relevant local resources -> prepare
+reviewable work -> approve the consequential effect -> observe -> publish proof.
+There is no universal preflight pass guaranteeing the rest of the run.
+
+Allocate required Docker networks/containers, using the selected grants, before
+opening the signing session. Counting remaining address pools or probing a free
+port cannot reserve them. A persistent service must actually bind its port; keep
+that ownership until shutdown. Compose service_started is not readiness; use
+the service's actual health or completed initialization condition. [R3]
+
+Persist a nonsecret run descriptor before Docker allocation: run ID, owner kind,
+operation/instance ID, engine identity, expected project and resource creation
+token. Resources carry those owner identifiers. A process killed after resource
+creation but before saving returned IDs must still be able to rediscover the
+exact resources through those labels and reconcile their state.
+
+An OS advisory lock is held for the real writer lifetime. A released lock means
+no cooperating local holder; it does NOT mean a container stopped or an RPC call
+never happened. Do not stale-break based on a heartbeat, elapsed time or PID
+alone. Host reboot/PID reuse and a lost Docker connection remain possible.
+
+Process adapter contract: explicit argv/env/cwd/FDs; bounded output; bounded
+TERM/KILL waits; process group ownership; correct terminal restore; reaping;
+safe cleanup even after repeated signals. Cancellation stops NEW effects first,
+then reconciles or preserves any possible in-flight effect. Docker client exit
+does not establish container exit. SIGKILL has no cleanup guarantee; the next
+invocation discovers and handles surviving owned resources. [R11]
+
+Separate typed service and fixture handles/destructors. Stopping a persistent
+service preserves data. Destroying a disposable fixture can delete its declared
+volumes. Neither uses global prune. Verify exact owner before removal; preserve
+unknown/shared resources. Docker down removes external resources differently
+from owned ones, so flags and actual grant ownership matter. [R3]
+
+All finite commands report their own result independently of cleanup. For
+example: contract verified; temporary network removal unconfirmed. A late
+Sourcify outage similarly leaves deployment complete and source publication
+pending. The ordinary next command should follow those facts.
+
+13. Agent-driven adversarial exploration is part of the target
+-------------------------------------------------------------
+New requirement: an agent can execute the real workflow step by step, ask a
+peer for a plausible what-if condition, inject that condition in a disposable
+test environment, observe effects, restart or branch, then save the trajectory
+as a regression. The agent proposes experiments; it is not the result oracle.
+
+Something very close already exists: Antithesis multiverse debugging offers
+rewind and branching in a deterministic simulated environment. Its 2026-10-15
+announcement adds agent-accessible command execution at selected moments. This
+is a serious optional backend, not a homegrown feature to duplicate casually.
+It runs its own hermetic uploaded workload environment; it does not rewind this
+host's ordinary Docker daemon or Fuji. Access, integration and data-sharing
+policy would need explicit evaluation; none was configured in this workshop.
+Vendor claims and documented capabilities are not repository qualification. [R12]
+
+Related tools and their boundaries:
+- FoundationDB simulation: deterministic modeled network/storage/scheduling,
+  a powerful design precedent tied to its execution architecture; not a drop-in
+  simulator for arbitrary Make/Compose programs. [R13]
+- rr: reverse inspection of recorded Linux process execution. It does not give
+  one consistent snapshot of our host, external Docker daemon and RPC world.
+  Useful for a process bug, insufficient for system-level undo. [R14]
+- Toxiproxy: real TCP delay, timeout/reset and other controlled faults; no journal,
+  chain, process-group or whole-system snapshot semantics. [R15]
+- Jepsen: clients/workload, fault injector and independent history checker are
+  distinct owners. Borrow that separation; do not import an entire distributed
+  database testing framework merely to drive a deployment command. [R16]
+- Stateful property testing: generate and minimize command sequences against
+  a model. Useful for pure lifecycle decisions, but modeled effect success is
+  not evidence the real Docker/runtime path works. [R17]
+- Go synctest: useful for internal clock/goroutine tests. It does not virtualize
+  Docker, OS signals or external I/O into a replayable world. [R18]
+- Anvil snapshots/dump/load: local EVM state support. They do not restore the
+  caller's INSTANCE files, approval process or hosted bundle server. [R19]
+- A disposable QEMU/KVM guest can contain the host controller, Docker daemon,
+  instance files, Anvil and mock services together. This is a credible local
+  lab for real daemon/OS faults and coherent checkpointing, without claiming
+  deterministic instruction replay. QEMU supports machine state snapshots;
+  Firecracker snapshots require separately managed backing disks/network
+  resources. Snapshot those dependencies coherently or restore is incomplete.
+  Host virtualization authority and image retention are explicit lab grants,
+  never an implicit dependency of ordinary release commands. [R23]
+
+Local default: real command trajectories, restartable from a known clean base.
+Provide a separate test-only runner that invokes the EXACT public Make targets
+and their production controller. No alternate test implementation of the
+deployment and no production --fault/CHAOS override. Capture small structured
+boundary events to synchronize faults, but determine outcomes from durable
+records, native verification and independent fixture observations.
+
+The test runner owns a complete sandbox: disposable instance, isolated chain,
+public fixture keys, controlled mining/time, mock bundle hosting/source service,
+fault proxies, bounded filesystems, approval fixture and exact Docker resources.
+No operator credentials, public-chain writes or unbounded engine-wide cleanup.
+External egress is denied at the test boundary; do not rely on checking that a
+supplied URL merely looks local. Host Docker exhaustion tests need a dedicated
+disposable daemon/VM or an explicitly modeled engine, never deliberate exhaustion
+of the shared workstation. A modeled engine result must be labeled as such.
+
+Interactive actions are finite: run command, wait for an observable boundary,
+inspect, change a named sandbox condition, continue, restart, branch, save case.
+Use a literal argv array; no arbitrary peer-provided shell executes on host.
+An adversarial peer can propose conditions such as dropped acknowledgement,
+wrong chain, source mismatch, full output filesystem, stale binding or process
+death. The controller under test gets the resulting real failure, not a flag
+that skips its ordinary code path.
+
+Step command-by-command by waiting for completion and inspecting the result.
+For a mid-command what-if, a proxy can hold an actual request while a peer
+chooses its fate; the harness can also SIGSTOP/SIGCONT an OWNED host process
+group or pause an OWNED test container, with bounded deadlines and cleanup.
+An emitted event is notification, not an atomic breakpoint: the subject may
+have progressed before an external pause arrives. Deterministic mid-instruction
+interventions require the stronger substrate. Do not add hidden product gates
+to pretend an event plus SIGSTOP gives that guarantee.
+
+14. Trajectory, replay and checkpoint contract
+--------------------------------------------
+Keep test logic in its native language; do not invent a general scenario DSL.
+Record a finite command/fault timeline with logical fixture identities and
+references to versioned test assertions. Promote discoveries into small ordinary
+regression tests, with the recorded trace as evidence/fixture where useful.
+
+Suggested ownership:
+  tests/operations/trajectories/<case>/  Reviewed scenario/assertions/base manifest
+  ops test-support or lab executable    Test-only command driver/fault adapters
+  compose/test/operations/              Isolated harness grants
+  <test-output>/<run>/                   Actual timeline, results and safe evidence
+
+The production executable does not import the lab/fault package. The lab calls
+public commands; it cannot set private lifecycle state. Static import/build
+checks enforce that separation. Existing disposable rehearsal commands remain
+the operator route; exact new explore/replay target names require implementation
+review, not a second public deployment CLI invented by this note.
+
+Each saved trajectory records:
+  question and invariant being challenged; oracle/assertion version;
+  starting base and source/build/lock/image digests; seed and allowed sandbox;
+  exact command argv and deliberately selected safe inputs;
+  fault action, target and synchronization boundary;
+  observed result, receipt/artifact/resource evidence refs and cleanup outcome;
+  parent trajectory/branch and any source changes between comparisons;
+  verdict, qualification level and limitations.
+
+Peer predictions, actual observations and checker conclusions are separate.
+Generated IDs/ports/PIDs are mapped to logical fixture names, not required to be
+byte-identical across real-Docker restarts. Original artifact bytes, intent
+digests, completed effect identities and receipt counts are checked exactly
+where the invariant requires them. A random seed alone does not make kernel
+scheduling or actual Docker execution deterministic.
+
+Go back means one of three explicitly labeled operations:
+1. RESTART: fresh isolated world; replay the recorded command/fault prefix.
+   Default and most portable. Preserve the old trajectory instead of truncating.
+2. RESTORE: quiesce the sandbox and restore a verified multi-component checkpoint.
+   Include instance records, chain/history/mempool/mining time as supported,
+   mock hosted bytes and fault schedule. Only explicitly supported fixture
+   adapters can promise process/service restoration; ordinary Docker state
+   is recreated from base/prefix by default. Chain-only revert is incomplete.
+   Fork the instance journal/evidence into a new child sandbox with read-only
+   parent evidence, not a shared mutable parent directory. Invalidate pending
+   approvals/capabilities and allocate new branch/run identities. If any required
+   component cannot restore, disallow RESTORE and restart; a partial snapshot
+   can be inspected but cannot claim the original experiment was rewound.
+3. DETERMINISTIC REPLAY/FORK: available only in a substrate that captures the
+   whole relevant nondeterministic world, such as a qualified Antithesis setup.
+   Do not advertise it for an ordinary Compose run or a public chain.
+
+Checkpoints are optimizations, not independent authority. No live/public RPC
+participates in rewind. A fork of public state still writes only to its isolated
+local chain. Resume of a failed command is different from restoring a test
+checkpoint: resume preserves the failed attempt and its unresolved effects.
+
+Verdicts describe laws, not shell exit codes:
+- RED: an asserted invariant is violated; preserve the smallest witnessed path.
+- GREEN: the declared assertions held in the named lane/scenario. A correct
+  refusal or safe block after an injected fault can be GREEN.
+- KNOWN-RISK: an explicitly unresolved/accepted requirement or unsupported
+  guarantee, with owner/reason/boundary and a retained scenario. Not a passing
+  test, never silently counted as GREEN or broadened by wildcard suppression.
+- INCOMPLETE/NOT-RUN: insufficient evidence or an unexecuted case, distinct from
+  a reviewed risk. Unexpected new failure remains RED, not automatically risk.
+
+Qualification levels remain visible: pure model, real local EVM, disposable
+Docker/host integration, deterministic substrate, and separately authorized live
+operation. No aggregate green can conceal an untested boundary or accepted risk.
+
+The cooperative loop is concrete: adversarial peer proposes a plausible fault;
+coordinator records the hypothesis; sandbox runs the ordinary command; checker
+evaluates effects; agent inspects/branches; minimize the failing prefix; repair;
+rerun the same case on the new source; retain RED and GREEN identities separately.
+The same case can later run unattended in CI without an agent or model API.
+
+15. Worked trajectories and independent oracles
+------------------------------------------------
+Case A: the actual preparation/source-pin failure, reproduced locally.
+  Base: a clean instance, explicit fixture chain, recorded source/tool identity.
+  Command: ordinary <app>/release/setup, then <app>/release/deploy INSTANCE=...
+  Fault: sandbox engine denies the required network allocation before approval.
+  Observe: no signing service started, no fixture-chain transaction, retained
+  preparation plus useful diagnostic. Save the original RED trajectory when
+  resume incorrectly requires a nonexistent Forge journal.
+  Change: build the corrected orchestration, preserving product inputs.
+  Command: SAME deploy target and INSTANCE; select current tooling.
+  Observe: saved intent unchanged, preparation retried, completed source-native
+  business/UI results precede binding, and full fixture composition verifies.
+  A source mismatch that still requires checkout surgery is still RED.
+  Save GREEN only with actual supported commands, independent chain/receipt
+  counts, immutable input comparisons and exact owned-resource cleanup proof.
+
+Case B: a paid creation followed by lost acknowledgement and host death.
+  Base: real disposable chain, mock upstream proxy and public fixture signer.
+  Run until proxy has forwarded the approved constructor and durably recorded
+  its hash. Allow mining, drop the response, kill the host controller.
+  Observe: chain has one creation; caller has unresolved effect. Preserve audit.
+  Restart SAME command against retained instance. It must read the signing
+  evidence, query that hash, native-verify the creation and continue setup.
+  Assert no second CREATE for the same effect. Provider timeout is not evidence
+  of non-submission, and cleanup of a dead client is not rollback of its send.
+
+Case C: partial business initialization.
+  Permit the constructor, then reject/fail one role or handoff call. Verify the
+  creation remains identifiable; full business readiness is incomplete. Restart
+  and perform only remaining explicitly admitted actions. Preserve original
+  creator/source/input evidence even if current authority has since changed.
+  App-specific initialization/role assertions come from a reviewed fixture law,
+  not from replaying the executor's own output as its expected result.
+
+Case D: stale UI-update baseline and two successive updates.
+  Publish B from A, then C from selected latest B. Retain identical business
+  provenance and original root proof. Attempt A-based update after C: fail
+  before signing. Rewinding an instance pointer alone cannot make A current.
+
+Case E: source publication unavailable after completed deployment.
+  Refuse the mock source service. Deployment stays complete, publication pending.
+  Retry publication without opening a signing session or repeating a constructor.
+
+Case F: checkpoint and accepted-risk honesty.
+  Restore only EVM state while leaving the instance ahead. The harness must
+  reject a whole-world checkpoint claim; no GREEN based on an inconsistent base.
+  Test an explicitly unsupported remote uncertainty. Safe refusal can pass its
+  safety assertion; the separate unmet recovery guarantee remains KNOWN-RISK.
+  Changing a classification must not rewrite the captured observations.
+
+16. Evidence ladder and failure coverage
+---------------------------------------
+Do not replace an entire end-to-end test with an enormous Cartesian matrix.
+Use a small model for sequencing laws, a deliberately selected real boundary
+witness, then actual per-app wiring and evolution scenarios.
+
+Layer 1: pure decision/storage models.
+  Exhaustively or property-test valid/invalid transitions, stale generation,
+  uncertain outcome, wrong identities, effect-prefix reuse and ordinary retry.
+  Keep fake time/randomness deterministic. These prove the model, not Docker.
+  A small TLA+/PlusCal model is useful for the submission/crash/reconciliation
+  safety law if the maintained executable invariant can be tied back to it.
+  A checked model is not proof its implementation has no bugs. [R20]
+
+Layer 2: adapters and runtime grants.
+  Exercise real argv/env/FD transport, supported path characters, duplicate-key
+  and file boundaries, signals/TTY restore, process-tree and child-container
+  shutdown, partial allocation and protected-file behavior. Render EXACT Compose
+  grants and assert least privilege/source/key/write separation. Do not let a
+  stub of docker prove daemon allocation or network cleanup.
+
+Layer 3: actual operator journeys, disposable real runtime.
+  Make -> built host controller -> exact Compose jobs -> original native source
+  compile -> approval fixture -> real local chain -> receipt/native verification
+  -> offline artifact publication -> UI/CAM composition -> host cleanup.
+  Use the ordinary business/UI/CAM commands. A rehearsal-only monolith is not
+  equivalent. Run all apps' actual entrypoint wiring with their distinct actors
+  and initialization; do not infer Bike role/delay correctness from Escrow.
+
+Layer 4: exploration and promoted trajectories.
+  Agent/peer what-if experiments, seeded exploration and optional deterministic
+  substrate find additional paths. Minimize a discovery and promote it to an
+  ordinary case. CI reruns the case without needing the exploring agent.
+
+Layer 5: live operation verification, separately authorized.
+  Observe actual hosted bytes, chain results, source/binding identities and
+  current authority. This is not implied by a local-chain rehearsal. The design
+  workshop and its later test qualification require no Fuji transaction.
+
+Required fault boundaries and outcomes:
+  Missing pinned image/deps     Stop before approval; exact acquisition action
+  Bad app/source/schema join   Fail at native owner; no effect
+  Partial network creation     Preserve retryability; clean only owned residue
+  Output full/sync failure     No progression based on an undurable record
+  Cancellation before signing  No new effect; truthful retained preparation
+  Lost send acknowledgement    Unknown, inspect audit/chain; never fresh CREATE
+  Mined before local commit    Re-admit receipt/evidence; no replay
+  Native verification failure  No final artifact or dependent binding
+  Final artifact/progress gap  Re-admit existing immutable artifact; no replay
+  Receipt reorg                New assessment; dependent effects blocked/reviewed
+  Two local writers            Serialize shared instance/signer scope
+  External nonce consumption   Conflict, not automatic renumbering
+  SIGKILL/host restart          Rediscover owned resources; preserve uncertainty
+  Teardown failure             Result distinct from cleanup; retain needed files
+  Hosting bytes changed        Reject mismatched bundle/commitment before binding
+  Current vs recorded tools    Saved product intent unchanged; exact tool receipt
+  Recorded cohort unavailable  Explicit unsupported restoration; no substitution
+  New UI/new core cohorts      Original proofs preserved; latest baseline checked
+  Legacy missing evidence      Reconciliation-only or explicit block, not replay
+  Peer proposes live endpoint  Sandbox rejects at authority boundary
+
+No proof claim should say merely 'N tests green'. Preserve immutable receipts
+for the actual source/tool/image cohort, scenario and result. A hash inventory
+does not prove a test was run, and a driver summary is not its underlying receipt.
+SLSA's separation of build definition, dependencies, run details and produced
+subjects is useful vocabulary here; adopting it is not claiming a SLSA level or
+a trusted attestation infrastructure we do not have. [R21]
+
+Fault-injection mechanisms must be named in the receipt:
+  Host SIGKILL/stop       Actual child/process group owned by the sandbox runner
+  Approval cancellation  Actual fixture terminal/input stream and signing audit
+  Lost RPC acknowledgement Controlled proxy forwards to chain then drops reply
+  Disk full/readonly     Bounded isolated guest filesystem, never fill host disk
+  fsync error           Modeled adapter fault OR qualified guest/block fault;
+                        disk-full testing alone does not prove power-loss safety
+  Daemon partial create Dedicated disposable daemon/guest with real engine fault
+  Network exhaustion    Isolated engine address pool, not workstation exhaustion
+  Reorg/mining delay    Pinned local chain controls and independent receipt reads
+  Stale hosted bytes    Mock hosting store under sandbox ownership
+  Unsupported fault    Explicit NOT-RUN/limit, not a stub presented as real proof
+
+Each fault result says actually injected, modeled, or unsupported. Running the
+public Make target inside a disposable VM still exercises its normal host code;
+the VM is that test's host. It does not establish physical power-loss behavior
+or reproduce every public RPC/provider/chain implementation.
+
+17. Backup, portability and bounded compatibility
+------------------------------------------------
+INSTANCE is not an image cache. Back up its records under the writer lock or
+with a documented consistent snapshot: immutable intent/input/source originals,
+approval reference/audit, transaction identities, observations, verified outputs
+and local commit/version metadata. Include a digest inventory. Credential paths
+are references; export does not copy secret contents or signed capabilities.
+
+Restore into a fresh owner-only path and inspect read-only first. Revalidate
+hashes, schemas, supported tool closure, chain identity and present canonicality
+before permitting continuation. If original bytes are unavailable, report that
+limitation rather than silently rebuilding from newer upstream dependencies.
+An offline restoration promise requires retaining exact images/dependency bytes
+or an explicitly pinned local archive, not merely recording their digests.
+
+One local writer/host is the initial support boundary. Do not place mutable
+instances in NFS/cloud-sync shared folders and claim safe cross-host locking.
+Document and qualify local filesystem flush/rename/lock assumptions. A read-only
+status command need not run a filesystem qualification campaign. Multi-host
+control would be a different product requiring a real coordination authority.
+
+The network identity must distinguish ordinary public chains from recreated
+local chains sharing chainId 31337/31338. Fixture ownership/base identity and
+anchored state prevent an old artifact being treated as a fresh fixture merely
+because the numeric chain ID matches. Public verification remains bounded by
+the selected RPC/provider and stated confirmation assumptions.
+
+18. Migration with deletion, not permanent dual ownership
+---------------------------------------------------------
+This is a major refactor. Do not ship a directory rename as its completion.
+Each integration slice must establish one durable owner and delete its displaced
+path. Keep work isolated until the complete requested acceptance contract passes.
+
+A. Capture the existing operator journey as a RED regression.
+   Include the preparation failure, source/tool change and same-command resume.
+   Keep the current interrupted operator instance untouched by refactor tests.
+
+B. Establish the durable operation/attempt/effect model and native result seam.
+   Use original evidence fixtures and explicit missing/uncertain outcomes.
+   Replace directory/marker inference at the deciding owner, including partial
+   business initialization; do not make the marker a permanent parallel truth.
+
+C. Introduce the pinned host controller and its bootstrap.
+   Transfer locks/process/argv/env/resource lifetime and source selection into
+   the concrete owner. Delete corresponding Make macros, shell state globals and
+   Python selector transitions. Preserve narrowly scoped native jobs/grants.
+
+D. Establish source/tooling independence through actual saved-cohort execution.
+   Both current and recorded choices run without modifying the user's checkout.
+   Test matching dependency/compiler cohorts and explicit incompatibility.
+
+E. Move directories with their owner migrations.
+   Every import/path/mount/test changes coherently. No forwarding scripts,
+   aliases or copied policy remain merely to preserve the intermediate layout.
+   Existing public Make target names remain stable unless separately redesigned.
+
+F. Bring service/fixture/dependency lifecycle owners under the same principles.
+   Transfer only demonstrated shared mechanics. Keep observation/check/build
+   commands direct. No automatic new signing/clean-tree/state gates on reads.
+
+G. Qualify all three normal app release paths, partial/recovery paths, successive
+   UI updates, stale baseline refusal and source-publication independence.
+   Compare real receipts with independently declared intended effects; preserve
+   proof scopes and cleanup results. Complete the source hygiene/import absence
+   checks for displaced owners. No broad green from a constructor-only fixture.
+
+Legacy compatibility is concrete: enumerate actually supported formats/cohorts
+in their native reader tests. Completed originals stay byte-preserved. In-flight
+legacy attempts are reconciled before any conversion or remaining new approval.
+Do not add a generic version interpreter or claim all historical scripts are
+resumable. Rewriting the record may never erase evidence of a possible effect.
+
+Deletion targets in the final architecture:
+- Shell workflow bodies and recursive submake used to pass mutable state.
+- Conflicting host/Python/TS selectors or duplicated app enum/config rules.
+- Current-node_modules copied into an unrelated archived tool source.
+- Completion decisions based on directories, newest timestamps or console text.
+- Candidate/final paths whose trust depends on caller convention alone.
+- Separate fresh/full/update implementations of the same ordinary operation.
+- Cleanup policies shared between disposable fixtures and persistent services.
+- Artifact export as an accidental prerequisite for operations that can consume
+  an already admitted immutable artifact directly.
+
+19. What would falsify this recommendation?
+-------------------------------------------
+Reject Go if it becomes another wrapper while Bash/Python still decide effects,
+or if it duplicates CAM/ABI/receipt semantics already owned by TS/Solidity.
+The new language is earned only by removing a real ambiguous host control plane.
+
+Reconsider a TS-container core if a demonstrated tiny host adapter can supply
+locks/process/TTY/durable effects without any second transition owner, with
+materially less complexity and equally strong real-runtime proof.
+
+Reconsider SQLite/hosted coordination only for a demonstrated transactional or
+concurrent-writer invariant that the local file owner cannot express safely.
+SQLite on an unsupported filesystem is not a cure for filesystem assumptions.
+
+Reconsider Temporal if unattended long-lived/multi-operator remote workflows
+become an actual supported product. Its activity retries still need our effect
+identity, approval and reconciliation rules.
+
+Reconsider Antithesis as a qualified optional test backend after authorized
+access, successful workload integration and a real trajectory demonstrate value.
+Do not build a weaker imitation and market it as deterministic whole-system
+time travel. A portable restartable trajectory is valuable on its own.
+
+Do not force a new app into the design if adding it needs generic orchestration
+edits or a central list in multiple languages. That reveals a wrong boundary.
+Do not call the refactor complete if manual folder surgery, checkout switching
+or a fresh paid deployment is still the normal way to escape a recoverable fault.
+
+20. Peer discussion and decisions retained
+------------------------------------------
+Three independent read-only peers examined architecture, recovery/storage and
+skeptical alternatives, then challenged the draft and the exploration requirement.
+Their agreement is design input, not runtime qualification.
+
+Accepted challenges:
+- An include-file split is not structural safety. A typed controller must own
+  and replace the real host lifecycle, including TTY/FD/signal behavior.
+- Current bootstrap and recorded execution must not become two simultaneous
+  lifecycle owners; exec handoff selects one controller before workload locks.
+- Exact endpoint and interpolation admission are part of resource ownership;
+  an ambient Docker context or Compose .env cannot silently change the target.
+- The initial Bash-first recommendation was too conservative for the requested
+  ideal end state. A pinned-Docker-built host binary is a legitimate explicit
+  bootstrap product, provided it removes rather than wraps transition owners.
+- Filesystem state is sufficient here only with an explicit local commit/lock
+  contract. Remote effects remain uncertain independently of that local commit.
+- Independent verified creations must survive later initialization failure.
+- Historical verified facts, current observations and new intent stay distinct.
+- The command registry cannot be copied into Go, TS and Compose. Make target
+  declarations are executable trusted code, not a runtime metadata DSL.
+- Antithesis is a real near-match for the requested agent exploration, while
+  Anvil snapshots, rr and TCP fault proxies solve narrower problems.
+- A correctly blocked unknown outcome can satisfy a safety test; known risk is
+  not synonymous with every observed timeout and cannot hide an actual failure.
+
+Rejected or bounded suggestions:
+- Universal command engine, event-sourcing framework and mandatory receipt/log
+  schema for every simple check: no current necessity.
+- SQLite or an external workflow service as an automatic reliability cure:
+  they do not remove cross-system transaction uncertainty.
+- Preserve all old tool behavior forever: support actual cohorts explicitly,
+  reconcile originals, and fail concretely when restoration is unsupported.
+- Fault-control flags in production deployment code: use a separately confined
+  harness and effect-boundary faults; no production test bypasses.
+
+21. Research references and interpretation limits
+------------------------------------------------
+Primary documentation inspected on 2026-10-30. References support the named
+mechanisms; recommendations and repository adaptations above are design choices.
+No software was installed, account acquired or external service provisioned.
+
+[R1] XDG base-directory specification: configuration, data, state, cache/runtime.
+https://specifications.freedesktop.org/basedir/latest/
+
+[R2] Ethereum JSON-RPC receipt/transaction/block APIs; EIP-1898 block references.
+https://ethereum.org/developers/docs/apis/json-rpc/
+https://eips.ethereum.org/EIPS/eip-1898
+
+[R3] Docker project/network ownership, actual readiness and down semantics.
+https://docs.docker.com/compose/how-tos/project-name/
+https://docs.docker.com/reference/compose-file/networks/
+https://docs.docker.com/compose/how-tos/startup-order/
+https://docs.docker.com/reference/cli/docker/compose/down/
+https://docs.docker.com/engine/security/
+
+[R4] Compose per-service secrets and separate build secret mounts.
+https://docs.docker.com/compose/how-tos/use-secrets/
+https://docs.docker.com/build/building/secrets/
+
+[R5] SQLite atomic commit and WAL; guarantees and filesystem restrictions.
+https://www.sqlite.org/atomiccommit.html
+https://www.sqlite.org/wal.html
+
+[R6] Temporal workflow replay and activity execution are distinct mechanisms.
+https://docs.temporal.io/workflow-execution
+https://docs.temporal.io/activity-execution
+https://docs.temporal.io/workflow-definition
+
+[R7] Terraform reviewed plan/apply, state and lock ownership.
+https://developer.hashicorp.com/terraform/intro/core-workflow
+https://developer.hashicorp.com/terraform/language/state
+
+[R8] Dagger typed modules and Nix flake interface/environment packaging.
+https://docs.dagger.io/reference/sdks/
+https://nix.dev/manual/nix/stable/command-ref/new-cli/nix3-flake.html
+
+[R9] EIP-1193 provider requests and EIP-6963 provider discovery, not provenance.
+https://eips.ethereum.org/EIPS/eip-1193
+https://eips.ethereum.org/EIPS/eip-6963
+
+[R10] Go module layout and explicit process API; no implicit shell expansion.
+https://go.dev/doc/modules/layout
+https://pkg.go.dev/os/exec
+
+[R11] Docker attach, terminal/signal behavior and container process boundaries.
+https://docs.docker.com/reference/cli/docker/container/attach/
+
+[R12] Antithesis rewind/branch, agent access, execution environment and API.
+https://antithesis.com/docs/product/debugging/
+https://antithesis.com/blog/2026/time-traveling-agents/
+https://antithesis.com/docs/reference/rest_api/
+https://antithesis.com/docs/setup/overview/
+
+[R13] FoundationDB's purpose-built deterministic simulation and testing.
+https://github.com/apple/foundationdb/blob/main/documentation/sphinx/source/testing.rst
+https://www.foundationdb.org/files/fdb-paper.pdf
+
+[R14] rr process record/replay and reverse debugging.
+https://rr-project.org/
+
+[R15] Toxiproxy TCP fault controls and limitations of that scope.
+https://github.com/Shopify/toxiproxy/blob/main/README.md
+
+[R16] Jepsen client/fault/history/checker separation.
+https://github.com/jepsen-io/jepsen
+https://jepsen.io/learn/nemesis
+
+[R17] Hypothesis generation/minimization of stateful action sequences.
+https://hypothesis.readthedocs.io/en/latest/stateful.html
+
+[R18] Go testing/synctest and its controlled concurrency/time boundary.
+https://go.dev/blog/testing-time
+
+[R19] Foundry Anvil state/mining controls; EVM snapshots are not host snapshots.
+https://www.getfoundry.sh/anvil/index.html
+https://getfoundry.sh/anvil/reference/
+
+[R20] TLA+ safety checking and counterexample traces.
+https://docs.tlapl.us/creating:safety
+https://lamport.org/tla/proving-safety.pdf
+
+[R21] SLSA provenance separation: build definition, dependencies, run and subjects.
+https://slsa.dev/provenance/v1
+
+[R22] Go module/toolchain selection; disable implicit toolchain downloads.
+https://go.dev/ref/mod
+https://go.dev/doc/toolchain
+
+[R23] Whole-guest checkpoint mechanisms and external-resource limitations.
+https://www.qemu.org/docs/master/system/images
+https://www.qemu.org/docs/master/system/monitor.html
+https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md
+
+Related: retry identity and semantic equivalence rather than blind repetition.
+https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/
+https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/
+
+SOURCE_DATE_EPOCH is relevant to reproducible exported tool/source products, not
+an instruction to hide actual operation time in runtime observations.
+https://reproducible-builds.org/docs/source-date-epoch/
