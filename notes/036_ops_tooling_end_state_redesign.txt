@@ -12,7 +12,7 @@ where explicitly stated below. Historical deployment evidence remains intact.
 Executive decision
 ------------------
 Make remains the supported operator entrypoint. Consequential workflow policy
-moves out of Make/shell into one typed host controller. Prefer a small Go
+moves out of Make/shell into one typed host controller. Use a small Go
 executable built offline in pinned Docker, then executed on the host. It owns
 host processes, operation selection, resource ownership and recovery sequencing;
 it does not become an EVM client, ABI interpreter or CAM semantic validator.
@@ -42,6 +42,36 @@ Reading map: sections 1-3 state requirements/evidence/alternatives; 4-7 define
 code and execution boundaries; 8-12 define storage/source/effect recovery;
 13-16 cover interactive exploration and proof; 17-20 cover migration/decisions.
 The trees are an end-state ownership model, not instructions to create scaffolds.
+
+Accepted language split (2026-10-30)
+-----------------------------------
+Go owns shared process execution, recording/storage/recovery mechanics and common
+execution/architecture policy. There is one policy owner across applications;
+language frontends do not decide which dependencies or capabilities are allowed.
+
+Native analyzers own language meaning: parsing, import/symbol resolution and
+reporting source facts with locations. The TypeScript compiler remains the
+authority for TypeScript symbols. Python's AST and Go's compiler tooling serve
+their respective languages when concrete consumers require those frontends.
+Make/shell analysis must state what it can establish; no regex fallback claims
+semantic coverage. Do not add a universal parser or rewrite existing checks just
+to make their implementation language uniform.
+
+This common policy concerns execution and architecture, not CAM business rules.
+Existing TS jobs and Solidity still own ABI/app/contract admission, independent
+approval intent and source-native verification. Go must not duplicate those facts
+or become a generic ABI interpreter. HTML/JS presents recorded outcomes only.
+
+Execution location follows authority, not implementation language. The operational
+controller runs on the host to own host processes and Docker; it is built offline
+in pinned Docker without a host Go compiler. Repo checks run inside secured
+offline containers, without operator secrets or a Docker socket. A Go policy
+binary may run there alongside pinned language frontends; it does not require
+nested Docker. Build artifacts identify their target OS/architecture explicitly.
+
+This is the accepted end state, not an implemented Go controller or multi-language
+checker. Note 037 section 17 owns the concrete cutover plan from the current JS
+checker, including deletion of its policy logic when Go takes authority.
 
 1. Completion contract
 ----------------------

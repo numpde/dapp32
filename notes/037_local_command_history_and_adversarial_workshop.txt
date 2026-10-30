@@ -684,13 +684,14 @@ callers do not recreate launches or workflows beside it. Recording belongs at
 that boundary. Static checks enforce permitted routes/dependencies; an actual
 execution test establishes that the route records what it does.
 
-Put the architecture suite in:
-  tests/checks/test_execution_ownership.py
-
-This is a planned file, not an existing check. Use the existing standard-library
-Python unittest/checks lane. Keep rule examples inline initially; add separate
-fixture files only when their shape warrants it. Do not place structural checks
-under checks/text unless their actual mechanism is brittle textual matching.
+Language split: note 036's accepted decision makes Go the common execution and
+architecture policy owner, with native analyzers supplying facts. The earlier
+tests/checks/test_execution_ownership.py placement was provisional: do not create
+that Python wrapper or duplicate policy merely to preserve a filename. Common
+policy tests belong beside their Go owner; native analyzer tests belong beside
+their frontend. Existing standard-library Python repo checks retain their own
+useful scope. Structural rules do not belong in checks/text unless they actually
+rely on brittle textual matching.
 
 Step A: identify and expose the real ownership boundary.
   Define common role contracts and the actual host executor/process boundary,
@@ -754,7 +755,7 @@ Step E: prove recording through actual execution.
   was called, persisted its result or observed the intended external effect.
 
 Step F: wire the gates into ordinary commands and commit by slice.
-  test_execution_ownership.py is automatically discovered by make tests/checks.
+  Existing Python checks remain automatically discovered by make tests/checks.
   Native offline parser/executor tests join the offline CI path. The supported-
   command disposable integration joins make tests through its scoped lane;
   make ci remains offline. Static checks stay offline; disposable-chain
@@ -799,6 +800,103 @@ Implemented common foundation (2026-10-30):
   adapter violations without ambient reads/launches and role-based discovery in
   an arbitrarily named directory. This does not implement Make dispatch, a
   shared host executor, command history or repo-wide execution supervision.
+
+Go/native-analyzer cutover plan
+-------------------------------
+Completion contract:
+  One Go owner decides common roles, allowed dependency directions, capability
+  permissions and resulting findings. Native frontends report language facts;
+  Make and presentation do not contain another copy of those rules. Existing
+  CAM/ABI/contract semantic owners remain unchanged, as specified in note 036.
+
+1. Establish the smallest common analysis handoff.
+   Go owns source discovery and the declared analysis scope, derived from real
+   workspace/source structure rather than an application enrollment list.
+   A native frontend receives its assigned source inventory and reports modules,
+   resolved dependency targets, resolved capability uses and source locations.
+   Native mapping of a symbol such as Node process.env to an ambient-input
+   capability is language knowledge. Deciding whether a core may use it is Go
+   policy. Frontends do not emit allowed/forbidden decisions or rule findings.
+   Role interpretation, package-boundary permission and graph traversal policy
+   move to Go; do not leave them hidden in TypeScript discovery/filter helpers.
+
+   Define only the facts consumed by the current ownership rules. Use a bounded
+   versioned JSON handoff, not a general compiler IR, plugin engine or graph DSL.
+   Join reports to the actual staged candidate bytes and pinned analyzer/build
+   identity. Go requires coverage of the assigned inventory. Missing, stale,
+   unsupported or unparsable reports block the check; an empty report is not a
+   clean bill of health. Unsupported language forms remain explicit limits.
+   Facts describe source; they never authorize runtime effects or transactions.
+
+2. Move the complete CURRENT ownership policy to Go in one cutover.
+   Keep the working JS checker authoritative until the integrated replacement is
+   ready. Implement the Go policy and native TS facts frontend on the working
+   branch, move all current decisions, and run their acceptance cases together.
+   Before switching ordinary CI, delete the JS role/permission/verdict logic.
+   A private comparison during development can provide evidence; it is not a
+   second production authority, fallback or permanent shadow policy engine.
+   Do not merge a Go pass-through that merely trusts JS violations, or a JS
+   launcher plus duplicate Go/JS permission tables. No per-family policy forks.
+
+   Evolve js/tools/execution-ownership.test.mjs into native extraction tests and
+   black-box policy tests as appropriate; do not preserve its current structure
+   for sunk-cost reasons. Ordinary checking enters Go, which requests native
+   facts and evaluates them; the frontend does not call back into Go to select
+   rules or orchestrate the check. Common policy and process/storage primitives
+   live in the one ops/ Go module proposed by 036. Create packages only when this
+   cutover provides their real caller. No host Go/Node/Python installation is
+   assumed, no new dependencies are added merely for abstraction symmetry.
+
+3. Keep analysis and operational runtime grants separate.
+   Build the Go binary offline in a pinned builder, with source/tool inputs and
+   target platform recorded. Cache reuse is keyed to those actual inputs, not a
+   mutable tag or checkout HEAD alone. The checks consume a Linux binary and
+   pinned native frontend through an explicit read-only artifact boundary in
+   the existing secured Node posture, extended only as required for that job.
+   The checker has no Docker socket, signing configuration or external network.
+   Go can launch the packaged analyzer inside that container; no nested Docker.
+   A native analyzer may intrinsically start a compiler backend, as the current
+   TypeScript API does. It remains inside that declared analysis job's lifetime;
+   Go owns job/process-group cancellation and cleanup. This is not permission
+   for a frontend to add operation orchestration, nor a claim that Go individually
+   observes every compiler-internal exec. Coverage must retain that distinction.
+   Compile/output scratch stays bounded and container-local. Do not turn the
+   standard-library Python checks image into a multi-runtime tool installation.
+
+   The later operational host controller uses the same Go ownership model but
+   has explicit process/Docker authority. That is a separate grant, not something
+   the read-only checker inherits because both are Go. Additional native language
+   frontends are introduced for actual rules/consumers, not installed speculatively.
+
+4. Prove the split and retain the supported entrypoint.
+   Preserve make js/execution/check as the focused operator interface while its
+   implementation changes. Normal tests invoke the same common policy command.
+   Policy tests feed known facts to Go; frontend tests assert extracted native
+   facts, including aliases, computed properties, local shadows and re-exports.
+   Put shared cross-language source/fact cases under tests/fixtures/, not inside
+   one package's test exports. A same-law case in different languages must reach
+   the same Go rule rather than duplicate expected policies in each frontend.
+
+   Gate the cutover with the real current tool graph, forbidden dependency and
+   ambient-input examples, a normal new role-bearing module, an unsupported
+   source form, missing module coverage and a mismatched report/candidate.
+   Assert the independent expected findings; do not generate expectations from
+   the analyzer or policy under test. Native language parsing does not itself
+   prove completeness, and policy tests do not prove the Make-to-checker wiring.
+   Verify that old JS permission/verdict code and family-specific paths are gone.
+
+5. Then use the Go execution owner for recording and operational commands.
+   Implement shared process/store primitives with a real ordinary-command
+   consumer, recording before new subject work and preserving existing cleanup
+   and unknown-effect laws. Full workflows compose the same ordinary operations.
+   Move consumers and delete displaced host orchestration together; do not keep
+   a Go outer wrapper while Bash/Python still decide the same transitions.
+   Preserve native TS/Solidity semantic jobs and independent approval boundaries.
+   No production/Fuji effect is part of this documentation or analyzer cutover.
+
+Current status: the language split and this cutover plan are recorded. The JS
+checker remains the only implemented ownership policy. No Go module, analyzer
+handoff, binary mount, controller or command-history feature is claimed complete.
 
 18. Focused acceptance and scope limits
 ----------------------------------------
