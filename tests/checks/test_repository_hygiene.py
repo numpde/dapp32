@@ -29,6 +29,7 @@ ALLOWED_FORBIDDEN_NAME_LITERALS = (
     "https://raw.githubusercontent.com/numpde/dapp" + "32/",
     "https://github.com/numpde/dapp" + "32/blob/",
     "https://github.com/numpde/dapp" + "32/tree/",
+    "https://github.com/numpde/dapp" + "32/commit/",
     # Preserve this captured evidence filename; it is not a product label.
     "/tmp/dapp" + "32-multiparty-fields-20261012/movie-final-state.json",
 )

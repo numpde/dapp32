@@ -35,13 +35,12 @@ ROOT_WORKSPACES = [
     "apps/cam-web",
 ]
 ROOT_WORKSPACE_SCRIPTS = {
-    "test:execution-ownership": "node --test tools/execution-ownership.test.mjs",
     "build:packages": "npm run build --workspace packages",
     "build:workspace": "npm run build --workspaces --if-present",
     "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/conformance",
     "test:cam-conformance": "npm run build:cam-conformance && npm test -w @cam/conformance",
     "test:workspace": "npm run build:workspace && npm test --workspaces --if-present && npm run test:scenario-tools",
-    "test:scenario-tools": "tsc -p tools/pay-to-play-vouchers/tsconfig.json && tsc -p tools/pay-to-play-local-scenario/tsconfig.json && tsc -p tools/escrow-local-scenario/tsconfig.json && tsc -p tools/cam-publication-preflight/tsconfig.json && tsc -p tools/release-rehearsal/tsconfig.json && tsc -p tools/release-approval/tsconfig.json && node --test --experimental-strip-types tools/pay-to-play-vouchers/*.test.ts tools/pay-to-play-local-scenario/runner.test.ts tools/escrow-local-scenario/runner.test.ts tools/cam-publication-preflight/*.test.ts tools/release-rehearsal/*.test.ts tools/release-approval/*.test.ts && node --test tools/workspace-graph.test.mjs && npm run test:execution-ownership",
+    "test:scenario-tools": "tsc -p tools/pay-to-play-vouchers/tsconfig.json && tsc -p tools/pay-to-play-local-scenario/tsconfig.json && tsc -p tools/escrow-local-scenario/tsconfig.json && tsc -p tools/cam-publication-preflight/tsconfig.json && tsc -p tools/release-rehearsal/tsconfig.json && tsc -p tools/release-approval/tsconfig.json && node --test --experimental-strip-types tools/pay-to-play-vouchers/*.test.ts tools/pay-to-play-local-scenario/runner.test.ts tools/escrow-local-scenario/runner.test.ts tools/cam-publication-preflight/*.test.ts tools/release-rehearsal/*.test.ts tools/release-approval/*.test.ts && node --test tools/workspace-graph.test.mjs",
     "test:refund-tools": "tsc -p tools/pay-to-play-refunds/tsconfig.json && node --test --experimental-strip-types tools/pay-to-play-refunds/*.test.ts",
 }
 LIBRARY_PACKAGE_SCRIPTS = {

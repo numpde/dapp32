@@ -791,15 +791,15 @@ Implemented common foundation (2026-10-30):
   Built workspace packages are their own boundary, discovered from the workspace
   manifest; their internals are not scanned. Unreachable differently named tool
   modules, Make/shell code and other languages are not implicitly classified.
-  Native analysis belongs in the existing offline JS test runtime; the Python
-  lane cannot parse TypeScript semantically. No duplicate Python check was added.
-  The sole npm test:execution-ownership command runs through ordinary js/tests
-  and js/ci. make js/execution/check supplies focused offline validation using
-  the existing package-test service. Release-specific invocations were removed.
-  Focused validation passed all 33 checker tests, including independent core-to-
-  adapter violations without ambient reads/launches and role-based discovery in
-  an arbitrarily named directory. This does not implement Make dispatch, a
-  shared host executor, command history or repo-wide execution supervision.
+  Native TypeScript analysis emits facts to the Go policy in ops/. The former
+  JS policy and its npm command have been deleted. make js/execution/check uses
+  a dedicated offline container and remains a prerequisite of js/tests/js/ci.
+  Python checks inspect the rendered runtime grants; they do not parse TypeScript
+  or repeat ownership policy. Release-specific invocations remain removed.
+  Source acceptance cases live in tests/fixtures/execution-ownership and run
+  through native analysis and Go policy. Go policy tests separately cover report
+  admission, roles, capabilities and source locations. This does not implement
+  Make dispatch, a host executor, command history or execution supervision.
 
 Go/native-analyzer cutover plan
 -------------------------------
@@ -894,9 +894,25 @@ Completion contract:
    Preserve native TS/Solidity semantic jobs and independent approval boundaries.
    No production/Fuji effect is part of this documentation or analyzer cutover.
 
-Current status: the language split and this cutover plan are recorded. The JS
-checker remains the only implemented ownership policy. No Go module, analyzer
-handoff, binary mount, controller or command-history feature is claimed complete.
+Current status: the complete existing JS/TS ownership policy has moved to Go.
+Go discovers the source cohort, requests native facts and owns report admission,
+role discovery, dependency traversal, capability permissions and findings. The
+TypeScript frontend owns syntax, symbols, resolved imports and capability facts;
+it emits no verdicts. Source digests, request digest, frontend digest, compiler
+version and complete inventory join the report to its requested inputs.
+
+The checker stages read-only source into container tmpfs, compiles Go offline
+with a pinned SDK, runs its tests, then checks the real tool graph. This compiles
+the actual staged policy rather than trusting an independently cached binary.
+No host Go installation, Docker socket, operator secrets or external network is
+granted. ops/format has a separate, explicit write grant to ops/ only.
+
+Focused qualification covers the shared source cases, malformed/stale report
+rejection, the real tool graph, bounded subprocess output and cancellation of a
+native backend child. The overflow witness caught a promoted bytes.Buffer method
+that bypassed Write; the adapter now keeps its buffer private. Rendered Compose
+checks pin the checker and formatter grants. The host controller, operational
+recording/recovery and additional language frontends remain unimplemented.
 
 18. Focused acceptance and scope limits
 ----------------------------------------

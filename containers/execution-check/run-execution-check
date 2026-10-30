@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+cp -R /input/ops/. /work/ops/
+npm run build:packages
+cd /work/ops
+unformatted_go=$(gofmt -l cmd internal)
+if [ -n "$unformatted_go" ]; then
+  printf 'Go source needs formatting; run make ops/format:\n%s\n' "$unformatted_go" >&2
+  exit 1
+fi
+go test -p 2 ./...
+go build -p 2 -trimpath -o /tmp/cam-ops ./cmd/cam-ops
+exec /tmp/cam-ops check /work/js

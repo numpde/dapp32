@@ -1,0 +1,44 @@
+# Common policy and native analysis, offline with no engine/signing authority.
+services:
+  execution-check:
+    extends:
+      file: fragments/node-workspace.yml
+      service: offline-node-workspace
+    build:
+      context: ../containers/execution-check
+      dockerfile: Dockerfile
+      network: none
+      additional_contexts:
+        node-workspace: ../containers/node-deps
+    working_dir: /work/js
+    init: true
+    cpus: 2
+    environment:
+      GOTOOLCHAIN: local
+      GOPROXY: "off"
+      GOSUMDB: "off"
+      CGO_ENABLED: "0"
+      GOCACHE: /tmp/go-cache
+      GOMODCACHE: /tmp/go-modules
+      GOMAXPROCS: "2"
+      CAM_ANALYZER_WORKSPACE: /work/js
+      CAM_EXECUTION_CASES: /input/execution-cases/cases.json
+    volumes:
+      - ../js:/input/js:ro
+      - ../js/node_modules:/work/js/node_modules:ro
+      - ../ops:/input/ops:ro
+      - ../tests/fixtures/execution-ownership:/input/execution-cases:ro
+    tmpfs: !override
+      - /tmp:rw,nosuid,nodev,exec,size=768m
+      - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+      - /work/ops:rw,exec,nosuid,nodev,size=64m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+    command: [run-js-workspace, run-execution-check]
+  execution-format:
+    extends:
+      service: execution-check
+    working_dir: /work/ops
+    volumes: !override
+      - ../ops:/work/ops
+    tmpfs: !override
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    command: [gofmt, -w, cmd, internal]

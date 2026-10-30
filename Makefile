@@ -781,6 +781,7 @@ help:
 	  '  make dapps/tests/coverage        Run Solidity unit/scenario tests and print source coverage.' \
 	  '  make js/tests                   Build, typecheck and test JS workspace packages and apps offline.' \
 	  '  make js/execution/check         Check operation-core input and execution boundaries offline.' \
+	  '  make ops/format                 Format the Go operations source offline.' \
 	  '  make js/ci                      Run js/tests plus the terminal, publication, fuzz and release/refund tool checks.' \
 	  '  make cam/conformance/check      Check local CAM manifests and their ABI/UI resources against protocol rules.' \
 	  '  make viewer/terminal/check      Test the terminal viewer with simulated contract responses offline.' \
@@ -1272,10 +1273,17 @@ js/compiler/qualify:
 	$(call compose_run_with_package_deps,packages.yml,package-test run-js-workspace node tools/compiler-qualification.mjs)
 
 .PHONY: js/execution/check
+OPS_SOURCE_GUARD := if [[ ! -d ops || -L ops ]]; then printf '%s\n' 'Operations source must be the real ops directory in this checkout.' >&2; exit 2; fi
 js/execution/check:
-	$(call compose_run_with_package_deps,packages.yml,package-test run-js-workspace sh -eu -c 'npm run build:packages && npm run test:execution-ownership')
+	@$(OPS_SOURCE_GUARD)
+	$(call compose_run_with_package_deps,execution-check.yml,execution-check)
 
-js/tests:
+.PHONY: ops/format
+ops/format:
+	@$(OPS_SOURCE_GUARD)
+	$(call compose_run,execution-check.yml,execution-format)
+
+js/tests: js/execution/check
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
 js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/release/check release/ui/check release/contracts/check release/cam/check pay-to-play/refunds/check

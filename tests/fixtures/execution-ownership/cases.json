@@ -1,0 +1,310 @@
+[
+  {
+    "name": "ambient-input-1",
+    "files": {
+      "tools/example/shared.ts": "export const input = process.env.CHAIN",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-2",
+    "files": {
+      "tools/example/shared.ts": "export const input = process['argv']",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-3",
+    "files": {
+      "tools/example/shared.ts": "const runtime = process; export const input = runtime.env",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-4",
+    "files": {
+      "tools/example/shared.ts": "const { env: settings } = process; export { settings }",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-5",
+    "files": {
+      "tools/example/shared.ts": "export const input = globalThis.process.env",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-6",
+    "files": {
+      "tools/example/shared.ts": "export const input = globalThis['process'].env",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-7",
+    "files": {
+      "tools/example/shared.ts": "const key = 'process'; export const input = globalThis[key].env",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-8",
+    "files": {
+      "tools/example/shared.ts": "import runtime from 'node:process'; export const input = runtime.env",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "ambient-input-9",
+    "files": {
+      "tools/example/shared.ts": "import { env as settings } from 'process'; export { settings }",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-1",
+    "files": {
+      "tools/example/shared.ts": "import { spawn as launch } from 'node:child_process'; export { launch }",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-2",
+    "files": {
+      "tools/example/shared.ts": "export { fork } from 'child_process'",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-3",
+    "files": {
+      "tools/example/shared.ts": "import * as workers from 'node:cluster'; export { workers }",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-4",
+    "files": {
+      "tools/example/shared.ts": "export { helper } from './helper.test.ts'",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-5",
+    "files": {
+      "tools/example/shared.ts": "export { helper } from './fixtures/helper.ts'",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-6",
+    "files": {
+      "tools/example/shared.ts": "export { helper } from './example-scenario/workload.ts'",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-7",
+    "files": {
+      "tools/example/shared.ts": "export const helper = import('./helper.ts')",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-8",
+    "files": {
+      "tools/example/shared.ts": "export const helper = import(process.env.MODULE!)",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-9",
+    "files": {
+      "tools/example/shared.ts": "const load = require; export const helper = load('./helper.ts')",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-10",
+    "files": {
+      "tools/example/shared.ts": "export const helper = module.require('child_process')",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-11",
+    "files": {
+      "tools/example/shared.ts": "export const helper = globalThis['require']('child_process')",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "execution-12",
+    "files": {
+      "tools/example/shared.ts": "import load = require('node:child_process'); export { load }",
+      "tools/example/helper.ts": "export const helper = 1",
+      "tools/example/helper.test.ts": "export const helper = 1",
+      "tools/example/fixtures/helper.ts": "export const helper = 1",
+      "tools/example/example-scenario/workload.ts": "export const helper = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "explicit-inputs-and-diagnostics",
+    "files": {
+      "tools/example/shared.ts": "import { choose } from \"./values.ts\"; export function plan(inputs: {env: string; argv: string[]}) { process.stderr.write(\"process.env\"); process.exitCode = 1; return choose(inputs.env, inputs.argv) }",
+      "tools/example/values.ts": "export function choose(env: string, argv: string[]) { return [env, argv] }"
+    },
+    "reject": false
+  },
+  {
+    "name": "local-process-shadow",
+    "files": {
+      "tools/example/shared.ts": "export function plan(process: {env: string}) { return process.env }"
+    },
+    "reject": false
+  },
+  {
+    "name": "local-loader-shadows",
+    "files": {
+      "tools/example/shared.ts": "export function plan(require: string, module: string, inputs: {require: boolean}) { return [require,module,inputs.require] }"
+    },
+    "reject": false
+  },
+  {
+    "name": "transitive-ambient",
+    "files": {
+      "tools/example/shared.ts": "export { plan } from './policy.ts'",
+      "tools/example/policy.ts": "export { plan } from './input.ts'",
+      "tools/example/input.ts": "export const plan = process.env.PLAN"
+    },
+    "reject": true
+  },
+  {
+    "name": "parse-failure",
+    "files": {
+      "tools/example/shared.ts": "export const = ;"
+    },
+    "error": true
+  },
+  {
+    "name": "adapter-main.ts",
+    "files": {
+      "tools/example/shared.ts": "export {plan} from './policy.ts'",
+      "tools/example/policy.ts": "export {plan} from './main.ts'",
+      "tools/example/main.ts": "export const plan = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "adapter-runner.ts",
+    "files": {
+      "tools/example/shared.ts": "export {plan} from './policy.ts'",
+      "tools/example/policy.ts": "export {plan} from './runner.ts'",
+      "tools/example/runner.ts": "export const plan = 1"
+    },
+    "reject": true
+  },
+  {
+    "name": "non-relative-/tmp/local-policy.ts",
+    "files": {
+      "tools/example/shared.ts": "export {plan} from '/tmp/local-policy.ts'"
+    },
+    "reject": true
+  },
+  {
+    "name": "non-relative-file:///tmp/local-policy.ts",
+    "files": {
+      "tools/example/shared.ts": "export {plan} from 'file:///tmp/local-policy.ts'"
+    },
+    "reject": true
+  },
+  {
+    "name": "non-relative-#local-policy",
+    "files": {
+      "tools/example/shared.ts": "export {plan} from '#local-policy'"
+    },
+    "reject": true
+  }
+]

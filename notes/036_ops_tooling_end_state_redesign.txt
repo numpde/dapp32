@@ -69,9 +69,9 @@ offline containers, without operator secrets or a Docker socket. A Go policy
 binary may run there alongside pinned language frontends; it does not require
 nested Docker. Build artifacts identify their target OS/architecture explicitly.
 
-This is the accepted end state, not an implemented Go controller or multi-language
-checker. Note 037 section 17 owns the concrete cutover plan from the current JS
-checker, including deletion of its policy logic when Go takes authority.
+The common ownership checker now uses Go policy with native TypeScript facts;
+note 037 section 17 records its bounded implementation and qualification. The
+operational Go controller and additional language frontends remain planned.
 
 1. Completion contract
 ----------------------
