@@ -1,0 +1,186 @@
+Make operation lifecycle workshop
+=================================
+
+Status: proposed pattern, not an implemented or qualified Make-wide migration.
+Scope: all supported Make targets, in proportion to the effects they own.
+Trigger: Fuji release preparation failed during Docker network reservation;
+resume confused preparation directories with a possibly executed deployment.
+After a tooling fix, the saved-source check blocked further execution from main.
+
+Completion contract
+-------------------
+Every command has an identifiable operation, selected inputs, observable result
+and honest failure/retry behavior. Effects and resources have explicit owners.
+Simple commands can express these facts directly without new objects or state
+files; an observation-only command normally just reports and can be rerun.
+
+Preparation files are not proof of execution. Process success is not proof of
+an external outcome, and process failure is not proof that nothing happened.
+Rerunning a command must either safely repeat it, reconcile its existing state,
+or explain which unresolved effect prevents continuation.
+
+Approaches considered
+---------------------
+1. Make prerequisites alone. Good for static dependencies and shared checks.
+   They do not own resources across an interactive command, persist effect
+   evidence or distinguish preparation failure from an uncertain submission.
+
+2. Self-contained recipes. Direct and appropriate for simple commands. Repeated
+   lifecycle logic across effectful commands is prone to ordering drift.
+
+3. One universal preflight. Offers a consistent entry gate, but can overcheck
+   unrelated facts or become stale before an effect. Checking free capacity
+   does not reserve it; reservation also requires ownership of its lifetime.
+
+4. One generic workflow runner. Can enforce common transitions, but introduces
+   adapters, state schemas and lifecycle costs for commands that need none.
+   There is no demonstrated need to replace the repository with such an engine.
+
+5. Shared rules, with small owners for repeated behavior within each family.
+   Selected. Keep simple recipes direct; reuse existing dependency, process,
+   Compose and release owners where their actual invariants are shared.
+
+Common sequence
+---------------
+Resolve intent -> prepare -> perform -> observe -> finish or recover.
+These are responsibilities, not mandatory functions, files or printed phases.
+
+Resolve intent:
+- Determine operation, project/instance, inputs and source selection before
+  making consequential changes. Respect the authority already granted.
+- Resolve saved work before asking for new settings. A tooling change must
+  not silently change the recorded deployment's contracts or constructors.
+- Prompt only for a real choice or a required effect approval. A noninteractive
+  command needs an explicit selection when alternatives are ambiguous.
+
+Prepare:
+- Validate raw input at its owner. Do not duplicate parsers or downstream
+  validation merely to produce another preflight pass.
+- Check only dependencies needed by the command. Pin source/tool identities
+  where reproducibility requires them.
+- Serialize invocations when they can conflict over shared state. Reserve only
+  the resources the selected operation needs, where reservation is possible.
+  Creating the required Docker networks is stronger evidence than counting
+  free subnets. An observation of a free port does not reserve that port.
+- Install cleanup ownership before allocating resources. Failed preparation
+  may leave retained diagnostics, but must remain distinguishable from effects.
+- Secure known local prerequisites for the next consequential phase before
+  requesting its final effect approval; preparation must not perform that effect
+  or exceed the authority already granted. Availability can still change;
+  the effect boundary must handle failures rather than trusting a stale check.
+
+Perform and observe:
+- The owning command does the work and produces the relevant evidence. Use
+  command output, staged bytes, health observations or transaction receipts
+  according to the effect. Do not impose receipts on ordinary read-only checks.
+- For possible external submissions, persist the attempt identity and enough
+  evidence to reconcile before losing control to a network or external process.
+- A transaction submission, mined receipt and source/runtime verification are
+  distinct facts. Service readiness likewise requires the intended live service,
+  not just successful process creation.
+- Observe with the existing owner; do not build a second interpretation of its
+  output or duplicate the business rules in a generic launcher.
+
+Finish or recover:
+- Report the completed outcome, any uncertain effects, retained records and the
+  next valid command. Preserve both primary failure and cleanup failure.
+- Stop and reap invocation-owned children before removing their mounted inputs.
+- Delete only owned temporary resources. Persistent service data, saved release
+  records and external/shared resources belong to their explicit owners.
+- Cleanup failure means resources may remain. Name them; do not claim cleanup
+  completed merely because teardown was attempted.
+
+Application by effect
+---------------------
+Read-only queries and checks:
+  Examples: viewer/status, dapps/deps/verify, tests/checks.
+  Validate relevant inputs, run and report. Rerun is normally recovery. Clean
+  Git, signing approval, journals and deployment prerequisites do not belong
+  here unless the particular operation demonstrates a need. Some tests own
+  disposable fixtures; those fixtures additionally use their lifecycle owner.
+
+Rebuildable outputs and generated repository files:
+  Examples: dependency materialization, ABI export, integrity refresh, builds.
+  Keep writers scoped to their expected paths. Stage and verify before publish
+  where partial replacement matters; use atomic replacement where applicable.
+  Explicit dependency installation owns network access and metadata updates.
+  If several files cannot be published atomically, reject the incomplete set
+  or retain a specific recovery path; never imply a multi-file atomic commit.
+
+Persistent service operations:
+  Examples: viewer/up, viewer/status, viewer/down, rpc/indexer/up.
+  Stable identity plus observed state governs up/status/down. Preserve service
+  data by default; deletion is an explicit documented operation. Disposable
+  demo targets may explicitly own deletion of their fixture volumes. They must
+  not supply the teardown policy for unrelated persistent services.
+
+External or irreversible operations:
+  Examples: contract deployment, CAM binding, hosted viewer replacement,
+  public source submission. These operations differ in approval requirements:
+  publishing sources requires no signing key. Each must distinguish
+  local preparation from its external effect and observe its actual result.
+  For signed releases, reconcile possibly submitted transactions before any
+  retry, and preserve verified component identity across later composition.
+
+Aggregation:
+  Examples: ci, tests, full app release.
+  Invoke ordinary operations without parallel implementations of their rules.
+  Define meaningful order and stop on failure. If a child commits an external
+  effect, aggregate failure must not misreport or automatically replay it.
+
+DRY / sources of truth
+---------------------
+Makefile: supported command names, documented purpose and explicit composition.
+Existing lane/operation owner: relevant guards, resource identity, sequencing,
+process lifetime and recovery. Extract only demonstrated repeated rules.
+Compose: concrete mounts, networks, service identities, limits and secrets.
+Native producer/verifier: semantic output and component-specific admission.
+Retained evidence or live service state: what actually happened.
+
+Do not add a second target inventory or an all-purpose command-description
+schema. Derive target discovery from Make and inspect rendered Compose where
+that is the authority. Tests should execute the owner rather than mirror shell
+text whenever the behavior can be witnessed directly.
+
+Release source/tooling choice
+----------------------------
+At selection of a saved operation, offer current or recorded orchestration
+when their commits differ. Show exact identities. Do not switch the user's
+checkout. Recorded execution uses an owned isolated workspace.
+
+Both choices preserve original contract sources, settings, component artifacts
+and approval requirements. Record which orchestration ran. Do not silently
+replace an unavailable recorded tool. A new source or transaction intent is a
+new explicit selection, not a tooling preference. Unsupported historical inputs
+must fail before signing with a concrete reason.
+
+This separation is not complete today: ordinary deployment couples archived
+sources and several execution tools. Keyless artifact completion already has
+separate application-source and tool-source inputs, but does not prove ordinary
+deployment can safely exchange all planners, verifiers or approval builders.
+
+Proof and rollout
+-----------------
+First repair the demonstrated shared release lifecycle, including the source
+selection problem. Then apply the same review questions to other families when
+there is a concrete gap. Do not mass-rewrite targets just to match a template.
+
+For consequential lifecycle changes, run the supported operator entrypoint in a
+disposable environment. Exercise success and interruption at the changed effect
+boundaries. Fake shell tests are useful regressions but do not establish
+operational end-to-end completion. Routine checks and local edits need only the
+focused proof of their changed invariant, not an unrelated deployment campaign.
+
+The release acceptance case is the user's journey: prepare an instance, fail
+network allocation before signing, retain work, change orchestration, select
+current or recorded execution, resume from main, and complete normal business,
+UI and CAM composition. Also interrupt after submission and after mining but
+before artifact publication. Prove transaction identities are reconciled rather
+than repeated, original inputs remain intact, and owned resources are removed.
+Use a disposable chain; qualification requires no Fuji writes.
+
+The shared owner needs a full boundary witness; each app needs evidence that its
+ordinary entrypoint actually uses that owner and preserves app-specific intent.
+Passing one app or counting unrelated tests does not prove the other wiring.
+Report the commands and scenarios that ran, with remaining limits. Do not label
+focused component tests as full operational qualification.
