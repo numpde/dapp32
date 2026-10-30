@@ -135,7 +135,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Add money to your balance in this channel so it is available for later payments or withdrawal. Depositing does not pay the recipient or sign a voucher."
+                "text": "The balance owner can add funds to this account in this channel for later payments or withdrawal. Depositing does not pay the recipient or sign a voucher."
               }
             },
             {
@@ -744,7 +744,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs opens the balance without those drafts."
+                "text": "Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs returns to the balance without those drafts."
               }
             },
             {
@@ -978,7 +978,7 @@
       ],
       "element": "Screen",
       "props": {
-        "title": "Open a balance"
+        "title": "View a balance"
       },
       "children": [
         {
@@ -1088,7 +1088,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Use this to open your own balance or inspect someone else’s. The account and channel identify the funds; your connected wallet determines your permissions."
+            "text": "Enter an account address and channel ID to view the balance. Your connected wallet determines which actions you can take."
           }
         },
         {
@@ -1121,7 +1121,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Open balance"
+            "label": "View balance"
           },
           "call": {
             "namespace": "routes",
@@ -1150,7 +1150,7 @@
         {
           "element": "Screen",
           "props": {
-            "title": "Open a balance"
+            "title": "View a balance"
           },
           "children": [
             {
@@ -1751,7 +1751,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "The confirmed transaction created this channel. Use its recorded ID to open your balance in it; creating a channel does not deposit any funds."
+            "text": "The confirmed transaction created this channel. Use its recorded ID to view a balance in it; creating a channel does not deposit any funds."
           }
         },
         {
@@ -1771,7 +1771,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Open this channel"
+            "label": "View balance in this channel"
           },
           "call": {
             "namespace": "routes",

@@ -219,11 +219,11 @@ test("every read destination retains the application heading above its task", as
   await session.load()
   const inputs = { customer, channelId: "1", cumulativeTotal: "20", invoiceHash }
   const titles: Record<string, readonly string[]> = {
-    home: ["Open a balance", "Create a channel (admin only)"],
+    home: ["View a balance", "Create a channel (admin only)"],
     position: ["Account and channel", "Position status", "Balance overview", "Channel", "Deposit", "Withdraw or move funds", "Voucher signing key", "Voucher payments", "Channel settings"],
     voucherDigest: ["Account and channel", "Voucher signing details"],
-    channelLookup: ["Open a balance"],
-    choosePosition: ["Open a balance", "Create a channel (admin only)"],
+    channelLookup: ["View a balance"],
+    choosePosition: ["View a balance", "Create a channel (admin only)"],
     recovery: ["Account and channel", "Position status", "Balance recovery", "Retire this channel"],
   }
   for (const [route, declaration] of Object.entries(cam.routes)) {
@@ -346,7 +346,7 @@ test("opening a balance and creating a channel are peer tasks with separate cont
     assert.equal(tasks?.element, "Fragment")
     const [lookup, creation] = tasks.children
     assert.equal(lookup?.element, "Screen")
-    assert.equal(lookup.props.title, "Open a balance")
+    assert.equal(lookup.props.title, "View a balance")
     assert.deepEqual(resolvedUiButtons(lookup).map(button => button.call.function), ["position"])
     assert.equal(creation?.element, "Screen")
     assert.equal(creation.props.title, "Create a channel (admin only)")
@@ -749,7 +749,7 @@ function presentationFacts(ui: ResolvedUiNode): Record<string, unknown> {
   return facts
 }
 
-test("creation receipt exposes its actual ID and opens that channel, independently of the displayed count", async () => {
+test("creation receipt exposes its actual ID and views its balance, independently of the displayed count", async () => {
   const { session } = await fixture()
   await session.load()
   await session.setAccount({ address: other })

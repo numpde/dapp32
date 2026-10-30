@@ -85,7 +85,7 @@ account; it does not change the owner of an already-opened balance.
 
 ## Use the app
 
-Choose the balance owner and existing channel ID, then **Open balance**. This is
+Choose the balance owner and existing channel ID, then **View balance**. This is
 a read. The opened owner/channel remain fixed across wallet changes. For
 example, opening Alice's position and connecting Bob's wallet does not turn it
 into Bob's balance. Owner-only controls become unavailable, while permitted

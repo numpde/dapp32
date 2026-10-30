@@ -253,12 +253,12 @@ async function inspect(customer, channelId) {
   if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) {
     await click('Change account or channel')
     await wait(state => state.readRoute === 'choosePosition', 'context-preserving chooser')
-    await assertHierarchy('choosePosition', ['Open a balance', 'Create a channel (admin only)'], [])
+    await assertHierarchy('choosePosition', ['View a balance', 'Create a channel (admin only)'], [])
   }
-  await wait(state => state.buttons.some(button => button.name === 'Open balance'), 'balance chooser')
+  await wait(state => state.buttons.some(button => button.name === 'View balance'), 'balance chooser')
   await fill('lookupCustomer', customer)
   await fill('lookupChannelId', channelId)
-  await click('Open balance')
+  await click('View balance')
   await wait(state => state.values['Balance owner']?.toLowerCase() === customer.toLowerCase() && state.values['Channel ID'] === channelId, 'position lookup')
 }
 async function role(name) {
@@ -285,7 +285,7 @@ try {
   await call('Page.navigate', { url: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
-  await assertHierarchy('home', ['Open a balance', 'Create a channel (admin only)'], [])
+  await assertHierarchy('home', ['View a balance', 'Create a channel (admin only)'], [])
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Reconnect wallet'), 'wallet connection')
   await fill('newPayee', accounts.recipient.address)
@@ -294,9 +294,9 @@ try {
   const { result: simulatedId } = await publicClient.simulateContract({ address: payments, abi, functionName: 'createChannel', args: [accounts.recipient.address, accounts.relayer.address, 60n], account: accounts.admin.address })
   interleaveCreation = true
   await send('Create channel')
-  const lookup = await wait(state => state.readRoute === 'channelLookup' && state.tasks.includes('Open a balance') && state.fields.includes('lookupChannelId'), 'creation receipt lookup')
+  const lookup = await wait(state => state.readRoute === 'channelLookup' && state.tasks.includes('View a balance') && state.fields.includes('lookupChannelId'), 'creation receipt lookup')
   assert(!lookup.buttons.some(button => button.name === 'Create channel'), 'receipt lookup must not repeat the channel creation form')
-  await assertHierarchy('channelLookup', ['Open a balance'], [])
+  await assertHierarchy('channelLookup', ['View a balance'], [])
   assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')
   const receipt = await publicClient.getTransactionReceipt({ hash: lastHash })
   const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && decodeEventLog({ abi, ...log }).eventName === 'ChannelCreated')
@@ -309,7 +309,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 900, deviceScaleFactor: 1, mobile: false })
   assert(!(await evaluate(snapshot)).overflow, 'created channel facts and handoff fit a narrow viewport')
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  await click('Open this channel')
+  await click('View balance in this channel')
   await wait(state => state.readRoute === 'position' && state.values['Channel ID'] === id, 'open mined channel from receipt')
   await assertHierarchy('position', ['Account and channel', 'Position status', 'Balance overview', 'Channel', 'Deposit', 'Withdraw or move funds', 'Voucher signing key', 'Voucher payments', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
   await inspect(accounts.customer.address, id)
