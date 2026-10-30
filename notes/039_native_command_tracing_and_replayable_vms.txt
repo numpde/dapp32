@@ -1,0 +1,210 @@
+Native command tracing and replayable VMs
+=========================================
+
+Date: 2026-10-30.
+Scope: investigate existing tracing before adding container execution runners;
+consider a replayable whole-machine test environment. No product implementation.
+
+Decision
+--------
+Use native Make/Bash tracing for diagnostic visibility into existing workflows.
+Keep mandatory structured request/job/outcome recording at the actual execution
+boundaries: native traces do not supply durable execution admission or complete
+process outcomes. Do not require a new cam-exec workflow runner in every container
+merely to see shell commands. That earlier illustrative design is not adopted.
+
+For command-by-command experiments, a disposable Linux VM containing its OWN
+Docker daemon is a strong candidate. Full VM checkpoints support restoring and
+rerunning a changed experiment. QEMU/PANDA whole-system record/replay is a separate
+option for examining the same execution deterministically. Neither is already
+qualified for this repo's Docker/release workloads.
+
+Executed evidence: native tracing
+--------------------------------
+Eight synthetic probes passed in the existing offline checks container:
+  Bash 5.3.3(1)-release, x86_64-alpine-linux-musl; GNU Make 4.4.1.
+  Invocation used compose/checks.yml, with one dedicated /probe output mount.
+  No network, Docker socket, keys, RPC, signing or actual deployment commands.
+  Probe source/results/log: /tmp/cam-native-trace-investigation/.
+
+"Passed" means the named observation was reproduced, not that native tracing
+satisfies mandatory recording. Observations:
+
+1. expanded-secret: Bash xtrace printed a synthetic environment secret after
+   expansion. This is why global -x on our real release/configuration code is
+   unacceptable. Capture prevention must precede writing; post-hoc redaction
+   cannot undo exposure in an already written log.
+2. native-child: Bash traced python3 child.py, but not /bin/echo launched by that
+   Python program. Its stdout marker appeared; its command was not traced.
+3. child-shell: tracing the parent did not enable xtrace inside a separately
+   invoked Bash script. Propagation must be explicit; it is not automatic.
+4. disabled-trace: set +x stopped trace output while later commands still ran.
+5. full-trace-sink: BASH_XTRACEFD pointed at /dev/full. The effect file was still
+   written, the shell exited 0, and no trace or diagnostic reached the captured
+   streams. This is a concrete refusal of "xtrace guarantees record-before-run".
+6. failure-and-pipeline: false || : and false | true appeared in the trace, but
+   the script exited 0. A command trace is not a per-command outcome stream.
+7. err-trap: an inherited ERR trap did not fire for failures in the tested
+   conditional/OR/pipeline contexts. ERR is not a universal completion hook.
+8. make-trace: make --trace printed @-suppressed recipe commands and their target
+   location. It showed python3 worker.py but not the native command launched
+   inside worker.py. Child stdout appeared in the same text output.
+
+Probe prefixes used EPOCHREALTIME, BASHPID, LINENO and previous status in PS4,
+with BASH_XTRACEFD separating xtrace from stdout/stderr. Previous status improves
+inspection but does not itself identify every asynchronous/pipeline outcome.
+Do not parse this text back into executable argv or claim it is a stable event
+protocol. Structured envelopes can retain raw trace attachments with their
+producer/version, truncation and coverage, without inventing stronger semantics.
+
+Existing native mechanisms and local integration
+------------------------------------------------
+GNU Make --trace explains target updates and prints recipes. --output-sync helps
+group parallel output; it does not create lifecycle events [R1]. Bash -x traces
+expanded shell commands before execution; BASH_XTRACEFD directs it to a separate
+descriptor [R2]. DEBUG/ERR/RETURN/EXIT hooks have distinct scopes and exclusions;
+do not combine them into a universal observer by assumption.
+
+This repo selects Bash and -eu -o pipefail in Makefile. Adding -x there would
+affect recipe shells, not every shell started by a recipe. Host trace flags and
+file descriptors do not automatically enter Docker containers. A container shell
+must explicitly enable its own trace and retain it in an owned output stream or
+mount. No Docker socket or privileged container is needed for Bash/Make tracing.
+
+Native tracing is complementary to structured recording:
+- Every supported workflow must automatically produce a safe request and an
+  outcome or explicit incomplete record. No opt-in logging requirement.
+- Existing host/container launch owners publish job relationships and results.
+  Preserve their native logs/artifacts and link them by run/job ID.
+- Enable richer shell/Make traces only for inputs proven safe to capture. A
+  recorded workflow can deliberately omit secret values without becoming absent.
+- Preserve incomplete/capped/write-failed capture as such. Recording boundaries
+  enforce launch refusal; Bash's diagnostic stream cannot enforce it for us.
+- Derive coverage from supported entrypoint declarations and inspect actual
+  execution routes; a logger's existence alone proves no coverage.
+
+If separate records of every native process inside containers become required,
+shell tracing is insufficient. Kernel-level exec/exit observation is an existing
+option [R3]. It can observe daemon-created processes across container boundaries
+on that kernel, but needs its own loss/privilege tests and safe argument policy.
+It does not identify shell builtins as separate processes or prove CAM effects.
+
+VM options
+----------
+A. QEMU/KVM full checkpoint plus command rerun.
+   Restore guest RAM/device state AND the matching writable disks, then run a
+   changed command/fault sequence. This is the practical candidate for interactive
+   command-by-command exploration; it does not repeat CPU scheduling exactly.
+   Disk-only snapshots of a running guest can be merely crash-consistent, and
+   restoring RAM against mismatched disks is invalid [R4-R5]. Benchmark our actual
+   workload before making performance claims.
+
+B. QEMU TCG deterministic record/replay.
+   QEMU records external nondeterministic events and replays the guest, with
+   replay checkpoints, instruction-count breakpoints and reverse debugging [R6].
+   It requires replay-aware disks and explicit device/network configuration.
+   icount uses TCG and is incompatible with multi-threaded TCG [R7]; do not
+   promise KVM performance or assume a routine SMP production configuration.
+   Replaying the fixed input log is not an arbitrary edited future. A changed
+   experiment needs a separately qualified restore/new-recording procedure.
+
+C. PANDA.
+   Whole-system recording plus Python control/introspection and analysis plugins.
+   Its API already has record_cmd and run_replay; supported guest architectures
+   and replay portability are documented [R8]. Potentially useful when we need
+   process/syscall analysis of one captured execution. Current guest-kernel,
+   Docker, CPU-instruction and tool compatibility remain untested here.
+
+D. Firecracker snapshots.
+   A credible microVM restoration mechanism, not an established deterministic
+   replay facility. Its snapshot documentation makes guest disk files the
+   integrator's responsibility and warns that network connections may not
+   survive restore [R9]. It offers no demonstrated advantage for this first lab
+   over QEMU; do not add a second VM backend before there is a consumer.
+
+rr is another useful existing tool for selected userspace/multiprocess bugs,
+including container workloads [R10]. Tracing a Docker CLI does not thereby
+capture a separately running daemon, the guest/host kernel and every service.
+It is not the whole-world checkpoint/replay mechanism sought here.
+
+Proposed isolated lab topology
+------------------------------
+  physical host: lab driver, retained history, VM images/checkpoints/replay logs
+    Linux guest: source snapshot + locked tools + fixture-only inputs
+      guest Docker daemon
+        chain + resource server + approval fixture + deployment containers
+
+Docker inside a Linux guest does not require nested hardware virtualization.
+The guest owns its daemon; it does not forward the physical host Docker socket.
+Put all changing test state in the guest: Docker storage, instance records,
+local chain, hosted resources and fault services. Host shared writable folders,
+external databases and live RPC are outside a VM snapshot and break the claim
+that restoration rewinds the experiment.
+
+Keep immutable source/base images separate from per-run writable overlays.
+Retain the parent run externally before restore; a restored guest log must not
+erase the observed failed attempt. Use separate run/branch identities, contain
+restored fixture credentials and invalidate stale approvals. Restoring entropy
+and tokens can duplicate identities; Firecracker documents this class of issue
+explicitly [R9]. VM captures are private fixture evidence, not public artifacts.
+
+No public chain or live signing material participates. The guest needs no
+external network during experiments once tools/images are materialized. QEMU
+network replay can inject recorded packets without reaching the real backend
+[R6], but that is reproduction of old inputs, not a fresh external observation.
+
+Local feasibility and remaining proof
+-------------------------------------
+Read-only discovery found QEMU 8.2.2 (Debian build 1:8.2.2+ds-0ubuntu1.18) on this
+host. /dev/kvm is absent; virsh and firecracker are absent. This is availability
+evidence, not software installation, an advisory assessment or a VM test.
+Current QEMU web docs identify version 11.1.50; they are capability research,
+not proof every feature/device works on the installed 8.2.2 binary.
+
+No guest image was downloaded, no VM was started and no performance measured.
+Before running a lab: select and pin the supported QEMU/guest/tool cohort,
+check advisories, materialize it through an explicit dependency step, and expose
+one scoped Make lane with exact inputs/outputs, bounded resources and no host
+engine socket or unrelated mounts. Acquire KVM access on a suitable host for
+the accelerated candidate, or explicitly qualify TCG without a silent fallback.
+
+The first real witness should:
+1. Run the supported fixture up/info commands inside the guest and retain safe
+   structured records plus native traces.
+2. Capture a complete checkpoint at a declared boundary, with matching disks.
+3. Inject one concrete failure and retain the failed result outside the guest.
+4. Restore into a separately identified experiment, rerun and compare the native
+   contract/resource/receipt assertions, not just console output or PIDs.
+5. If evaluating deterministic replay, independently replay one recording to a
+   named checkpoint/instruction boundary and verify it without live services.
+6. Prove teardown removes only the owned VM/overlays and preserves evidence.
+
+Do not add a VM requirement to ordinary builds/releases. The lab is a test
+environment for the same supported commands, not a parallel product workflow.
+
+Sources
+-------
+[R1] GNU Make trace and output synchronization:
+https://www.gnu.org/s/make/manual/html_node/Options-Summary.html
+https://www.gnu.org/software/make/manual/make.html
+[R2] Bash tracing and variables:
+https://www.gnu.org/s/bash/manual/html_node/The-Set-Builtin.html
+https://www.gnu.org/software/bash/manual/bash.html
+[R3] Existing exec/exit observation:
+https://tetragon.io/docs/use-cases/process-lifecycle/
+[R4] QEMU full VM snapshots:
+https://www.qemu.org/docs/master/system/images.html
+[R5] Libvirt disk, RAM and full-system snapshot distinctions:
+https://libvirt.org/formatsnapshot.html
+[R6] QEMU deterministic replay and replay device configuration:
+https://www.qemu.org/docs/master/system/replay.html
+https://www.qemu.org/docs/master/system/monitor.html
+[R7] TCG instruction-counting constraints:
+https://www.qemu.org/docs/master/devel/tcg-icount.html
+[R8] PANDA API and supported replay scope:
+https://docs.panda.re/
+https://github.com/panda-re/panda
+[R9] Firecracker snapshot ownership and restored uniqueness:
+https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md
+[R10] rr's userspace/multiprocess recording scope:
+https://rr-project.org/

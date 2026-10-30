@@ -36,6 +36,11 @@ The Dagger comparison in note 038 supports retaining this Go-owner direction:
 existing Dagger recording does not establish our durable admission gate. That
 assessment is based on pinned source and documentation, not runtime qualification.
 
+Note 039 adds executed Make/Bash tracing probes and the replayable-VM comparison.
+Reuse native tracing for diagnostic visibility before introducing container
+runners. It does not replace mandatory structured recording or enforce coverage.
+VM checkpoint/rerun and deterministic replay are separate test capabilities.
+
 Independent business, UI and CAM operations are ordinary operations; full release
 composes them. A completed constructor and an incomplete initialization are
 different facts. Reconciliation operates on individual intended effects, not on
