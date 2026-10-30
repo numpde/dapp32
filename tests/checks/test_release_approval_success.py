@@ -25,23 +25,26 @@ class ApprovalSuccessTest(unittest.TestCase):
             ("normal", "0x" + "1" * 40, "public rehearsal deployer"),
         )
         for app, (simulation, deployer, message) in product(("escrow", "bike-nft", "pay-to-play"), cases):
-            prefix = app.upper().replace("-", "_")
-            env = {
-                "RELEASE_APPROVAL_IMAGE": "sha256:" + "a" * 64,
-                f"{prefix}_RELEASE_OUTPUT_DIR": "/tmp/new-release",
-                f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS": deployer,
-                f"{prefix}_RELEASE_SOURCE_COMMIT": "b" * 40,
-                "RELEASE_REHEARSAL_DIR": "/tmp",
-                "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
-                "RELEASE_APPROVAL_SIMULATION": simulation,
-            }
-            with self.subTest(app=app, simulation=simulation), mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
-                self.rehearsal, "fixture_nonce",
-            ) as nonce, mock.patch.object(self.rehearsal, "release_terminal") as terminal:
-                with self.assertRaisesRegex(RuntimeError, message):
-                    self.rehearsal.main(app, "success")
-                nonce.assert_not_called()
-                terminal.assert_not_called()
+            with self.subTest(app=app, simulation=simulation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "control").mkdir()
+                (root / "control/release.json").write_text(json.dumps({
+                    "sourceCommit": "b" * 40,
+                    "settings": {"OUTPUT_DIR": str(root / "deployment"), "EXPECTED_DEPLOYER_ADDRESS": deployer},
+                }))
+                env = {
+                    "RELEASE_APPROVAL_IMAGE": "sha256:" + "a" * 64,
+                    "RELEASE_REHEARSAL_DIR": directory,
+                    "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
+                    "RELEASE_APPROVAL_SIMULATION": simulation,
+                }
+                with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+                    self.rehearsal, "fixture_nonce",
+                ) as nonce, mock.patch.object(self.rehearsal, "release_terminal") as terminal:
+                    with self.assertRaisesRegex(RuntimeError, message):
+                        self.rehearsal.main(app, "success")
+                    nonce.assert_not_called()
+                    terminal.assert_not_called()
 
     def test_unknown_or_path_like_app_fails_before_inputs_or_docker_are_used(self) -> None:
         for app in ("", "deposit-gateway", "../escrow", "escrow/release/deploy"):

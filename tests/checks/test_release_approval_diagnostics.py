@@ -151,14 +151,15 @@ if release_approval_wait_service release-reference-prepare 720; then exit 9; fi
         started = finished = False
         transcript = None
         deployer, source = "0x" + "1" * 40, "2" * 40
-        prefix = app.upper().replace("-", "_")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            (root / "control").mkdir()
+            (root / "control/release.json").write_text(json.dumps({
+                "sourceCommit": source,
+                "settings": {"OUTPUT_DIR": str(root / "deployment"), "EXPECTED_DEPLOYER_ADDRESS": deployer},
+            }))
             env = {
                 "RELEASE_APPROVAL_IMAGE": "sha256:" + "e" * 64,
-                f"{prefix}_RELEASE_OUTPUT_DIR": str(root / "deployment"),
-                f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS": deployer,
-                f"{prefix}_RELEASE_SOURCE_COMMIT": source,
                 "RELEASE_REHEARSAL_DIR": directory,
                 "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
                 "RELEASE_APPROVAL_SIMULATION": "normal",
@@ -368,9 +369,6 @@ if release_approval_wait_service release-reference-prepare 720; then exit 9; fi
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 env = {
                     "RELEASE_APPROVAL_IMAGE": "sha256:" + "a" * 64,
-                    "ESCROW_RELEASE_OUTPUT_DIR": str(Path(directory) / "deployment"),
-                    "ESCROW_RELEASE_EXPECTED_DEPLOYER_ADDRESS": "0x" + "1" * 40,
-                    "ESCROW_RELEASE_SOURCE_COMMIT": "b" * 40,
                     "RELEASE_REHEARSAL_DIR": directory,
                     "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
                 }

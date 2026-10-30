@@ -12,7 +12,7 @@ import { parseCamPublication } from "../cam-release/publication.ts"
 import { parseCamReleasePlan } from "../cam-release/shared.ts"
 import { requiredEnv } from "../input.ts"
 import { runReleaseTool } from "../release-values.ts"
-import { camOrigin, chainId, deployerKey, owners, rehearsalApp, rehearsalConfiguration, releaseInputs, rpcURL, shellAssignments } from "./fixture.ts"
+import { camOrigin, chainId, deployerKey, owners, rehearsalApp, rehearsalConfiguration, fixtureEnvironment, rpcURL, shellAssignments } from "./fixture.ts"
 
 const ABI = parseAbi([
   "function owner() view returns (address)",
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
       await fixture.setBalance({ address: account.address, value: 1000n * 10n ** 18n })
     }
     const directory = requiredEnv(process.env, "RELEASE_REHEARSAL_HOST_DIR")
-    await writeFile("/rehearsal-control/inputs.env", shellAssignments(releaseInputs(app, directory)), { flag: "wx", mode: 0o600 })
+    await writeFile("/rehearsal-control/inputs.env", shellAssignments(fixtureEnvironment(directory)), { flag: "wx", mode: 0o600 })
     await writeFile("/rehearsal-control/rpc-url", rpcURL + "\n", { flag: "wx", mode: 0o600 })
     await writeFile("/rehearsal-control/deployer-key", deployerKey + "\n", { flag: "wx", mode: 0o600 })
     return

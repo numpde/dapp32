@@ -796,10 +796,6 @@ def main(app: str, scenario: str) -> None:
     if scenario not in ("reject", "success"):
         raise RuntimeError("PTY rehearsal scenario must be reject or success")
     image = required("RELEASE_APPROVAL_IMAGE")
-    prefix = app.upper().replace("-", "_")
-    base_output = Path(required(f"{prefix}_RELEASE_OUTPUT_DIR"))
-    deployer = required(f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS")
-    source_commit = required(f"{prefix}_RELEASE_SOURCE_COMMIT")
     rehearsal_dir = Path(required("RELEASE_REHEARSAL_DIR"))
     rehearsal_network = required("RELEASE_REHEARSAL_NETWORK")
     simulation = required("RELEASE_APPROVAL_SIMULATION")
@@ -807,6 +803,10 @@ def main(app: str, scenario: str) -> None:
         raise RuntimeError("RELEASE_APPROVAL_SIMULATION must be normal or skip")
     if scenario == "success" and simulation != "normal":
         raise RuntimeError("Successful approval rehearsal requires normal simulation")
+    config = json.loads((rehearsal_dir / "control/release.json").read_text())
+    base_output = Path(config["settings"]["OUTPUT_DIR"])
+    deployer = config["settings"]["EXPECTED_DEPLOYER_ADDRESS"]
+    source_commit = config["sourceCommit"]
     if IDENTITY.fullmatch(image) is None:
         raise RuntimeError("RELEASE_APPROVAL_IMAGE must be a local sha256 image ID")
     if not re.fullmatch(r"0x[0-9a-fA-F]{40}", deployer):

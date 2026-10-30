@@ -245,10 +245,8 @@ set -a
 source "$RELEASE_REHEARSAL_DIR/control/inputs.env"
 set +a
 
-prefix="${app^^}"
-prefix="${prefix//-/_}"
-export "${prefix}_RELEASE_SOURCE_COMMIT=$(git rev-parse HEAD)"
 if [[ "$action" == waits || "$action" == ipc-waits ]]; then
+  export REHEARSAL_SOURCE_COMMIT="$(git rev-parse HEAD)"
   bash tools/release_waits.sh "$project" "$action"
   exit "$?"
 fi
