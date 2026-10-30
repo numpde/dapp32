@@ -373,7 +373,8 @@ ceremony_root="$$(mktemp -d "/tmp/cam-release-$${LOCAL_UID:?missing_LOCAL_UID}-X
 chmod 0700 "$$ceremony_root"; \
 ceremony_digest="$$(printf '%s' "$$ceremony_root" | sha256sum)"; \
 ceremony_project="cam-release-$${ceremony_digest:0:24}"; \
-printf 'Release container project: %s-run\n' "$$ceremony_project"; \
+release_preparation_begin "$$output_dir"; \
+printf 'Release container project: %s-run\n' "$$ceremony_project" >> "$$release_preparation_log"; \
 ceremony_source="$$ceremony_root/source"
 endef
 
@@ -479,7 +480,7 @@ trap cleanup EXIT; \
 $(release_snapshot_allocate); \
 $(release_snapshot_populate); \
 release_tool_mode="$$release_operation"; \
-release_run_owned "$$release_command_grace" bash "$$ceremony_source/tools/release_tool_images.sh" "$$release_tool_mode" "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
+release_log_step "$$release_preparation_log" 'Preparing release tools' release_run_owned "$$release_command_grace" bash "$$ceremony_source/tools/release_tool_images.sh" "$$release_tool_mode" "$(CURDIR)" "$$source_commit" "$$ceremony_root"; \
 release_image_args=(-f "$$ceremony_root/images-$$release_phase.yml"); \
 release_transport_args=(); \
 if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == 1 ]]; then \
@@ -490,7 +491,7 @@ if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == 1 ]]; then \
 fi; \
 $(release_resolve_rpc); \
 release_dependencies_started=1; \
-compose_release_dependencies run --rm soldeer-verify
+release_log_step "$$release_preparation_log" 'Checking Solidity dependencies' compose_release_dependencies run --rm soldeer-verify
 endef
 
 define release_deploy_execution
@@ -500,7 +501,7 @@ release_rpc_expected_chain="$$chain_id"; \
 $(release_prepare_snapshot); \
 if [[ "$$release_operation" == cam && "$$CAM_RELEASE_ROOT" == new ]]; then printf "{}\n" > "$$ceremony_root/new-root.json"; export CAM_RELEASE_ROOT_ARTIFACT_FILE="$$ceremony_root/new-root.json"; fi; \
 release_check_started=1; \
-compose_release_check run --rm release-check; \
+release_log_step "$$release_preparation_log" 'Checking release source' compose_release_check run --rm release-check; \
 source "$$ceremony_source/tools/release_approval_deploy.sh"; \
 if [[ "$$release_operation" != cam ]]; then release_approval_require_terminal; fi; \
 release_approval_require_image; \
@@ -614,7 +615,7 @@ release_repository="$(CURDIR)"; source "$$ceremony_source/tools/release_tool_ima
 release_run_started=1; \
 release_cam_prepare_sources; \
 compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-artifact-rpc-proxy; \
-compose_release run --rm --no-deps -T release-cam-bundle; \
+release_log_step "$$release_preparation_log" 'Preparing app files' compose_release run --rm --no-deps -T release-cam-bundle; \
 printf 'Prepared CAM bundle: %s/bundle\nBundle artifact: %s/artifact/cam-bundle.json\nHost or pin the bundle before selecting its publication URI. No transaction was sent.\n' "$$output_dir" "$$output_dir"
 endef
 
@@ -689,9 +690,9 @@ $(release_snapshot_allocate); \
 $(release_snapshot_archive); \
 cp -a -- "$(DEPENDENCIES_DIR)" "$$ceremony_source/$(DEPENDENCIES_DIR)"; \
 cp -a -- "$$artifact_node_modules" "$$ceremony_source/js/node_modules"; \
-release_run_owned 15 bash tools/release_tool_images.sh $(2)-artifact "$(CURDIR)" "$$source_commit" "$$tool_source_commit" "$$ceremony_root"; \
+release_log_step "$$release_preparation_log" 'Preparing verification tools' release_run_owned 15 bash tools/release_tool_images.sh $(2)-artifact "$(CURDIR)" "$$source_commit" "$$tool_source_commit" "$$ceremony_root"; \
 release_dependencies_started=1; \
-compose_release_dependencies run --rm soldeer-verify; \
+release_log_step "$$release_preparation_log" 'Checking Solidity dependencies' compose_release_dependencies run --rm soldeer-verify; \
 release_transport_args=(); \
 if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then require_release_local_network; release_transport_args=(-f "$(COMPOSE_DIR)/release/rehearsal-artifact.yml"); fi; \
 compose_release() { \
@@ -732,6 +733,7 @@ endef
 # App environment assignments remain explicit at the caller.
 define release_deploy_compose
 LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+  COMPOSE_PROGRESS="$(COMPOSE_PROGRESS)" \
   RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" \
   RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
   release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(1)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$${release_image_args[@]}" "$$@"

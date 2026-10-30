@@ -34,6 +34,28 @@ release_process_report() {
   fi
 }
 
+release_preparation_begin() {
+  local records="$1"
+  # Do not create a prospective deployment directory before its admission gate.
+  if [[ -d "$records" ]]; then
+    release_preparation_log=$(mktemp "$records/preparation.log-XXXXXXXX") || return
+  else
+    release_preparation_log=$(mktemp "$records-preparation.log-XXXXXXXX") || return
+  fi
+}
+
+release_log_step() {
+  local log="$1" label="$2" status=0
+  shift 2
+  release_process_report "$label. Details: $log"
+  "$@" >>"$log" 2>&1 || status=$?
+  if [[ "$status" != 0 ]]; then
+    printf '%s failed (exit %s). Details: %s\n' "$label" "$status" "$log" >&2
+    tail -n 20 -- "$log" >&2
+  fi
+  return "$status"
+}
+
 release_process_cancel() {
   if [[ "$release_process_signal" == 0 ]]; then release_process_signal="$1"; fi
   # Do not lose a new child's identity if a signal arrives before $! is saved.

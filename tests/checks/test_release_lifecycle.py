@@ -160,6 +160,42 @@ release_config_teardown() { fake_down config; }
 
 
 class ReleaseLifecycleTest(unittest.TestCase):
+    def test_preparation_transcripts_are_private_retained_and_preserve_step_status(self):
+        for existing in (False, True):
+            for code in (0, 17):
+                with self.subTest(existing=existing, code=code), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    records = root / "records"
+                    if existing: records.mkdir()
+                    script = r'''source "$PROCESS"
+release_process_init
+release_preparation_begin "$CASE_ROOT/records"
+printf '%s\n' "$release_preparation_log" > "$CASE_ROOT/log-path"
+status=0
+release_log_step "$release_preparation_log" 'Checking fixture' release_run_owned 15 "$PYTHON" -c 'import sys; print("\n".join("detail-" + str(i) for i in range(100))); print("last error", file=sys.stderr); sys.exit(int(sys.argv[1]))' "$STEP_STATUS" || status=$?
+printf 'Operator prompt remains visible\n'
+exit "$status"
+'''
+                    result = subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", script],
+                        env={**os.environ, "PROCESS": str(PROCESS), "CASE_ROOT": str(root),
+                             "PYTHON": sys.executable, "STEP_STATUS": str(code)},
+                        capture_output=True, text=True, check=False, timeout=5)
+                    self.assertEqual(code, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual(existing, records.exists(), "logging cannot allocate a deployment directory")
+                    log = Path((root / "log-path").read_text().strip())
+                    self.assertEqual(records if existing else root, log.parent)
+                    self.assertEqual(0o600, log.stat().st_mode & 0o777)
+                    self.assertIn("detail-0", log.read_text())
+                    self.assertIn("last error", log.read_text())
+                    self.assertNotIn("detail-", result.stdout)
+                    self.assertIn("Operator prompt remains visible", result.stdout)
+                    self.assertIn(str(log), result.stderr)
+                    if code == 0: self.assertNotIn("detail-", result.stderr)
+                    else:
+                        self.assertIn("exit 17", result.stderr)
+                        self.assertNotIn("detail-0\n", result.stderr)
+                        self.assertIn("detail-99", result.stderr)
+
     def test_preparation_is_retryable_only_until_signing_authority_can_start(self):
         for failure in ("reserve", "sync", "approval"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
@@ -362,7 +398,7 @@ printf "%s\n" "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEAS
                     "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "escrow/release/contracts/artifact", f"CONTRACT_RECORDS={records}",
                     f"CURDIR={checkout}", "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=exit 97",
                     f"release_host_guard_functions=source {prelude}", "release_config_compose=:",
-                    'release_snapshot_allocate=ceremony_root="$$CASE_ROOT/ceremony"; ceremony_source="$$ceremony_root/source"; ceremony_project=fixture; mkdir -p "$$ceremony_source/js"; printf "allocate\\n" >> "$$CASE_ROOT/events"',
+                    'release_snapshot_allocate=release_preparation_log="$$CASE_ROOT/preparation.log"; ceremony_root="$$CASE_ROOT/ceremony"; ceremony_source="$$ceremony_root/source"; ceremony_project=fixture; mkdir -p "$$ceremony_source/js"; printf "allocate\\n" >> "$$CASE_ROOT/events"',
                     'release_snapshot_archive=mkdir -p "$$ceremony_source/tools" "$$ceremony_source/dapps"; cp "$$LAUNCHER" "$$(dirname -- "$$LAUNCHER")/release_approval_preflight.sh" "$$ceremony_source/tools/"; cp() { if [[ "$${3-}" == dapps/dependencies ]]; then mkdir -p "$$4"; else command cp "$$@"; fi; }', "release_snapshot_cleanup=:",
                     'release_snapshot_dependency_compose=compose_release_dependencies() { printf "dependencies\\n" >> "$$CASE_ROOT/events"; }',
                     f"DOCKER_COMPOSE=bash {compose}",
@@ -1190,6 +1226,7 @@ compose_release_config() {
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             env = self.environment(root, root)
+            env["COMPOSE_PROGRESS"] = "quiet"
             script = f'source {shlex.quote(str(LAUNCHER))}\n' + r'''
 release_operation=contracts
 compose_release() {
@@ -1206,7 +1243,7 @@ release_approval_run "$CASE_ROOT/output"
             self.assertEqual([
                 "up --no-start --no-build --no-deps release-rpc-proxy release-artifact-rpc-proxy",
             ], (root / "events").read_text().splitlines())
-            self.assertEqual("plain never\n", (root / "presentation").read_text())
+            self.assertEqual("quiet never\n", (root / "presentation").read_text())
 
     def test_startup_failure_retains_private_bounded_diagnostics_before_teardown(self) -> None:
         for case in ("exited", "incomplete", "large", "log-failure", "existing-file", "head-failure"):

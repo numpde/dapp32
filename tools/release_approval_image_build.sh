@@ -63,6 +63,7 @@ source "$repo_root/tools/release_process.sh"
 source "$repo_root/tools/release_approval_images.sh"
 source "$repo_root/tools/release_tool_images.sh"
 release_process_init
+release_preparation_begin "$output_dir"
 # Internal allocation state; not an optional operator input.
 declare work_dir=""
 stage_started=0
@@ -164,9 +165,9 @@ if [[ -z "$image_id" ]]; then
 
   # The npm stage sees manifests through the registry-only proxy, not repository source.
   stage_started=1
-  release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
-  release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
-  release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
+  release_log_step "$release_preparation_log" 'Preparing approval build tools' release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
+  release_log_step "$release_preparation_log" 'Installing locked approval dependencies' release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
+  release_log_step "$release_preparation_log" 'Checking and staging approval runtime' release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
 
   release_run_owned 15 docker build --network=none --pull=false --tag "$cache_tag" \
   --label "org.opencontainers.image.revision=$source_commit" \

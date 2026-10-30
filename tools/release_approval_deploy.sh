@@ -385,7 +385,7 @@ release_approval_run() {
     *) printf '%s\n' 'Approval execution requires an explicit contracts, ui or cam operation; no signer was started.' >&2; return 2 ;;
   esac
   local output="$1" gate_id forge_id started state attach_status=0 forge_status="" gate_status=""
-  export COMPOSE_PROGRESS=plain COMPOSE_ANSI=never
+  export COMPOSE_ANSI=never
   release_approval_output="$output"
   if [[ "$release_operation" == cam && "$CAM_RELEASE_REMAINING_TRANSACTIONS" == 0 ]]; then
     printf '%s\n' 'CAM root already has the desired composition. No signing session or transaction is needed.'

@@ -426,7 +426,6 @@ def retain_configuration(source, source_commit, output):
                 if name not in ("rpcUrl", "deployerPrivateKey", "credentialConfig")}
     if "credentialConfig" not in config:
         retained["sourceCommit"] = source_commit
-        print(f"Operation source: {source_commit}. The saved configuration is unchanged.")
     retained["credentialConfig"] = selected
     retained["settings"] = {name: value for name, value in retained["settings"].items() if name != "OUTPUT_DIR"}
     if (output / "publication-uri").is_file():

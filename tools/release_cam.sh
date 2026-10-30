@@ -45,7 +45,7 @@ release_cam_export() {
 
 release_cam_prepare_sources() {
   local -a sources
-  compose_release run --rm --no-deps -T release-cam-inputs
+  release_log_step "$release_preparation_log" 'Selecting app components' compose_release run --rm --no-deps -T release-cam-inputs
   mapfile -d '' -t sources < "$CAM_RELEASE_PREPARED_DIR/inputs/sources"
   export "${sources[@]}"
   release_cam_export business "$CAM_BUSINESS_SOURCE_COMMIT" source-contracts
@@ -62,10 +62,10 @@ release_cam_prepare_root_proof() {
   export RELEASE_SOURCE_DIR="$ceremony_source"
   mkdir --mode=0700 -- "$output/root-proof" "$output/root-proof/sources" "$output/root-proof/compiler" "$output/root-proof/compiler/root"
   if [[ "$CAM_RELEASE_ROOT" == existing ]]; then
-    compose_release run --rm --no-deps -T release-cam-root-source
+    release_log_step "$release_preparation_log" 'Selecting original root evidence' compose_release run --rm --no-deps -T release-cam-root-source
     selected_commit=$(< "$output/root-proof/source-commit")
     local CAM_RELEASE_PREPARED_DIR="$output/root-proof"
     release_cam_export root "$selected_commit" source-root
-    CAM_ROOT_SOURCE_PHASE=retain compose_release run --rm --no-deps -T release-cam-root-source
+    CAM_ROOT_SOURCE_PHASE=retain release_log_step "$release_preparation_log" 'Retaining original root sources' compose_release run --rm --no-deps -T release-cam-root-source
   fi
 }

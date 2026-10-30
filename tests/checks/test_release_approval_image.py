@@ -166,7 +166,9 @@ timeout() {
 id() { printf '1000\n'; }
 realpath() { local last; for last; do :; done; printf '%s\n' "$last"; }
 mktemp() {
-  if [[ "$*" == *published.tmp.* ]]; then
+  if [[ "$*" == *preparation.log-* ]]; then
+    command mktemp "$@"
+  elif [[ "$*" == *published.tmp.* ]]; then
     command mkdir "$TEST_PARTIAL"
     printf '%s\n' "$TEST_PARTIAL"
   else

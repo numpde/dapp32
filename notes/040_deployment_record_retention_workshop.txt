@@ -74,6 +74,13 @@ Operation: keep immutable selected inputs, plans, approval reference/audit,
 broadcast transactions and receipts, verification results/diagnostics, final
 artifacts and predecessor references. Failed attempts explain effect uncertainty
 and must not be silently overwritten or discarded.
+Internal preparation transcripts are private files. Existing records keep
+preparation.log-* inside the record directory; new deployments keep a sibling
+<records>-preparation.log-* file without allocating the deployment directory.
+These logs survive temporary
+workspace cleanup. Terminal output names the step and log path; failed steps
+also show the last 20 log lines and preserve the command's exit status. Menus
+and transaction approval remain interactive.
 
 Compilation evidence: keep the exact selected compiler artifacts, original
 compiler version/settings and every source file named by their metadata, at the
