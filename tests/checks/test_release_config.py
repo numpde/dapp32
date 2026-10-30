@@ -709,6 +709,28 @@ printf continued > "$CASE_ROOT/continued"
                 self.assertEqual(APPROVAL_IMAGE, inputs["RELEASE_APPROVAL_IMAGE"])
 
 
+    def test_setup_collects_all_addresses_in_one_uninterrupted_group(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                expected = configuration(app)
+                address_labels = [label for _, label, kind in release_config.fields(app)
+                                  if kind in ("address", "addresses")]
+                answers = iter(["public", *expected["settings"].values(), "save"])
+                prompts = []
+
+                def respond(prompt):
+                    prompts.append(prompt)
+                    return next(answers)
+
+                root = Path(temporary)
+                with patch.object(release_config, "input", side_effect=respond, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
+                    complete_setup(app, COMMIT, root)
+                positions = [index for index, prompt in enumerate(prompts)
+                             if any(prompt.startswith(label) for label in address_labels)]
+                self.assertEqual(len(address_labels), len(positions))
+                self.assertEqual(list(range(positions[0], positions[-1] + 1)), positions)
+                self.assertEqual(expected, json.loads((root / "release.json").read_text()))
+
     def test_authority_help_at_address_choices_and_review_preserves_each_apps_settings(self):
         heading = "Changing addresses after deployment:"
         deployer_label = next(label for name, label, _ in release_config.COMMON_FIELDS if name == "EXPECTED_DEPLOYER_ADDRESS")

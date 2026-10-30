@@ -58,7 +58,9 @@ LOCAL_RPC_URL = "http://release-anvil:8545"
 
 
 def fields(app):
-    return (*COMMON_FIELDS, *APP_FIELDS[app])
+    # Confirm the network, then collect all addresses before other settings.
+    return tuple(sorted((*COMMON_FIELDS, *APP_FIELDS[app]),
+                        key=lambda field: field[2] not in ("chain", "address", "addresses")))
 
 
 def check_value(value, kind, *, local_cam_uri=None):
