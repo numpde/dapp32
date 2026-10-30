@@ -1,0 +1,162 @@
+Dagger versus a shared Go execution owner
+=========================================
+
+Date: 2026-10-30.
+Status: source/documentation investigation; no runtime qualification.
+Scope: automatic structured command recording and enforced workflow coverage.
+Questions, discussion, HTML presentation and replay remain deferred.
+
+Decision
+--------
+Keep the proposed small Go execution owner as the foundation. Dagger provides
+substantial reusable automation and observability, but the inspected versions
+do not supply our required durable record-before-execution boundary. Replacing
+Compose and the host lifecycle with Dagger would therefore not remove the need
+for that boundary or for repository enforcement of supported entrypoints.
+
+This is a fit assessment, not a claim that our current Go code already meets the
+requirement. ops/cmd/cam-ops currently implements only the ownership check; its
+process adapter supervises the native analyzer. Neither is an operational runner
+or a durable command recorder. Do not turn that adapter into a host controller
+by relabeling it or claiming analyzer cancellation proves deployment cleanup.
+
+Evidence cohorts
+----------------
+Released Dagger v0.21.11: commit
+631cdb609aaddc0037c2ba713e7642cadf645ff4, release dated 2026-10-21 [R1].
+Newer main source: commit
+2b5e3a9671a5957a76e757d8b02ecf78e2d953ab [R2-R4].
+Current unversioned documentation identifies itself as 1.0-beta. Do not project
+newer-main call delivery/storage behavior onto the released binary.
+
+Only public source was downloaded, into /tmp/dagger-recording-investigation.
+No Dagger binary/image/dependency was installed or executed. No signing config,
+operator instance, Docker service or chain was touched. Existing integration
+tests were read as implementation evidence, not reported as passed experiments.
+
+What exists, and the precise gaps
+--------------------------------
+1. Recording and persistence.
+   Dagger has real local telemetry storage; it is not merely a Cloud dashboard.
+   Released engine/clientdb/dbs.go opens telemetry databases in WAL mode with
+   synchronous=OFF [R1]. Thus that store is not a durable acknowledgement on
+   which to condition our next effect. This finding concerns telemetry, not a
+   claim that every Dagger database has the same persistence settings.
+
+   Newer main improves delivery: CallSpanProcessor has a separate retrying
+   queue, while other spans use a bounded queue that may drop on overflow.
+   OnStart snapshots and enqueues a call; it does not await disk persistence
+   before returning. Session setup wires these processors separately [R2-R4].
+   Larger queues, local storage and shutdown flushes do not establish our gate.
+   The reviewed path lacks a durable-write acknowledgement in execution admission;
+   this is a source conclusion, not a measured disk-full/crash result.
+
+2. Structured relationships.
+   Dagger's API/telemetry already represents function/exec relationships, sources
+   and results. This is useful precedent. An engine withExec of a shell script
+   is not evidence that every command/builtin inside it has a separate recorded
+   semantic operation. Wrapping existing shell workflows would retain opaque
+   internals and their existing lifecycle ownership [R5].
+
+3. Commands with external effects and caching.
+   The released function-caching documentation explicitly distinguishes function
+   cache policy from execution-layer caching. cache="never" reruns the function
+   but does not disable caching of withExec operations inside it [R6]. Adopting
+   Dagger would require explicit execution semantics for deployments, fresh RPC
+   observations and approvals. A cache hit is not evidence that a new external
+   command ran, nor a recovery decision about an uncertain paid transaction.
+   Dagger is not thereby unsuitable for external effects; correctness would
+   remain our responsibility rather than follow automatically from its engine.
+
+4. Interactive approval.
+   Dagger offers interactive terminals [R7]; terminal support is not absent.
+   Our actual boundary includes an independent approval process and signer,
+   raw key input, socket readiness, detach/cancellation and bounded cleanup
+   (tools/release_approval_deploy.sh). That whole handoff would need qualification
+   under a changed runtime. A terminal API alone does not prove it preserves it.
+
+5. Services, authority and lifetime.
+   Dagger has useful health-checked, dependency-managed ephemeral services [R8].
+   These could simplify disposable scenarios. Our persistent services and
+   independently retained instance records have additional lifetime obligations.
+   Compose currently declares exact mounts, network and capability grants;
+   migration would have to replace and prove those grants, not run Docker inside
+   an opaque Dagger command with broad engine authority. The current engine
+   configuration permits rejecting insecure-root-capability requests [R9].
+
+6. Coverage enforcement.
+   Neither a Dagger invocation nor a Go executable automatically prevents a new
+   Make recipe from running Docker directly. Both require the repo to enforce
+   that supported workflow declarations reach the recording/execution owner.
+   Derive coverage from those declarations; do not add a second workflow list.
+   Native facts and Go policy can detect governed bypasses; actual supported
+   invocations must prove recording. Neither approach alone provides hostile
+   whole-host confinement against an operator with direct Docker access.
+
+Comparison and implementation consequence
+-----------------------------------------
+Dagger adoption supplies execution graphs, caching, container services, secrets,
+terminals and telemetry. It also changes the runtime and requires requalifying
+our existing grants and interactive release boundary. Our durable admission and
+coverage obligations would remain. Running all existing Make workflows inside
+one Dagger container would not be the requested architectural replacement.
+
+A small Go owner can retain the current scoped Compose jobs and native semantic
+owners while acquiring only the demonstrated host process/store responsibilities.
+It gives us no guarantee until those responsibilities are implemented and tested.
+Its cost is explicit ownership of durable writes, locking, argument handling,
+terminal/signals and cleanup; do not hide that work behind the word "small".
+
+Reuse standard mechanisms: os/exec and platform process handling, filesystem
+publication/sync primitives, structured serialization and trace correlation.
+OpenTelemetry is suitable for interoperable observation/export, but its ordinary
+batch processor permits dropped spans; it cannot be the sole execution gate
+[R10]. Do not build a new container engine, cache engine or workflow language.
+
+Next implementation and decisive proofs
+---------------------------------------
+- Publish a safe request before starting workflow prerequisites; preserve its
+  identity across governed child launches and record terminal/unknown outcomes.
+- Make recording automatic; migrate the ordinary execution owner with its
+  caller and delete the displaced launch path. One fixture is a first witness,
+  not completion of all-workflow coverage.
+- Refuse a new operation when its initial durable write fails. Stop further
+  ordinary launches after a later recording failure, while allowing owned
+  cancellation/cleanup and retaining honest incomplete evidence.
+- Show a real parent/child command, rejection, interruption and failed-write
+  witness. Check that secrets do not enter stored inputs/arguments.
+- Derive the coverage check from supported declarations. Add an ordinary target
+  and an intentionally bypassing target: the former must be covered and the
+  latter rejected. Execute supported routes to prove records actually appear.
+- Keep process outcome separate from native verified effects. Reconciliation,
+  independent signing approval and source-native verification retain their owners.
+
+Reconsider Dagger if a pinned version demonstrates durable admission before every
+governed launch, failed-write refusal, required terminal/cleanup behavior, and a
+smaller complete migration of our authority grants. A dashboard, local trace file
+or successful sample build alone would not establish those claims.
+
+Sources
+-------
+[R1] Released version and telemetry database settings:
+https://github.com/dagger/dagger/releases/tag/v0.21.11
+https://github.com/dagger/dagger/blob/631cdb609aaddc0037c2ba713e7642cadf645ff4/engine/clientdb/dbs.go#L85
+[R2] Newer call-span producer and queued start/end delivery:
+https://github.com/dagger/dagger/blob/2b5e3a9671a5957a76e757d8b02ecf78e2d953ab/engine/telemetry/callspan.go#L19
+[R3] Other span queues and overflow policy:
+https://github.com/dagger/dagger/blob/2b5e3a9671a5957a76e757d8b02ecf78e2d953ab/engine/telemetry/livespan.go#L13
+[R4] Session processor wiring and local append path:
+https://github.com/dagger/dagger/blob/2b5e3a9671a5957a76e757d8b02ecf78e2d953ab/engine/server/session.go#L1002
+https://github.com/dagger/dagger/blob/2b5e3a9671a5957a76e757d8b02ecf78e2d953ab/engine/server/telemetry.go#L989
+[R5] Container execution and its process launch:
+https://github.com/dagger/dagger/blob/2b5e3a9671a5957a76e757d8b02ecf78e2d953ab/core/container_exec.go#L2233
+[R6] Released function versus layer caching contract:
+https://github.com/dagger/dagger/blob/631cdb609aaddc0037c2ba713e7642cadf645ff4/docs/current_docs/extending/modules/function-caching.mdx#L239
+[R7] Current terminal API:
+https://docs.dagger.io/reference/api/container/
+[R8] Current service lifetime and health checks:
+https://docs.dagger.io/using/services/
+[R9] Engine security configuration:
+https://docs.dagger.io/reference/config-files/engine-json/
+[R10] OpenTelemetry batch limits and dropping behavior:
+https://opentelemetry.io/docs/specs/otel/trace/sdk/
