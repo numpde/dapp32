@@ -13,32 +13,45 @@ remain proposals; command history must not wait for its complete host refactor.
 
 1. Decision and minimum useful result
 -------------------------------------
-Build a local command notebook around ordinary supported Make commands. Its
-facts come from the boundary that actually receives a request or launches work.
-Its presentation lets a human or agent inspect a step, ask a question, attach a
-reply, propose an experiment and compare the resulting evidence.
-
-The minimum is useful without a simulator, checkpoint implementation, autonomous
-agent loop, web service or new deployment executor. Recording and discussion are
-the first feature. Repeatable clean-world experiments are the next feature.
+Build automatic structured command recording into the common execution boundary
+used by supported workflows. Its facts come from the owner that receives a
+request or launches work. Recording is foundational behavior, not an opt-in
+fixture notebook. Questions, replies, discussion, readers and replay are later
+features and must not delay this foundation.
 
 Keep ordinary commands ordinary:
 
-  make pay-to-play/local/fixture/up FIXTURE_ID=<owned-id> SESSION=<session-dir>
-  make pay-to-play/local/fixture/info FIXTURE_ID=<same-id> SESSION=<session-dir>
+  make pay-to-play/local/fixture/up FIXTURE_ID=<owned-id>
+  make pay-to-play/local/fixture/info FIXTURE_ID=<same-id>
 
-SESSION is a proposed opt-in destination, not an implemented variable today.
-Initially integrate known disposable fixture/rehearsal entrypoints. A shared
-mechanism should eventually cover supported command families, without making
-every read/check/build command use release plans, approval or effect journals.
+Each supported workflow records automatically in durable local state. No SESSION
+variable or extra operator step enables recording. Optional grouping/export may
+be added later; neither enables nor disables capture. Checks, builds, reads,
+dependency work, service/fixture operations and release operations use the same
+boundary without inheriting release-specific approvals or state gates.
 
-Requested recording cannot be silently ignored. An owning entrypoint must admit
-SESSION with its declared coverage or refuse before subject work. This matters
-because Make normally accepts an unused variable. Derive capture capability at
-the existing target/owner declaration, not from a second central target list.
-The first fixture slice is partial progress toward all-command coverage, not
-closure of that goal. Invalid SESSION admission may itself be unrecordable;
-report that failure directly and perform no subject effect.
+Derive coverage obligations from supported target declarations, not a second
+manually maintained registry. Reject workflow routes and governed launches that
+bypass the recording/execution owner. Prove both the structural route and actual
+record publication through supported commands. One fixture is an integration
+witness, not completion of all-workflow coverage. Existing Go ownership checks
+cover selected JS/TS source roles; they do not yet establish this wider guarantee.
+
+Persist a request before subject work: run ID, source/tool identity and admitted
+non-secret inputs. Governed launches record their parent, safe executable/args
+and timing, then exit status, signal or an explicitly unknown outcome. Link native
+evidence; do not infer external success from process exit. Do not copy signing
+inputs, environment dumps or secret argument values into history.
+
+If initial recording fails, refuse before subject work. If recording fails later,
+stop further ordinary work while preserving cancellation and cleanup. Interrupted
+runs remain incomplete; missing completion never means success. Local recording
+cannot commit atomically with remote effects. Explicitly name unobserved internals
+and remote activity instead of claiming universal process tracing.
+
+This requirement supersedes the original opt-in and discussion-first workshop
+sequencing below. Questions/readers/replay are later capabilities, not foundation
+requirements. The ordinary process owner remains responsible for cleanup.
 
 Do not introduce another command language, shell kernel or deployment workflow.
 The notebook observes execution; existing process owners still execute and
@@ -637,10 +650,11 @@ Current source facts, inspected without executing a fixture:
 - tools/pay_to_play_fixture.sh already owns fixture ID/collision checks and native
   descriptor discovery. It supplies a small current subject for the first inquiry.
 
-Slice 1: notebook facts, reader and questions/replies.
-  One shared publisher, coarse immutable facts, derived text view. Integrate ONE
-  existing disposable fixture process owner. Capture its requests/known safe
-  launches and results; do not touch production signing or all Make targets.
+Slice 1: automatic structured recording at the execution owner.
+  Establish the common Go request/launch/result writer with a real consumer.
+  Integrate one disposable workflow first to prove the boundary, then migrate
+  every supported workflow. No opt-in flag, questions/replies or HTML reader
+  belongs in this foundation. A fixture alone cannot close the coverage goal.
   For pay_to_play_fixture.sh, pin its existing scratch/descriptor.json bytes
   before forwarding them to descriptor_output. Preserve protocol stdout exactly.
   If attachment publication fails, still forward the native descriptor; expose
@@ -653,10 +667,12 @@ Slice 1: notebook facts, reader and questions/replies.
   concrete existing owner. A small publisher build does not require the full Go
   host migration or justify two host lifecycle implementations.
 
-Slice 2: actual duplicate-fixture inquiry and ordinary restart.
-  Capture every subject action in that inquiry, assertions and cleanup. Run it
-  twice with different world IDs. Demonstrate that history remains available
-  after down and that a peer can ask/reply while a command is active.
+Slice 2: mechanical enforcement of workflow coverage.
+  Derive obligations from supported target declarations. Check that each workflow
+  reaches the common recording/execution owner and governed launches cannot
+  bypass it. Exercise normal, rejected, interrupted and failed-recording paths.
+  Parent/child records account for composed workflows. Recording administration
+  must not recursively record its own bookkeeping.
 
 Slice 3: interactive terminal/rehearsal integration.
   Reuse the existing terminal owner. Record semantic fixture choices, safe owned
@@ -919,17 +935,17 @@ recording/recovery and additional language frontends remain unimplemented.
 Slice 1 needs an actual recorded fixture up/info/down sequence showing:
   requests/results/known launches and stable IDs for its declared commands;
   bounded native descriptor attachments and explicit unrecorded-output coverage;
-  question/reply linked to a step without rewriting it;
   truthful incomplete observation after interruption or publication failure;
   no subject work if its top-level request fact cannot be published;
-  existing work/cleanup continues if an internal observation cannot be published;
+  cleanup remains possible when recording fails; further ordinary work stops;
   notebook retained after fixture teardown;
   no secret input/env capture or second deployment/approval state machine.
 
-Slice 2 adds the duplicate-create inquiry with independent unchanged-identity
-assertions, expected refusal distinguished from infrastructure/checker failure,
-and a second run in a newly allocated world. Replay is not required to close
-the useful first recording/discussion slice; it is required for this later bar.
+Slice 2 requires complete supported-workflow coverage at the declared boundary,
+including rejected prerequisites, composed commands and bypass detection. Removing
+the route through the common owner must fail a repository check. A structurally
+valid route must also produce its request, governed launches and terminal or
+incomplete outcome in execution tests. Questions and replay are deferred.
 
 Slice 3 adds the streaming/PTY bounds, cap/write-failure draining and finalized
 output contract from sections 7-8, at the actual existing terminal/log owner.

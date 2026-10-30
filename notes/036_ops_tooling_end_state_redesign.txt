@@ -23,6 +23,15 @@ admission, resource bundles, receipt interpretation and artifact meaning.
 Solidity constructors, initialization and source-native verification remain
 native and separately pinned. Compose remains the concrete authority grant.
 
+Foundation priority (user clarification): supported workflows must automatically
+record structured requests, governed launches and outcomes through the common
+execution owner. No opt-in session variable or extra operator step is required.
+Coverage must be mechanically enforced from supported target declarations and
+proved through actual invocation, including rejection, interruption and recording
+failure. Questions, discussion, HTML presentation and replay come later. A single
+recorded fixture proves one integration, not coverage of all workflows. Note 037
+sections 1, 16 and 18 define this corrected sequence and acceptance boundary.
+
 Independent business, UI and CAM operations are ordinary operations; full release
 composes them. A completed constructor and an incomplete initialization are
 different facts. Reconciliation operates on individual intended effects, not on
