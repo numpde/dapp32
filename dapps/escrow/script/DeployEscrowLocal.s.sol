@@ -2,7 +2,7 @@ pragma solidity 0.8.35;
 
 import {Script, console2} from "forge-std-1.12.0/src/Script.sol";
 
-import {EscrowLocalFixture} from "./EscrowLocalFixture.sol";
+import {EscrowDeployment} from "./EscrowDeployment.sol";
 
 /// @notice Deploys the escrow CAM fixture to the local Anvil lane.
 /// @dev This script is local-scenario infrastructure, not live-chain deployment
@@ -14,7 +14,7 @@ import {EscrowLocalFixture} from "./EscrowLocalFixture.sol";
 /// - CAM_URI: exact browser- or container-reachable CAM root URI.
 ///
 /// The script hashes the mounted CAM root bytes before broadcasting.
-contract DeployEscrowLocal is Script, EscrowLocalFixture {
+contract DeployEscrowLocal is Script, EscrowDeployment {
     function run() external returns (Deployment memory deployment) {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
@@ -22,7 +22,7 @@ contract DeployEscrowLocal is Script, EscrowLocalFixture {
         bytes32 camHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
 
         vm.startBroadcast(deployerKey);
-        deployment = deployLocalFixture(deployer, camURI, camHash);
+        deployment = deployEscrow(deployer, camURI, camHash);
         vm.stopBroadcast();
 
         console2.log("CamRoot", address(deployment.camRoot));
