@@ -22,20 +22,15 @@ DAPPS_ROOT_ALLOWED_IMPORTS = {
     "dapps/pay-to-play/src/PayToPlayUI.sol": {"cam/src/ICamApp.sol"},
     "dapps/pay-to-play/test/unit/PayToPlayUI.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/pay-to-play/script/DeployPayToPlayLocal.s.sol": {"cam/src/CamRoot.sol"},
-    "dapps/pay-to-play/script/PayToPlayReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
-    "dapps/pay-to-play/test/unit/PayToPlayRelease.t.sol": {"cam/src/CamRoot.sol"},
+    "dapps/pay-to-play/test/unit/PayToPlayDeployment.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/script/DeployUI.s.sol": {"cam/script/UIReleaseScript.sol"},
     "dapps/bike-nft/script/BikeNftUIDeployment.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/test/unit/script/DeployBikeNftRelease.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/script/BikeNftLocalFixture.sol": {"cam/src/CamRoot.sol"},
-    "dapps/bike-nft/script/BikeNftReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
-    "dapps/bike-nft/test/unit/script/BikeNftReleaseVerifier.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/test/unit/BicycleComponentManager/DeploymentHandovers.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/escrow/script/DeployUI.s.sol": {"cam/script/UIReleaseScript.sol"},
     "dapps/escrow/test/unit/DeployEscrowRelease.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/escrow/script/EscrowDeployment.sol": {"cam/src/CamRoot.sol"},
-    "dapps/escrow/script/EscrowReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
-    "dapps/escrow/test/unit/EscrowReleaseVerifier.t.sol": {"cam/src/CamRoot.sol"},
 }
 IMPORT_STATEMENT_RE = re.compile(r"^\s*import\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')

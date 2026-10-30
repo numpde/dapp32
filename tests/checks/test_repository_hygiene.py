@@ -185,7 +185,6 @@ class RepositoryHygieneTest(unittest.TestCase):
                 {"access": "read", "path": "./pay-to-play/cam/main.json"},
                 {"access": "read", "path": "/foundry-broadcast"},
                 {"access": "read-write", "path": "/tmp/local-cam-refresh"},
-                {"access": "read", "path": "/out/deployment.json"},
                 {"access": "read", "path": "/release-plan/release-plan.json"},
                 {"access": "read", "path": "/ui-candidate/ui-deployment.json"},
                 {"access": "read", "path": "/contract-candidate/contract-deployment.json"},
