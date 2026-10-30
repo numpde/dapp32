@@ -75,6 +75,10 @@ DOCKER_COMPOSE ?= docker compose
 # require a console or interleave terminal control sequences with their output.
 export COMPOSE_PROGRESS := plain
 export COMPOSE_ANSI := never
+# Keep operator prompts visible without Docker build/container progress noise.
+RELEASE_TARGET_PATTERNS := bike-nft/release/% escrow/release/% pay-to-play/release/% release/% dapps/release/%
+$(RELEASE_TARGET_PATTERNS): export COMPOSE_PROGRESS := quiet
+$(RELEASE_TARGET_PATTERNS): export BUILDKIT_PROGRESS := quiet
 # Intentional default: the default project name is convenient locally, but it
 # can collide with another checkout/user. Prefer explicit COMPOSE_PROJECT_NAME
 # for shared machines, CI, and parallel scenario runs.
@@ -1871,7 +1875,7 @@ endef
 define wallet_interactive
 $(LANE_GUARD); \
 if [[ ! -t 0 || ! -t 1 ]]; then printf '%s\n' 'Run make $@ in an interactive terminal.' >&2; exit 2; fi; \
-$(call wallet_compose,run --build --rm --no-deps wallet-addresses bash --noprofile --norc /tool/wallet_addresses.sh $(1))
+$(call wallet_compose,run --build --quiet-build --rm --no-deps wallet-addresses bash --noprofile --norc /tool/wallet_addresses.sh $(1))
 endef
 
 wallet/addresses:
