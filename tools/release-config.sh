@@ -132,7 +132,7 @@ release_config_prepare_approval_images() {
     printf '%s\n' 'The saved approval tool is unavailable. Run the same command interactively to prepare and review its replacement.' >&2
     return 2
   fi
-  output=$(release_approval_default_output "$source_commit") || return
+  output=$(release_approval_output_directory "$source_commit") || return
   printf 'Preparing the approval tool automatically; build record: %s\n' "$output"
   release_run_owned "$release_make_cleanup_grace" bash -c \
     'source tools/release_approval_images.sh; release_approval_build_image "$@"' bash \

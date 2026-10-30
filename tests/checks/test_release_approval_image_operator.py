@@ -47,9 +47,10 @@ docker() {
 
 class ApprovalImageOperatorTest(unittest.TestCase):
     def environment(self, root: Path, *, refuse_busy: bool) -> dict[str, str]:
-        environment = {**os.environ, "CASE_ROOT": str(root), "NEW_IMAGE": NEW, "OLD_IMAGE": OLD,
+        (root / "instance").mkdir(mode=0o700)
+        environment = {**os.environ, "INSTANCE": str(root / "instance"), "CASE_ROOT": str(root), "NEW_IMAGE": NEW, "OLD_IMAGE": OLD,
                        "BUSY_IMAGE": BUSY, "TEST_SOURCE": SOURCE, "REFUSE_BUSY": str(int(refuse_busy)), "FIXTURE_STATE": "owned"}
-        for name in ("SOURCE_COMMIT", "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR", "MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES"):
+        for name in ("SOURCE_COMMIT", "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR", "RELEASE_INSTANCE_ROOT", "CONFIG", "MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES"):
             if name in environment:
                 del environment[name]
         return environment
@@ -57,6 +58,35 @@ class ApprovalImageOperatorTest(unittest.TestCase):
     def run_shell(self, script: str, environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
         return subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", STUBS + script], cwd=ROOT,
                               env=environment, input="", capture_output=True, text=True, check=False, timeout=10)
+
+    def test_automatic_records_follow_selected_instance_or_configuration(self):
+        for mode in ("instance", "configuration", "override", "missing", "symlink", "checkout", "readonly"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                env = self.environment(root, refuse_busy=False)
+                env.pop("INSTANCE")
+                selected = root / "instance"
+                if mode == "instance": env["RELEASE_INSTANCE_ROOT"] = str(selected)
+                elif mode == "configuration": env["CONFIG"] = str(selected / "config.json")
+                elif mode == "override": env["RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"] = str(root / "explicit-output")
+                elif mode == "symlink":
+                    (root / "alias").symlink_to(selected, target_is_directory=True)
+                    env["INSTANCE"] = str(root / "alias")
+                elif mode == "checkout": env["INSTANCE"] = str(ROOT)
+                elif mode == "readonly":
+                    selected.chmod(0o500)
+                    env["INSTANCE"] = str(selected)
+                result = self.run_shell('source tools/release_approval_images.sh\nrelease_approval_output_directory "$TEST_SOURCE"', env)
+                selected.chmod(0o700)
+                if mode in ("missing", "symlink", "checkout", "readonly"):
+                    self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertFalse((selected / "approval-tools").exists())
+                else:
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    output = Path(result.stdout.strip())
+                    self.assertEqual(root / "explicit-output" if mode == "override" else selected / "approval-tools", output if mode == "override" else output.parent)
+                    self.assertFalse(output.exists(), "selection allocates only the parent; build publishes the record")
+                self.assertFalse((root / "docker-calls").exists(), "path selection must not start engine work")
 
     def test_fixture_cleanup_removes_only_the_owned_tag_and_respects_native_refusal(self):
         for state in ("owned", "absent", "foreign", "busy"):
@@ -128,8 +158,8 @@ bash() {
                     if outcome == "explicit":
                         self.assertEqual(root / "explicit-output", output)
                     else:
-                        self.assertTrue(output.is_relative_to(Path(os.environ["HOME"]) / "Documents"))
-                        self.assertRegex(str(output.relative_to(Path(os.environ["HOME"]) / "Documents")), r"\d{8}")
+                        self.assertEqual(root / "instance/approval-tools", output.parent)
+                        self.assertRegex(output.name, r"^\d{8}T\d+Z-" + SOURCE[:8] + r"$")
                     self.assertTrue((output / "approval-image.json").is_file())
                 finally:
                     if output is not None and (output / ".test-owned-output").is_file():

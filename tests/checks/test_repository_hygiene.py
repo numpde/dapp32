@@ -49,10 +49,6 @@ ALLOWED_FORBIDDEN_NAME_IDENTIFIERS = {
         "io.dapp" + "32.release-tool-context",
         "io.dapp" + "32.release-tool-context=$tree",
     ),
-    # This is the operator-selected output directory convention.
-    repo_path("tools/release_approval_images.sh"): (
-        "$HOME/Documents/${stamp:0:8}--dapp" + "32-approval",
-    ),
     # Preserve the exact provenance text in the independently pinned peer vector.
     repo_path("tests/fixtures/pay-to-play/p2p_invoice_codec_v1.json"): ("dapp" + "32 owner",),
     repo_path("notes/017_escrow_walkthrough_recording.txt"): tuple(
@@ -218,7 +214,6 @@ class RepositoryHygieneTest(unittest.TestCase):
         approval_script = repo_path("tools/release_approval_images.sh")
         image_script = repo_path("tools/release_tool_images.sh")
         examples = (
-            (approval_script, 'parent="$HOME/Documents/${stamp:0:8}--dapp' + '32-approval"', True),
             (image_script, '--label "io.dapp' + '32.release-tool-context=$tree"', True),
             (image_script, 'index .Config.Labels "io.dapp' + '32.release-tool-context"', True),
             (approval_script, 'printf "dapp' + '32 deployment"', False),

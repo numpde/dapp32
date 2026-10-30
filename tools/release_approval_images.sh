@@ -40,15 +40,37 @@ release_approval_build_image() {
   timeout -s TERM -k 90s 120s bash tools/release_approval_image_build.sh "$@"
 }
 
-release_approval_default_output() {
-  local source_commit="$1" stamp parent current=/ part
+release_approval_output_directory() {
+  local source_commit="$1" stamp parent record_root current=/ part
+  if [[ -v RELEASE_APPROVAL_IMAGE_OUTPUT_DIR ]]; then
+    printf '%s\n' "$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"
+    return
+  fi
+  if [[ -v RELEASE_INSTANCE_ROOT ]]; then record_root="$RELEASE_INSTANCE_ROOT"
+  elif [[ -v INSTANCE && -n "$INSTANCE" ]]; then record_root="$INSTANCE"
+  elif [[ -v CONFIG && -n "$CONFIG" ]]; then record_root=$(dirname -- "$CONFIG")
+  else
+    printf '%s\n' 'Select INSTANCE=/absolute/instance or RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=/absolute/new-record-directory for approval-tool records.' >&2
+    return 2
+  fi
+  if [[ ! -d "$record_root" ]]; then
+    printf 'Approval-tool record root is not an existing directory: %s\n' "$record_root" >&2
+    return 2
+  fi
   local -a parts
-  stamp=$(date -u +%Y%m%dT%H%M%S%NZ)
-  parent="$HOME/Documents/${stamp:0:8}--dapp32-approval"
+  stamp="$(date -u +%Y%m%dT%H%M%S%N)Z"
+  parent="$record_root/approval-tools"
   if [[ "$parent" != /* || "$(realpath -ms -- "$parent")" != "$parent" ]]; then
     printf '%s\n' 'The default approval-image output parent must be a normalized absolute path.' >&2
     return 2
   fi
+  local checkout_root
+  checkout_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P) || return
+  case "$parent" in
+    "$checkout_root"|"$checkout_root"/*)
+      printf '%s\n' 'Approval-tool records must be outside the checkout.' >&2
+      return 2 ;;
+  esac
   IFS=/ read -r -a parts <<< "$parent"
   for part in "${parts[@]}"; do
     if [[ -z "$part" ]]; then continue; fi
@@ -58,7 +80,7 @@ release_approval_default_output() {
       return 2
     fi
   done
-  mkdir -p -- "$parent"
+  mkdir -p --mode=0700 -- "$parent" || return
   printf '%s/%s-%s\n' "$parent" "$stamp" "${source_commit:0:8}"
 }
 

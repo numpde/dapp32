@@ -1088,7 +1088,8 @@ help:
 	  '    Two-minute deadline; allows up to 90 additional seconds for cleanup before forced termination.' \
 	  '    Writes build records automatically; no approval file or image ID input is needed.' \
 	  '    Keeps existing operator images so other instances retain their exact pins.' \
-	  '    SOURCE_COMMIT and RELEASE_APPROVAL_IMAGE_OUTPUT_DIR are optional overrides.' \
+	  '    Select INSTANCE=/absolute/instance; records go under INSTANCE/approval-tools/.' \
+	  '    SOURCE_COMMIT overrides HEAD; RELEASE_APPROVAL_IMAGE_OUTPUT_DIR selects an explicit new record directory.' \
 	  '    Deployment checks that exact image ID is present locally; it does not establish image provenance.' \
 	  '    Each signed transaction is shown for approval; output retains the private audit and transaction records.' \
 	  '    A read-only CONFIG can verify retained records; it needs no signing key or approval image.' \
@@ -1367,7 +1368,7 @@ release/approval/image/build:
 	source tools/release_approval_images.sh; \
 	if [[ "$${SOURCE_COMMIT+x}" == x ]]; then source_commit="$$SOURCE_COMMIT"; else source_commit="$$(git rev-parse HEAD)"; fi; \
 	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then printf '%s\n' 'SOURCE_COMMIT must be a full Git commit hash.' >&2; exit 2; fi; \
-	if [[ "$${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR+x}" == x ]]; then output_dir="$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"; else output_dir="$$(release_approval_default_output "$$source_commit")"; fi; \
+	output_dir="$$(release_approval_output_directory "$$source_commit")"; \
 	printf 'Preparing approval tools from %s; build records: %s\n' "$$source_commit" "$$output_dir"; \
 	new_image="$$(release_approval_build_image "$$source_commit" "$$output_dir")"; \
 	if [[ ! "$$new_image" =~ ^sha256:[0-9a-f]{64}$$ ]]; then printf '%s\n' 'Approval-image preparation returned an invalid image identity.' >&2; exit 2; fi; \

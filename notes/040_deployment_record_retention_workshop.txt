@@ -65,6 +65,10 @@ Chosen boundaries
 
 Instance: keep config.json, instance.json and every referenced operation.
 Configuration remains protected; cleanup does not open, rewrite or duplicate it.
+Automatic approval-tool receipts live under the selected instance's approval-tools/
+directory, with timestamp/commit children. Config-only commands use the config
+file's parent; standalone builds require an instance or an explicit output path.
+One shared allocator owns these choices. No global Documents directory is inferred.
 
 Operation: keep immutable selected inputs, plans, approval reference/audit,
 broadcast transactions and receipts, verification results/diagnostics, final
@@ -155,13 +159,13 @@ alone. Tiny approval-image.json files stay; they are receipts, not Docker images
 The dry run selected 11,800 files, 115,525,143 logical bytes, and retained 51
 compiler source copies plus 215 evidence files. Filesystem allocation differs
 from logical size. Applied on 2026-10-31 after explicit approval of the exact
-/tmp/dapp32-proposed-file-deletions.txt list and refreshed container mount checks.
+saved deletion list and refreshed container mount checks.
 All 215 retained evidence files were byte-identical after deletion; all 51
 compiler source copies remain. PayToPlay was untouched.
-The transient cleanup script is /tmp/dapp32-retention-cleanup.py; it is not a new
-supported workflow. The hash comparison receipt is retained at
-/tmp/dapp32-retention-cleanup-receipt.json. The subsequent producer changes above implement automatic retention for future
-runs; the one-time cleanup itself did not establish that behavior.
+The transient cleanup script and hash-comparison receipt were kept in the
+temporary directory; they are not a new supported workflow. The subsequent
+producer changes above implement automatic retention for future runs; the
+one-time cleanup itself did not establish that behavior.
 
 Implementation qualification (2026-10-31)
 
