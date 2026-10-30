@@ -770,6 +770,23 @@ omitting its required record fails the execution assertion. These prove the
 declared boundary and named behavior, not that arbitrary obfuscated code cannot
 perform effects or that every legacy target has already migrated.
 
+First implemented foundation (2026-10-30):
+  js/tools/execution-ownership.test.mjs protects shared.ts/reference.ts discovered
+  under tools/*-release/ and follows their static local tooling dependencies.
+  The TypeScript compiler owns parsing and symbol identity. The rules reject
+  ambient Node process inputs/aliases, process-launch/loader modules, runtime
+  module loading and test/fixture/scenario dependencies under the checked naming
+  conventions. Injected inputs and diagnostic stderr/exitCode remain legal.
+  Built workspace package outputs are a separate package boundary, discovered
+  from the workspace manifest; their internals are not scanned by this rule.
+  Native analysis lives in the existing offline Node release-check lane because
+  the standard-library Python lane cannot parse TypeScript semantically. No
+  Python placeholder or duplicate checker was added solely to preserve a path.
+  Shared release checks and the UI overlay run it, so ordinary js/ci includes it.
+  Focused make release/ui/check passed all 36 tests, including negative checker
+  examples and the existing UI tests. This does not implement Make dispatch,
+  a shared host executor, command history, or a repo-wide launch restriction.
+
 18. Focused acceptance and scope limits
 ----------------------------------------
 Slice 1 needs an actual recorded fixture up/info/down sequence showing:
