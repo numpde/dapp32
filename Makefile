@@ -780,6 +780,7 @@ help:
 	  '  make dapps/tests/invariant       Check Solidity invariants across generated transaction sequences.' \
 	  '  make dapps/tests/coverage        Run Solidity unit/scenario tests and print source coverage.' \
 	  '  make js/tests                   Build, typecheck and test JS workspace packages and apps offline.' \
+	  '  make js/execution/check         Check operation-core input and execution boundaries offline.' \
 	  '  make js/ci                      Run js/tests plus the terminal, publication, fuzz and release/refund tool checks.' \
 	  '  make cam/conformance/check      Check local CAM manifests and their ABI/UI resources against protocol rules.' \
 	  '  make viewer/terminal/check      Test the terminal viewer with simulated contract responses offline.' \
@@ -1269,6 +1270,10 @@ js/build/check:
 .PHONY: js/compiler/qualify
 js/compiler/qualify:
 	$(call compose_run_with_package_deps,packages.yml,package-test run-js-workspace node tools/compiler-qualification.mjs)
+
+.PHONY: js/execution/check
+js/execution/check:
+	$(call compose_run_with_package_deps,packages.yml,package-test run-js-workspace sh -eu -c 'npm run build:packages && npm run test:execution-ownership')
 
 js/tests:
 	$(call compose_run_with_package_deps,packages.yml,package-test)

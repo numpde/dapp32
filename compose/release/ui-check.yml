@@ -10,4 +10,4 @@ services:
       - |
         npm run build:packages
         ./node_modules/.bin/tsc -p tools/ui-release/tsconfig.json
-        node --test --experimental-strip-types tools/execution-ownership.test.mjs tools/ui-release/*.test.ts
+        node --test --experimental-strip-types tools/ui-release/*.test.ts

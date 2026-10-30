@@ -12,16 +12,17 @@ const packageOutputs = JSON.parse(readFileSync(join(workspace, "package.json"), 
   .filter(path => path.startsWith("packages/"))
   .map(path => join(workspace, path, "dist") + sep)
 
-function semanticRoots(tools) {
+function operationCores(tools) {
+  // These filenames declare the same core role in every tool directory.
   return readdirSync(tools, { withFileTypes: true })
-    .filter(entry => entry.isDirectory() && entry.name.endsWith("-release"))
-    .flatMap(entry => ["shared.ts", "reference.ts"].map(name => join(tools, entry.name, name)))
+    .filter(entry => entry.isDirectory())
+    .flatMap(entry => ["core.ts", "shared.ts", "reference.ts", "protocol.ts", "config.ts"].map(name => join(tools, entry.name, name)))
     .filter(existsSync)
     .sort()
 }
 
 function testDependency(path) {
-  return /(?:^|\/)(?:tests?|fixtures|release-rehearsal|[^/]+-local-scenario)(?:\/|$)/.test(path)
+  return /(?:^|\/)(?:tests?|fixtures|(?:[^/]+-)?(?:rehearsal|scenario))(?:\/|$)/.test(path)
     || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path)
 }
 
@@ -41,7 +42,7 @@ function referencedGlobal(node, checker) {
 // The native compiler owns parsing and symbol identity. This check follows only
 // local source edges; dependency-package internals are outside its claim.
 function ownershipIssues(roots, localRoot = join(workspace, "tools")) {
-  assert(roots.length > 0, "release semantic root discovery must not be empty")
+  assert(roots.length > 0, "operation core discovery must not be empty")
   const directory = mkdtempSync(join(tmpdir(), "cam-execution-ownership-"))
   const config = join(directory, "tsconfig.json")
   writeFileSync(config, JSON.stringify({ extends: join(workspace, "tsconfig.tool.json"), files: roots, include: [] }))
@@ -66,7 +67,7 @@ function ownershipIssues(roots, localRoot = join(workspace, "tools")) {
       if (seen.has(file)) continue
       seen.add(file)
       const source = program.getSourceFile(file)
-      assert(source, `cannot analyze release dependency ${file}`)
+      assert(source, `cannot analyze operation dependency ${file}`)
       assert.equal(program.getSyntacticDiagnostics(file).length, 0, `cannot analyze invalid TypeScript: ${file}`)
       const report = (node, message) => {
         const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1
@@ -74,18 +75,19 @@ function ownershipIssues(roots, localRoot = join(workspace, "tools")) {
       }
       const dependency = (node, specifier) => {
         if (forbiddenModules.has(specifier.replace(/^node:/, ""))) {
-          report(node, `release semantics cannot import ${specifier}; inputs and process launches belong to adapters`)
+          report(node, `operation cores cannot import ${specifier}; inputs and process launches belong to adapters`)
         } else if (testDependency(specifier)) {
-          report(node, `release semantics cannot depend on test/fixture driver ${specifier}`)
+          report(node, `operation cores cannot depend on test/fixture driver ${specifier}`)
         } else if (specifier.startsWith("/") || specifier.startsWith("file:") || specifier.startsWith("#")) {
-          report(node, `release semantics cannot analyze non-relative local dependency ${specifier}`)
+          report(node, `operation cores cannot analyze non-relative local dependency ${specifier}`)
         } else if (specifier.startsWith(".")) {
           const target = resolve(dirname(file), specifier)
-          // Built workspace packages own their internals; release-values uses
-          // the viewer's public error formatter through this boundary.
+          // Built workspace packages own their dependency boundaries.
           if (!packageOutputs.some(output => target.startsWith(output))) {
-            assert(target.startsWith(localRoot + sep), `release dependency escapes its source boundary: ${file}: ${specifier}`)
-            pending.push(target)
+            assert(target.startsWith(localRoot + sep), `operation dependency escapes its source boundary: ${file}: ${specifier}`)
+            if (/(?:^|\/)(?:main|runner)\.ts$/.test(target)) {
+              report(node, `operation cores cannot depend on entrypoint adapter ${specifier}`)
+            } else pending.push(target)
           }
         }
       }
@@ -97,17 +99,17 @@ function ownershipIssues(roots, localRoot = join(workspace, "tools")) {
           dependency(node, node.argument.literal.text)
         } else if (ast.isImportEqualsDeclaration(node)
             || (ast.isCallExpression(node) && node.expression.kind === ast.SyntaxKind.ImportKeyword)) {
-          report(node, "release semantics require static ESM dependencies; runtime module loading is not analyzed")
+          report(node, "operation cores require static ESM dependencies; runtime module loading is not analyzed")
         }
         const symbol = referencedGlobal(node, checker)
         if (symbol?.id === requireSymbol.id || symbol?.id === moduleSymbol.id) {
-          report(node, "release semantics require static ESM dependencies; runtime module loading is not analyzed")
+          report(node, "operation cores require static ESM dependencies; runtime module loading is not analyzed")
         } else if (symbol?.id === processSymbol.id) {
           const parent = node.parent
-          // runReleaseTool reports failures here; it does not obtain its inputs here.
+          // Diagnostic wrappers report failures without obtaining their inputs here.
           const diagnostic = ast.isPropertyAccessExpression(parent) && parent.expression === node
             && ["stderr", "exitCode"].includes(parent.name.text)
-          if (!diagnostic) report(node, "release semantics must receive explicit inputs; ambient process access/aliasing belongs to entrypoints")
+          if (!diagnostic) report(node, "operation cores must receive explicit inputs; ambient process access/aliasing belongs to entrypoints")
         }
         node.forEachChild(visit)
       }
@@ -135,8 +137,8 @@ function example(files) {
   }
 }
 
-test("release semantic roots and their local dependencies retain explicit inputs and execution ownership", () => {
-  assert.deepEqual(ownershipIssues(semanticRoots(join(workspace, "tools"))), [])
+test("operation cores and their local dependencies retain explicit inputs and execution ownership", () => {
+  assert.deepEqual(ownershipIssues(operationCores(join(workspace, "tools"))), [])
 })
 
 test("injected inputs, local dependencies, diagnostic output and harmless text are allowed", () => {
@@ -174,7 +176,7 @@ for (const source of [
   "import * as workers from 'node:cluster'; export { workers }",
   "export { helper } from './helper.test.ts'",
   "export { helper } from './fixtures/helper.ts'",
-  "export { helper } from './release-rehearsal/runner.ts'",
+  "export { helper } from './example-scenario/workload.ts'",
   "export const helper = import('./helper.ts')",
   "export const helper = import(process.env.MODULE!)",
   "const load = require; export const helper = load('./helper.ts')",
@@ -197,6 +199,18 @@ test("a re-export cannot hide ambient inputs in a transitive local dependency", 
   assert.equal(issues.length, 1)
   assert.match(issues[0], /input\.ts:1:.*explicit inputs/)
 })
+
+for (const entrypoint of ["main.ts", "runner.ts"]) {
+  test(`core dependencies cannot reach ${entrypoint}, even without ambient reads or launches`, () => {
+    const issues = example({
+      "shared.ts": "export { plan } from './policy.ts'",
+      "policy.ts": `export { plan } from './${entrypoint}'`,
+      [entrypoint]: "export const plan = 1",
+    })
+    assert.equal(issues.length, 1)
+    assert.match(issues[0], /policy\.ts:1:.*cannot depend on entrypoint adapter/)
+  })
+}
 
 test("a locally named process input is not mistaken for the Node global", () => {
   assert.deepEqual(example({
@@ -221,13 +235,16 @@ test("invalid source cannot produce a clean ownership report", () => {
   assert.throws(() => example({ "shared.ts": "export const = ;" }), /invalid TypeScript/)
 })
 
-test("new release directories enter root discovery without updating a target list", () => {
+test("operation roles are discovered independently of directory or application names", () => {
   const directory = mkdtempSync(join(tmpdir(), "cam-ownership-discovery-"))
   try {
-    mkdirSync(join(directory, "new-release"))
-    const root = join(directory, "new-release/shared.ts")
-    writeFileSync(root, "export const plan = 1")
-    assert.deepEqual(semanticRoots(directory), [root])
+    mkdirSync(join(directory, "arbitrary-tool"))
+    const cores = ["config.ts", "core.ts", "protocol.ts", "reference.ts", "shared.ts"]
+      .map(name => join(directory, "arbitrary-tool", name))
+    for (const file of [...cores, join(directory, "arbitrary-tool/runner.ts")]) {
+      writeFileSync(file, "export const value = 1")
+    }
+    assert.deepEqual(operationCores(directory), cores)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

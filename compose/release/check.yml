@@ -18,4 +18,4 @@ services:
       - |
         npm run build:workspace
         ./node_modules/.bin/tsc -p "$${RELEASE_TOOL_DIR}/tsconfig.json"
-        node --test --experimental-strip-types tools/execution-ownership.test.mjs tools/release-cam-bundle.test.ts tools/release-files.test.ts tools/release-values.test.ts tools/release-viewer-url.test.ts "$${RELEASE_TOOL_DIR}"/*.test.ts
+        node --test --experimental-strip-types tools/release-cam-bundle.test.ts tools/release-files.test.ts tools/release-values.test.ts tools/release-viewer-url.test.ts "$${RELEASE_TOOL_DIR}"/*.test.ts

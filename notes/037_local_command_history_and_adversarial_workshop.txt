@@ -693,19 +693,21 @@ fixture files only when their shape warrants it. Do not place structural checks
 under checks/text unless their actual mechanism is brittle textual matching.
 
 Step A: identify and expose the real ownership boundary.
-  Start with the first migrated operation family, its Make entrypoints and its
-  actual host executor/process module. Identify native container jobs, fixture
+  Define common role contracts and the actual host executor/process boundary,
+  independently of application names. Identify native container jobs, fixture
   drivers and bootstrap separately; they have legitimate, different execution
   authority. Do not ban subprocess use across every test, tool and container.
   Enforcement must follow an implemented boundary, not invent an executor stub
   or pretend today's distributed host scripts already meet the proposed shape.
-  Extend coverage with each migration; delete the displaced route in that slice.
+  Discover role-bearing modules automatically; do not register families or copy
+  the checker for each application. Delete displaced routes as their real owners
+  move to the shared execution boundary.
 
 Step B: check entrypoint routing.
   Discover governed targets from their real declarations; do not maintain a
   parallel hand-written inventory that new targets can escape. Each declaration
   identifies its operation and recording capability at the same owner used by
-  dispatch/discovery. Unknown or unclassified entrypoints in the governed family
+  dispatch/discovery. Unknown or unclassified entrypoints in the governed boundary
   fail the check rather than silently falling outside its scope.
   Inspect expanded recipes, following the existing expanded_release_target
   approach in tests/checks/release_posture.py. Assert the supported forwarding
@@ -770,22 +772,33 @@ omitting its required record fails the execution assertion. These prove the
 declared boundary and named behavior, not that arbitrary obfuscated code cannot
 perform effects or that every legacy target has already migrated.
 
-First implemented foundation (2026-10-30):
-  js/tools/execution-ownership.test.mjs protects shared.ts/reference.ts discovered
-  under tools/*-release/ and follows their static local tooling dependencies.
-  The TypeScript compiler owns parsing and symbol identity. The rules reject
-  ambient Node process inputs/aliases, process-launch/loader modules, runtime
-  module loading and test/fixture/scenario dependencies under the checked naming
-  conventions. Injected inputs and diagnostic stderr/exitCode remain legal.
-  Built workspace package outputs are a separate package boundary, discovered
-  from the workspace manifest; their internals are not scanned by this rule.
-  Native analysis lives in the existing offline Node release-check lane because
-  the standard-library Python lane cannot parse TypeScript semantically. No
-  Python placeholder or duplicate checker was added solely to preserve a path.
-  Shared release checks and the UI overlay run it, so ordinary js/ci includes it.
-  Focused make release/ui/check passed all 36 tests, including negative checker
-  examples and the existing UI tests. This does not implement Make dispatch,
-  a shared host executor, command history, or a repo-wide launch restriction.
+Implemented common foundation (2026-10-30):
+  js/tools/execution-ownership.test.mjs defines ONE ownership policy by module
+  responsibility. Every immediate js/tools/*/ directory uses the same convention:
+  core.ts, shared.ts, reference.ts, protocol.ts and config.ts declare core roots;
+  main.ts and runner.ts declare entrypoint adapters. Discovery has no application
+  names, release suffix or per-family registry. Adding a core role file makes
+  it subject to the same rules automatically. These names are an explicit
+  architecture convention, not an inference that all other files are harmless.
+  Static local tooling dependencies inherit the core constraints. Core imports
+  of entrypoint adapters, test/fixture/scenario drivers, raw process-launch/loader
+  modules or runtime module loading are rejected. Ambient Node process inputs
+  and aliases are rejected; injected inputs and diagnostic stderr/exitCode remain
+  legal. The TypeScript compiler owns parsing and symbol identity.
+  This one policy now protects release planning, refund decisions/configuration,
+  voucher protocol inputs and approval references without separate rule engines.
+  Built workspace packages are their own boundary, discovered from the workspace
+  manifest; their internals are not scanned. Unreachable differently named tool
+  modules, Make/shell code and other languages are not implicitly classified.
+  Native analysis belongs in the existing offline JS test runtime; the Python
+  lane cannot parse TypeScript semantically. No duplicate Python check was added.
+  The sole npm test:execution-ownership command runs through ordinary js/tests
+  and js/ci. make js/execution/check supplies focused offline validation using
+  the existing package-test service. Release-specific invocations were removed.
+  Focused validation passed all 33 checker tests, including independent core-to-
+  adapter violations without ambient reads/launches and role-based discovery in
+  an arbitrarily named directory. This does not implement Make dispatch, a
+  shared host executor, command history or repo-wide execution supervision.
 
 18. Focused acceptance and scope limits
 ----------------------------------------
