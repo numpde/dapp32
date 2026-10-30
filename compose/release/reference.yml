@@ -1,6 +1,7 @@
 # Offline compiler export and reference preparation for an approval release.
 services:
   release-reference-export:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../../containers/foundry
       dockerfile: Dockerfile

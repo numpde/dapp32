@@ -6,11 +6,14 @@ x-fixture-rpc: &fixture_rpc
 
 services:
   release-plan:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_REHEARSAL: "1"
   release-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *fixture_rpc
   release-artifact-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *fixture_rpc
 
 networks:

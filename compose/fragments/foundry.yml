@@ -1,5 +1,6 @@
 # Foundry runtime posture. Consumers own networks, mounts and deployment scripts.
 x-foundry-runtime: &foundry_runtime
+  sysctls: {net.mptcp.enabled: "0"}
   build:
     context: ../../containers/foundry
     dockerfile: Dockerfile

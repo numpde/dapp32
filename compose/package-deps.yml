@@ -12,6 +12,7 @@
 #   when make js/deps/install is run with ALLOW_UPDATE=1.
 services:
   package-egress-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/https-egress-proxy
       dockerfile: Dockerfile
@@ -50,6 +51,7 @@ services:
       retries: 10
 
   package-stage:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/node-deps
       dockerfile: Dockerfile
@@ -119,6 +121,7 @@ services:
         cp package-lock.json /out/package-lock.json
 
   package-apply-locked:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/node-deps
       dockerfile: Dockerfile
@@ -154,6 +157,7 @@ services:
         stage-node-modules /out/node_modules /work/node_modules
 
   package-apply-update:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/node-deps
       dockerfile: Dockerfile

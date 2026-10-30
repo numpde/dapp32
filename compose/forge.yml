@@ -13,6 +13,7 @@
 # only when it needs a different trust boundary, such as RPC, browser access,
 # a writable mount, or a published port.
 x-offline-hardened: &offline_hardened
+  sysctls: {net.mptcp.enabled: "0"}
   working_dir: /work/dapps
   user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true

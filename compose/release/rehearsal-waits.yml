@@ -1,6 +1,7 @@
 # Fixture-only observation of the maintained release client's three waits.
 services:
   deploy-release:
+    sysctls: {net.mptcp.enabled: "0"}
     network_mode: !reset null
     networks:
       - release_deploy_internal
@@ -21,6 +22,7 @@ services:
           --broadcast --slow \
           -vvv
   release-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     entrypoint: [python3, /rehearsal/wait_probe.py]
     environment:
       RELEASE_WAIT_CASE: "${RELEASE_WAIT_CASE:?missing_RELEASE_WAIT_CASE}"

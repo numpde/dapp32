@@ -1,6 +1,7 @@
 # External test runners join this network after obtaining verified coordinates.
 services:
   pay-to-play-fixture-info:
+    sysctls: {net.mptcp.enabled: "0"}
     image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
     user: "65532:65532"
     read_only: true

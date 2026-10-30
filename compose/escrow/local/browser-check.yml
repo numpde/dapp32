@@ -1,6 +1,7 @@
 # Opt-in check against an already running local viewer and operator-owned CDP browser.
 services:
   escrow-viewer-browser-check:
+    sysctls: !reset {}
     image: docker.io/library/node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d
     user: "10001:10001"
     read_only: true
@@ -31,6 +32,7 @@ services:
   # Separate opt-in authority: signs fixture transactions on an existing local
   # chain. The workspace runner verifies the installed dependency graph first.
   escrow-viewer-browser-write-check:
+    sysctls: !reset {}
     extends:
       file: ../../fragments/node-workspace.yml
       service: hardened-node-workspace

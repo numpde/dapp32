@@ -4,6 +4,7 @@
 # temporary manifest plan and writes only generated cam/abi files. Keep it out of
 # compose/forge.yml so routine build/test/fuzz lanes do not need ABI_PLAN_DIR.
 x-offline-hardened: &offline_hardened
+  sysctls: {net.mptcp.enabled: "0"}
   working_dir: /work/dapps
   user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true

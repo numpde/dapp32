@@ -6,6 +6,7 @@
 # auditable mount change. ABI/UI resources use the read-only dapps mount.
 services:
   cam-integrity:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/checks
       dockerfile: Dockerfile

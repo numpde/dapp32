@@ -1,6 +1,7 @@
 # Keyless observation, offline original-source verification and exclusive business artifact publication.
 services:
   release-artifact-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on: !reset []
     environment:
       RPC_ALLOWED_METHODS: >-
@@ -8,6 +9,7 @@ services:
         eth_getTransactionReceipt eth_getTransactionByHash
 
   release-artifact:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_TOOL_DIR: tools/contract-release
       CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json

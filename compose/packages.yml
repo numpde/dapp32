@@ -20,6 +20,7 @@ services:
   # JS workspace code runs is therefore `npm ls`: check that the installed workspace
   # dependency graph is present and consistent with package.json/package-lock.json.
   package-graph-check:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *package_base
     volumes: *package_volumes
     command:
@@ -32,6 +33,7 @@ services:
   # artifacts; JS dist/ outputs live only in container-local tmpfs mounts.
   # Add a separate artifact-export lane if host-visible JS output is ever needed.
   package-build-check:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *package_base
     volumes: *package_volumes
     command:
@@ -41,6 +43,7 @@ services:
       - "build:workspace"
 
   package-test:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *package_base
     volumes:
       - ../dapps:/work/dapps:ro
@@ -54,6 +57,7 @@ services:
       - "test:workspace"
 
   cam-conformance-check:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *package_base
     volumes:
       - ../dapps:/work/dapps:ro

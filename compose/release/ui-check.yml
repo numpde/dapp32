@@ -1,5 +1,6 @@
 services:
   release-check:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_TOOL_DIR: tools/ui-release
     command:

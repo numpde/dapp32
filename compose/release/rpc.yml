@@ -1,6 +1,7 @@
 # Offline endpoint resolution. Credential bytes arrive on stdin, never through mounts or argv.
 services:
   rpc-resolve:
+    sysctls: {net.mptcp.enabled: "0"}
     image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
     init: true
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"

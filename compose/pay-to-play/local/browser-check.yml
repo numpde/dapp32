@@ -1,6 +1,7 @@
 # Opt-in fixture transactions in a new tab of an existing operator-owned browser.
 services:
   pay-to-play-viewer-browser-check:
+    sysctls: !reset {}
     extends:
       file: ../../fragments/node-workspace.yml
       service: hardened-node-workspace

@@ -1,4 +1,5 @@
 services:
   release-check:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_TOOL_DIR: tools/pay-to-play-release

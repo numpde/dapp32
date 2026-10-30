@@ -5,6 +5,7 @@
 # published deployment.
 services:
   escrow-cam-http:
+    sysctls: {net.mptcp.enabled: "0"}
     image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
     working_dir: /srv/cam
     init: true

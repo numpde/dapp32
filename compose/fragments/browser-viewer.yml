@@ -18,6 +18,7 @@ services:
         exec npm run dev -w cam-web -- --host 0.0.0.0 --port 5173 --strictPort
 
   browser-gateway:
+    sysctls: {net.mptcp.enabled: "0"}
     image: ghcr.io/nginx/nginx-unprivileged:1.31.1-alpine3.23@sha256:8122337ed6c475bb486bc9340da453d4599f225e6b920ff0d92ca2267486b9b5
     user: "101:101"
     read_only: true

@@ -1,6 +1,7 @@
 # Business deployment is independent of CAM publication and UI creation.
 services:
   release-plan:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_TOOL_DIR: tools/contract-release
       CONTRACT_RELEASE_APP: "${CONTRACT_RELEASE_APP:?missing_CONTRACT_RELEASE_APP}"
@@ -10,6 +11,7 @@ services:
       CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
 
   deploy-release:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_SCRIPT: "${CONTRACT_RELEASE_APP:?missing_CONTRACT_RELEASE_APP}/script/DeployContracts.s.sol"
       CONTRACT_RELEASE_PLAN_PATH: /release-plan/release-plan.json

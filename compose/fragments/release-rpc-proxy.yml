@@ -1,6 +1,7 @@
 # Shared release RPC process, network-request and diagnostic bounds.
 services:
   release-rpc-proxy-base:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../../containers/rpc-proxy
       dockerfile: Dockerfile

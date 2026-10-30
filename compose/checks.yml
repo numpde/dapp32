@@ -19,6 +19,7 @@
 # artifact writes here. Those require separate runtime postures.
 services:
   checks:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/checks
       dockerfile: Dockerfile

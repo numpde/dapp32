@@ -38,6 +38,7 @@ services:
     command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json; node --experimental-strip-types tools/source-publication-prepare.ts']
 
   source-submit:
+    sysctls: {net.mptcp.enabled: "0"}
     image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
     pull_policy: never
     init: true

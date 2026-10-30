@@ -1,6 +1,7 @@
 # UI creation is independent of CAM publication and business administration.
 services:
   release-plan:
+    sysctls: {net.mptcp.enabled: "0"}
     network_mode: !reset null
     networks: [release_artifact_internal]
     depends_on:
@@ -22,6 +23,7 @@ services:
         bind: {create_host_path: false}
 
   deploy-release:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_SCRIPT: "${UI_RELEASE_APP:?missing_UI_RELEASE_APP}/script/DeployUI.s.sol"
       UI_RELEASE_PLAN_PATH: /release-plan/release-plan.json

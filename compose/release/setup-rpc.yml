@@ -1,6 +1,7 @@
 # Only network identity is read; signing inputs are collected after teardown.
 services:
   rpc-chain-read:
+    sysctls: {net.mptcp.enabled: "0"}
     image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
     pull_policy: never
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"

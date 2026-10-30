@@ -250,6 +250,17 @@ def compose_config_process(
 
 
 class RenderedComposePostureTest(unittest.TestCase):
+    def test_isolated_services_disable_multipath_tcp(self) -> None:
+        for compose_unit in compose_render_units():
+            config = rendered_compose_config(compose_unit, env=compose_render_env())
+            for name, service in config["services"].items():
+                with self.subTest(compose_unit=compose_unit, service=name):
+                    sysctls = service.get("sysctls", {})
+                    if service.get("network_mode") == "host":
+                        self.assertNotIn("net.mptcp.enabled", sysctls)
+                    else:
+                        self.assertEqual("0", sysctls.get("net.mptcp.enabled"))
+
     def test_fixture_wallet_reads_existing_demo_records_without_manual_pins(self) -> None:
         config = rendered_compose_config("compose/browser-fixture-wallet.yml", env=compose_render_env())
         service = compose_service(config, "browser-fixture-wallet")

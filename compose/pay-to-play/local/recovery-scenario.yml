@@ -2,6 +2,7 @@
 # deployment dependencies, read-only mounts and public fixture-account grants.
 services:
   pay-to-play-local-scenario:
+    sysctls: {net.mptcp.enabled: "0"}
     volumes:
       - ../../../dapps/pay-to-play/cam/abi:/work/dapps/pay-to-play/cam/abi:ro
     command:

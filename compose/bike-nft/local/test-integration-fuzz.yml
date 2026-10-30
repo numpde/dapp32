@@ -93,12 +93,14 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
 
 services:
   test-integration-fuzz-bike-nft:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *bike_nft_integration_fuzz_base
     environment:
       <<: *bike_nft_integration_fuzz_environment
       CAM_INTEGRATION_WRITE_MODE: simulate
 
   test-integration-fuzz-with-writes-bike-nft:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *bike_nft_integration_fuzz_base
     environment:
       <<: *bike_nft_integration_fuzz_environment

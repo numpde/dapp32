@@ -2,6 +2,7 @@
 # needed: this dedicated relayer key pays gas for permissionless refunds only.
 services:
   pay-to-play-refunds:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       REFUND_EXECUTE: "YES"
       REFUND_PRIVATE_KEY_FILE: /run/secrets/refund-relayer

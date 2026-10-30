@@ -2,6 +2,7 @@
 # operator-owned loopback endpoints; this lane also has ordinary host egress.
 services:
   browser-fixture-wallet:
+    sysctls: !reset {}
     extends:
       file: fragments/node-workspace.yml
       service: hardened-node-workspace

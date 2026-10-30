@@ -71,6 +71,7 @@ services:
       release_deploy_egress: {}
 
   deploy-release:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../../containers/foundry
       dockerfile: Dockerfile
@@ -127,10 +128,12 @@ services:
 
 
   release-artifact:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on:
       deploy-release:
         condition: service_completed_successfully
   release-artifact-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on:
       release-plan:
         condition: service_completed_successfully

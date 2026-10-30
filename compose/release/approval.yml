@@ -1,6 +1,7 @@
 # Live approval only. The base signer has no RPC socket without this overlay.
 services:
   release-approval:
+    sysctls: {net.mptcp.enabled: "0"}
     image: "${RELEASE_APPROVAL_IMAGE:?missing_RELEASE_APPROVAL_IMAGE}"
     pull_policy: never
     init: true
@@ -65,6 +66,7 @@ services:
       retries: 10
 
   deploy-release:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on:
       release-approval:
         condition: service_healthy

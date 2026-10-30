@@ -1,5 +1,6 @@
 # App-specific release inputs; phase boundaries are owned by compose/release/.
 services:
   release-check:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_TOOL_DIR: tools/escrow-release

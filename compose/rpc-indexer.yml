@@ -2,6 +2,7 @@
 # and one private client network. Only this proxy joins the egress network.
 services:
   rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/rpc-proxy
       dockerfile: Dockerfile

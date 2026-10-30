@@ -4,6 +4,7 @@
 # endpoint. Keep both in this file because they share the same tool image, but
 # make the network boundary explicit per service.
 x-cast-base: &cast_base
+  sysctls: {net.mptcp.enabled: "0"}
   # Cast uses the same repo-owned Foundry image as the Forge and Anvil lanes.
   # This keeps the tool version policy in one Dockerfile.
   build:
@@ -99,6 +100,7 @@ services:
   # validates that it resolves only to global IP addresses, and forwards only
   # explicitly allowed read-only JSON-RPC methods to that upstream.
   rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/rpc-proxy
       dockerfile: Dockerfile

@@ -1,9 +1,11 @@
 # The local rehearsal alone needs access to the private fixture RPC.
 services:
   viewer-url:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_VIEWER_LOCAL: "1"
   browser-gateway:
+    sysctls: {net.mptcp.enabled: "0"}
     networks: [release_local]
     environment:
       VIEWER_RPC_LOCATION: "location = /rpc { proxy_pass http://release-anvil:8545/; }"

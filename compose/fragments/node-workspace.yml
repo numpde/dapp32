@@ -5,6 +5,7 @@
 # still owns its mounts, networks, commands, and domain-specific environment.
 services:
   hardened-node-workspace:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../../containers/node-deps
       dockerfile: Dockerfile

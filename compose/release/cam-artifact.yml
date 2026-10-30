@@ -1,6 +1,7 @@
 # Keyless signed receipt/source observation and exclusive CAM publication records.
 services:
   release-artifact-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on: !reset []
     environment:
       RPC_ALLOWED_METHODS: >-
@@ -8,6 +9,7 @@ services:
         eth_getTransactionReceipt eth_getTransactionByHash
 
   release-artifact:
+    sysctls: {net.mptcp.enabled: "0"}
     environment:
       RELEASE_TOOL_DIR: tools/cam-release
       CAM_RELEASE_PLAN_PATH: /release-plan/release-plan.json

@@ -1,6 +1,7 @@
 # Fixture-only Unix socket qualification of the pinned Forge release client.
 services:
   release-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     entrypoint: [python3, /rehearsal/ipc_probe.py]
     environment:
       RELEASE_WAIT_CASE: "${RELEASE_WAIT_CASE:?missing_RELEASE_WAIT_CASE}"
@@ -25,6 +26,7 @@ services:
         bind:
           create_host_path: false
   deploy-release:
+    sysctls: {net.mptcp.enabled: "0"}
     network_mode: none
     networks: !reset []
     volumes:

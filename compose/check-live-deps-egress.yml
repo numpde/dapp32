@@ -9,6 +9,7 @@
 # checker can reach external hosts only through dependency-egress-proxy.
 services:
   egress-proxy-check:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/checks
       dockerfile: Dockerfile

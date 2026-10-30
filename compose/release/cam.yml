@@ -20,8 +20,10 @@ services:
         bind: {create_host_path: false}
     command: [run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/root-source.ts']
   release-reference-export:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on: !reset []
   release-reference-prepare:
+    sysctls: {net.mptcp.enabled: "0"}
     network_mode: !reset null
     networks: [release_artifact_internal]
     depends_on: !override
@@ -69,8 +71,10 @@ services:
         bind: {create_host_path: false}
     command: [timeout, --signal=TERM, --kill-after=10s, 300s, run-js-workspace, sh, -eu, -c, 'npm run build:packages; ./node_modules/.bin/tsc -p tools/cam-release/tsconfig.json; node --experimental-strip-types tools/cam-release/plan.ts']
   release-rpc-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on: !reset []
   deploy-release:
+    sysctls: {net.mptcp.enabled: "0"}
     depends_on: !reset []
     environment:
       RELEASE_SCRIPT: cam/script/PublishCam.s.sol

@@ -117,5 +117,9 @@ make js/deps/install
 make ci
 ```
 
+Compose services with their own network namespace disable Multipath TCP. This
+requires the host kernel to expose the per-namespace `net.mptcp.enabled` setting.
+Browser tools that use host networking share the host's network settings instead.
+
 `make tests` also runs networked checks and disposable local scenarios.
 Run `make help` for commands, prerequisites, and operator options.

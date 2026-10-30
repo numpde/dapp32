@@ -18,6 +18,7 @@
 # Routine build/test lanes must stay offline and read-only.
 services:
   dependency-egress-proxy:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/https-egress-proxy
       dockerfile: Dockerfile
@@ -56,6 +57,7 @@ services:
       retries: 10
 
   soldeer-stage:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/foundry-deps
       dockerfile: Dockerfile
@@ -120,6 +122,7 @@ services:
         cp remappings.txt /out/remappings.txt
 
   soldeer-verify-stage:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/python-deps
       dockerfile: Dockerfile
@@ -202,6 +205,7 @@ services:
         test -f dependency-checksums.txt
 
   soldeer-apply-locked:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/foundry
       dockerfile: Dockerfile
@@ -256,6 +260,7 @@ services:
         stage_dependency_tree
 
   soldeer-apply-update:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/foundry
       dockerfile: Dockerfile
@@ -307,6 +312,7 @@ services:
         cp /out/dependency-checksums.txt /work/dependency-checksums.txt
 
   soldeer-verify:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../containers/checks
       dockerfile: Dockerfile

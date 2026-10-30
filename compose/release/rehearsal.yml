@@ -20,6 +20,7 @@ x-client: &client
 
 services:
   release-anvil:
+    sysctls: {net.mptcp.enabled: "0"}
     build:
       context: ../../containers/foundry
       dockerfile: Dockerfile
@@ -44,6 +45,7 @@ services:
       retries: 20
 
   release-cam:
+    sysctls: {net.mptcp.enabled: "0"}
     image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
     init: true
     user: "65532:65532"
@@ -63,6 +65,7 @@ services:
       retries: 10
 
   rehearsal-prepare:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *client
     environment:
       REHEARSAL_DAPP: "${DAPP:?missing_DAPP}"
@@ -78,6 +81,7 @@ services:
           create_host_path: false
 
   rehearsal-accept:
+    sysctls: {net.mptcp.enabled: "0"}
     <<: *client
     environment:
       REHEARSAL_DAPP: "${DAPP:?missing_DAPP}"
