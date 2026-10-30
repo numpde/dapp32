@@ -1,0 +1,784 @@
+Local command history and adversarial exploration
+=================================================
+
+Date: 2026-10-30.
+Status: proposed design, not implemented or operationally qualified.
+Scope: a useful local approximation of interactive failure exploration, starting
+with organized command history. No Antithesis dependency, deployment, signing,
+operator-secret access or production behavior change is authorized by this note.
+
+This develops sections 13-16 of note 036. Antithesis is excluded from the selected
+architecture, including optional execution backends. Other conclusions of 036
+remain proposals; command history must not wait for its complete host refactor.
+
+1. Decision and minimum useful result
+-------------------------------------
+Build a local command notebook around ordinary supported Make commands. Its
+facts come from the boundary that actually receives a request or launches work.
+Its presentation lets a human or agent inspect a step, ask a question, attach a
+reply, propose an experiment and compare the resulting evidence.
+
+The minimum is useful without a simulator, checkpoint implementation, autonomous
+agent loop, web service or new deployment executor. Recording and discussion are
+the first feature. Repeatable clean-world experiments are the next feature.
+
+Keep ordinary commands ordinary:
+
+  make pay-to-play/local/fixture/up FIXTURE_ID=<owned-id> SESSION=<session-dir>
+  make pay-to-play/local/fixture/info FIXTURE_ID=<same-id> SESSION=<session-dir>
+
+SESSION is a proposed opt-in destination, not an implemented variable today.
+Initially integrate known disposable fixture/rehearsal entrypoints. A shared
+mechanism should eventually cover supported command families, without making
+every read/check/build command use release plans, approval or effect journals.
+
+Requested recording cannot be silently ignored. An owning entrypoint must admit
+SESSION with its declared coverage or refuse before subject work. This matters
+because Make normally accepts an unused variable. Derive capture capability at
+the existing target/owner declaration, not from a second central target list.
+The first fixture slice is partial progress toward all-command coverage, not
+closure of that goal. Invalid SESSION admission may itself be unrecordable;
+report that failure directly and perform no subject effect.
+
+Do not introduce another command language, shell kernel or deployment workflow.
+The notebook observes execution; existing process owners still execute and
+clean up. Existing native artifacts/audits still establish external outcomes.
+
+2. What 'all commands' means
+----------------------------
+The desired coverage is every subject command in the experiment: setup, public
+operations, inspections, injected conditions, checkers, reset and cleanup. Do not
+record only successful deployment commands and omit probes that changed state.
+
+Coverage must also name the observation boundary:
+
+  Public request: the Make target and admitted settings received by its owner.
+  Owned launch: literal safe argv at an instrumented process/job boundary.
+  Native evidence: linked audit, artifact, receipt, proxy or service evidence.
+  Unobserved internals: shell builtins, uninstrumented children, daemon-created
+                       processes, remote services and manual outside actions.
+
+Make cannot recover the original shell spelling. Quoting, shell expansion and
+some command-line normalization have already happened. Its request is an exact
+account of the admitted target/settings, not the original shell command line.
+An existing test driver that supplies an argv array can retain that actual array.
+Never reconstruct executable argv by parsing echoed recipes or terminal output.
+
+For a participating entrypoint, record the safe request before subject
+prerequisites/probes, not only after successful preparation. Native rejection of
+bad input or unavailable dependencies is part of the history. Do not duplicate
+those validators in the recorder. Make parse errors or earlier bootstrap failures
+are outside an in-recipe hook; an existing outer test driver can record its own
+Make request/result, but the hook must not claim it observed those earlier steps.
+
+Each session shows its coverage, including missing child coverage. No claim of
+universal workstation/container tracing follows from complete root requests.
+An external action can be added as a reported intervention, explicitly marked
+manual/unobserved. It is not retroactively an observed command.
+
+Recorder administration is distinct from subject actions. Reading a saved
+history stays read-only; publishing a question is an annotation. Neither starts
+an infinite history of the recorder recording its own bookkeeping. Bootstrap
+before the recorder is ready is outside coverage and can link its own logs.
+
+3. Serious alternatives and why this choice
+-------------------------------------------
+A. Shell history plus a manually maintained Markdown notebook.
+   Excellent immediate readability and almost no new runtime. Weak on working
+   directory, effective inputs, failures, child commands and crash evidence.
+   Keep manual imports useful, but label them as recollections, not captured
+   launches. Do not let shell-history completeness become the test oracle.
+
+B. util-linux script/asciinema recordings.
+   Good human playback: prompts, terminal progress, resize and timing. A PTY
+   does not recover actual process argv or external effects. Input capture can
+   record passwords even when echo is disabled. Keep output-only playback an
+   optional fixture attachment; never derive runnable commands from it. [R1-R3]
+
+C. Make --trace, shell xtrace and recipe logs.
+   Cheap explanation of recipes and dependencies. Expanded values can disclose
+   credentials, and a printed recipe is not an executed-process inventory.
+   Useful focused diagnostics in a known-safe fixture, not the history owner.
+
+D. strace/exec auditing/eBPF.
+   Can expose local process activity missed by application logs. Adds authority,
+   scheduling changes and sensitive argv/buffer capture. Following Make forks
+   does not follow unrelated Docker-daemon children. Keep as explicitly scoped
+   disposable diagnostics, not a default prerequisite or completeness cure. [R4]
+
+E. A generic outer launcher accepting COMMAND or a shell notebook prompt.
+   Captures selected root argv and could support arbitrary tools immediately.
+   It also creates another argument grammar, process/TTY owner and supported
+   way to run deployments. Reject as the mandatory operator path. An existing
+   test driver may legitimately own its Make child; no parallel workflow needed.
+
+F. Runme executable Markdown notebooks.
+   A genuine reuse candidate: commands beside explanations, saved outputs,
+   durations and exit codes, with CLI/editor/browser interfaces. Its separate
+   reusable instructions and session outputs fit this problem well. [R5]
+   Its shell/environment session is an additional execution model; resetting it
+   does not reset Docker, chain state or instance records. Documented auto-save
+   does not establish our mandatory before-launch/crash evidence boundary.
+   Borrow the presentation separation; an optional imported notebook remains
+   possible. Do not require Runme or build a competing generic notebook kernel.
+   Its experimental eval mode evaluates agent tasks through a separate adapter;
+   that is a different need from recording our ordinary commands. [R6-R7]
+
+G. Instrument the existing host process owners and expose an inert notebook.
+   Selected. Public requests and known safe launches are observed where they
+   occur. One small record publisher and derived views serve current fixtures
+   and the future controller. No copy of deployment semantics or second process
+   supervisor. Initial coverage is bounded and visible, then grows by owner.
+
+H. Immediately require a complete VM snapshot/replay system.
+   A disposable VM is useful later for real daemon/OS failure experiments, and
+   coherent whole-world checkpoints can save time. It adds image/kernel/engine
+   retention and virtualization authority before a single question is recorded.
+   Do not make the minimum notebook depend on it. Restart first. [R8]
+
+OpenTelemetry can later export a derived view of command spans. It is not the
+mandatory durable store: sampling, queue limits and exporter failure can discard
+telemetry. Avoid a collector/backend just to read local command history. [R9]
+
+4. The operator and agent experience
+------------------------------------
+Create one session under an operator-selected durable output root. The command
+creates its own dated/unique child directory; no empty-folder preparation. Print
+the exact session path and how to attach subsequent ordinary commands.
+
+Prefer SESSION on the command or a deliberately exported session destination.
+Preserve the repository's literal-variable transport rules; never interpolate
+untrusted path/text into shell source. Deliberately propagate the session to
+owned children that participate. Do not rely on recursive Make ambient flags.
+
+Naming workshop, proposed supported targets:
+
+  make ops/session/start DIRECTORY=<durable-output-root>
+  make ops/session/show SESSION=<session-dir>
+  make ops/session/note SESSION=<session-dir> STEP=<step-id>
+  make ops/session/reply SESSION=<session-dir> QUESTION=<entry-id>
+
+These are interface sketches, not supported commands to run today. 'Start'
+creates the notebook only; it does not start a chain, Docker daemon or wallet.
+'Show' reads it. 'Note' accepts a question/proposal/observation as text from a
+file or an explicit text prompt; 'reply' attaches text to an existing question.
+Use files/stdin for multiline text, rather than a shell-command string variable.
+Author labels are human attribution, not proof of identity or authority.
+
+No new session/run TARGET wrapper is required. A future agent API submits the
+same fixed operations and literal inputs through the same supported owners.
+There is no eval(text), shell=True or executable Markdown interpretation.
+
+At a command boundary the reader sees, for example:
+
+  004  Inspect fixture                 process exit 0
+       pay-to-play/local/fixture/info  fixture: primary
+       Output complete; child coverage: declared launches only
+       1 open question; no checker assessment yet
+
+  Q7   What if up is repeated with this fixture ID?
+       Prediction: refuse without changing the existing deployment.
+       Proposed experiment: repeat ordinary fixture/up, then inspect identity.
+
+  005  Repeat fixture creation         process exit 2
+       Capture complete; assertion passed: original fixture unchanged
+       Verdict: GREEN for duplicate-create safety
+
+This is an illustrative future display, not an execution receipt. A nonzero
+process result can be the correct expected refusal. Absence of a checker is
+shown directly; no default GREEN badge fills the gap.
+
+5. One notebook, several different facts
+----------------------------------------
+Session: the purpose, local coverage policy and stable identity of the inquiry.
+World: the selected disposable fixture identity and its owned coordinates.
+Command: a public request or an observed child launch with parent linkage.
+Entry: a question, reply, proposed intervention, observation or assessment.
+Case: a reviewed runnable regression, created only after there is one to run.
+
+Do not turn these nouns into a universal workflow type hierarchy. They name
+present boundaries; the implementation needs only the fields current readers
+and writers consume. One small versioned notebook format is justified by durable
+external files, independent processes and future readers, not by anticipated API
+generality. It carries command history, not a second deployment artifact schema.
+
+Minimum command facts:
+  stable ID and parent/public-request relationship;
+  received target/settings or observed argv, explicitly distinguished;
+  cwd/source/tool/world references, with omitted facts identified;
+  requested time and local ordering;
+  launch observation when actually available;
+  observed exit code or termination signal when actually available;
+  output/evidence references and capture limitations.
+
+The pre-spawn fact says requested/admitted or launch prepared. It cannot say
+process started before fork/exec succeeds. A spawn error is an observation. A
+crash between recording and spawning leaves uncertainty, not proof of execution
+or non-execution. PID alone is not stable process identity after restart.
+
+A command summary is derived. Do not persist a mutable succeeded/running flag
+alongside the events or copy 'deployment verified' into the notebook. The native
+artifact/audit remains authoritative; the notebook links its exact bytes/digest.
+History can be complete while the subject is unresolved, and vice versa.
+
+6. Storage without a database or daemon
+---------------------------------------
+Proposed durable tree, outside the checkout and outside INSTANCE:
+
+  <output-root>/<session-id>/
+    session.json
+    events/
+      <ordinal>-<event-id>.json
+    output/
+      <command-id>/
+        stdout.log             # pipe mode, when separate streams exist
+        stderr.log
+        terminal.cast          # PTY mode alternative, not always all three
+    index.html                 # generated, disposable projection
+    index.txt                  # generated, disposable projection
+
+Allocate only used directories/files. Session identity is not its pathname.
+Store child-world identity and parent-trajectory links as needed; no global
+registry of all sessions is required for the first reader.
+
+Coarse immutable event files are the notebook facts. Output chunks are not
+events. A single shared publication implementation, called by short-lived
+owners, takes a brief local lock, allocates order and exclusively publishes one
+complete event. Write/fsync its bounded temporary file, publish without replacing
+an existing event, and fsync the directory before reporting durable publication.
+Keep interrupted unpublished bytes distinguishable from committed events.
+
+The lock covers allocation and publication, never a long-running command.
+Concurrent peers can add questions while work runs. The test driver's plan owns
+sequential experiment execution. The notebook does not add an execution mutex;
+manual concurrent requests are recorded as overlap, not certified as a sequential
+replay prefix. Existing fixture/instance owners retain their own resource locks.
+Intentionally concurrent tests must specify their synchronization independently.
+Ordinal gaps are harmless; never renumber history. Ordinals are committed local
+notebook order, not global causality between processes or remote events.
+
+Parent/causal references express observed relationships. Wall clocks help human
+navigation; monotonic durations belong to their observing process. A clock jump
+or two process clocks cannot fabricate an exact cross-process schedule.
+
+No shared append-log repair, broker, background recorder, hash chain, event-sourced
+deployment engine or mutable status cache is needed. The number of coarse facts
+in a human investigation is small. Reconsider indexed storage only for measured
+scale/concurrency, without changing what the facts mean.
+
+This is a local filesystem assumption, not a claim about NFS or power-loss
+behavior on every filesystem. Reuse the durable/exclusive publication owner from
+the operations design where available; do not create a second security policy.
+Both event/log permissions and exports remain private by default.
+
+The writer needs a real runtime. Do not hand-serialize JSON/fsync in Bash or
+assume host Python/Node from containerized tools. Prefer the small native Go
+publisher built offline in pinned Docker described by 036, without requiring its
+full controller: it writes notebook facts only and owns no subject processes.
+Build/cache admission precedes session readiness; retain bootstrap diagnostics
+with their explicitly weaker coverage. Once ready, recording must not depend on
+starting another Docker container for each event. Otherwise an unavailable
+daemon, one of the failures under investigation, would also disable the recorder.
+Use one publisher implementation, not parallel host/container format owners.
+Keep its host/platform/dependency posture explicit. Implement and qualify the
+same proposed offline build boundary as 036; it is not claimed to exist today
+and belongs to Slice 1 if still absent when implementation starts.
+
+7. Process ownership and incomplete capture
+--------------------------------------------
+The existing execution owner performs the actual launch, wait, signal handling
+and resource cleanup. The publisher accepts bounded safe facts; it does not
+spawn, stop or retry subject commands. There is no extra generic supervisor.
+
+Publish the top-level experiment request before starting its subject work. If
+this fails, do not start it. This is not a new permission gate before every
+internal child launch. Child instrumentation reports observations best-effort;
+it must not make native work depend on notebook writes. Once a public command is
+running, capture failure cannot undo its effects. Continue through its existing
+owner; do not break its pipe, fill memory or prevent cleanup because a log is full.
+
+Already-owned cleanup is the narrow exception to the before-launch recording
+gate: teardown proceeds through its existing owner even if the notebook cannot
+write its request. Retain best-effort diagnostics and expose the capture gap.
+This grants no new creation, retry, signing or unrelated cleanup authority.
+
+Stop automatic NEXT experiment steps after a capture failure, except necessary
+owned cleanup. This does not claim to stop further effects INSIDE the already
+running Make command. A recorder has no new authority over its internal signing
+or transaction sequencing. Fixture harness cancellation is an explicit action,
+recorded separately, and preserves possible effects rather than claiming undo.
+
+Keep independent facts distinct:
+  subject observation: exited 0, exited 2, signaled, or no final observation;
+  capture observation: complete, truncated, write failed, or missing tail;
+  cleanup observation: linked owner proof, incomplete, or unobserved;
+  assessment: named assertions passed/failed/not evaluated.
+
+Do not overwrite a useful subject result with 'recorder failed', or report a
+truncated transcript as complete because the child exited zero. An experiment
+command can return a nonzero infrastructure result while still preserving its
+observed child result. Automation must not silently proceed after that failure.
+
+Retain the result the actual owner can observe. For example, Bash wait's encoded
+status 143 cannot alone distinguish explicit exit 143 from SIGTERM. Do not invent
+a signal cause from that integer; use richer process information only where the
+owning adapter actually supplies it.
+
+If the recorder dies, the next reader does not invent completion from the last
+line saying success. Missing completion is an unknown observation; inspect
+existing resource/audit/artifact authorities. Recovery appends a new observation,
+not a fabricated original exit code. Do not retry an unresolved paid effect.
+
+If the whole store fails, its failure event may be missing too. The later reader
+shows missing completion or unfinalized output and an incomplete observation;
+it cannot invent disk exhaustion, successful cleanup or any other cause. Native
+reconciliation may establish later facts, not the lost original process result.
+
+A cancellation request and a later signaled exit are separate observations.
+The former does not prove it caused the latter. Direct signals, Docker client
+exit and detached container state remain subject to their actual owners.
+
+8. Capture safely and say what is missing
+------------------------------------------
+Initial scope is disposable local fixtures with public fixture keys. Do not
+enable blanket argv/output capture across real signing/operator workflows.
+Never dump all environment, stdin, secret files, arbitrary shell strings, raw
+signed transactions or Docker inspect objects into a general notebook.
+
+Record safe literal argv only at a boundary with a known secret-free contract.
+Some existing launchers pass scripts or credential-bearing values. They require
+a safe semantic description/reference or explicit omission, not a regex that
+purports to sanitize arbitrary expanded argv. Mark redacted/omitted requests
+non-exact and unsuitable for direct reproduction.
+
+Terminal output is not intrinsically safe either: programs can echo input or
+print secrets. No promise of universal redaction. Fixture isolation and safe
+producer contracts are the initial boundary. Real operator history would need a
+separately qualified output policy; private permissions alone do not make
+secret capture acceptable. No automatic upload or publish-to-Git action.
+
+Raw keystrokes are not recorded. For repeatable fixture prompts the test driver
+may record an intentional semantic choice, such as reject candidate with hash X.
+It must match the current prompt/reference before supplying the choice. Do not
+replay a timed stream of 'a' keys or carry approval authority into a fresh run.
+
+Choose pipe or PTY to preserve the existing invocation's intended behavior.
+Do not force a PTY on JSON/protocol stdout or replace interactive release input
+with a pipe merely to simplify logging. In PTY mode streams are merged; record
+that fact, geometry/resize and relevant terminal mode. Playback may be attached
+using an existing format such as asciicast, rather than inventing a terminal
+protocol. Input events/environment dumping remain disabled. [R2-R3]
+
+Capture stdout/stderr incrementally with finite byte/memory bounds, plus a
+bounded tail where useful. Separate streams have per-stream order; observer
+arrival order is not a proof of the subject's original interleaving. A cap is
+visible and makes that capture incomplete. Keep reading after it is reached.
+Do not insert truncation prose into protocol stdout seen by other consumers.
+
+Before publishing capture-complete for owned retained output, finalize it:
+flush/fsync/close and pin byte counts/digests where evidence references require
+them, then publish the durable completion observation. Failed finalization means
+incomplete capture. Existing linked PTY/log artifacts retain their owner's
+original retention guarantee; do not silently upgrade them to durable output.
+Prefer those existing outputs over another tee/PTY layer with different TTY,
+backpressure or cancellation behavior.
+
+Source identity also has limits. Record HEAD/dirty observation and link any
+existing fixture-owned candidate snapshot/tool identity. Do not copy all user
+files, Git diff or the whole environment into a notebook. Dirty source without
+a retained safe snapshot still permits history/discussion, but not an exact
+source replay claim. Source or environment drift is not a reason to erase facts.
+
+Existing input/artifact bytes remain at their natural owner. Pin a digest when
+an assertion depends on them; a mutable path alone is not historical evidence.
+If it will disappear with fixture teardown, retain an explicitly selected safe
+evidence copy before cleanup. Do not copy secrets or treat a digest as a backup.
+
+9. Questions, replies and independent assessment
+------------------------------------------------
+A discussion entry points at a stable command/event ID and, optionally, exact
+evidence bytes/ranges. Live output offsets are provisional until the file is
+closed/pinned. Replies point at the question they answer; correcting an earlier
+claim appends a correction instead of editing the observation it contradicted.
+
+The useful entry kinds are small:
+  question: what might fail, and which law are we testing?
+  prediction: the expected outcome, not observed truth;
+  proposal: a concrete sandbox experiment, not permission to execute it;
+  observation: evidence and how it was obtained;
+  decision/assessment: conclusion, checker and remaining limit.
+
+One text body can remain plain text/Markdown. These categories help the reader
+distinguish claims; they are not a bureaucracy requiring five entries per step.
+A human can ask one sentence and receive a reply before any test exists.
+
+Use the existing agent conversation/messaging tools. An agent or coordinator
+publishes the selected question/reply with its step reference; the notebook does
+not host a model, invent a new agent SDK or copy entire private chat/tool logs.
+Agents read the same structured history and selected evidence as the human
+reader. Their conclusions remain attributed claims until supported by evidence.
+
+Adversarial peer: proposes plausible conditions and predicts consequences.
+Coordinator: chooses a bounded experiment and supplies already authorized inputs.
+Execution owner: runs the actual supported command/intervention.
+Checker: evaluates an explicit law using independent observations.
+
+No actor becomes a signer by writing an annotation. A proposed fault string is
+not a shell command. No Markdown code fence is executed by the reader. Ordinary
+authorization still applies; local test permission never implies Fuji authority.
+
+Examples of substantive questions:
+  What if setup creates its directory but Docker cannot allocate the network?
+  What if a CREATE is mined but its acknowledgement never reaches the caller?
+  What if someone repeats fixture/up with the same identifier?
+  What if output storage fills after the child has begun?
+  What if the selected UI baseline changes between observation and approval?
+  What if we restore the chain but keep instance records from a later point?
+
+Prefer one falsifiable claim and its smallest witness. Do not reward peers for
+inventing an enormous failure matrix or listing speculative hardening work.
+
+10. The reader is inert; the runner has explicit authority
+----------------------------------------------------------
+First provide a text index generated from notebook facts. A small static HTML
+projection can add a navigable timeline, command details, output links, question
+threads, coverage gaps and parent/child comparisons. Data and presentation stay
+separate. Regenerating a view never edits the captured facts.
+
+Opening the file must not execute any command. Render all recorded output and
+annotation text as untrusted text; do not run terminal control sequences, inject
+HTML, fetch arbitrary recorded URLs or execute Markdown. No Docker socket,
+signing configuration, command endpoint or mandatory web server in the reader.
+
+A single exported HTML file may embed a derived safe snapshot so file:// viewing
+works without a local JSON-fetch server. That snapshot is a projection, with a
+source digest/version, not a second editable source of truth. Large/private logs
+are explicit attachments, not automatically embedded. A browser viewer remains
+read-only; notes are submitted through the supported publisher command initially.
+Show 'through entry N; generated at ...' so a saved projection cannot appear to
+be a live timeline. Only owner-generated safe attachment paths become links;
+untrusted recorded strings do not become executable or fetching URLs.
+
+No Run button for recorded live/unknown commands. A later 'try this experiment'
+action should prepare a reviewed local test selection for the supported runner,
+not send an arbitrary historic command to a browser-to-host execution API.
+
+11. Replay has three separate meanings
+---------------------------------------
+Watch: display saved output and annotations. No processes or external effects.
+Use the word playback. Terminal controls are interpreted only by an explicit
+qualified player, not pasted into the ordinary history viewer.
+
+Repeat: run an ordinary supported command again against its current selected
+world/instance. This may inspect, resume or change that world. Call it rerun or
+resume according to the native operation; never label it rollback.
+
+Restart experiment: make a fresh owned test world and execute a reviewed prefix
+using logical bindings. Preserve the original run and link a new child history.
+This is the default useful approximation of going back command-by-command.
+
+Captured absolute INSTANCE, FIXTURE_ID, port or socket values are historical
+facts, not instructions to reuse them. A replay recipe declares logical fixture
+bindings and lets the normal owners allocate a fresh instance/ID/resources.
+Do not implement arbitrary string substitution over old argv. Values that are
+not declared fixture bindings cannot silently be rewritten.
+
+Initially choose a prefix ending between completed commands. Recreate from base,
+rerun the required prefix, inspect that boundary, then choose another next step.
+Dependencies such as a prior active fixture are explicit; one cannot skip its
+creation because an old notebook once printed an address.
+
+Question/proposal text is not a replay script. A reviewed case uses native test
+code, exact public targets and assertions. Testscript-style command/assertion
+fixtures are a credible pattern, but adopting a new testing dependency is not
+required; existing repo test owners can express these cases. [R10]
+
+No reviewed recipe means no AUTOMATIC replay, not a ban on manual experiments.
+The reader can show/copy the historical target and safe settings with old world
+paths clearly identified. To try a fix before command 5, create a child history
+linked to the boundary after 4, record the new source selection, allocate a fresh
+world and explicitly review its bindings. Manually run the necessary prefix,
+inspect that boundary, then run 5. Preserve both histories and source differences.
+If the prefix cannot be reconstructed, report that limit; neither reuse the old
+world nor require CI promotion before a useful what-if can be attempted.
+
+Checkpoint/restore comes later only when all required world components have a
+qualified restoration mechanism. Anvil revert alone does not restore files,
+approval capabilities, mock hosting, processes or Docker resources. Incomplete
+checkpoints can be inspected, but restoration is refused; restart from base.
+
+Mid-command faults require real synchronization: for example, an owned proxy
+holds a specific request before releasing/dropping it. A progress event plus
+SIGSTOP is subject to a race and cannot claim an instruction-level breakpoint.
+Record which boundary was actually reached and whether the intervention took
+effect. No deterministic execution/replay claim for the ordinary host/daemon.
+
+12. Conditions and commands are different observations
+-------------------------------------------------------
+The peer may ask what happens with no disk space, stale source, a delayed RPC,
+wrong chain or a stopped container. The runner uses a known test adapter that
+owns the selected fixture target, not arbitrary peer shell on the workstation.
+
+Record the proposal, requested condition, actual intervention and observation
+separately. 'Drop the next reply' is not proof that a reply was dropped. Name the
+matched request and whether it had already been forwarded/mined. If the boundary
+was missed, mark the intervention unestablished rather than asserting a clean
+fault test. Docker/chain/runtime effects remain native observations.
+
+The command that implements a condition is itself captured when it crosses an
+instrumented launch boundary. Internal adapter activity can emit safe named facts;
+it must not invent a command line for direct in-process work. Reads/checkers and
+cleanup are included, not hidden in unrecorded preparation around the test.
+
+No deliberate exhaustion of the shared Docker daemon or host filesystem. Use a
+bounded test mount, dedicated daemon/VM, or explicitly modeled failure. A model
+of network allocation failure is not an actual Docker-pool exhaustion witness.
+Local URLs alone do not prove isolation; the fixture's network/mount/credential
+grant defines it. No operator secrets or public-chain writes in a restart world.
+
+13. Worked inquiry: duplicate fixture creation
+-----------------------------------------------
+This is a proposed experiment using CURRENT supported targets, not a run made
+in this workshop. SESSION hooks and assertions below still need implementation.
+
+1. Allocate a new logical 'primary' fixture ID through the test owner.
+   make --no-print-directory pay-to-play/local/fixture/up FIXTURE_ID=<primary>
+2. Inspect it using the current descriptor producer.
+   make --no-print-directory pay-to-play/local/fixture/info FIXTURE_ID=<primary>
+3. Attach Q: what if up is accidentally repeated with this same identity?
+   Record prediction: refuse before touching resources not owned by this call.
+4. Repeat the exact ordinary fixture/up target with the same ID in THIS world.
+5. Inspect again. Compare original descriptor/core identity and relevant owned
+   resources through the native fixture evidence; an expected error alone is
+   insufficient to prove the original was untouched.
+6. Tear down the owned fixture with fixture/down, then inspect: the expected
+   absent fixture is a successful assertion, despite info returning nonzero.
+
+Save GREEN only for those explicit assertions. If the duplicate call changes
+the original, save RED with both before/after observations. If Docker cannot
+start the baseline, save an incomplete experiment, not a duplicate-create pass.
+If cleanup fails, preserve its separate evidence and retained world identity.
+
+Restarting this inquiry allocates a NEW primary ID/world. Repeating up inside
+one inquiry intentionally reuses its ID; replaying a saved inquiry does not.
+This distinction is the reason generic 'rerun every saved argv' is incorrect.
+
+14. Worked inquiry: release acknowledgement and recovery
+---------------------------------------------------------
+Begin with a recorded ordinary baseline such as:
+  make escrow/release/rehearsal/run
+
+Ask: if the transaction acknowledgement is lost, what does the caller know and
+what should it do next? Attach prediction and the particular asserted law.
+
+The current supported wait lanes provide a nearby useful first experiment:
+  make escrow/release/approval-wait/check
+  make escrow/release/ipc-approval-wait/check
+
+tools/release_waits.sh has real delay/receipt/reject/drop cases and resets its
+isolated chain between cases. Its setup/check failures are explicitly inconclusive.
+Its transport/Forge observations are not proof of every full resume law.
+
+An interactive mined-loss/resume case is a later bounded slice: forward one
+approved fixture transaction, establish mining through an independent fixture
+observer, drop the response, stop the controller, then use the same ordinary
+resume command against the retained instance. Assert that the original creation
+is reconciled without a second CREATE. Capture the independent before/after
+chain evidence and native artifact; never infer absence from a timeout.
+
+This notebook does not create that missing intervention/resume proof merely by
+recording a wait test. Keep existing proof scopes and new experiments distinct.
+
+15. Verdicts, regression promotion and useful failure
+-----------------------------------------------------
+Record process results immediately; do not assign an automatic test verdict.
+An assessment names the law, its checker/version, evidence, world/source and
+scope. A later correction appends a new assessment with the reason/reference.
+
+RED: an assertion is violated. Preserve the smallest witnessed path.
+GREEN: the named assertions held in this qualified run. Correct refusal can pass.
+KNOWN-RISK: an explicitly reviewed unmet guarantee with owner/reason/boundary.
+INCOMPLETE/NOT-RUN: not enough evidence, setup/checker failure or no execution.
+
+Risk is not a catch-all for new failures or missing tests. Do not collapse a
+RED safety assertion into risk because the command is difficult to reproduce.
+Conversely a harness/storage failure is not automatically a product defect.
+Present which assertion failed, which evidence is absent and what can conclude.
+
+Turn a useful discovery into a small ordinary test:
+  declare the baseline and logical fixture inputs;
+  execute the exact public command prefix;
+  synchronize a named intervention, if any;
+  run an independent native assertion and check owned cleanup;
+  retain the original RED history and a separate repaired GREEN history.
+
+The test must run without agents/model APIs. It is not a permanent transcript
+parser, timed keystroke script or general scenario DSL. Minimize the cause without
+removing required dependencies. A source change creates a new compared run; it
+does not overwrite the old command/output/evidence.
+
+16. Existing owners and first implementation slices
+-----------------------------------------------------
+Current source facts, inspected without executing a fixture:
+
+- Makefile freezes selected literal input variables before shell probes. Session
+  path transport should reuse that pattern, not invent command interpolation.
+- tools/release_process.sh owns setsid, argv launch, wait, signal propagation and
+  process-group cleanup. Its progress output intentionally uses fixed labels,
+  not arbitrary argv, because some inputs are private.
+- tools/release_rehearsal.sh run_logged already wraps actual public Make/Compose
+  commands with named retained logs. It lacks a structured request/result index.
+- tools/release_approval_pty_check.py owns an actual Make child and bounded PTY/RPC
+  diagnostics; it distinguishes truncation, write failure and incomplete cleanup.
+- tools/release_instance.sh clears recursive Make flags and deletes successful
+  selection scratch. That scratch cannot own durable session history.
+- js/tools/release-approval/audit.ts and owner.ts own durable approval/transmission
+  facts. Link them; do not add a second transaction audit in command history.
+- tools/pay_to_play_fixture.sh already owns fixture ID/collision checks and native
+  descriptor discovery. It supplies a small current subject for the first inquiry.
+
+Slice 1: notebook facts, reader and questions/replies.
+  One shared publisher, coarse immutable facts, derived text view. Integrate ONE
+  existing disposable fixture process owner. Capture its requests/known safe
+  launches and results; do not touch production signing or all Make targets.
+  For pay_to_play_fixture.sh, pin its existing scratch/descriptor.json bytes
+  before forwarding them to descriptor_output. Preserve protocol stdout exactly.
+  If attachment publication fails, still forward the native descriptor; expose
+  the missing attachment instead of letting shell error handling suppress cat.
+  For down, retain status/owner cleanup evidence; it produces no descriptor.
+  Declare this selected-attachment coverage: stderr/progress/compiler/Docker
+  output is NOT recorded unless its existing owner already retains it. No new
+  tee, pipe reader or PTY layer is needed for this first useful history.
+  The writer does not acquire process-control authority. Call it from that
+  concrete existing owner. A small publisher build does not require the full Go
+  host migration or justify two host lifecycle implementations.
+
+Slice 2: actual duplicate-fixture inquiry and ordinary restart.
+  Capture every subject action in that inquiry, assertions and cleanup. Run it
+  twice with different world IDs. Demonstrate that history remains available
+  after down and that a peer can ask/reply while a command is active.
+
+Slice 3: interactive terminal/rehearsal integration.
+  Reuse the existing terminal owner. Record semantic fixture choices, safe owned
+  child relations and native proof references. Explicitly disclose internal
+  launch coverage still absent. Do not make output completeness a new signing law.
+
+Slice 4: one synchronized failure and RED -> repair -> GREEN promotion.
+  Choose a concrete observed bug/law, not a broad matrix. Use a real bounded fault
+  adapter where supported; label modeled mechanisms. Save a native regression.
+
+Slice 5: wider ordinary command coverage as each owner migrates.
+  The host controller proposed in 036 becomes the sole host process owner when
+  it replaces current owners. Recording is part of that owner, not an outer
+  permanent wrapper. Keep the notebook's evidence boundary stable and delete
+  displaced hooks; no historical command is upgraded to stronger coverage.
+
+Static HTML can be added after the first actual notebook proves its information
+shape. Whole-world checkpointing and VM integration are separate later work,
+earned by repeated expensive prefixes or actual OS/daemon fault requirements.
+
+17. Focused acceptance and scope limits
+----------------------------------------
+Slice 1 needs an actual recorded fixture up/info/down sequence showing:
+  requests/results/known launches and stable IDs for its declared commands;
+  bounded native descriptor attachments and explicit unrecorded-output coverage;
+  question/reply linked to a step without rewriting it;
+  truthful incomplete observation after interruption or publication failure;
+  no subject work if its top-level request fact cannot be published;
+  existing work/cleanup continues if an internal observation cannot be published;
+  notebook retained after fixture teardown;
+  no secret input/env capture or second deployment/approval state machine.
+
+Slice 2 adds the duplicate-create inquiry with independent unchanged-identity
+assertions, expected refusal distinguished from infrastructure/checker failure,
+and a second run in a newly allocated world. Replay is not required to close
+the useful first recording/discussion slice; it is required for this later bar.
+
+Slice 3 adds the streaming/PTY bounds, cap/write-failure draining and finalized
+output contract from sections 7-8, at the actual existing terminal/log owner.
+Do not make generic stream capture an accidental prerequisite for Slice 1.
+
+Use the narrowest existing Docker-backed lane for publisher/reader logic and
+the actual supported disposable target for the integration witness. Real PTY,
+daemon and chain claims need their real bounded evidence. Do not add tests that
+only mirror JSON field names, broad text checks or speculative recovery matrices.
+
+This workshop is documentation, not that qualification. No command history
+feature, HTML reader, replay, new Make target or fault adapter was implemented.
+No services/fixtures were started and no operator instance was modified.
+
+18. Deliberation and primary references
+----------------------------------------
+Three read-only peers independently examined capture/storage, local exploration
+and mechanical/security limits. The coordinator owns this proposal. Agreements
+are design input, not operational proof.
+
+Accepted: minimum history before full replay; no transcript-to-shell execution;
+normalized Make requests versus actual argv; inert discussion; native artifacts
+remain authority; per-event files under a brief publisher lock; capture failures
+do not grant retry permission or silently cancel in-flight effects.
+
+Fresh independent audits corrected unsupported SESSION requests being silently
+ignored, cleanup being accidentally blocked by journal failure, ambiguous sequence
+ownership, and durable completion getting ahead of output finalization. The
+proposal now refuses unsupported capture, preserves cleanup, leaves sequencing
+with the test driver, and reports output durability honestly. Reader freshness
+and first-slice versus replay acceptance were clarified as well.
+
+A later feasibility pass narrowed initial output to the fixture owner's existing
+descriptor, avoiding a new stream supervisor. It also separated mandatory public
+request admission from best-effort child observations: the latter must not create
+a new per-child logging permission gate inside an already-running operation.
+
+Rejected as the default: global command tracing, a mandatory notebook shell or
+outer COMMAND wrapper, a full host rewrite as prerequisite, VM checkpoints as
+the first feature, and adopting an agent-evaluation framework for basic history.
+
+[R1] util-linux script/scriptreplay/scriptlive, upstream manuals.
+  https://man7.org/linux/man-pages/man1/script.1.html
+  https://man7.org/linux/man-pages/man1/scriptreplay.1.html
+  https://man7.org/linux/man-pages/man1/scriptlive.1.html
+  Output playback is distinct from re-executing timed input. Input logging can
+  record echo-disabled passwords; script's output-limit behavior can stop a child.
+
+[R2] asciinema architecture.
+  https://docs.asciinema.org/how-it-works/
+  PTY terminal recording is useful human evidence, not a process/effect journal.
+
+[R3] asciicast v3 format.
+  https://docs.asciinema.org/manual/asciicast/v3/
+  Existing output/resize/marker/exit format; avoid inventing a terminal protocol.
+
+[R4] strace official project and manual.
+  https://strace.io/
+  https://man7.org/linux/man-pages/man1/strace.1.html
+  Process/system-call tracing has a separate observation/authority boundary.
+
+[R5] Runme notebooks and saved session outputs.
+  https://docs.runme.dev/
+  https://docs.runme.dev/usage/auto-save/
+  https://docs.runme.dev/getting-started/cli/
+  A credible existing notebook, with reusable instructions separate from outputs.
+
+[R6] Runme environment sessions.
+  https://docs.runme.dev/configuration/dotenv-direnv/
+  https://docs.runme.dev/usage/pipes-variables/
+  Session environment reset is not restoration of external world state.
+
+[R7] Runme experimental task evaluation.
+  https://docs.runme.dev/eval/
+  Agent-task evaluation through an adapter, distinct from notebook execution.
+
+[R8] QEMU machine state and images.
+  https://www.qemu.org/docs/master/system/images
+  https://www.qemu.org/docs/master/system/monitor.html
+  A possible local test substrate; external dependencies still need ownership.
+
+[R9] OpenTelemetry resilience and sampling.
+  https://opentelemetry.io/docs/collector/resiliency/
+  https://opentelemetry.io/docs/concepts/sampling/
+  Telemetry export is not the mandatory durable command admission journal.
+
+[R10] Go testscript package documentation.
+  https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript
+  A command/assertion regression pattern, not a selected new dependency.
