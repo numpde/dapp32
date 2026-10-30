@@ -1,6 +1,8 @@
 # Portable runtime: copy this file with a prebuilt image; no checkout is mounted.
 services:
   viewer:
+    sysctls:
+      net.mptcp.enabled: "0"
     image: ${VIEWER_IMAGE:?Set_VIEWER_IMAGE_to_a_prebuilt_viewer_image}
     pull_policy: never
     user: "101:101"
