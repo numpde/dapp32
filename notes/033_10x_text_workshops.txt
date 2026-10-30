@@ -1113,3 +1113,320 @@ Agreement status names the stage directly: Awaiting contractor acceptance / Awai
 When an agreement closes, its funds become credit for the client or contractor shown in Agreement status. That account must withdraw the credit separately.
 Role of the address being viewed: No agreement role / Client / Contractor / Arbitrator.
 Any account can finalize an expired deadline, including an account with no agreement role.
+
+
+Deployment instance menus
+
+Before:
+Choose saved work
+
+→
+
+After:
+Choose a saved operation
+
+
+Deployment instance menus
+
+Before:
+Choose saved operation to verify or complete
+
+→
+
+After:
+Choose a saved operation to check or continue
+
+
+Deployment instance menus
+
+Before:
+Choose configuration to create
+
+→
+
+After:
+Choose a configuration to set up
+
+
+Deployment instance menus
+
+Before:
+Business creator configuration
+
+→
+
+After:
+Business contract deployer configuration
+
+
+Deployment instance menus
+
+Before:
+UI deployer configuration
+
+→
+
+After:
+UI contract deployer configuration
+
+
+Deployment instance menus
+
+Before:
+CAM owner configuration
+
+→
+
+After:
+CAM root owner configuration
+
+
+Deployment instance menus
+
+Before:
+The bundle export is incomplete
+
+→
+
+After:
+The prepared app files are incomplete
+
+
+Deployment instance menus
+
+Before:
+Rebuild CAM files from the saved components; no transactions
+
+→
+
+After:
+Prepare the app files again from saved inputs; no transactions will be sent
+
+
+Deployment instance menus
+
+Before:
+f"Resume {request['operation']} in {pending}"
+
+→
+
+After:
+f"Continue the saved {request['operation']} at {pending}"
+
+
+Deployment instance menus
+
+Before:
+Verify or reconcile these records without signing
+
+→
+
+After:
+Check the saved records without sending transactions
+
+
+Deployment instance menus
+
+Before:
+Choose another saved operation
+
+→
+
+After:
+Choose a different saved operation
+
+
+Deployment instance menus
+
+Before:
+Unfinished operation
+
+→
+
+After:
+An earlier operation is unfinished
+
+
+Deployment instance menus
+
+Before:
+Choose operation
+
+→
+
+After:
+Choose how to proceed
+
+
+Deployment instance menus
+
+Before:
+Resume or verify saved work
+
+→
+
+After:
+Continue or check a saved operation
+
+
+Deployment instance menus
+
+Before:
+Resume or verify a saved update
+
+→
+
+After:
+Continue or check a saved UI update
+
+
+Deployment instance menus
+
+Before:
+Replace the app's UI contract
+
+→
+
+After:
+Choose how to change the app's interface
+
+
+Deployment instance menus
+
+Before:
+Choose CAM root
+
+→
+
+After:
+Choose the on-chain app configuration contract (CAM root)
+
+
+Deployment instance menus
+
+Before:
+Create a new CAM root
+
+→
+
+After:
+Prepare files for a new app configuration contract
+
+
+Deployment instance menus
+
+Before:
+This creates new business contracts and a new CAM root
+
+→
+
+After:
+This deploys new business contracts, a new UI contract and a new on-chain app configuration contract (CAM root)
+
+
+Deployment instance menus
+
+Before:
+Start a new full deployment
+
+→
+
+After:
+Start the new full deployment
+
+
+Deployment instance menus
+
+Before:
+No deployment phase records exist yet. Resume this operation to begin.
+
+→
+
+After:
+No deployment step records are saved yet. Continue the saved operation to proceed.
+
+
+Deployment instance menus
+
+Before:
+Start {operation} separately; keep these records (may create additional contracts)
+
+→
+
+After:
+Start a new full deployment; keep earlier records (deploys new contracts)
+
+Start a new UI update; keep earlier records (may deploy another UI contract)
+
+Deploy new business contracts; keep earlier records
+
+Deploy a new UI contract; keep earlier records
+
+Prepare new app files; keep earlier records (no transactions)
+
+Start a new CAM publication; keep earlier records (may deploy a new CAM root)
+
+
+Deployment instance menus
+
+Before:
+Start separately; keep earlier records (may create additional contracts)
+
+→
+
+After:
+Start a new full deployment; keep earlier records (deploys new contracts)
+
+Start a new UI update; keep earlier records (may deploy another UI contract)
+
+Deploy new business contracts; keep earlier records
+
+Deploy a new UI contract; keep earlier records
+
+Prepare new app files; keep earlier records (no transactions)
+
+Start a new CAM publication; keep earlier records (may deploy a new CAM root)
+
+
+Deployment instance menus
+
+Before:
+To make the app use a replacement, this command prepares matching CAM files locally, then updates the existing CAM root's contract addresses and manifest URI/hash.
+
+→
+
+After:
+This update prepares the app files, then changes the on-chain app configuration contract (CAM root) to use the chosen UI contract and the new files.
+
+
+Deployment instance menus
+
+Before:
+Upload or pin the prepared files yourself before approving CAM root changes.
+
+→
+
+After:
+Upload or pin the prepared files before approving changes to the app configuration contract.
+
+
+Deployment instance menus
+
+Before:
+Without a configured URI, the command pauses for hosting. Repeat it after hosting to enter the manifest URI.
+
+→
+
+After:
+If no manifest link is configured, the command pauses so you can host the files. Run it again after hosting to enter the manifest link.
+
+
+Deployment instance menus
+
+Before:
+A configured URI skips that pause, but each transaction still needs approval.
+
+→
+
+After:
+If a manifest link is already configured, the command skips that pause. Each transaction still needs your approval.

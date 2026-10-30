@@ -194,7 +194,7 @@ def repair_bundle(root, request, action):
     prepared = instance_path(root, request["inputs"]["CAM_BUNDLE"]) if "CAM_BUNDLE" in request["inputs"] else action / "cam-bundle"
     if not prepared.is_dir() or (prepared / "artifact/cam-bundle.json").exists() or (action / "cam").exists():
         return None
-    choose("The bundle export is incomplete", [("Rebuild CAM files from the saved components; no transactions", "repair")])
+    choose("The prepared app files are incomplete", [("Prepare the app files again from saved inputs; no transactions will be sent", "repair")])
     saved = request["inputs"]
     # silent-defaults: allow-default -- Saved explicit inputs override the full operation's conventional phase paths.
     inputs = {"CONFIG": saved.get("CAM_CONFIG", saved["CONFIG"])}
@@ -242,7 +242,7 @@ def completion_file(root, request, action):
 
 def select_saved_work(root, selection, actions):
     choices = [(action.relative_to(root).as_posix(), (action, request)) for action, request in actions]
-    action, request = choose("Choose saved work", choices, automatic=True)
+    action, request = choose("Choose a saved operation", choices, automatic=True)
     if completion_file(root, request, action).is_file():
         # Historical final records are observations, not a request to roll active selection back.
         return selection, {**request, "requestedOperation": "verify"}, action
@@ -259,8 +259,8 @@ def prepare(root, app, operation):
             inputs["DEPLOYMENT_ARTIFACT_FILE"] = select_artifact(root, inventory(root, app), "publication", selection.get("publication"))
         return selection, {"operation": operation, "inputs": inputs}, root
     if operation == "setup":
-        roles = [(caption, name) for caption, name in (("Full deployment configuration", "config.json"), ("Business creator configuration", "business-config.json"), ("UI deployer configuration", "ui-config.json"), ("CAM owner configuration", "cam-config.json")) if not instance_path(root, name).exists()]
-        config = choose("Choose configuration to create", roles, automatic=True)
+        roles = [(caption, name) for caption, name in (("Full deployment configuration", "config.json"), ("Business contract deployer configuration", "business-config.json"), ("UI contract deployer configuration", "ui-config.json"), ("CAM root owner configuration", "cam-config.json")) if not instance_path(root, name).exists()]
+        config = choose("Choose a configuration to set up", roles, automatic=True)
         key = {"config.json": "config", "business-config.json": "businessConfig", "ui-config.json": "uiConfig", "cam-config.json": "camConfig"}[config]
         purpose = {"config": "deployment", "businessConfig": "contracts", "uiConfig": "ui", "camConfig": "cam"}[key]
         selection[key] = config
@@ -282,10 +282,18 @@ def prepare(root, app, operation):
             phases = OPERATIONS[request["operation"]][1]
             if (operation == "verify" and phases) or (operation != "verify" and operation.split("/")[0] in phases):
                 eligible.append((action.relative_to(root).as_posix(), (action, request)))
-        action, request = choose("Choose saved operation to verify or complete", eligible, automatic=True)
+        action, request = choose("Choose a saved operation to check or continue", eligible, automatic=True)
         return selection, {**request, "requestedOperation": operation}, action
     pending = selection.get("pending")
     new_requested = False
+    new_caption = {
+        "deploy": "Start a new full deployment; keep earlier records (deploys new contracts)",
+        "ui/update": "Start a new UI update; keep earlier records (may deploy another UI contract)",
+        "contracts/deploy": "Deploy new business contracts; keep earlier records",
+        "ui/deploy": "Deploy a new UI contract; keep earlier records",
+        "cam/bundle": "Prepare new app files; keep earlier records (no transactions)",
+        "cam/publish": "Start a new CAM publication; keep earlier records (may deploy a new CAM root)",
+    }[operation]
     if pending:
         action = instance_path(root, pending)
         request = read_json(action / "selection.json")
@@ -293,13 +301,13 @@ def prepare(root, app, operation):
             repaired = repair_bundle(root, request, action)
             if repaired is not None:
                 return selection, repaired, action
-        choices = [(f"Resume {request['operation']} in {pending}", "resume")]
+        choices = [(f"Continue the saved {request['operation']} at {pending}", "resume")]
         if OPERATIONS[request["operation"]][1]:
-            choices.append(("Verify or reconcile these records without signing", "verify"))
+            choices.append(("Check the saved records without sending transactions", "verify"))
         if any(candidate != action for candidate, _ in actions):
-            choices.append(("Choose another saved operation", "history"))
-        choices.append((f"Start {operation} separately; keep these records (may create additional contracts)", "new"))
-        decision = choose("Unfinished operation", choices)
+            choices.append(("Choose a different saved operation", "history"))
+        choices.append((new_caption, "new"))
+        decision = choose("An earlier operation is unfinished", choices)
         if decision == "resume":
             return selection, request, action
         if decision == "verify":
@@ -309,8 +317,8 @@ def prepare(root, app, operation):
         new_requested = True
     history = [(candidate, saved) for candidate, saved in actions if saved["operation"] == operation]
     if history and operation != "ui/update" and not new_requested:
-        choice = choose("Choose operation", [("Resume or verify saved work", "history"),
-                                             ("Start separately; keep earlier records (may create additional contracts)", "new")])
+        choice = choose("Choose how to proceed", [("Continue or check a saved operation", "history"),
+                                             (new_caption, "new")])
         if choice == "history":
             return select_saved_work(root, selection, history)
     inputs = configurations(selection, operation)
@@ -318,16 +326,16 @@ def prepare(root, app, operation):
         if not instance_path(root, relative).is_file():
             raise ValueError(f"Missing instance configuration: {relative}. Run release/setup for this instance.")
     if operation == "ui/update":
-        print("To make the app use a replacement, this command prepares matching CAM files locally, then updates the existing CAM root's contract addresses and manifest URI/hash.")
-        print("Upload or pin the prepared files yourself before approving CAM root changes.")
-        print("Without a configured URI, the command pauses for hosting. Repeat it after hosting to enter the manifest URI.")
-        print("A configured URI skips that pause, but each transaction still needs approval.")
-        print(f"Use {app}/release/ui/deploy to create a UI contract without updating the CAM root.")
+        print("This update prepares the app files, then changes the on-chain app configuration contract (CAM root) to use the chosen UI contract and the new files.")
+        print("Upload or pin the prepared files before approving changes to the app configuration contract.")
+        print("If no manifest link is configured, the command pauses so you can host the files. Run it again after hosting to enter the manifest link.")
+        print("If a manifest link is already configured, the command skips that pause. Each transaction still needs your approval.")
+        print(f"Use {app}/release/ui/deploy to deploy only the UI contract, leaving the app configuration contract unchanged.")
         choices = [("Deploy a new UI contract and make the app use it", "new"), ("Make the app use a saved UI contract", "reuse")]
         history = [(candidate, saved) for candidate, saved in actions if saved["operation"] == "ui/update"]
         if history:
-            choices.append(("Resume or verify a saved update", "history"))
-        choice = choose("Replace the app's UI contract", choices)
+            choices.append(("Continue or check a saved UI update", "history"))
+        choice = choose("Choose how to change the app's interface", choices)
         if choice == "history":
             return select_saved_work(root, selection, history)
         inputs["ROOT_ARTIFACT"] = select_artifact(root, records, "publication", selection.get("publication"))
@@ -339,9 +347,9 @@ def prepare(root, app, operation):
     elif operation == "cam/bundle":
         inputs["CONTRACT_ARTIFACT"] = select_artifact(root, records, "business", selection.get("business"))
         inputs["UI_ARTIFACT"] = select_artifact(root, records, "ui")
-        roots = [("Create a new CAM root", None)]
+        roots = [("Prepare files for a new app configuration contract", None)]
         roots += [(relative, relative) for kind, relative, _ in records if kind in ("publication", "legacy")]
-        selected = choose("Choose CAM root", roots, automatic=True)
+        selected = choose("Choose the on-chain app configuration contract (CAM root)", roots, automatic=True)
         if selected is None:
             inputs["ROOT"] = "new"
         else:
@@ -357,7 +365,7 @@ def prepare(root, app, operation):
     elif operation not in ("deploy", "contracts/deploy"):
         raise ValueError(f"Unsupported instance operation: {operation}")
     if operation == "deploy" and selection.get("publication"):
-        choose("This creates new business contracts and a new CAM root", [("Start a new full deployment", "new")])
+        choose("This deploys new business contracts, a new UI contract and a new on-chain app configuration contract (CAM root)", [("Start the new full deployment", "new")])
     action = new_action(root, operation)
     request = {"operation": operation, "inputs": inputs}
     write_json(action / "selection.json", request)
@@ -406,7 +414,7 @@ def arguments(root, app, request, action, host_root):
     if operation == "verify" and phases:
         records = [phase_records(root, request, action, phase) for phase in phases]
         if "UI_ARTIFACT" not in request["inputs"] and not any(path.exists() or path.is_symlink() for path in records):
-            print("No deployment phase records exist yet. Resume this operation to begin.")
+            print("No deployment step records are saved yet. Continue the saved operation to proceed.")
             return []
     if operation == "verify" and len(phases) == 1:
         operation = f"{phases[0]}/artifact"

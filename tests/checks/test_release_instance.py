@@ -71,7 +71,7 @@ class ReleaseInstanceTest(unittest.TestCase):
             with contextlib.redirect_stdout(output):
                 arguments = instances.arguments(root, APP, {**request, "requestedOperation": "verify"}, action, str(root))
             self.assertEqual([], arguments)
-            self.assertIn("No deployment phase records", output.getvalue())
+            self.assertIn("No deployment step records are saved yet", output.getvalue())
             instances.finish(root, {**request, "requestedOperation": "verify"}, action)
             self.assertEqual(selected, instances.load_selection(root))
             self.assertEqual(["selection.json"], [path.name for path in action.iterdir()])
