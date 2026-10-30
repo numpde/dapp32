@@ -188,7 +188,7 @@ load_release_config() {
     case "$mode" in
       contracts-deploy|ui-deploy|cam-publish)
         if [[ -n "$records" && ! -e "$records" && ! -L "$records" ]]; then
-          printf 'The next phase has no saved records. Review its settings to start it from source %s. Earlier deployment records keep their original source.\n' "$source_commit" >&2
+          printf 'The next phase has no saved records. Choose Patch to review settings for source %s. Earlier deployment records keep their original source.\n' "$source_commit" >&2
           rm -- "$release_config_dir/retained-source" || return
         fi ;;
     esac
@@ -199,7 +199,7 @@ load_release_config() {
   fi
   if [[ "$status" == 3 ]]; then configuration_change=source; fi
   if [[ "$status" == 3 && ( ! -t 0 || ! -t 1 ) ]]; then
-    printf 'Run this command interactively to prepare a new operation from source %s. The saved configuration will not change.\n' "$source_commit" >&2
+    printf 'Run this command interactively to review the Patch option for source %s. The saved configuration will not change.\n' "$source_commit" >&2
     return "$status"
   fi
   if [[ ( "$status" == 0 || "$status" == 3 ) && ( "$mode" == ui-deploy || "$mode" == contracts-deploy || "$mode" == cam-publish ) ]]; then
@@ -248,7 +248,7 @@ load_release_config() {
     if [[ "$mode" == contracts-deploy ]]; then output_name=CONTRACT_RELEASE_OUTPUT_DIR; fi
     if [[ "$mode" == cam-publish ]]; then output_name=CAM_RELEASE_OUTPUT_DIR; fi
     if [[ "$configuration_change" == source ]]; then validate_new_release_output "${!output_name}" "$output_name"; fi
-    printf '%s\n' 'Operation settings prepared; the saved configuration is unchanged.'
+    printf '%s\n' 'Phase settings patched; the saved configuration is unchanged.'
   fi
   case "$mode" in
     ui-deploy|contracts-deploy|cam-publish|cam-bundle)

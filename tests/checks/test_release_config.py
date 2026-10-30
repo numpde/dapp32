@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+from itertools import product
 import json
 import os
 import pty
@@ -418,7 +419,7 @@ printf continued > "$CASE_ROOT/continued"
             output = root / "stage"
             output.mkdir()
             (output / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
-            with patch.object(release_config, "input", return_value="update", create=True), contextlib.redirect_stdout(io.StringIO()):
+            with patch.object(release_config, "input", return_value="patch", create=True), contextlib.redirect_stdout(io.StringIO()):
                 release_config.update_source("bike-nft", "f" * 40, source, output, purpose="cam")
             self.assertEqual(dict(original, sourceCommit="f" * 40), json.loads((output / "release.json").read_text()))
             self.assertEqual(before, source.read_bytes())
@@ -544,14 +545,36 @@ printf continued > "$CASE_ROOT/continued"
             output = root / "stage"
             output.mkdir()
             (output / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
-            with patch.object(release_config, "input", side_effect=["update"], create=True), contextlib.redirect_stdout(io.StringIO()):
-                release_config.update_source("escrow", "f" * 40, source, output, purpose="contracts")
+            transcript = io.StringIO()
+            with patch.object(release_config, "input", side_effect=["patch"], create=True), contextlib.redirect_stdout(transcript):
+                release_config.update_source("escrow", COMMIT, source, output, purpose="contracts")
+            self.assertIn(f"Source commit: {COMMIT} (unchanged)", transcript.getvalue())
+            self.assertIn("Approval tool before patch:", transcript.getvalue())
+            self.assertIn("Approval tool after patch:", transcript.getvalue())
             updated = json.loads((output / "release.json").read_text())
             self.assertEqual(APPROVAL_IMAGE, updated["approvalImageId"])
             original["sourceCommit"] = updated["sourceCommit"]
             original["approvalImageId"] = updated["approvalImageId"]
             self.assertEqual(original, updated)
             self.assertNotIn("OUTPUT_DIR", updated["settings"])
+
+    def test_patch_menu_reprompts_without_accepting_unknown_choices(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "config.json"
+            original = configuration("escrow")
+            source.write_text(json.dumps(original))
+            output = root / "stage"
+            output.mkdir()
+            (output / "approval-image").write_text(APPROVAL_IMAGE + "\n")
+            transcript = io.StringIO()
+            with patch.object(release_config, "input", side_effect=["unknown", "0"], create=True) as prompt, contextlib.redirect_stdout(transcript):
+                with self.assertRaisesRegex(ValueError, "Patch cancelled"):
+                    release_config.update_source("escrow", COMMIT, source, output, purpose="ui")
+            self.assertEqual(2, prompt.call_count)
+            self.assertIn("Enter 1 to patch", transcript.getvalue())
+            self.assertFalse((output / "release.json").exists())
+            self.assertEqual(original, json.loads(source.read_text()))
 
     def test_update_rejects_invalid_configs_before_prompting_or_writing(self):
         for changes in ({"schemaVersion": 1}, {"sourceCommit": "main"}, {"app": "bike-nft"}, {"confirmDeploy": False}):
@@ -569,9 +592,9 @@ printf continued > "$CASE_ROOT/continued"
 
     def test_source_update_preserves_inputs_and_requires_explicit_confirmation_for_all_apps(self):
         current = "f" * 40
-        for app in release_config.APP_FIELDS:
-            for decision in ("update", "", "cancel"):
-                with self.subTest(app=app, decision=decision), tempfile.TemporaryDirectory() as temporary:
+        for app, purpose in product(release_config.APP_FIELDS, ("contracts", "ui", "cam")):
+            for decision in ("1", "patch", "", "0", "cancel"):
+                with self.subTest(app=app, purpose=purpose, decision=decision), tempfile.TemporaryDirectory() as temporary:
                     root = Path(temporary)
                     original = configuration(app)
                     original["settings"]["CAM_HASH"] = "0x" + "0" * 64
@@ -583,20 +606,22 @@ printf continued > "$CASE_ROOT/continued"
                     (output / "approval-image").write_text(f"{APPROVAL_IMAGE}\n")
                     transcript = io.StringIO()
                     with patch.object(release_config, "input", side_effect=[decision], create=True), contextlib.redirect_stdout(transcript):
-                        if decision == "update":
-                            release_config.update_source(app, current, source, output, purpose="contracts")
+                        if decision in ("1", "patch"):
+                            release_config.update_source(app, current, source, output, purpose=purpose)
                             updated = json.loads((output / "release.json").read_text())
                             expected = dict(original, sourceCommit=current)
                             self.assertEqual(expected, updated)
                         else:
                             with self.assertRaisesRegex(ValueError, "cancelled"):
-                                release_config.update_source(app, current, source, output, purpose="contracts")
+                                release_config.update_source(app, current, source, output, purpose=purpose)
                             self.assertFalse((output / "release.json").exists())
                     self.assertEqual(before, source.read_bytes())
                     for secret in (FIXTURE_RPC, FIXTURE_KEY):
                         self.assertNotIn(secret, transcript.getvalue())
                     self.assertIn(COMMIT, transcript.getvalue())
                     self.assertIn(current, transcript.getvalue())
+                    self.assertIn("1. Patch these settings and continue", transcript.getvalue())
+                    self.assertIn("0. Cancel", transcript.getvalue())
 
     def test_operation_review_uses_only_its_inputs_and_shows_cam_commitment(self):
         for purpose in ("contracts", "cam"):
@@ -610,7 +635,7 @@ printf continued > "$CASE_ROOT/continued"
                 output = root / "stage"
                 output.mkdir()
                 transcript = io.StringIO()
-                with patch.object(release_config, "input", return_value="update", create=True), contextlib.redirect_stdout(transcript):
+                with patch.object(release_config, "input", return_value="patch", create=True), contextlib.redirect_stdout(transcript):
                     release_config.update_source("bike-nft", "f" * 40, source, output, purpose=purpose)
                 visible = {line.split(":", 1)[0] for line in transcript.getvalue().splitlines()
                            if line.split(":", 1)[0] in original["settings"]}

@@ -1430,3 +1430,59 @@ A configured URI skips that pause, but each transaction still needs approval.
 
 After:
 If a manifest link is already configured, the command skips that pause. Each transaction still needs your approval.
+
+
+Deployment recovery / shared phase patch
+
+Before:
+These settings apply to this operation. Your saved configuration and existing deployment records will not change.
+The saved approval tool is unavailable. Its replacement was prepared automatically.
+The operation will retain these choices. Transactions still require operator approval.
+Use these settings and continue? [update/cancel; default cancel]:
+
+→
+
+After:
+Review a patch for <app>: <phase>
+Source before patch: <saved commit>
+Source after patch: <selected commit>
+Patch prepares these settings for this phase. This choice does not edit your saved setup or completed deployment records.
+Approval tool before patch: <saved image>
+Approval tool after patch: <prepared image>
+RPC connection and signing wallet: unchanged (hidden)
+<Concrete settings for this phase>
+Any contract transactions still need your approval.
+  1. Patch these settings and continue
+  0. Cancel
+Choose [0]:
+
+
+Deployment recovery / unchanged source or approval tool
+
+Before:
+Source commit: <commit> (unchanged)
+App: <app>
+Approval image: <image>
+RPC URL and signing key: unchanged (hidden)
+
+→
+
+After:
+Source commit: <commit> (unchanged)
+Approval tool: <image> (unchanged)
+RPC connection and signing wallet: unchanged (hidden)
+
+
+Deployment recovery / unstarted phase
+
+Before:
+The next phase has no saved records. Review its settings to start it from source <commit>. Earlier deployment records keep their original source.
+Run this command interactively to prepare a new operation from source <commit>. The saved configuration will not change.
+Operation settings prepared; the saved configuration is unchanged.
+
+→
+
+After:
+The next phase has no saved records. Choose Patch to review settings for source <commit>. Earlier deployment records keep their original source.
+Run this command interactively to review the Patch option for source <commit>. The saved configuration will not change.
+Phase settings patched; the saved configuration is unchanged.

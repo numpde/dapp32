@@ -452,27 +452,38 @@ def update_source(app, source_commit, source, output, *, purpose):
     if purpose == "cam" and (output / "publication-uri").is_file():
         config["settings"]["CAM_URI"] = (output / "publication-uri").read_text().strip()
     validate(config, app, None, purpose=purpose)
+    phase = {"contracts": "business contract deployment", "ui": "UI deployment", "cam": "CAM publication (on-chain app configuration)"}[purpose]
+    print(f"Review a patch for {app}: {phase}")
     if config["sourceCommit"] != source_commit:
-        print(f"Saved source commit:   {config['sourceCommit']}\nCurrent source commit: {source_commit}")
+        print(f"Source before patch: {config['sourceCommit']}\nSource after patch:  {source_commit}")
     else:
         print(f"Source commit: {source_commit} (unchanged)")
-    print("These settings apply to this operation. Your saved configuration and existing deployment records will not change.")
+    print("Patch prepares these settings for this phase. This choice does not edit your saved setup or completed deployment records.")
     if "OUTPUT_DIR" in config["settings"]:
         print(f"Previous deployment records: {config['settings']['OUTPUT_DIR']} (left untouched)")
     config["sourceCommit"] = source_commit
     approval_image = prepared_approval_image(output)
     if config["approvalImageId"] != approval_image:
-        print("The saved approval tool is unavailable. Its replacement was prepared automatically.")
+        print(f"Approval tool before patch: {config['approvalImageId']}\nApproval tool after patch:  {approval_image}")
         config["approvalImageId"] = approval_image
+    else:
+        print(f"Approval tool: {approval_image} (unchanged)")
     validate(config, app, source_commit, purpose=purpose)
-    print(f"App: {app}\nApproval image: {config['approvalImageId']}\nRPC URL and signing key: unchanged (hidden)")
+    print("RPC connection and signing wallet: unchanged (hidden)")
     selected = operation_setting_names(app, purpose, config["settings"])
     for name, value in config["settings"].items():
         if name in selected:
             print(f"{name}: {value}")
-    print("The operation will retain these choices. Transactions still require operator approval.")
-    if input("Use these settings and continue? [update/cancel; default cancel]: ").strip().lower() != "update":
-        raise ValueError("Operation preparation cancelled; the saved configuration is unchanged.")
+    print("Any contract transactions still need your approval.")
+    print("  1. Patch these settings and continue")
+    print("  0. Cancel")
+    while True:
+        decision = input("Choose [0]: ").strip().lower()
+        if decision in ("1", "patch"):
+            break
+        if decision in ("", "0", "cancel"):
+            raise ValueError("Patch cancelled; the saved setup and deployment records are unchanged.")
+        print("Enter 1 to patch these phase settings, or 0 to cancel.")
     write_private(output / "release.json", (json.dumps(config, indent=2) + "\n").encode())
 
 
