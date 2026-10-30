@@ -59,6 +59,32 @@ producer/version, truncation and coverage, without inventing stronger semantics.
 
 Existing native mechanisms and local integration
 ------------------------------------------------
+Immediate alternative: native verbosity without a new runner.
+  For inspecting workflows now, use Make/Bash's existing tracing. Set aside the
+  secrets/privacy concern for this comparison, as requested; this changes no
+  production logging default.
+
+  Show Make recipes and target decisions:
+    make --trace <target> <normal assignments>
+
+  Also trace commands in Make's Bash recipe shells, preserving the repo's
+  existing error and pipeline options:
+    make --trace '.SHELLFLAGS=-eux -o pipefail -c' <target> <normal assignments>
+
+  Trace a separately invoked Bash script:
+    bash -x script.sh
+
+  Or bracket a region of an existing Bash script with set -x / set +x.
+  An optional Bash trace prefix adds time, PID, source and line:
+    export PS4='+ ${EPOCHREALTIME} pid=${BASHPID} ${BASH_SOURCE}:${LINENO}: '
+
+  This is an immediate visibility alternative to adding container runners or
+  rewriting workflow orchestration. It produces diagnostic text, not mandatory
+  durable structured records. Make's shell flags do not automatically enable
+  tracing in separately launched Bash scripts or containers; those invocations
+  must enable it explicitly. Retain the original command's actual exit status
+  when capturing output; a successful log-writing command is not workflow success.
+
 GNU Make --trace explains target updates and prints recipes. --output-sync helps
 group parallel output; it does not create lifecycle events [R1]. Bash -x traces
 expanded shell commands before execution; BASH_XTRACEFD directs it to a separate
