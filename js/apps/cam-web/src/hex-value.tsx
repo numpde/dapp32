@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react"
 import type { ReactElement } from "react"
 import { displayText } from "./display.ts"
-import { failureReport, UserFacingError } from "./errors.ts"
-import type { FailureReport } from "./errors.ts"
+import { useClipboardCopy } from "./clipboard.ts"
 
 type HexValueProps = { readonly value: string; readonly label: string; readonly href?: string }
 
@@ -12,23 +10,7 @@ export function HexValue(props: HexValueProps): ReactElement {
 }
 
 function CopyableHex({ value, label, href }: HexValueProps): ReactElement {
-  const attempt = useRef(0)
-  const [result, setResult] = useState<"idle" | "pending" | "copied" | FailureReport>("idle")
-  useEffect(() => () => { attempt.current++ }, [])
-
-  async function copy(): Promise<void> {
-    const current = ++attempt.current
-    setResult("pending")
-    try {
-      if (navigator.clipboard === undefined) throw new UserFacingError("Clipboard access is unavailable in this browser.")
-      await navigator.clipboard.writeText(value)
-      if (attempt.current === current) setResult("copied")
-    } catch (cause) {
-      if (attempt.current === current) setResult(failureReport(cause, "Cannot copy this value. Select and copy the full value below."))
-    }
-  }
-
-  const failure = typeof result === "object" ? result : undefined
+  const { result, copy, failure } = useClipboardCopy(value)
   const code = <HexText value={value} />
   return <span className="hex-value">
     <span className="hex-value-controls">

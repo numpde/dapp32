@@ -16,6 +16,7 @@ export type PreparedCallField = {
   readonly value: string
   readonly mono: boolean
   readonly compact?: boolean
+  readonly format?: "json"
   readonly json?: { readonly status: "ready"; readonly text: string } | { readonly status: "failed"; readonly failure: FailureReport }
 }
 
@@ -29,7 +30,9 @@ export function preparedCallFields(call: CamViewerPreparedContractCall): readonl
     { label: "Contract function", value: call.function, mono: false },
     ...functionAbi.inputs.map(input => {
       const argument = call.args[input.name!]!
-      const field = { label: `Input: ${input.name!} (${input.type})`, value: formatInertValue(argument), mono: false, ...(input.type === "bytes" ? { compact: false } : {}) }
+      const label = `Input: ${input.name!} (${input.type})`
+      if (argument !== null && typeof argument === "object") return { label, value: JSON.stringify(argument, null, 2), mono: false, format: "json" as const }
+      const field = { label, value: formatInertValue(argument), mono: false, ...(input.type === "bytes" ? { compact: false } : {}) }
       if (input.type !== "string" || typeof argument !== "string" || !/^data:application\/json[;,]/i.test(argument)) return field
       try {
         const text = readJsonDataURI(argument)
@@ -43,6 +46,7 @@ export function preparedCallFields(call: CamViewerPreparedContractCall): readonl
       ? []
       : [{ label: "Native amount to send (wei)", value: formatInertValue(call.value), mono: true }]),
     { label: "App action", value: call.route, mono: false },
-    { label: "After confirmation", value: `${call.then.namespace}.${call.then.function} ${formatInertValue(call.then.args)}`, mono: false },
+    { label: "After confirmation", value: `${call.then.namespace}.${call.then.function}`, mono: false },
+    { label: "Next view inputs", value: JSON.stringify(call.then.args, null, 2), mono: false, format: "json" },
   ]
 }

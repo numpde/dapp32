@@ -36,6 +36,7 @@ import type { TransactionStage } from "./transactions.ts"
 import { HexValue } from "./hex-value.tsx"
 import { AddressInput, AddressSuggestions } from "./address-input.tsx"
 import { currentViewAddresses } from "./known-addresses.ts"
+import { JsonView } from "./json-view.tsx"
 import { PropertyRow } from "./property-row.tsx"
 
 export function ConnectionSummary({
@@ -182,9 +183,10 @@ export function PreparedCallView({
         <KeyValue label="Estimate block" value={call.reviewed.blockNumber} mono={false} />
       </>}
       {review.fields.map((field) => (
-        field.json === undefined ? <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} compact={field.compact} />
+        field.format === "json" ? <PropertyRow key={field.label} label={field.label} value={<JsonView text={field.value} label={field.label} />} />
+          : field.json === undefined ? <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} compact={field.compact} />
           : <PropertyRow key={field.label} label={field.label} value={<>
-            {field.json.status === "ready" ? <pre className="review-json"><code>{field.json.text}</code></pre> : <FeedbackBox kind="warning" message={field.json.failure.message}>
+            {field.json.status === "ready" ? <JsonView text={field.json.text} label={field.label} /> : <FeedbackBox kind="warning" message={field.json.failure.message}>
               {field.json.failure.diagnostic === undefined ? null : <code className="feedback-diagnostic">{field.json.failure.diagnostic}</code>}
             </FeedbackBox>}
             <details><summary>Exact URI</summary><textarea readOnly aria-label={`Exact URI for ${field.label}`} value={field.value} /></details>

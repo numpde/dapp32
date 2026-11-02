@@ -27,6 +27,32 @@ test("formatInertValue bounds browser display values", () => {
   assert.equal(formatInertValue({ text: long }), `${JSON.stringify({ text: long }).slice(0, 2_000)}...`)
 })
 
+test("transaction review keeps complete nested arguments and arrays as indented JSON", () => {
+  const params = {
+    amount: "90071992547409931234567890",
+    terms: { uri: "data:text/plain," + "x".repeat(2500), sha256Digest: "0x" + "ab".repeat(32) },
+    agreementRef: "<script>untrusted text</script>",
+  }
+  const call = {
+    ...preparedCall,
+    abi: parseAbi(["function fund((uint256 amount, (string uri, bytes32 sha256Digest) terms, string agreementRef) params, uint256[] amounts)"]),
+    args: { params, amounts: ["0", params.amount] },
+    then: { ...preparedCall.then, args: { params } },
+  }
+  const before = JSON.stringify(call.args)
+  const fields = preparedCallFields(call)
+  const tuple = fields.find(field => field.label === "Input: params (tuple)")!
+  const next = fields.find(field => field.label === "Next view inputs")!
+  assert.equal(next.format, "json")
+  assert.equal(next.value, JSON.stringify(call.then.args, null, 2))
+  assert.equal(tuple.format, "json")
+  assert.equal(tuple.value, JSON.stringify(params, null, 2))
+  assert.deepEqual(JSON.parse(tuple.value!), params)
+  assert.equal(fields.find(field => field.label === "Input: amounts (uint256[])")?.value, JSON.stringify(call.args.amounts, null, 2))
+  assert.equal(JSON.stringify(call.args), before)
+  assert.equal(preparedCallFields(preparedCall).find(field => field.label === "Input: channelId (uint256)")?.format, undefined)
+})
+
 test("transaction review decodes JSON data URIs without changing numbers or truncating the exact URI", () => {
   const text = '{"name":"Bicycle","number":123456789012345678901234567890,"note":"' + 'x'.repeat(2500) + '"}'
   for (const uri of [`data:application/json;base64,${Buffer.from(text).toString('base64')}`, `data:application/json,${encodeURIComponent(text)}`]) {
@@ -65,7 +91,7 @@ test("transaction review keeps the target, function and inputs available for ins
   assert.equal(fields.find(field => field.label === "Contract function")?.value, "fund")
   assert.equal(fields.find(field => field.label === "Input: channelId (uint256)")?.value, "2")
   assert.equal(fields.find(field => field.label === "App action")?.value, "fund")
-  assert.equal(fields.find(field => field.label === "After confirmation")?.value, 'routes.entry {}')
+  assert.equal(fields.find(field => field.label === "After confirmation")?.value, 'routes.entry')
 })
 
 test("transaction review matches the selected overload and preserves exact named values", () => {
