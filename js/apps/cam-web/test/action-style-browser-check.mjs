@@ -101,7 +101,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       }
       const [read,write] = document.querySelectorAll('.action-button')
       const reference = signature(write)
-      const quiet = [...document.querySelectorAll('.ui-meta>button, .prepared-call>button:not(.send-button)')]
+      const quiet = [...document.querySelectorAll('.ui-meta>button, .transaction-actions>button:not(.send-button)')]
       quiet.push([...document.querySelectorAll('.document-hash-field button')].find(button => button.textContent === 'Cancel calculation'))
       const send = getComputedStyle(document.querySelector('.send-button'))
       const command = getComputedStyle(write)
@@ -117,6 +117,18 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     assert(styles.readDistinct && styles.commandsOutlined && styles.kindsVisible, 'read-only actions and transaction reviews have distinct visible and accessible treatments even when labels suggest the opposite')
     assert(styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel have a quiet supporting treatment')
     assert(styles.sendFilled, 'only Send is filled')
+    for (const width of [1280, 761, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      assert(await evaluate(`(()=>{
+        const row=document.querySelector('.transaction-actions');
+        const [send,discard]=row.querySelectorAll('button');
+        const a=send.getBoundingClientRect(),b=discard.getBoundingClientRect();
+        const textTop=button=>{const range=document.createRange();range.selectNodeContents(button);return range.getBoundingClientRect().top};
+        return send.classList.contains('send-button')&&discard.textContent.trim()==='Discard transaction'
+          &&Math.abs(a.height-b.height)<1&&document.documentElement.scrollWidth<=innerWidth
+          &&(innerWidth>=761?Math.abs(a.top-b.top)<1&&Math.abs(textTop(send)-textTop(discard))<1:b.top>=a.top&&b.left>=row.getBoundingClientRect().left);
+      })()`), `transaction actions align together and wrap within ${width}px`)
+    }
     assert(await evaluate(`document.querySelector('.prepared-call .json-view pre').textContent===actionFixture.reviewJson&&document.querySelector('.prepared-call textarea[readonly]').value===actionFixture.reviewURI`), 'review decodes embedded JSON exactly while retaining the full URI')
     assert(await evaluate(`(()=>{const bytes=document.querySelector('textarea[aria-label="Transaction data (hex)"]');return bytes.readOnly&&!bytes.disabled&&bytes.value.length>2000&&bytes.value===actionFixture.reviewCalldata})()`), 'full calldata remains selectable without truncation or hash shortening')
     for (const [stage,label] of [['checking','Checking transaction…'],['wallet','Waiting for wallet…'],['confirming','Waiting for confirmation…'],['refreshing','Loading updated view…']]) {

@@ -194,19 +194,21 @@ export function PreparedCallView({
       ))}
       <PropertyRow label="Transaction data (hex)" className="mono-value" value={<textarea readOnly rows={4} aria-label="Transaction data (hex)" value={review.calldata} />} />
       {stage === "wallet" ? <FeedbackBox kind="status" message="Approve or reject the request in your wallet. If no prompt appeared, open your wallet." /> : null}
-      <button
-        className="send-button"
-        type="button"
-        disabled={!canSend || sending}
-        onClick={() => {
-          void onSend(call)
-        }}
-      >
-        {status}
-      </button>
-      <button className="button-quiet" type="button" disabled={!canDiscard || sending} onClick={onDiscard}>
-        Discard transaction
-      </button>
+      <div className="transaction-actions">
+        <button
+          className="send-button"
+          type="button"
+          disabled={!canSend || sending}
+          onClick={() => {
+            void onSend(call)
+          }}
+        >
+          {status}
+        </button>
+        <button className="button-quiet" type="button" disabled={!canDiscard || sending} onClick={onDiscard}>
+          Discard transaction
+        </button>
+      </div>
     </section>
   )
 }
