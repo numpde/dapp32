@@ -1,5 +1,6 @@
 import type { ReactElement } from "react"
 import { displayText } from "./display.ts"
+import { CopyButton } from "./copy-button.tsx"
 import { useClipboardCopy } from "./clipboard.ts"
 
 type HexValueProps = { readonly value: string; readonly label: string; readonly href?: string }
@@ -15,10 +16,7 @@ function CopyableHex({ value, label, href }: HexValueProps): ReactElement {
   return <span className="hex-value">
     <span className="hex-value-controls">
       {href === undefined ? code : <a href={href} target="_blank" rel="noopener noreferrer" title={`View ${label}`}>{code}</a>}
-      <button className="hex-copy" type="button" aria-label={`Copy ${label}`} title={`Copy ${label}`} aria-busy={result === "pending"} onClick={() => { void copy() }}>
-        {result === "copied" ? <span aria-hidden="true">✓</span> : <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="8" y="8" width="11" height="12" rx="1.5" /><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v11A1.5 1.5 0 0 0 5.5 18H8" /></svg>}
-      </button>
-      <span className="visually-hidden" role="status">{result === "copied" ? `${label} copied` : ""}</span>
+      <CopyButton label={label} result={result} onCopy={copy} />
     </span>
     {failure === undefined ? null : <span className="hex-copy-error" role="alert">{failure.message} <input aria-label={`Full value: ${label}`} readOnly value={value} />{failure.diagnostic === undefined ? null : <span className="feedback-diagnostic">{failure.diagnostic}</span>}</span>}
   </span>

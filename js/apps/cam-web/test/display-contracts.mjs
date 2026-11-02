@@ -131,11 +131,11 @@ async function assertFeedbackPresentation(evaluate) {
 
 export async function assertManualCopyRecovery({ call, evaluate, wait }) {
   const expected = await evaluate(`document.querySelector('.hex-value-controls code').title`)
-  await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Clipboard denied','NotAllowedError')}}});document.querySelector('.hex-copy').focus()`)
+  await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw new DOMException('Clipboard denied','NotAllowedError')}}});document.querySelector('.hex-value .copy-button').focus()`)
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
   await wait(`!!document.querySelector('.hex-copy-error')`)
-  assert(await evaluate(`document.activeElement===document.querySelector('.hex-copy')`), 'copy failure does not steal focus')
+  assert(await evaluate(`document.activeElement===document.querySelector('.hex-value .copy-button')`), 'copy failure does not steal focus')
   await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
   assert(await evaluate(`(()=>{const field=document.querySelector('.hex-copy-error input');return field!==null&&document.activeElement===field&&field.readOnly&&!field.disabled&&!!field.getAttribute('aria-label')})()`), 'Tab reaches a named read-only recovery field')

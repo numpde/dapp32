@@ -76,12 +76,9 @@ button:not(.timestamp-options):not(:disabled):active {
 .integrity-resource > p { flex: 1; min-width: 0; }
 .integrity-refresh { display: grid; place-items: center; flex: 0 0 28px; width: 28px; min-height: 28px; padding: 4px; border: 0; background: transparent; color: var(--muted); }
 .integrity-refresh svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.json-view { min-width: 0; max-width: 100%; }
+.json-view { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 8px; min-width: 0; max-width: 100%; }
 .json-view pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.875rem; line-height: 1.5; }
-.json-controls { display: flex; align-items: center; gap: 8px; margin-block-end: 8px; }
-.json-controls button { min-height: 28px; padding: 4px 8px; font-size: 0.8125rem; }
-.json-controls [role="status"] { color: var(--muted); font-size: 0.8125rem; }
-.json-copy-error { color: var(--danger); }
+.json-copy-error { grid-column: 1 / -1; color: var(--danger); }
 .key-value:has(> dd > .json-view) > dd { min-inline-size: 0; }
 .prepared-call textarea[readonly] { width: 100%; max-width: 100%; overflow-wrap: anywhere; }
 
@@ -97,10 +94,10 @@ button:not(.timestamp-options):not(:disabled):active {
 .hex-value-controls code { white-space: nowrap; }
 .hex-middle { display: inline-block; inline-size: 3ch; overflow: hidden; position: relative; text-indent: -9999px; vertical-align: bottom; }
 .hex-ellipsis::after { content: "..."; position: absolute; inset-inline-start: 0; text-indent: 0; }
-.hex-copy { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; padding: 4px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
-.hex-copy svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.hex-copy:hover, .hex-copy:focus-visible { background: var(--line); color: var(--ink); }
-.hex-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.copy-button { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; padding: 4px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
+.copy-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.copy-button:hover, .copy-button:focus-visible { background: var(--line); color: var(--ink); }
+.copy-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .hex-copy-error { color: var(--danger); white-space: normal; overflow-wrap: anywhere; }
 .app-setup { display: grid; gap: 12px; }
 

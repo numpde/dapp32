@@ -97,18 +97,21 @@ giving reserve-channel tasks appropriate prominence (note 032, P2).
 
 8. Reset copy feedback and align identifier copy controls
 
-   Requested: 2026-11-03. Status: queued.
+   Requested: 2026-11-03. Status: timeout complete; alignment review queued.
    Owner: shared browser clipboard feedback and identifier/copy-control CSS.
    User screenshot shows persistent success ticks beside the viewing account,
    signing wallet and CAM contract, with imperfect vertical alignment between
    identifier text and its adjacent copy icon/tick.
 
-   Return successful copy feedback to the idle copy control after a short
-   timeout. Apply the same feedback lifetime to JSON copying through the
-   shared clipboard owner. Repeated copies should restart the timeout;
-   changing the value or unmounting must retire old feedback and timers.
-   Keep clipboard failures actionable rather than clearing them on the
-   success-feedback timeout.
+   Successful copy feedback now returns to the idle copy icon after two
+   seconds for both identifiers and JSON, through the shared clipboard owner.
+   Repeated copies restart the timeout; changing the value or unmounting
+   retires old feedback and timers. Clipboard failures remain actionable
+   rather than clearing on the success-feedback timeout. Browser checks cover
+   repeated copying, expiry, persistent failure and stale copy completion.
+   JSON uses the same copy-icon control at the top-right of each block.
+   Copy and success icons now share one SVG size rather than mixing an icon
+   with a font-rendered tick; broader text/icon alignment remains to review.
 
    Inspect text/icon alignment in the rendered identifier rows before changing
    CSS. Check both copy and success states, including linked identifiers,

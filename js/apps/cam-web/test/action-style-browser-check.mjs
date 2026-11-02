@@ -55,11 +55,13 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
         delete window.numericSummaryWitness;
       })()`)
     }
-    await evaluate(`navigator.clipboard.writeText=()=>new Promise(resolve=>{window.finishOldCopy=resolve});document.querySelector('.hex-copy').click();window.actionFixture.account('0x4444444444444444444444444444444444444444')`)
+    await evaluate(`navigator.clipboard.writeText=()=>new Promise(resolve=>{window.finishOldCopy=resolve});document.querySelector('.hex-value .copy-button').click();window.actionFixture.account('0x4444444444444444444444444444444444444444')`)
     await wait(`document.querySelector('.hex-value code').textContent==='0x4444444444444444444444444444444444444444'`)
     await evaluate('window.finishOldCopy()')
     assert(await evaluate(`!document.querySelector('.hex-value [role="status"]').textContent`), 'a late copy completion does not acknowledge a different displayed address')
     await assertManualCopyRecovery({ call, evaluate, wait })
+    await evaluate('new Promise(resolve=>setTimeout(resolve,2100))')
+    assert(await evaluate(`!!document.querySelector('.hex-copy-error')`), 'clipboard failure does not expire with success feedback')
     await evaluate(`window.actionFixture.account('0x1111111111111111111111111111111111111111')`)
     await evaluate(`navigator.clipboard.writeText=async value=>{window.copiedIdentifier=value}`)
     await evaluate(`document.querySelector('.wallet-button').click()`)
@@ -76,6 +78,19 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await evaluate(`document.querySelectorAll('.action-button')[1].click()`)
     await wait(`!!document.querySelector('.prepared-call')`)
     assert(await evaluate(`window.actionFixture.events.contractCall===1&&window.actionFixture.events.send===0`), 'write actions only prepare review')
+    await evaluate(`navigator.clipboard.writeText=async value=>{window.copiedIdentifier=value}`)
+    for (const selector of ['.hex-value', '.json-view']) {
+      const control = `document.querySelector('${selector} .copy-button')`
+      const status = `document.querySelector('${selector} [role="status"]')`
+      await evaluate(`${control}.click()`)
+      await wait(`${status}.textContent.includes('copied')`)
+      await evaluate('new Promise(resolve=>setTimeout(resolve,1200))')
+      await evaluate(`${control}.click()`)
+      await evaluate('new Promise(resolve=>setTimeout(resolve,1000))')
+      assert(await evaluate(`${status}.textContent.includes('copied')`), 'repeated copying restarts success feedback instead of expiring on the old timer')
+      await wait(`${status}.textContent===''`)
+      assert(await evaluate(`${control}.querySelector('rect')!==null`), 'success feedback returns to the copy icon')
+    }
     assert(await evaluate(`(()=>{const raw=[...document.querySelectorAll('.prepared-call .key-value')].filter(row=>row.firstElementChild.textContent.endsWith('(bytes)'));return raw.length>0&&raw.every(row=>row.lastElementChild.textContent==='0x'+'ab'.repeat(32)&&!row.querySelector('.hex-value'))})()`), 'dynamic calldata stays exact and unshortened')
 
     const styles = await evaluate(`(() => {
@@ -102,7 +117,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     assert(styles.readDistinct && styles.commandsOutlined && styles.kindsVisible, 'read-only actions and transaction reviews have distinct visible and accessible treatments even when labels suggest the opposite')
     assert(styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel have a quiet supporting treatment')
     assert(styles.sendFilled, 'only Send is filled')
-    assert(await evaluate(`document.querySelector('.prepared-call .review-json').textContent===actionFixture.reviewJson&&document.querySelector('.prepared-call textarea[readonly]').value===actionFixture.reviewURI`), 'review decodes embedded JSON exactly while retaining the full URI')
+    assert(await evaluate(`document.querySelector('.prepared-call .json-view pre').textContent===actionFixture.reviewJson&&document.querySelector('.prepared-call textarea[readonly]').value===actionFixture.reviewURI`), 'review decodes embedded JSON exactly while retaining the full URI')
     assert(await evaluate(`(()=>{const bytes=document.querySelector('textarea[aria-label="Transaction data (hex)"]');return bytes.readOnly&&!bytes.disabled&&bytes.value.length>2000&&bytes.value===actionFixture.reviewCalldata})()`), 'full calldata remains selectable without truncation or hash shortening')
     for (const [stage,label] of [['checking','Checking transaction…'],['wallet','Waiting for wallet…'],['confirming','Waiting for confirmation…'],['refreshing','Loading updated view…']]) {
       await evaluate(`actionFixture.stage(${JSON.stringify(stage)})`)
