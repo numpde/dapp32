@@ -186,7 +186,7 @@ contract CamEscrowUI {
         view_.machine.transitionIds = _transitionIds(escrow.availableActions(agreement.agreementId, actor));
         view_.viewId = _agreementViewId(agreement.state);
         view_.actorRoleId = _actorRoleId(agreement, actor);
-        view_.arbitrationTimeoutBeneficiaryId = _timeoutBeneficiaryId(agreement.arbitrationTimeoutBeneficiary);
+        view_.arbitrationTimeoutBeneficiaryId = arbitrationTimeoutBeneficiaryId(agreement.arbitrationTimeoutBeneficiary);
         view_.arbitratorAcknowledgementRequired = false;
         view_.arbitratorAcknowledgementDisclosure = ACKNOWLEDGEMENT_DISCLOSURE;
     }
@@ -303,8 +303,9 @@ contract CamEscrowUI {
         return ROLE_NONE;
     }
 
-    function _timeoutBeneficiaryId(ICamEscrowView.ArbitrationTimeoutBeneficiary beneficiary)
-        private
+    /// @notice Names the timeout recipient for agreement views and pre-signing review.
+    function arbitrationTimeoutBeneficiaryId(ICamEscrowView.ArbitrationTimeoutBeneficiary beneficiary)
+        public
         pure
         returns (string memory)
     {

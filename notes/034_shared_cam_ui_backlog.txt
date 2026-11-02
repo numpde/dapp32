@@ -53,9 +53,20 @@ Shared CAM UI backlog
 
 5. Readable transaction review for nested inputs
 
-   Status: queued. Owner: shared viewer transaction-review presentation.
-   Escrow's nested agreement settings still need a readable review while
-   retaining exact raw values and calldata. Do not duplicate contract facts.
+   Status: complete. Owner: shared viewer presentation and Escrow authoring.
+   Escrow creation now uses the existing authored review mechanism to show
+   parties, native amount, phase durations, selected arbitration timeout
+   recipient and terms document. The signing wallet is identified as the
+   client without treating the address being viewed as the signer. Exact
+   prepared JSON arguments and calldata remain available below the summary.
+
+   The timeout-recipient name comes from the same contract-owned mapping used
+   by agreement views, exposed for read-only pre-signing review. The browser
+   does not introduce a second enum mapping or contract-rule implementation.
+   Verification: Solidity unit/scenario and CAM conformance checks, an app
+   test of the authored summary, and live review of both recipient choices
+   against their prepared arguments. The review fits 1280/761/320; no sample
+   agreement was submitted during verification.
 
 App-specific work remains in the walkthrough notes. The next Pay-to-Play
 items are linking the external-signing guide, intentional voucher reuse after

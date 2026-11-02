@@ -26,6 +26,20 @@ contract CamEscrowUITest is CamEscrowTestBase {
         ui = new CamEscrowUI(address(escrow));
     }
 
+    function testCreationReviewNamesTheSelectedTimeoutRecipient() external {
+        assertEq(ui.arbitrationTimeoutBeneficiaryId(ICamEscrowView.ArbitrationTimeoutBeneficiary.Client), "client");
+        assertEq(
+            ui.arbitrationTimeoutBeneficiaryId(ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor), "contractor"
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CamEscrowUI.UnsupportedArbitrationTimeoutBeneficiary.selector,
+                ICamEscrowView.ArbitrationTimeoutBeneficiary.None
+            )
+        );
+        ui.arbitrationTimeoutBeneficiaryId(ICamEscrowView.ArbitrationTimeoutBeneficiary.None);
+    }
+
     /// @notice Construction accepts only a deployed ICamEscrowView implementation.
     function testConstructorVerifiesBackingInterface() external {
         vm.expectRevert(CamEscrowUI.ZeroAddress.selector);

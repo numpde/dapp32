@@ -9,7 +9,7 @@
     "contracts.CamEscrowUI": {
       "type": "contract",
       "abiURI": "./abi/CamEscrowUI.json",
-      "integrity": "sha256:0xda65461aea049b402a0e20a3ae61aee3ddb432d0d8ca0cd5a5a06d8504e504ee"
+      "integrity": "sha256:0xd01107a73fdc874edcef789f2cabbc9ca8217882938128096a5f595409aef469"
     },
     "contracts.CamEscrow": {
       "type": "contract",
@@ -22,7 +22,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xd55da7a44fe207896e09dfba1ece1d89370ce8c0db1793259c6a3ee2e885b39f"
+      "integrity": "sha256:0x0307f75adcc38d31a2829352f02877762ffd25d6c60f8b05809e1f4c40c1d4a8"
     }
   },
   "routes": {
@@ -125,6 +125,25 @@
         "args": {
           "client": "$account.address",
           "agreementRef": "$inputs.params.agreementRef"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "arbitrationTimeoutBeneficiaryId",
+          "args": {
+            "beneficiary": "$inputs.params.arbitrationTimeoutBeneficiary"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.create.review",
+          "args": {
+            "view": {
+              "params": "$inputs.params",
+              "timeoutRecipient": "$outputs.0.read.0"
+            }
+          }
         }
       }
     },

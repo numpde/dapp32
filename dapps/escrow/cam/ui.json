@@ -1733,6 +1733,111 @@
           }
         }
       ]
+    },
+    "escrow.create.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Create and fund this agreement"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The signing wallet becomes the client."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Agreement reference",
+            "value": "$view.params.agreementRef"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Contractor",
+            "address": "$view.params.contractor"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Arbitrator",
+            "address": "$view.params.arbitrator"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Amount to lock in escrow",
+            "value": "$view.params.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Time to accept",
+            "value": "$view.params.acceptanceDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Time to complete the work",
+            "value": "$view.params.workDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Time to review submitted work",
+            "value": "$view.params.reviewDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Time to resolve a dispute",
+            "value": "$view.params.arbitrationDuration",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Recipient if arbitration times out",
+            "value": "$view.timeoutRecipient"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Terms document URI",
+            "value": "$view.params.terms.uri"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Terms SHA-256 digest",
+            "value": "$view.params.terms.sha256Digest"
+          }
+        }
+      ]
     }
   }
 }

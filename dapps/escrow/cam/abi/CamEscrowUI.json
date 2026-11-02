@@ -20,6 +20,25 @@
   },
   {
     "type": "function",
+    "name": "arbitrationTimeoutBeneficiaryId",
+    "inputs": [
+      {
+        "name": "beneficiary",
+        "type": "uint8",
+        "internalType": "enum ICamEscrowView.ArbitrationTimeoutBeneficiary"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "string",
+        "internalType": "string"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "escrow",
     "inputs": [],
     "outputs": [

@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { readFile } from "node:fs/promises"
+import { parseUi, resolveUiNode } from "@cam/screen"
 import { parseAbi } from "viem"
 
 import { formatInertValue } from "../src/display.ts"
@@ -111,4 +113,36 @@ test("value-free prepared calls do not invent a transaction amount", () => {
     preparedCallFields(preparedCall).some((field) => field.label === "Native amount to send (wei)"),
     false,
   )
+})
+
+test("Escrow creation review explains the prepared parties, amount, durations and terms", async () => {
+  const ui = parseUi(JSON.parse(await readFile(new URL("../../../../dapps/escrow/cam/ui.json", import.meta.url), "utf8")))
+  const params = {
+    agreementRef: "readable-review", contractor: "0x1111111111111111111111111111111111111111",
+    arbitrator: "0x2222222222222222222222222222222222222222", amount: "1000000000000",
+    acceptanceDuration: "86400", workDuration: "604800", reviewDuration: "172800", arbitrationDuration: "259200",
+    terms: { uri: "https://example.test/terms", sha256Digest: "0x" + "ab".repeat(32) },
+  }
+  for (const timeoutRecipient of ["client", "contractor"]) {
+    const review = resolveUiNode(ui, "escrow.create.review", { view: { params, timeoutRecipient } }, {
+      host: { chainId: "eip155:31337", address: preparedCall.address }, inputs: {}, outputs: [], state: {},
+    })
+    assert(review.element === "Screen")
+    assert.equal(review.children[0]?.element, "Text")
+    const facts = new Map(review.children.slice(1).map(node => {
+      assert(node.element === "Status" || node.element === "Address")
+      return [node.props.label, node] as const
+    }))
+    assert.equal(facts.get("Contractor")?.props.address, params.contractor)
+    assert.equal(facts.get("Arbitrator")?.props.address, params.arbitrator)
+    const amount = facts.get("Amount to lock in escrow")!
+    assert.equal(amount.element === "Status" ? amount.formattedValue : undefined, "0.000001 Native asset (1,000,000,000,000 wei)")
+    for (const [label, text] of [["Time to accept", "1 day (86,400 seconds)"], ["Time to complete the work", "7 days (604,800 seconds)"], ["Time to review submitted work", "2 days (172,800 seconds)"], ["Time to resolve a dispute", "3 days (259,200 seconds)"]] as const) {
+      const duration = facts.get(label)!
+      assert.equal(duration.element === "Status" ? duration.formattedValue : undefined, text)
+    }
+    assert.equal(facts.get("Recipient if arbitration times out")?.props.value, timeoutRecipient)
+    assert.equal(facts.get("Terms document URI")?.props.value, params.terms.uri)
+    assert.equal(facts.get("Terms SHA-256 digest")?.props.value, params.terms.sha256Digest)
+  }
 })
