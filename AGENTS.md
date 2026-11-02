@@ -56,7 +56,10 @@ the repo unchanged or update the appropriate note.
 ## Branch Posture
 
 - `main` is the clean rebuild branch.
-- `poc` preserves the historical proof of concept.
+- `gh-pages` owns the published documentation and has independent history.
+- `main` and `gh-pages` are protected against deletion and force pushes.
+- The tag `archive/poc-2026-05-20` preserves the historical proof of concept;
+  the `poc` branch has been retired.
 - Do not copy or migrate PoC code into `main` unless explicitly requested.
 
 ## Trust Model

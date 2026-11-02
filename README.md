@@ -108,6 +108,11 @@ decoding or publish an ERC-7730 descriptor. See the
 
 ## Development
 
+Development uses `main`; published documentation lives on `gh-pages`.
+Both branches are protected against deletion and force pushes. The historical
+proof of concept is preserved at the
+[`archive/poc-2026-05-20` tag](https://github.com/numpde/dapp32/tree/archive/poc-2026-05-20).
+
 Use Docker with Compose and Make. Install the locked dependencies, then run
 the offline checks, selecting the local Docker context for each operation:
 
