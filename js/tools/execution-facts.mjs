@@ -72,12 +72,14 @@ export function collectFacts(request, requestBytes) {
       if (program.getSyntacticDiagnostics(file).length) throw new Error(`invalid TypeScript: ${assigned.path}`)
       const facts = { path: assigned.path, sha256: digest(source.text), dependencies: [], uses: [] }
       const line = node => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1
+      // silent-defaults: allow-default -- Uses without a member name represent whole-object capabilities.
       const use = (node, capability, member = "") => facts.uses.push({ capability, member, line: line(node) })
       const dependency = (node, literal) => {
         const specifier = literal.text
         const capability = moduleCapabilities.get(specifier.replace(/^node:/, ""))
         if (capability) use(node, capability)
         const symbol = checker.getSymbolAtLocation(literal)
+        // silent-defaults: allow-default -- An unresolved symbol has no declarations to enumerate.
         const declarations = [...new Set(symbol?.declarations.map(declaration => declaration.path) ?? [])]
         let target = ""
         let resolved = false

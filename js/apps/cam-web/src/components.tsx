@@ -78,6 +78,7 @@ function ChainLabel({ chainId }: { readonly chainId: string }): ReactElement {
     )
     return () => { active = false }
   }, [chainId, catalogName])
+  // silent-defaults: allow-default -- The fetched name is used only when the supplied catalog has none.
   const chainName = catalogName ?? name
   return <>{chainName === undefined ? chainId : `${chainName} (${chainId})`}</>
 }

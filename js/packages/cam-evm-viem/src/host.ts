@@ -75,6 +75,7 @@ export async function checkCamResourceIntegrity(options: Omit<LoadCamFromHostOpt
   let warning: CamIntegrityWarning | undefined
   if (options.resource.hashSource === "contract") {
     verifyCamHash({ bytes: camBytes, expectedHash: camHash, onIntegrityWarning: result => { warning = { ...result, uri: camURI } } })
+    // silent-defaults: allow-default -- The verifier reports a warning only when the hashes differ.
     return warning ?? { hashSource: "contract", status: "verified", uri: camURI, expectedHash: camHash, actualHash: camHash.toLowerCase() }
   }
 
@@ -90,6 +91,7 @@ export async function checkCamResourceIntegrity(options: Omit<LoadCamFromHostOpt
   const bytes = await loadResourceBytes(options.loadResource, options.resource.uri, `failed to load CAM resource: ${options.resource.uri}`)
   verifyCamResourceIntegrity({ bytes, integrity: declaration.integrity, uri: options.resource.uri, onIntegrityWarning: result => { warning = result } })
   const expectedHash = declaration.integrity.slice("sha256:".length)
+  // silent-defaults: allow-default -- The verifier reports a warning only when the hashes differ.
   return warning ?? { hashSource: "manifest", status: "verified", uri: options.resource.uri, expectedHash, actualHash: expectedHash.toLowerCase() }
 }
 

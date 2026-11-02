@@ -27,6 +27,7 @@ function IntegrityWarning({ warning, onRefresh }: { readonly warning: CamIntegri
   const [failure, setFailure] = useState<FailureReport | undefined>(undefined)
   const pending = useRef<AbortController | undefined>(undefined)
   useEffect(() => () => pending.current?.abort(), [])
+  // silent-defaults: allow-default -- Show the original warning until a later check completes.
   const checked = latest ?? warning
   const changed = checked.uri !== warning.uri || checked.actualHash.toLowerCase() !== warning.actualHash.toLowerCase()
   const hashLocation = checked.hashSource === "contract" ? "stored in the contract" : "specified in the app manifest"

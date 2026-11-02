@@ -58,6 +58,7 @@ JS_TYPED_PARAMETER_DEFAULT_RE = re.compile(
 JS_EXCEPTION_FALLBACK_RE = re.compile(
     r"\breturn\s+(?:\[\]|\{\}|[\"'`].*[\"'`]|[0-9]+\b|true\b|false\b|null\b|undefined\b)"
 )
+JS_STRING_RE = re.compile(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`''')
 
 
 def js_ts_files() -> list[Path]:
@@ -152,6 +153,17 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
         self.assertRegex('  path: string = "",', JS_TYPED_PARAMETER_DEFAULT_RE)
         self.assertTrue(js_source_has_exception_fallback("try { run() } catch { return [] }"))
 
+    def test_matchers_ignore_strings_and_boolean_membership_tests(self) -> None:
+        sources = (
+            '''call({ selector: 'input[name="document"]' })''',
+            "const actions = buttons.filter(button => button.kind !== undefined || ['Send'].includes(button.name))",
+            "return element.tagName !== 'INPUT' || ['text'].includes(element.type)",
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual([], js_default_findings_for_source(source, "fixture"))
+        self.assertTrue(js_default_findings_for_source("return port || ['8080']", "fixture"))
+
     def test_js_ts_files_do_not_hide_runtime_fallbacks(self) -> None:
         findings = []
         for path in js_ts_files():
@@ -190,6 +202,15 @@ def js_default_findings_for_source(source: str, label: str) -> list[str]:
     for line_number, line in enumerate(lines, 1):
         for pattern, rule in patterns:
             for match in pattern.finditer(line):
+                if pattern is JS_TYPED_PARAMETER_DEFAULT_RE:
+                    equals = match.start() + match.group().rfind("=")
+                    if any(string.start() <= equals < string.end() for string in JS_STRING_RE.finditer(line)):
+                        continue
+                if pattern is JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE:
+                    expression = match.group()
+                    if (re.search(r"(?:!==|===|!=|==)", expression)
+                            and re.match(r"\[[^\]\n]*\]\.includes\s*\(", line[match.end() - 1:])):
+                        continue
                 findings.append(f"{label}:{line_number}: {rule}: {match.group(0).strip()}")
     findings.extend(js_parameter_destructuring_default_findings_for_source(source, label))
     findings.extend(js_exception_fallback_findings_for_source(source, label))

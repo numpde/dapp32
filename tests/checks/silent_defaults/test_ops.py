@@ -84,8 +84,16 @@ ALLOWED_MAKE_DEFAULTS = {
 ALLOWED_DOCKER_DEFAULTS = {
     ("ARG", "containers/foundry/Dockerfile", "SOLC_VERSION", "0.8.35"),
     ("ENV", "containers/foundry/Dockerfile", "XDG_DATA_HOME", "/usr/local/share"),
+    # The execution checker copies the Go toolchain from its pinned build stage.
+    ("ENV", "containers/execution-check/Dockerfile", "PATH", "/usr/local/go/bin:${PATH}"),
 }
 ALLOWED_SHELL_DEFAULTS = {
+    # The first root-source invocation selects; the retain invocation sets its phase explicitly.
+    ("compose/release/cam.yml", "CAM_ROOT_SOURCE_PHASE", "-", "select"),
+    # The viewer build launcher supplies provenance; Compose can also render the service independently.
+    ("compose/viewer-image.yml", "VITE_CAM_WEB_BUILD_REVISION", "-", ""),
+    ("compose/viewer-image.yml", "VITE_CAM_WEB_BUILD_TIME", "-", ""),
+    ("compose/viewer-image.yml", "VITE_CAM_WEB_BUILD_MODIFIED", "-", "false"),
     # INSTANCE is optional for internal phase calls; present values enter the shared selector.
     ("Makefile", "INSTANCE", "-", ""),
     # OUTPUT_DIR is supplied by the instance or retained legacy phase configuration.
@@ -127,6 +135,9 @@ ALLOWED_SHELL_DEFAULTS = {
     # by the local PTY rehearsal, which saves parameter-free method evidence.
     ("compose/release/approval.yml", "RELEASE_APPROVAL_TRACE_RPC", ":-", "0"),
 }
+
+# These are lifecycle sentinels owned by the fixture launcher, not environment inputs.
+FIXTURE_EMPTY_LOCALS = {"creation_token", "scratch"}
 
 
 def ops_files() -> list[Path]:
@@ -195,7 +206,18 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         findings: list[str] = []
         findings.extend(make_default_assignment_findings(files))
         findings.extend(docker_default_findings(files))
-        findings.extend(line_findings(files, MAKE_FUNCTION_DEFAULT_RE, "make function fallback"))
+        make_functions = line_findings(files, MAKE_FUNCTION_DEFAULT_RE, "make function fallback")
+        # This exact conditional formats a printed wallet command; it does not select an input value.
+        wallet_lines = (ROOT / "Makefile").read_text().splitlines()
+        wallet_hint = '$(if $(filter $(COMPOSE_PROJECT_NAME)-$(1)-viewer-gui,$($(2))),, $(2)=$($(2)))'
+        for finding in make_functions:
+            parts = finding.split(":", 3)
+            if parts[0] == "Makefile":
+                source = wallet_lines[int(parts[1]) - 1]
+                if (source.startswith("printf ") and wallet_hint in source
+                        and parts[3] == " $(if $(filter $(COMPOSE_PROJECT_NAME)"):
+                    continue
+            findings.append(finding)
         findings.extend(shell_default_findings(files))
         findings.extend(self.shell_silent_success_findings(files))
         findings.extend(line_findings(files, WORKFLOW_DEFAULT_FIELD_RE, "workflow dispatch default"))
@@ -215,6 +237,8 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                         environment_indent = None
                 assignment_match = ENV_ASSIGNMENT_RE.match(line.strip())
                 if assignment_match and assignment_match.group("value").strip() in {"", '""', "''"}:
+                    if path.relative_to(ROOT) == Path("tools/pay_to_play_fixture.sh") and assignment_match.group("name") in FIXTURE_EMPTY_LOCALS:
+                        continue
                     findings.append(
                         f"{path.relative_to(ROOT)}:{line_number}: blank env assignment: "
                         f"{assignment_match.group('name')}={assignment_match.group('value')}"
