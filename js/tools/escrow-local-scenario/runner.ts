@@ -379,6 +379,9 @@ async function submitPreparedCall(
   call: CamViewerPreparedContractCall,
 ): Promise<CamViewerLoadedSnapshot> {
   const account = fixture.accounts[role]
+  assert.ok(call.review, `${call.route} must offer a transaction review`)
+  const review = await call.review(fixture.fullPublicClient, account.address)
+  assert.equal(review.ui.element, "Screen", `${call.route} review must resolve before sending`)
   await simulateCamContractCall({
     publicClient: fixture.fullPublicClient,
     account: account.address,

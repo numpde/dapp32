@@ -1850,6 +1850,337 @@
           }
         }
       ]
+    },
+    "component.review.facts": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Current component details were read at the estimate block and may change before confirmation."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Serial number",
+            "value": "$view.component.serialNumber"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Current NFT owner",
+            "address": "$view.component.owner"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current component status",
+            "value": "$view.component.statusId"
+          }
+        }
+      ]
+    },
+    "component.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "component.review.text": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "$view.contentLabel",
+            "value": "$view.content"
+          }
+        }
+      ]
+    },
+    "component.review.delegate": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Workshop",
+            "address": "$view.delegate"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Permissions",
+            "value": "$view.capabilities",
+            "valueLabels": {
+              "1": "Update NFT details",
+              "2": "Report missing",
+              "3": "Update NFT details and report missing",
+              "4": "Resolve missing reports",
+              "5": "Update NFT details and resolve missing reports",
+              "6": "Report and resolve missing reports",
+              "7": "All workshop permissions"
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Permission expiry",
+            "value": "$view.validUntil",
+            "format": "timestampSeconds"
+          }
+        }
+      ]
+    },
+    "component.review.revoke": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Workshop whose access will be revoked",
+            "address": "$view.delegate"
+          }
+        }
+      ]
+    },
+    "component.review.transfer": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "New NFT owner",
+            "address": "$view.to"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Current NFT contract",
+            "address": "$view.component.tokenContract"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current NFT token ID",
+            "value": "$view.component.tokenId"
+          }
+        }
+      ]
+    },
+    "component.review.register": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Serial currently registered",
+            "value": "$view.exists",
+            "valueLabels": { "true": "Yes", "false": "No" }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Intended NFT owner",
+            "address": "$view.owner"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Metadata document",
+            "value": "$view.tokenURI"
+          }
+        }
+      ]
+    },
+    "handover.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The current and pending authorities were read at the estimate block and can change before confirmation."
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Contract",
+            "address": "$view.handover.target"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Current authority",
+            "address": "$view.handover.current"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Pending authority",
+            "address": "$view.handover.pending"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Acceptance time",
+            "value": "$view.handover.readyAt",
+            "format": "timestampSeconds",
+            "zeroText": "No scheduled acceptance"
+          }
+        }
+      ]
+    },
+    "account.info.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Update account info"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "This changes the signing wallet’s profile. An empty value clears it. The account being viewed can differ from the signing wallet."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "New public profile",
+            "value": "$view.proposed"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Account being viewed",
+            "address": "$view.account"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Viewed account’s current profile",
+            "value": "$view.current"
+          }
+        }
+      ]
     }
   }
 }

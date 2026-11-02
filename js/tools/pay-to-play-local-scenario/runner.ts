@@ -110,6 +110,9 @@ async function main(): Promise<void> {
       assert.deepEqual(prepared.call.then.args, inert({ customer: accounts[role].address, channelId: inspected.channelId }), "later account changes must not rewrite a prepared continuation")
       await session.setAccount({ address: accounts[role].address })
     }
+    assert.ok(prepared.call.review, `${route} must offer a transaction review`)
+    const review = await prepared.call.review(publicClient, accounts[role].address)
+    assert.equal(review.ui.element, "Screen", `${route} review must resolve before sending`)
     await simulateCamContractCall({ publicClient, account: accounts[role].address, call: prepared.call })
     const walletClient = createWalletClient({ account: accounts[role], chain, transport: http(rpcURL) })
     const hash = await sendCamContractCall({ walletClient, chain, call: prepared.call })
@@ -209,6 +212,8 @@ async function main(): Promise<void> {
   action("setWithdrawal", true)
   action("move", true)
   await position("admin", "1")
+  await write("admin", "setCollector", { newCollector: accounts.admin.address })
+  await write("admin", "setCollector", { newCollector: accounts.relayer.address })
   await write("admin", "setPayee", { replacementPayee: accounts.admin.address })
   await mature()
   await write("relayer", "withdraw", {})

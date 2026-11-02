@@ -22,7 +22,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x0307f75adcc38d31a2829352f02877762ffd25d6c60f8b05809e1f4c40c1d4a8"
+      "integrity": "sha256:0x1d8ab78a97cf0de47d601db4fc736f74df12c2d6ae1d2075418cc260c42b4042"
     }
   },
   "routes": {
@@ -165,6 +165,26 @@
         "args": {
           "agreementId": "$inputs.agreementId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Cancel agreement",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
+        }
       }
     },
     "acceptAgreement": {
@@ -184,6 +204,26 @@
         "function": "agreement",
         "args": {
           "agreementId": "$inputs.agreementId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Accept agreement",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
         }
       }
     },
@@ -205,6 +245,26 @@
         "args": {
           "agreementId": "$inputs.agreementId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Approve work and credit contractor",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
+        }
       }
     },
     "finalizeAcceptanceTimeout": {
@@ -224,6 +284,26 @@
         "function": "agreement",
         "args": {
           "agreementId": "$inputs.agreementId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Finalize acceptance timeout",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
         }
       }
     },
@@ -245,6 +325,26 @@
         "args": {
           "agreementId": "$inputs.agreementId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Finalize work timeout",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
+        }
       }
     },
     "finalizeReviewTimeout": {
@@ -264,6 +364,26 @@
         "function": "agreement",
         "args": {
           "agreementId": "$inputs.agreementId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Finalize review timeout",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
         }
       }
     },
@@ -285,6 +405,26 @@
         "args": {
           "agreementId": "$inputs.agreementId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Award escrow to client",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
+        }
       }
     },
     "resolveForContractor": {
@@ -305,6 +445,26 @@
         "args": {
           "agreementId": "$inputs.agreementId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.review",
+          "args": {
+            "view": {
+              "title": "Award escrow to contractor",
+              "agreement": "$outputs.0.read.0.agreement"
+            }
+          }
+        }
       }
     },
     "finalizeArbitrationTimeout": {
@@ -324,6 +484,27 @@
         "function": "agreement",
         "args": {
           "agreementId": "$inputs.agreementId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.timeout.review",
+          "args": {
+            "view": {
+              "title": "Finalize arbitration timeout",
+              "agreement": "$outputs.0.read.0.agreement",
+              "timeoutRecipient": "$outputs.0.read.0.arbitrationTimeoutBeneficiaryId"
+            }
+          }
         }
       }
     },
@@ -347,6 +528,27 @@
         "args": {
           "agreementId": "$inputs.agreementId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.document.review",
+          "args": {
+            "view": {
+              "title": "Submit work evidence",
+              "agreement": "$outputs.0.read.0.agreement",
+              "document": "$inputs.submission"
+            }
+          }
+        }
       }
     },
     "disputeAgreement": {
@@ -369,6 +571,27 @@
         "args": {
           "agreementId": "$inputs.agreementId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAgreement",
+          "args": {
+            "agreementId": "$inputs.agreementId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.agreement.document.review",
+          "args": {
+            "view": {
+              "title": "Dispute submission",
+              "agreement": "$outputs.0.read.0.agreement",
+              "document": "$inputs.dispute"
+            }
+          }
+        }
       }
     },
     "withdrawTo": {
@@ -387,6 +610,26 @@
         "namespace": "routes",
         "function": "accountCredit",
         "args": {}
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.CamEscrowUI",
+          "function": "viewAccountCredit",
+          "args": {
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "escrow.withdraw.review",
+          "args": {
+            "view": {
+              "recipient": "$inputs.recipient",
+              "account": "$outputs.0.read.0.account",
+              "amount": "$outputs.0.read.0.amount"
+            }
+          }
+        }
       }
     }
   }

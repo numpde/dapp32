@@ -1838,6 +1838,191 @@
           }
         }
       ]
+    },
+    "escrow.agreement.review.facts": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "These agreement details were read at the estimate block and can change before confirmation."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Agreement reference",
+            "value": "$view.agreement.agreementRef"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Agreement ID",
+            "value": "$view.agreement.agreementId"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Client",
+            "address": "$view.agreement.client"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Contractor",
+            "address": "$view.agreement.contractor"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current escrow amount",
+            "value": "$view.agreement.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        }
+      ]
+    },
+    "escrow.agreement.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "escrow.agreement.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "escrow.agreement.document.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "escrow.agreement.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Document URI",
+            "value": "$view.document.uri"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Document SHA-256 digest",
+            "value": "$view.document.sha256Digest"
+          }
+        }
+      ]
+    },
+    "escrow.withdraw.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Withdraw credit"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The signing wallet’s entire available credit is sent to the recipient. The account being viewed can differ from the signing wallet; its credit is shown below and may change before confirmation."
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Withdrawal recipient",
+            "address": "$view.recipient"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Account being viewed",
+            "address": "$view.account"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Viewed account’s current credit",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        }
+      ]
+    },
+    "escrow.agreement.timeout.review": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "escrow.agreement.review.facts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Recipient if arbitration times out",
+            "value": "$view.timeoutRecipient"
+          }
+        }
+      ]
     }
   }
 }

@@ -27,7 +27,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x238d709587443c826519daada9af898984fa375c0d9c492d33cca097b91c03e9"
+      "integrity": "sha256:0x857dc2007a8171417a137883ccfd0851da4501bd1e62f4b5a0387becf57e8075"
     },
     "contracts.BicycleComponents": {
       "type": "contract",
@@ -78,6 +78,26 @@
         "namespace": "routes",
         "function": "deploymentHandovers",
         "args": {}
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewDeploymentHandovers",
+          "args": {
+            "camHost": "$host.address",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "handover.review",
+          "args": {
+            "view": {
+              "title": "Accept CAM ownership",
+              "handover": "$outputs.0.read.0.cam"
+            }
+          }
+        }
       }
     },
     "acceptComponentsAdmin": {
@@ -100,6 +120,26 @@
         "namespace": "routes",
         "function": "deploymentHandovers",
         "args": {}
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewDeploymentHandovers",
+          "args": {
+            "camHost": "$host.address",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "handover.review",
+          "args": {
+            "view": {
+              "title": "Accept Components administration",
+              "handover": "$outputs.0.read.0.components"
+            }
+          }
+        }
       }
     },
     "acceptManagerAdmin": {
@@ -122,6 +162,26 @@
         "namespace": "routes",
         "function": "deploymentHandovers",
         "args": {}
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewDeploymentHandovers",
+          "args": {
+            "camHost": "$host.address",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "handover.review",
+          "args": {
+            "view": {
+              "title": "Accept Manager administration",
+              "handover": "$outputs.0.read.0.manager"
+            }
+          }
+        }
       }
     },
     "entry": {
@@ -215,6 +275,29 @@
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewRegister",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review.register",
+          "args": {
+            "view": {
+              "title": "Register component",
+              "serialNumber": "$inputs.serialNumber",
+              "exists": "$outputs.0.read.0.exists",
+              "owner": "$inputs.owner",
+              "tokenURI": "$inputs.tokenURI"
+            }
+          }
+        }
       }
     },
     "setAccountInfo": {
@@ -233,6 +316,26 @@
         "namespace": "routes",
         "function": "entry",
         "args": {}
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewEntry",
+          "args": {
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "account.info.review",
+          "args": {
+            "view": {
+              "proposed": "$inputs.accountInfo",
+              "current": "$outputs.0.read.0.accountInfo",
+              "account": "$outputs.0.read.0.account"
+            }
+          }
+        }
       }
     },
     "updateComponentMetadata": {
@@ -254,6 +357,28 @@
         "function": "component",
         "args": {
           "serialNumber": "$inputs.serialNumber"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review.text",
+          "args": {
+            "view": {
+              "title": "Update NFT details",
+              "component": "$outputs.0.read.0",
+              "contentLabel": "Metadata document",
+              "content": "$inputs.tokenURI"
+            }
+          }
         }
       }
     },
@@ -277,6 +402,28 @@
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review.text",
+          "args": {
+            "view": {
+              "title": "Report component missing",
+              "component": "$outputs.0.read.0",
+              "contentLabel": "Missing report",
+              "content": "$inputs.reportURI"
+            }
+          }
+        }
       }
     },
     "clearComponentMissing": {
@@ -299,6 +446,28 @@
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review.text",
+          "args": {
+            "view": {
+              "title": "Resolve missing report",
+              "component": "$outputs.0.read.0",
+              "contentLabel": "Resolution",
+              "content": "$inputs.resolutionURI"
+            }
+          }
+        }
       }
     },
     "decommissionComponent": {
@@ -319,6 +488,26 @@
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review",
+          "args": {
+            "view": {
+              "title": "Take out of service",
+              "component": "$outputs.0.read.0"
+            }
+          }
+        }
       }
     },
     "reactivateComponent": {
@@ -338,6 +527,26 @@
         "function": "component",
         "args": {
           "serialNumber": "$inputs.serialNumber"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review",
+          "args": {
+            "view": {
+              "title": "Reactivate",
+              "component": "$outputs.0.read.0"
+            }
+          }
         }
       }
     },
@@ -393,6 +602,29 @@
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review.delegate",
+          "args": {
+            "view": {
+              "title": "Set workshop permissions",
+              "component": "$outputs.0.read.0",
+              "delegate": "$inputs.delegate",
+              "capabilities": "$inputs.capabilities",
+              "validUntil": "$inputs.validUntil"
+            }
+          }
+        }
       }
     },
     "revokeComponentDelegate": {
@@ -414,6 +646,27 @@
         "function": "component",
         "args": {
           "serialNumber": "$inputs.serialNumber"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review.revoke",
+          "args": {
+            "view": {
+              "title": "Revoke workshop access",
+              "component": "$outputs.0.read.0",
+              "delegate": "$inputs.delegate"
+            }
+          }
         }
       }
     },
@@ -445,6 +698,27 @@
         "function": "component",
         "args": {
           "serialNumber": "$inputs.serialNumber"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.BicycleComponentManagerUI",
+          "function": "viewComponent",
+          "args": {
+            "serialNumber": "$inputs.serialNumber",
+            "account": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "component.review.transfer",
+          "args": {
+            "view": {
+              "title": "Transfer NFT",
+              "component": "$outputs.0.read.0",
+              "to": "$inputs.to"
+            }
+          }
         }
       }
     }

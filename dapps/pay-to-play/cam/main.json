@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x8fb9aecb017a7cf0dd2ef644ac8a58bdaf2b35252778dbcf58f8db0398d09c20"
+      "integrity": "sha256:0xcb73b975dd84c0b2ece6194787afd5bbb6f24074c83f8063bb628c423cb83527"
     },
     "contracts.PayToPlayUI": {
       "type": "contract",
@@ -114,6 +114,31 @@
             }
           }
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "0",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.createChannel",
+          "args": {
+            "view": {
+              "title": "Create channel",
+              "channelId": "$outputs.0.simulation.0",
+              "payee": "$inputs.payee",
+              "collector": "$inputs.collector",
+              "claimPeriod": "$inputs.claimPeriod",
+              "existingChannels": "$outputs.0.read.0.channelCount"
+            }
+          }
+        }
       }
     },
     "setPayee": {
@@ -138,6 +163,31 @@
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$inputs.customer",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.changeAddress",
+          "args": {
+            "view": {
+              "title": "Change channel payee",
+              "channelId": "$inputs.channelId",
+              "currentLabel": "Current payee",
+              "current": "$outputs.0.read.0.payee",
+              "addressLabel": "New payee",
+              "address": "$inputs.payee"
+            }
+          }
+        }
       }
     },
     "registerVoucherKey": {
@@ -160,6 +210,29 @@
         "args": {
           "customer": "$account.address",
           "channelId": "$inputs.channelId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.address",
+          "args": {
+            "view": {
+              "title": "Register permanent voucher key",
+              "channelId": "$inputs.channelId",
+              "addressLabel": "Permanent voucher key",
+              "address": "$inputs.voucherKey"
+            }
+          }
         }
       }
     },
@@ -185,6 +258,30 @@
           "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.amount",
+          "args": {
+            "view": {
+              "title": "Deposit",
+              "channelId": "$inputs.channelId",
+              "amountLabel": "Deposit amount",
+              "amount": "$inputs.amount",
+              "claimPeriod": "$outputs.0.read.0.claimPeriod"
+            }
+          }
+        }
       }
     },
     "requestWithdrawal": {
@@ -207,6 +304,30 @@
         "args": {
           "customer": "$account.address",
           "channelId": "$inputs.channelId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.request",
+          "args": {
+            "view": {
+              "title": "Request withdrawal",
+              "channelId": "$inputs.channelId",
+              "amountLabel": "Requested amount",
+              "amount": "$inputs.amount",
+              "claimPeriod": "$outputs.0.read.0.claimPeriod"
+            }
+          }
         }
       }
     },
@@ -231,6 +352,30 @@
           "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.amount",
+          "args": {
+            "view": {
+              "title": "Replace withdrawal request",
+              "channelId": "$inputs.channelId",
+              "amountLabel": "Replacement amount",
+              "amount": "$inputs.amount",
+              "claimPeriod": "$outputs.0.read.0.claimPeriod"
+            }
+          }
+        }
       }
     },
     "withdraw": {
@@ -254,6 +399,29 @@
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$inputs.customer",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.withdraw",
+          "args": {
+            "view": {
+              "title": "Withdraw to balance owner",
+              "channelId": "$inputs.channelId",
+              "customer": "$inputs.customer",
+              "amount": "$outputs.0.simulation.0"
+            }
+          }
+        }
       }
     },
     "move": {
@@ -276,6 +444,29 @@
         "args": {
           "customer": "$account.address",
           "channelId": "$inputs.channelId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.move",
+          "args": {
+            "view": {
+              "title": "Move funds to another channel",
+              "channelId": "$inputs.channelId",
+              "targetId": "$inputs.targetId",
+              "amount": "$outputs.0.simulation.0"
+            }
+          }
         }
       }
     },
@@ -496,6 +687,28 @@
           "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.signerChannel",
+          "args": {
+            "view": {
+              "title": "Renew position",
+              "channelId": "$inputs.channelId",
+              "claimPeriod": "$outputs.0.read.0.claimPeriod"
+            }
+          }
+        }
       }
     },
     "setRefundRecipient": {
@@ -518,6 +731,29 @@
         "args": {
           "customer": "$account.address",
           "channelId": "$inputs.channelId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.address",
+          "args": {
+            "view": {
+              "title": "Set refund recipient",
+              "channelId": "$inputs.channelId",
+              "addressLabel": "New refund recipient",
+              "address": "$inputs.recipient"
+            }
+          }
         }
       }
     },
@@ -542,6 +778,29 @@
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$inputs.customer",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.customer",
+          "args": {
+            "view": {
+              "title": "Start position wind-down",
+              "channelId": "$inputs.channelId",
+              "customer": "$inputs.customer",
+              "refundAt": "$outputs.0.read.0.refundAt"
+            }
+          }
+        }
       }
     },
     "closeChannel": {
@@ -563,6 +822,29 @@
         "args": {
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$account.address",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.closeChannel",
+          "args": {
+            "view": {
+              "title": "Retire channel permanently",
+              "channelId": "$inputs.channelId",
+              "claimPeriod": "$outputs.0.read.0.claimPeriod",
+              "closeAt": "$outputs.0.read.0.closeAt"
+            }
+          }
         }
       }
     },
@@ -587,6 +869,30 @@
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$inputs.customer",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.refund",
+          "args": {
+            "view": {
+              "title": "Refund full balance",
+              "channelId": "$inputs.channelId",
+              "customer": "$inputs.customer",
+              "recipient": "$outputs.0.read.0.refundRecipient",
+              "amount": "$outputs.0.simulation.0"
+            }
+          }
+        }
       }
     },
     "setCollector": {
@@ -610,6 +916,31 @@
         "args": {
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
+        }
+      },
+      "review": {
+        "call": {
+          "namespace": "contracts.PayToPlay",
+          "function": "viewPosition",
+          "args": {
+            "customer": "$inputs.customer",
+            "channelId": "$inputs.channelId",
+            "actor": "$account.address"
+          }
+        },
+        "then": {
+          "namespace": "ui",
+          "function": "payment.review.changeAddress",
+          "args": {
+            "view": {
+              "title": "Change collector",
+              "channelId": "$inputs.channelId",
+              "currentLabel": "Current collector",
+              "current": "$outputs.0.read.0.collector",
+              "addressLabel": "New collector",
+              "address": "$inputs.collector"
+            }
+          }
         }
       }
     }

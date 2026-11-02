@@ -109,6 +109,9 @@ async function main(): Promise<void> {
       assertResolvedSnapshot(result.snapshot)
       return undefined
     }
+    if (result.call.review === undefined) throw new Error(`Bike actor campaign: ${result.call.route} has no transaction review`)
+    const review = await result.call.review(client, actor)
+    if (review.ui.element !== "Screen") throw new Error(`Bike actor campaign: ${result.call.route} review did not resolve to a screen`)
     const writeContext = contexts.get(actor)
     if (writeContext === undefined) throw new Error("unknown fixture signer")
     await handlePreparedWrite({ publicClient: client, receiptClient: client, account: actor, run: -1, step: step++, session, writeContext, call: result.call })
@@ -136,7 +139,7 @@ async function main(): Promise<void> {
   assertResolvedSnapshot(await session.load())
   // Dedicated serial keeps the random walk's finite value corpus independent.
   const serialNumber = "CAM-BIKE-DISTINCT-ACTOR-SCENARIO"
-  await dispatch("register", { serialNumber })
+  assertResolvedSnapshot(await session.navigate("register", { serialNumber }))
   await dispatch("registerComponent", { owner: seller, serialNumber, tokenURI: "ipfs://fixture-seller" })
   authority(seller, "owner")
   const sellerMetadata = await dispatch("updateComponentMetadata", { tokenURI: "ipfs://fixture-seller-updated" })

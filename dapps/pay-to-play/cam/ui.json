@@ -1783,6 +1783,507 @@
           }
         }
       ]
+    },
+    "payment.review.channel": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel claim period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        }
+      ]
+    },
+    "payment.review.address": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This action uses the signing wallet’s position."
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "$view.addressLabel",
+            "address": "$view.address"
+          }
+        }
+      ]
+    },
+    "payment.review.changeAddress": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "$view.currentLabel",
+            "address": "$view.current"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "$view.addressLabel",
+            "address": "$view.address"
+          }
+        }
+      ]
+    },
+    "payment.review.amount": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This action uses the signing wallet’s position."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "$view.amountLabel",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel claim period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        }
+      ]
+    },
+    "payment.review.customer": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The transaction may leave the current deadline unchanged."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Balance owner",
+            "address": "$view.customer"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current refund deadline",
+            "value": "$view.refundAt",
+            "format": "timestampSeconds",
+            "zeroText": "No refund scheduled"
+          }
+        }
+      ]
+    },
+    "payment.review.withdraw": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The estimate was calculated at the estimate block and may change before confirmation."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Balance owner and recipient",
+            "address": "$view.customer"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Estimated amount",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        }
+      ]
+    },
+    "payment.review.refund": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The estimate was calculated at the estimate block and may change before confirmation."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Balance owner",
+            "address": "$view.customer"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Refund recipient",
+            "address": "$view.recipient"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Estimated amount",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        }
+      ]
+    },
+    "payment.review.move": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The estimate was calculated at the estimate block and may change before confirmation."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This action uses the signing wallet’s position."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Source channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Destination channel ID",
+            "value": "$view.targetId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Estimated amount",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        }
+      ]
+    },
+    "payment.review.createChannel": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The estimate was calculated at the estimate block and may change before confirmation."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Estimated channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Existing channel count",
+            "value": "$view.existingChannels"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Payee",
+            "address": "$view.payee"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Collector",
+            "address": "$view.collector"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Claim period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        }
+      ]
+    },
+    "payment.review.signerChannel": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "This action uses the signing wallet’s position."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel claim period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        }
+      ]
+    },
+    "payment.review.closeChannel": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The deadline remains unchanged if the channel is already closing."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current channel closing deadline",
+            "value": "$view.closeAt",
+            "format": "timestampSeconds",
+            "zeroText": "Channel is not closing"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel claim period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        }
+      ]
+    },
+    "payment.review.request": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "$view.title"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "An existing withdrawal request can cause this transaction to leave the request unchanged."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This action uses the signing wallet’s position."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "$view.amountLabel",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel claim period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        }
+      ]
     }
   }
 }

@@ -24,6 +24,7 @@ export function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoa
     || snapshot.documentHashes === undefined
     || snapshot.visitId === undefined
     || snapshot.integrityWarnings === undefined
+    || snapshot.contractAddresses === undefined
   ) {
     throw new Error("viewer snapshot is not loaded")
   }
@@ -32,6 +33,7 @@ export function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoa
     ...snapshot,
     visitId: snapshot.visitId,
     integrityWarnings: snapshot.integrityWarnings,
+    contractAddresses: snapshot.contractAddresses,
     route: snapshot.route,
     inputs: snapshot.inputs,
     state: snapshot.state,
