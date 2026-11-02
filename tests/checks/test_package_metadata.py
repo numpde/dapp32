@@ -13,6 +13,10 @@ from urllib.parse import urlparse
 from .common import ROOT, read_text, repo_path
 from tools.json_policy import strict_json_loads
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 NPM_REGISTRY_HOST = "registry.npmjs.org"
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
@@ -91,31 +95,26 @@ class PackageInstallIdentityTest(unittest.TestCase):
                 for name in ("package.json", "package-lock.json"):
                     (root / "js" / name).write_text("{}\n", encoding="utf-8")
                 shutil.copyfile(ROOT / "tools/compose_cleanup.sh", root / "tools/compose_cleanup.sh")
+                shutil.copyfile(ROOT / "tools/docker_context.sh", root / "tools/docker_context.sh")
                 events = root / "events"
                 events.touch()
-                bash_env = root / "bash-env"
-                bash_env.write_text(r'''
-docker() {
-  printf '%s\n' "$*" >> "$TEST_EVENTS"
-  if [[ "$1" == info ]]; then
-    if [[ "$TEST_ENGINE" == unavailable ]]; then return 42; fi
-    printf 'name=seccomp,profile=builtin\n'
-    if [[ "$TEST_ENGINE" == rootless ]]; then printf 'name=rootless\n'; fi
-  fi
-  return 0
-}
-''', encoding="utf-8")
-                env = dict(os.environ, BASH_ENV=str(bash_env), TEST_EVENTS=str(events), TEST_ENGINE=engine)
+                delegate = root / "compose.sh"
+                delegate.write_text('printf "compose %s\\n" "$*" >> "$TEST_EVENTS"\n')
+                env = dict(os.environ, TEST_EVENTS=str(events), TEST_ENGINE=engine,
+                           PATH=f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
+                           TRACE=os.devnull, ENDPOINT="unix:///tmp/context-fixture.sock", FAKE_MODE="",
+                           DOCKER_DELEGATE=str(delegate))
+                overrides = [] if compose == "docker compose" else [f"DOCKER_COMPOSE={compose}"]
                 result = subprocess.run(
                     ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
-                     "js/deps/install", "LOCAL_UID=1234", "LOCAL_GID=1234", f"DOCKER_COMPOSE={compose}"],
+                     "js/deps/install", "LOCAL_UID=1234", "LOCAL_GID=1234", "DOCKER_CONTEXT=fixture", *overrides],
                     cwd=root, env=env, capture_output=True, text=True, timeout=20,
                 )
                 calls = events.read_text(encoding="utf-8").splitlines()
                 stages = [call for call in calls if " run " in call]
                 if expected_user is None:
                     self.assertNotEqual(0, result.returncode)
-                    self.assertEqual(1, len(calls))
+                    self.assertEqual(0 if overrides else 1, len(calls))
                     self.assertFalse((root / "js/node_modules").exists())
                 else:
                     self.assertEqual(0, result.returncode, result.stdout + result.stderr)

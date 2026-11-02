@@ -29,9 +29,11 @@ class ReleaseRehearsalTest(unittest.TestCase):
                 invocation = recipe[recipe.index("tools/release_rehearsal.sh") + 1:]
                 arguments = subprocess.check_output(
                     ["bash", "-c", "\n".join((source_assignment, output_assignment, candidate_assignment, declaration)) + '; printf "%s\\0" "$RELEASE_SOURCE_DIR" "$CONTRACT_RELEASE_CANDIDATE_DIR" "${planner_compose[@]}"', "rehearsal", *invocation],
-                    env={**os.environ, "project": "fixture", "app": app, "RELEASE_REHEARSAL_DIR": "/tmp/rehearsal-fixture"}, text=True,
+                    env={**os.environ, "project": "fixture", "app": app, "RELEASE_REHEARSAL_DIR": "/tmp/rehearsal-fixture",
+                         "CAM_DOCKER_ENDPOINT": "unix:///tmp/context-fixture.sock"}, text=True,
                 ).split("\0")[:-1]
                 supplied = {"RELEASE_SOURCE_DIR": arguments.pop(0), "CONTRACT_RELEASE_CANDIDATE_DIR": arguments.pop(0)}
+                self.assertEqual(["docker", "--host", "unix:///tmp/context-fixture.sock", "compose"], arguments[:4])
                 files = tuple(arguments[index + 1] for index, value in enumerate(arguments) if value == "-f")
                 self.assertEqual(makefile_compose_units()["CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES"], files[:-1])
                 self.assertEqual("/tmp/rehearsal-fixture/source", supplied["RELEASE_SOURCE_DIR"])

@@ -109,13 +109,19 @@ decoding or publish an ERC-7730 descriptor. See the
 ## Development
 
 Use Docker with Compose and Make. Install the locked dependencies, then run
-the offline checks:
+the offline checks, selecting the local Docker context for each operation:
 
 ```sh
-make dapps/deps/install
-make js/deps/install
-make ci
+make dapps/deps/install DOCKER_CONTEXT=your-local-context
+make js/deps/install DOCKER_CONTEXT=your-local-context
+make ci DOCKER_CONTEXT=your-local-context
 ```
+
+Replace `your-local-context` with a context from `docker context ls`, or omit
+`DOCKER_CONTEXT` to choose a local context interactively. Each operation
+resolves the selected context to its local Unix socket once; child operations and
+cleanup use that endpoint. Noninteractive commands require the context on the
+Make command line.
 
 Compose services with their own network namespace disable Multipath TCP. This
 requires the host kernel to expose the per-namespace `net.mptcp.enabled` setting.

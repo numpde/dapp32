@@ -20,7 +20,7 @@ release_cam_sources_cleanup() {
   local project failed=0
   for project in "${release_cam_source_projects[@]}"; do
     if ! COMPOSE_PROJECT_NAME="$project" ALLOW_UPDATE=0 release_run_owned "$release_command_grace" \
-        docker compose -f "$RELEASE_SOURCE_DIR/compose/release/cam-source.yml" down --timeout 10 --volumes --remove-orphans >/dev/null; then failed=1; fi
+        docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -f "$RELEASE_SOURCE_DIR/compose/release/cam-source.yml" down --timeout 10 --volumes --remove-orphans >/dev/null; then failed=1; fi
   done
   return "$failed"
 }
@@ -39,7 +39,7 @@ release_cam_export() {
   cp -a -- "$release_repository/dapps/dependencies" "$CAM_COMPONENT_SOURCE_DIR/dapps/dependencies"
   release_cam_source_projects+=("$project")
   COMPOSE_PROJECT_NAME="$project" ALLOW_UPDATE=0 release_run_owned "$release_command_grace" \
-    docker compose -f "$RELEASE_SOURCE_DIR/compose/release/cam-source.yml" run --rm release-cam-source \
+    docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -f "$RELEASE_SOURCE_DIR/compose/release/cam-source.yml" run --rm release-cam-source \
     > "$CAM_RELEASE_PREPARED_DIR/$class-compilation.log" 2>&1
 }
 

@@ -250,12 +250,16 @@ def compose_config_process(
 
 
 class RenderedComposePostureTest(unittest.TestCase):
+    def test_checks_container_reaps_orphaned_timeout_children(self) -> None:
+        service = compose_service(rendered_compose_config("compose/checks.yml"), "checks")
+        self.assertIs(service["init"], True)
+
     def test_isolated_services_disable_multipath_tcp(self) -> None:
         for compose_unit in compose_render_units():
             config = rendered_compose_config(compose_unit, env=compose_render_env())
             for name, service in config["services"].items():
                 with self.subTest(compose_unit=compose_unit, service=name):
-                    sysctls = service.get("sysctls", {})
+                    sysctls = service["sysctls"] if "sysctls" in service else {}
                     if service.get("network_mode") == "host":
                         self.assertNotIn("net.mptcp.enabled", sysctls)
                     else:
@@ -1001,6 +1005,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
+            ("compose/execution-check.yml", "execution-format", str(repo_path("ops")), "/work/ops"),
             ("compose/release/rpc.yml", "rpc-resolve", "/tmp/release-rpc-output", "/out"),
             ("compose/release/config.yml", "release-setup", "/tmp/release-config-stage", "/out"),
             ("compose/release/config.yml", "release-config", "/tmp/release-config-stage", "/out"),
@@ -1032,6 +1037,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             ("compose/release/cam-bundle.yml", "release-cam-inputs", "/tmp/cam-prepared/inputs", "/inputs"),
             ("compose/release/cam-bundle.yml", "release-cam-bundle", "/tmp/cam-prepared/bundle", "/bundle"),
             ("compose/release/cam-bundle.yml", "release-cam-bundle", "/tmp/cam-prepared/artifact", "/artifact"),
+            ("compose/release/cam-bundle.yml", "release-cam-bundle", "/tmp/cam-prepared/sources", "/sources"),
         })
 
         for compose_unit in compose_render_units():

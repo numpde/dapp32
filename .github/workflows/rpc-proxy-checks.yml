@@ -37,4 +37,4 @@ jobs:
         with:
           persist-credentials: false
       - name: Run the offline, resource-limited checks container
-        run: make tests/checks COMPOSE_PROJECT_NAME=rpc-proxy-checks
+        run: make tests/checks DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=rpc-proxy-checks

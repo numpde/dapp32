@@ -18,6 +18,10 @@ import unittest
 from .common import ROOT, RENDERED_COMPOSE_FIXTURE_ENV
 from .release_posture import expanded_release_target
 
+from .docker_test_support import docker_environment_fixture, make_environment
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 PROCESS = ROOT / "tools/release_process.sh"
 LAUNCHER = ROOT / "tools/release_approval_deploy.sh"
@@ -286,7 +290,7 @@ stty() { :; }
 release_approval_show_startup() { :; }
 release_approval_service_id() { printf '%s\n' "$1"; }
 # The fixture has no network or Docker daemon. Only those external peers are replaced.
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   if [[ "$1" == attach ]]; then
     while [[ ! -f "$CASE_ROOT/stopped" ]]; do sleep 0.01; done
   elif [[ "$2" == --format ]]; then
@@ -394,6 +398,7 @@ release_run_owned() {
 printf "%s\n" "$*" >> "$CASE_ROOT/events"
 printf "%s\n" "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEASE_OUTPUT_DIR" "$RELEASE_SOURCE_DIR" > "$CASE_ROOT/grants"
 ''')
+                env = make_environment(env, delegate=compose)
                 arguments = [
                     "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "escrow/release/contracts/artifact", f"CONTRACT_RECORDS={records}",
                     f"CURDIR={checkout}", "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=exit 97",
@@ -401,7 +406,7 @@ printf "%s\n" "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEAS
                     'release_snapshot_allocate=release_preparation_log="$$CASE_ROOT/preparation.log"; ceremony_root="$$CASE_ROOT/ceremony"; ceremony_source="$$ceremony_root/source"; ceremony_project=fixture; mkdir -p "$$ceremony_source/js"; printf "allocate\\n" >> "$$CASE_ROOT/events"',
                     'release_snapshot_archive=mkdir -p "$$ceremony_source/tools" "$$ceremony_source/dapps"; cp "$$LAUNCHER" "$$(dirname -- "$$LAUNCHER")/release_approval_preflight.sh" "$$ceremony_source/tools/"; cp() { if [[ "$${3-}" == dapps/dependencies ]]; then mkdir -p "$$4"; else command cp "$$@"; fi; }', "release_snapshot_cleanup=:",
                     'release_snapshot_dependency_compose=compose_release_dependencies() { printf "dependencies\\n" >> "$$CASE_ROOT/events"; }',
-                    f"DOCKER_COMPOSE=bash {compose}",
+                    "DOCKER_CONTEXT=fixture",
                 ]
                 if case != "default":
                     arguments.append(f"RELEASE_ARTIFACT_NODE_MODULES_DIR={supplied}")
@@ -449,12 +454,12 @@ printf '%s\n' "$@" > "$CASE_ROOT/arguments"
 printf '%s\n' "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$DEPLOYER_PRIVATE_KEY_FILE" "$RELEASE_OUTPUT_DIR" "$RELEASE_SOURCE_DIR" > "$CASE_ROOT/grants"
 printf '%s' "$CONTRACT_RELEASE_SETTINGS_JSON" > "$CASE_ROOT/settings"
 ''', encoding="utf-8")
+                env = make_environment(env, delegate=stub)
                 generated = expanded_release_target(f"{app}/release/contracts/deploy", (
                     "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
                     "release_require_clean_source=source_commit=" + "ab" * 20,
                     "release_host_guard_functions=:", "release_config_compose=:",
                     "release_deploy_execution=compose_release run --rm --no-deps release-plan",
-                    f"DOCKER_COMPOSE=bash {stub}",
                 ))
                 script = r'''
 ceremony_project=fixture
@@ -519,7 +524,7 @@ release_make_cleanup_grace=420
                 calls = [call.split("\0") for call in (root / "calls").read_text().rstrip("\0").split("\0\0")]
                 expected = []
                 for phase, name in (("contracts", "CONTRACT_RECORDS"), ("ui", "UI_RECORDS"), ("cam", "CAM_RECORDS")):
-                    command = ["make", "--no-print-directory", f"{app}/release/{phase}/artifact",
+                    command = ["make", "DOCKER_CONTEXT=", "CAM_DOCKER_ENDPOINT=unix:///tmp/context-fixture.sock", "--no-print-directory", f"{app}/release/{phase}/artifact",
                                "CONFIG=" + env["CONFIG"], f"{name}={records / phase}"]
                     if phase == "cam":
                         command.append(f"CAM_BUNDLE={records / 'cam-bundle'}")
@@ -537,13 +542,9 @@ release_make_cleanup_grace=420
                 env.update(APP="bike-nft", DEPLOYMENT_ARTIFACT_FILE=str(artifact),
                            RESOURCE_ORIGIN="https://raw.githubusercontent.com", PUBLIC_RPC_URL="https://rpc.example.test",
                            RELEASE_VIEWER_PORT="5174", INSPECTION=inspection)
-                generated = subprocess.run(
-                    ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"),
-                     "viewer/release/up", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:", "DOCKER_COMPOSE=docker compose"],
-                    cwd=ROOT, env=env, capture_output=True, text=True, check=True,
-                )
+                generated = expanded_release_target("viewer/release/up", ("LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:"))
                 script = r'''
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   printf '%s\n' "$*" >> "$CASE_ROOT/events"
   if [[ " $* " == *" ps --all --quiet "* ]]; then
     if [[ "$INSPECTION" == failed ]]; then printf 'inspection unavailable\n' >&2; return 37; fi
@@ -553,7 +554,7 @@ docker() {
     printf 'bike-nft\nhttps://raw.githubusercontent.com\nhttps://rpc.example.test/\nhttp://127.0.0.1:5174/\n'
   fi
 }
-''' + generated.stdout
+''' + generated
                 process = self.launch(script, env)
                 stdout, stderr = process.communicate(timeout=10)
                 events = (root / "events").read_text(encoding="utf-8").splitlines()
@@ -572,12 +573,6 @@ docker() {
                 root = Path(directory)
                 stub = root / "compose.sh"
                 stub.write_text(r'''
-docker() {
-if [[ "$1" != compose ]]; then
-  [[ "$2" == ls ]]
-  return
-fi
-shift
 printf '%s\n' "$*" >> "$CASE_ROOT/events"
 if [[ "${COMPOSE_PROGRESS-}" != plain || "${COMPOSE_ANSI-}" != never ]]; then
   printf 'Compose attempted console progress during an operator workflow\n' >&2
@@ -586,27 +581,17 @@ fi
 if [[ "${@: -1}" == *-viewer-url ]]; then
   printf 'http://127.0.0.1:5173/?fixture=demo\n'
 fi
-}
-env() {
-  if [[ "$1 $2 $3" == '-u PRIVATE_KEY docker' ]]; then
-    shift 3
-    docker "$@"
-  else
-    command env "$@"
-  fi
-}
-export -f docker env
 ''')
                 overrides = root / "overrides.mk"
                 overrides.write_text("dapps/deps/verify: ; @:\n")
                 env = self.environment(root, root)
-                env["BASH_ENV"] = str(stub)
+                env = make_environment(env, delegate=stub)
                 env.pop("COMPOSE_PROGRESS", None)
                 env.pop("COMPOSE_ANSI", None)
                 result = subprocess.run(
                     ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(overrides),
                      f"{app}/local/demo/gui/up", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:",
-                     "DOCKER_COMPOSE=docker compose"],
+                     "DOCKER_CONTEXT=fixture"],
                     cwd=ROOT, env=env, capture_output=True, text=True, timeout=10,
                 )
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -626,7 +611,7 @@ export -f docker env
                        RELEASE_VIEWER_PORT="5174")
             generated = expanded_release_target("network/local/viewer/up", ("LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:"))
             script = r'''
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   printf '%s\n' "$*" >> "$CASE_ROOT/events"
   if [[ "$1 $2" == 'network inspect' ]]; then printf 'true\n'
   elif [[ " $* " == *" ps --quiet --status running "* ]]; then printf 'fixture-chain\n'
@@ -898,7 +883,7 @@ release_run_owned 1 "$PYTHON" -c 'import os, time; from pathlib import Path; Pat
 source "$LAUNCHER"
 release_operation=contracts
 RELEASE_APPROVAL_SOCKET_DIR="$CASE_ROOT/socket"
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   if [[ "$1" == attach ]]; then exec "$PYTHON" "$CASE_ROOT/fake_docker.py" "$@"; fi
   "$PYTHON" "$CASE_ROOT/fake_docker.py" "$@"
 }
@@ -1109,7 +1094,7 @@ require_release_config() { [[ -f "$1" ]]; }
 release_config_stage() { [[ "$1" == "$CASE_ROOT" ]]; release_config_dir="$1/stage"; mkdir "$release_config_dir"; }
 release_config_prepare_approval_images() { printf '%s\n' "sha256:$(printf 'a%.0s' {1..64})" > "$release_config_dir/approval-image"; }
 validate_new_release_output() { [[ "$OUTCOME" != bad-output && "$OUTCOME" != image-only && "$1" == "$CASE_ROOT/new-output" ]]; }
-docker() { [[ "$OUTCOME" != bad-image ]] || return 1; printf '%s\n' "$5"; }
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2; [[ "$OUTCOME" != bad-image ]] || return 1; printf '%s\n' "$5"; }
 compose_release_config() {
   if [[ " $* " == *' release-config credential-source '* ]]; then printf '%s\n' "$CONFIG" > "$release_config_dir/credential-source"; return; fi
   if [[ " $* " == *' release-config retain '* ]]; then printf '{}\n' > "$release_config_dir/operation-inputs.json"; return; fi
@@ -1182,7 +1167,7 @@ release_config_stage() { release_config_dir="$CASE_ROOT/stage"; mkdir "$release_
 '''
                     composition = '''
 release_config_prepare_approval_images() { printf '%s\n' "sha256:$(printf 'a%.0s' {1..64})" > "$release_config_dir/approval-image"; }
-docker() { [[ "$1 $2 $3" == 'image inspect --format' && "$4" == '{{.Id}}' ]]; printf '%s\n' "$5"; }
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2; [[ "$1 $2 $3" == 'image inspect --format' && "$4" == '{{.Id}}' ]]; printf '%s\n' "$5"; }
 compose_release_config() {
   if [[ " $* " == *" release-setup network "* ]]; then
     printf '%s\n' "$NETWORK" > "$release_config_dir/setup-network"
@@ -1261,7 +1246,7 @@ release_approval_run "$CASE_ROOT/output"
                 script = SHELL_SETUP + "\n" + r'''
 source "$LAUNCHER"
 release_operation=contracts
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   if [[ "$1" == logs ]]; then
     if [[ "$3" == 16 ]]; then
       case "$STARTUP_CASE" in
@@ -1748,8 +1733,8 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             capture = root / "capture.mk"
             capture.write_text(".PHONY: capture\ncapture:\n\t@printf '%s\\n' \"$$CONFIG\" \"$$UI_CONFIG\" \"$$CAM_CONFIG\" \"$$INSTANCE\"\n", encoding="utf-8")
             result = subprocess.run(["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(capture),
-                                     "capture", f"CONFIG={literal}", f"UI_CONFIG={literal}", f"CAM_CONFIG={literal}", f"INSTANCE={literal}"],
-                                    cwd=ROOT, capture_output=True, text=True, timeout=10)
+                                     "capture", "DOCKER_CONTEXT=fixture", f"CONFIG={literal}", f"UI_CONFIG={literal}", f"CAM_CONFIG={literal}", f"INSTANCE={literal}"],
+                                    cwd=ROOT, env=make_environment(dict(os.environ)), capture_output=True, text=True, timeout=10)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertFalse(marker.exists(), "Configuration filenames must not execute Make expressions")
             self.assertEqual([literal] * 4, result.stdout.splitlines())

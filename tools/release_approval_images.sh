@@ -7,7 +7,7 @@ release_approval_is_entrypoint() {
 
 release_approval_pinned_image() {
   local pinned="$1" network="$2" image_list image_id observations observed_id tool_source entrypoint owner
-  if ! image_list="$(docker image ls --all --filter label=org.opencontainers.image.revision --no-trunc --quiet)"; then
+  if ! image_list="$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image ls --all --filter label=org.opencontainers.image.revision --no-trunc --quiet)"; then
     printf '%s\n' 'Cannot discover installed approval-tool images: Docker image listing failed.' >&2
     return 2
   fi
@@ -18,7 +18,7 @@ release_approval_pinned_image() {
       return 2
     fi
     if [[ "$image_id" != "$pinned" ]]; then continue; fi
-    if ! observations="$(docker image inspect --format '{{.Id}}{{printf "\t"}}{{index .Config.Labels "org.opencontainers.image.revision"}}{{printf "\t"}}{{json (index .Config "Entrypoint")}}{{printf "\t"}}{{index .Config.Labels "io.cam.approval-owner"}}' "$image_id")"; then
+    if ! observations="$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image inspect --format '{{.Id}}{{printf "\t"}}{{index .Config.Labels "org.opencontainers.image.revision"}}{{printf "\t"}}{{json (index .Config "Entrypoint")}}{{printf "\t"}}{{index .Config.Labels "io.cam.approval-owner"}}' "$image_id")"; then
       printf '%s\n' 'Cannot inspect the saved approval-tool image; Docker inspection failed.' >&2
       return 2
     fi
@@ -95,14 +95,14 @@ release_approval_fixture_tag() {
 release_approval_remove_fixture() {
   local project="$1" tag image metadata observed owner
   tag=$(release_approval_fixture_tag "$project") || return
-  image=$(docker image ls --filter "reference=$tag" --quiet --no-trunc) || return
+  image=$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image ls --filter "reference=$tag" --quiet --no-trunc) || return
   if [[ -z "$image" ]]; then return 0; fi
-  metadata=$(docker image inspect --format '{{.Id}} {{index .Config.Labels "io.cam.approval-owner"}}' "$image") || return
+  metadata=$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image inspect --format '{{.Id}} {{index .Config.Labels "io.cam.approval-owner"}}' "$image") || return
   read -r observed owner <<< "$metadata"
   if [[ ! "$image" =~ ^sha256:[0-9a-f]{64}$ || "$observed" != "$image" || "$owner" != "$project" ]]; then
     printf 'Approval image at %s does not belong to this rehearsal; retained.\n' "$tag" >&2
     return 2
   fi
   printf 'Removing approval image owned by this rehearsal: %s\n' "$tag"
-  docker image rm --no-prune "$tag"
+  docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image rm --no-prune "$tag"
 }

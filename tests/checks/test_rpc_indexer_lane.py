@@ -20,7 +20,7 @@ class RpcIndexerLaneTest(unittest.TestCase):
         shutil.copyfile(repo_path("Makefile"), self.checkout / "Makefile")
         for name in ("compose", "containers", "dapps", "docs", "js", "tests", "tools"):
             (self.checkout / name).mkdir()
-        for name in ("release_process.sh", "release-config.sh"):
+        for name in ("release_process.sh", "release-config.sh", "docker_context.sh"):
             shutil.copyfile(repo_path(f"tools/{name}"), self.checkout / "tools" / name)
         self.upstream = self.directory / "rpc-url"
         self.upstream.write_text("https://example.com/private?token=fixture-secret\n")
@@ -43,11 +43,14 @@ class RpcIndexerLaneTest(unittest.TestCase):
             "COMPOSE_PROJECT_NAME": "rpc-lane-check",
             "RPC_INDEXER_COMPOSE_PROJECT_NAME": "rpc-base-sepolia",
             "COMPOSE_CALLS": str(self.calls),
+            "PATH": f"{repo_path('tests/fixtures/docker-context')}:{os.environ['PATH']}",
+            "TRACE": os.devnull, "ENDPOINT": "unix:///tmp/context-fixture.sock", "FAKE_MODE": "",
+            "DOCKER_DELEGATE": str(self.stub),
         })
         if upstream is not None:
             environment["RPC_URL_FILE"] = str(upstream)
         return subprocess.run(
-            ["make", "--no-print-directory", "-s", target, f"DOCKER_COMPOSE=bash {self.stub}"],
+            ["make", "--no-print-directory", "-s", target, "DOCKER_CONTEXT=fixture"],
             cwd=self.checkout,
             env=environment,
             text=True,

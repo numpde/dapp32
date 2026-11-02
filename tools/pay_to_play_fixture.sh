@@ -22,7 +22,7 @@ project="dapps-pay-to-play-fixture-$FIXTURE_ID"
 network="${project}_pay-to-play_local"
 export COMPOSE_PROJECT_NAME="$project" PAY_TO_PLAY_FIXTURE_PROJECT="$project" PAY_TO_PLAY_FIXTURE_NETWORK="$network"
 export CAM_URI=http://pay-to-play-cam-http:8080/main.json
-compose=(docker compose --env-file /dev/null -p "$project" -f compose/pay-to-play/local/deploy.yml -f compose/pay-to-play/local/http.yml -f compose/pay-to-play/local/fixture.yml)
+compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null -p "$project" -f compose/pay-to-play/local/deploy.yml -f compose/pay-to-play/local/http.yml -f compose/pay-to-play/local/fixture.yml)
 completed=0
 creation_attempted=0
 creation_token=""
@@ -33,7 +33,7 @@ cleanup() {
   if ! release_process_cleanup_begin; then result=2; fi
   if [[ "$operation" == up && "$creation_attempted" == 1 && "$completed" != 1 ]]; then
     # The token distinguishes our uncertain create from a concurrent caller winning the same name.
-    if owned=$(timeout -k 2s 10s docker network ls --quiet --filter "name=^${network}$" --filter "label=io.cam.fixture.creation=$creation_token"); then
+    if owned=$(timeout -k 2s 10s docker --host "$CAM_DOCKER_ENDPOINT" network ls --quiet --filter "name=^${network}$" --filter "label=io.cam.fixture.creation=$creation_token"); then
       if [[ -n "$owned" ]]; then
         if ! timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" -- "${compose[@]}"; then result=2; fi
       fi
@@ -50,7 +50,7 @@ cleanup() {
 case "$operation" in
   up)
     for resource in container network volume; do
-      inventory=(docker "$resource" ls --quiet --filter "label=com.docker.compose.project=$project")
+      inventory=(docker --host "$CAM_DOCKER_ENDPOINT" "$resource" ls --quiet --filter "label=com.docker.compose.project=$project")
       if [[ "$resource" == container ]]; then inventory+=(--all); fi
       if ! existing=$(timeout -k 2s 10s "${inventory[@]}"); then
         printf 'Cannot inspect fixture %s %s resources; no creation was attempted.\n' "$FIXTURE_ID" "$resource"; exit 2
@@ -61,10 +61,10 @@ case "$operation" in
     IFS= read -r creation_token < /proc/sys/kernel/random/uuid
     export PAY_TO_PLAY_FIXTURE_CREATION_TOKEN="$creation_token"
     printf 'Creating fixture %s (attempt %s).\n' "$FIXTURE_ID" "$creation_token"
-    printf 'Recovery after an unknown outcome: inspect this ID, then make --no-print-directory -C %q pay-to-play/local/fixture/down FIXTURE_ID=%q\n' "$repository" "$FIXTURE_ID"
-    release_run_owned "$release_make_cleanup_grace" "${MAKE:?Make must select its recursive command}" --no-print-directory dapps/deps/verify < /dev/null
+    printf 'Recovery after an unknown outcome: inspect this ID on engine %s. Run the following and select a context resolving to that same endpoint: make --no-print-directory -C %q pay-to-play/local/fixture/down FIXTURE_ID=%q\n' "$CAM_DOCKER_ENDPOINT" "$repository" "$FIXTURE_ID"
+    release_run_owned "$release_make_cleanup_grace" "${MAKE:?Make must select its recursive command}" DOCKER_CONTEXT= "CAM_DOCKER_ENDPOINT=$CAM_DOCKER_ENDPOINT" --no-print-directory dapps/deps/verify < /dev/null
     creation_attempted=1
-    release_run_owned "$release_command_grace" docker network create --internal \
+    release_run_owned "$release_command_grace" docker --host "$CAM_DOCKER_ENDPOINT" network create --internal \
       --label "com.docker.compose.project=$project" --label com.docker.compose.network=pay-to-play_local \
       --label "io.cam.fixture.creation=$creation_token" "$network" < /dev/null
     release_run_owned "$release_command_grace" "${compose[@]}" up --build --detach --wait --wait-timeout 60 pay-to-play-anvil pay-to-play-cam-http < /dev/null
@@ -78,7 +78,7 @@ case "$operation" in
       running=$(timeout -k 2s 10s "${compose[@]}" ps --quiet --status running "$service")
       if [[ -z "$running" ]]; then printf 'Fixture service %s is not running for %s.\n' "$service" "$FIXTURE_ID"; exit 2; fi
     done
-    timeout -k 2s 10s docker volume inspect "${project}_pay-to-play_broadcast" >/dev/null
+    timeout -k 2s 10s docker --host "$CAM_DOCKER_ENDPOINT" volume inspect "${project}_pay-to-play_broadcast" >/dev/null
     ;;
   down)
     trap cleanup EXIT

@@ -12,6 +12,10 @@ from unittest import mock
 
 from .common import ROOT, import_python_module_with_env
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
     @classmethod
@@ -31,7 +35,7 @@ RELEASE_APPROVAL_REFERENCE_DIR="$CASE_ROOT/reference"
 release_command_grace=15
 release_approval_service_id() { printf fixture; }
 release_run_owned() { printf '1\n'; }
-docker() { [[ "$1" == logs ]]; printf '%s\n' 'Cannot admit CAM root: current binding differs from latest publication'; }
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2; [[ "$1" == logs ]]; printf '%s\n' 'Cannot admit CAM root: current binding differs from latest publication'; }
 timeout() { shift 2; "$@"; }
 if release_approval_wait_service release-reference-prepare 720; then exit 9; fi
 '''

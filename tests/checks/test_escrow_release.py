@@ -89,7 +89,9 @@ class EscrowReleasePostureTest(unittest.TestCase):
         verify = expanded_release_target("escrow/release/contracts/artifact")
         cleanup = source[source.index("define release_snapshot_cleanup"):source.index("endef", source.index("define release_snapshot_cleanup"))]
 
-        self.assertIn('GIT_NO_REPLACE_OBJECTS=1 git archive', source)
+        self.assertIn('source tools/release_source_files.sh', source)
+        self.assertIn('release_archive_source', source)
+        self.assertIn('GIT_NO_REPLACE_OBJECTS=1 git -C "$repository" archive', read_text(repo_path("tools/release_source_files.sh")))
         self.assertIn('"$$release_run_started" == "1" ]] && ! compose_release down', cleanup)
         self.assertIn('"$$release_check_started" == "1" ]] && ! compose_release_check down', cleanup)
         self.assertIn('"$$release_dependencies_started" == "1" ]] && ! compose_release_dependencies down', cleanup)

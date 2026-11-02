@@ -21,7 +21,7 @@ release_approval_require_image() {
     printf '%s\n' 'Select an existing approval-tool image by its exact local sha256 image ID.' >&2
     return 2
   fi
-  if ! actual="$(docker image inspect --format '{{.Id}}' "$RELEASE_APPROVAL_IMAGE")"; then
+  if ! actual="$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image inspect --format '{{.Id}}' "$RELEASE_APPROVAL_IMAGE")"; then
     printf '%s\n' 'The selected release approval image is not present locally; install that exact image before deployment.' >&2
     return 2
   fi

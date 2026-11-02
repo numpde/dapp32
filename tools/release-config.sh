@@ -103,7 +103,7 @@ require_release_local_network() {
     exit 2
   fi
   local internal
-  internal="$(docker network inspect --format '{{.Internal}}' "$RELEASE_REHEARSAL_NETWORK")"
+  internal="$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" network inspect --format '{{.Internal}}' "$RELEASE_REHEARSAL_NETWORK")"
   if [[ "$internal" != true ]]; then
     printf '%s\n' 'Local release requires an existing internal Docker network; run make network/local/up.' >&2
     exit 2

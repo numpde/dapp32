@@ -94,7 +94,7 @@ MAKE_TARGET_RE = re.compile(
 )
 MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_/-]+)\b")
 MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$", re.MULTILINE)
-MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_/-]+)\s*$", re.MULTILINE)
+MAKE_DEFAULT_GOAL_RE = re.compile(r"^(?:override\s+)?\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_/-]+)\s*$", re.MULTILINE)
 PACKAGE_CI_PREREQS = (
     "js/tests",
     "viewer/terminal/check",

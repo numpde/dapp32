@@ -8,6 +8,10 @@ import unittest
 
 from .common import ROOT, compose_sequence_or_empty, rendered_compose_config
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 class CamSourceExportTest(unittest.TestCase):
     def test_publication_prepares_existing_root_export_without_bundle_source_state(self):
@@ -20,6 +24,9 @@ class CamSourceExportTest(unittest.TestCase):
             output.mkdir()
             script = r'''
 source tools/release_cam.sh
+source tools/release_process.sh
+release_process_init
+release_preparation_log="$CASE_ROOT/preparation.log"
 ceremony_source="$CASE_ROOT/source"
 CAM_RELEASE_ROOT=existing
 CAM_RELEASE_PREPARED_DIR="$CASE_ROOT/original-bundle"
@@ -85,7 +92,7 @@ git() {
   [[ "$4" == "$SOURCE:containers/foundry" || "$4" == "$SOURCE:containers/checks" ]]
   printf '%s\n' "$CONTEXT"
 }
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   if [[ "$1 $2" == 'image ls' ]]; then
     local selected="$FOUNDRY_IMAGE"
     if [[ "$*" == *cam-release-tool-checks:* ]]; then selected="$CHECKS_IMAGE"; fi

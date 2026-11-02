@@ -16,7 +16,7 @@ release_approval_service_id() {
 release_approval_wait_service() {
   local service="$1" seconds="$2" identity result
   identity="$(release_approval_service_id "$service")" || return
-  if ! release_run_owned "$release_command_grace" timeout --foreground "$seconds" docker wait "$identity" \
+  if ! release_run_owned "$release_command_grace" timeout --foreground "$seconds" docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" wait "$identity" \
       > "$ceremony_root/service-exit-code"; then
     printf 'Timed out or failed waiting for %s; its effect state may be uncertain.\n' "$service" >&2
     return 1
@@ -24,7 +24,7 @@ release_approval_wait_service() {
   result="$(<"$ceremony_root/service-exit-code")"
   if [[ ! "$result" =~ ^[0-9]+$ || "$result" != 0 ]]; then
     local diagnostics="$RELEASE_APPROVAL_REFERENCE_DIR/preparation.log"
-    if (umask 077; timeout --foreground 10s docker logs --tail 80 "$identity" 2>&1 | head -c 65536 > "$diagnostics"); then
+    if (umask 077; timeout --foreground 10s docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" logs --tail 80 "$identity" 2>&1 | head -c 65536 > "$diagnostics"); then
       printf '%s exited unsuccessfully (%s). Private diagnostics: %s\n' "$service" "$result" "$diagnostics" >&2
     else
       printf '%s exited unsuccessfully (%s); its preparation diagnostics could not be fully retained at %s.\n' "$service" "$result" "$diagnostics" >&2
@@ -45,7 +45,7 @@ release_approval_snapshot_digest() {
       value="${BASH_REMATCH[1]}"
       found="$value"
     fi
-  done < <(docker logs "$identity" 2>&1)
+  done < <(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" logs "$identity" 2>&1)
   if [[ -z "$found" ]]; then
     printf '%s\n' 'Reference preparation did not report its digest.' >&2
     return 1
@@ -64,7 +64,7 @@ release_approval_cam_remaining() {
       fi
       count="${BASH_REMATCH[1]}"
     fi
-  done < <(docker logs "$identity" 2>&1)
+  done < <(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" logs "$identity" 2>&1)
   if [[ ! "$count" =~ ^[0-9]+$ || "$count" -gt 64 ]]; then printf '%s\n' 'CAM reference transaction count is missing or out of bounds.' >&2; return 1; fi
   printf '%s\n' "$count"
 }
@@ -72,7 +72,7 @@ release_approval_cam_remaining() {
 release_approval_show_startup() {
   local identity="$1" started="$SECONDS" output
   while (( SECONDS - started < 30 )); do
-    if ! output="$(docker logs --tail 16 "$identity" 2>&1)"; then
+    if ! output="$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" logs --tail 16 "$identity" 2>&1)"; then
       printf '%s\n' 'Could not read the approval service startup display.' >&2
       return 1
     fi
@@ -87,7 +87,7 @@ release_approval_show_startup() {
       printf '%s\n' "$output"
       return 0
     fi
-    if [[ "$(docker inspect --format '{{.State.Running}}' "$identity")" != true ]]; then
+    if [[ "$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.State.Running}}' "$identity")" != true ]]; then
       printf '%s\n' 'Approval service exited before showing the operator start prompt.' >&2
       return 1
     fi
@@ -229,8 +229,8 @@ release_approval_retain_diagnostics() {
         if [[ -z "$identity" ]]; then continue; fi
         if [[ ! "$identity" =~ ^[0-9a-f]{64}$ ]]; then failed=1; continue; fi
         printf 'Service: %s\n' "$service"
-        timeout --kill-after=1s 5s docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$identity" || failed=1
-        timeout --kill-after=1s 5s docker logs --tail 80 "$identity" 2>&1 | { head -c 16384 && cat >/dev/null; } || failed=1
+        timeout --kill-after=1s 5s docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$identity" || failed=1
+        timeout --kill-after=1s 5s docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" logs --tail 80 "$identity" 2>&1 | { head -c 16384 && cat >/dev/null; } || failed=1
       done
       exit "$failed"
     ) 2>&1 | { head -c 65536 && cat >/dev/null; } > "$path"
@@ -410,7 +410,7 @@ release_approval_run() {
   # Explicit stdin avoids Bash's asynchronous /dev/null default. A PTY caller
   # need not have a /dev/tty controlling terminal.
   release_process_spawning=1
-  docker attach "$gate_id" <&0 &
+  docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" attach "$gate_id" <&0 &
   release_approval_attach_pid=$!
   release_process_spawning=0
   if [[ "$release_process_signal" != 0 ]]; then exit "$release_process_signal"; fi
@@ -418,7 +418,7 @@ release_approval_run() {
   started="$SECONDS"
   until [[ -S "$RELEASE_APPROVAL_SOCKET_DIR/rpc.sock" ]]; do
     release_approval_attachment_running || return
-    if (( SECONDS - started >= 300 )) || [[ "$(docker inspect --format '{{.State.Running}}' "$gate_id")" != true ]]; then
+    if (( SECONDS - started >= 300 )) || [[ "$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.State.Running}}' "$gate_id")" != true ]]; then
       printf '%s\n' 'Approval did not receive an operator start on the attached terminal.' >&2
       return 1
     fi
@@ -426,9 +426,9 @@ release_approval_run() {
   done
 
   started="$SECONDS"
-  until [[ "$(docker inspect --format '{{.State.Health.Status}}' "$gate_id")" == healthy ]]; do
+  until [[ "$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.State.Health.Status}}' "$gate_id")" == healthy ]]; do
     release_approval_attachment_running || return
-    if (( SECONDS - started >= 30 )) || [[ "$(docker inspect --format '{{.State.Running}}' "$gate_id")" != true ]]; then
+    if (( SECONDS - started >= 30 )) || [[ "$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.State.Running}}' "$gate_id")" != true ]]; then
       printf '%s\n' 'Approval ended or failed to become ready after operator start.' >&2
       return 1
     fi
@@ -443,7 +443,7 @@ release_approval_run() {
 
   started="$SECONDS"
   while true; do
-    state="$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$forge_id")" || return
+    state="$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$forge_id")" || return
     if [[ "$state" =~ ^exited\ ([0-9]+)$ ]]; then
       read -r state forge_status <<< "$state"
       printf '%s\n' "$forge_status" > "$output/forge-exit-code"
@@ -473,7 +473,7 @@ release_approval_run() {
   wait "$release_approval_attach_pid" || attach_status=$?
   declare -g release_approval_attach_pid=""
   release_approval_restore_terminal
-  gate_status="$(docker inspect --format '{{.State.ExitCode}}' "$gate_id")"
+  gate_status="$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.State.ExitCode}}' "$gate_id")"
   if [[ "$attach_status" != 0 || "$forge_status" != 0 || "$gate_status" != 0 ]]; then
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2
     return 1

@@ -5,7 +5,6 @@ import os
 from os.path import abspath
 from pathlib import Path
 import re
-import shlex
 import subprocess
 from typing import Any
 from unittest import mock
@@ -15,7 +14,6 @@ from tools.json_policy import strict_json_loads
 
 ROOT = Path(__file__).resolve().parents[2]
 SERVICE_PAYMENT_SNAPSHOT_ROOT = ROOT / "dapps/pay-to-play/references/service-payment-channels"
-DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", re.MULTILINE)
 # Rendered Compose posture tests need concrete values for required operator
 # inputs before `docker compose config` can produce JSON. These values are test
 # fixtures only: they make the positive render inspectable, but they do not
@@ -285,6 +283,8 @@ def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[st
     render_env.update(RENDERED_COMPOSE_FIXTURE_ENV)
     if env is not None:
         render_env.update(env)
+    for name in ("DOCKER_CONTEXT", "DOCKER_HOST", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+        render_env.pop(name, None)
 
     command = docker_compose_command(render_env)
     if isinstance(compose_file, str):
@@ -350,13 +350,5 @@ def compose_volume(config_service: dict[str, Any], target: str) -> dict[str, Any
 
 
 def docker_compose_command(env: dict[str, str]) -> list[str]:
-    configured = env.get("DOCKER_COMPOSE")
-    return shlex.split(configured if configured is not None else makefile_docker_compose_default())
-
-
-def makefile_docker_compose_default() -> str:
-    match = DOCKER_COMPOSE_DEFAULT_RE.search(read_text(repo_path("Makefile")))
-    if match is None:
-        raise AssertionError("Makefile must declare DOCKER_COMPOSE ?=")
-
-    return match.group("command")
+    # Compose config is offline; this endpoint cannot contact an engine.
+    return ["docker", "--host", "unix:///tmp/compose-config-no-engine.sock", "compose"]

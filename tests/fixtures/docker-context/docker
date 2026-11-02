@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+printf '%s|%s|%s|%s|%s\n' "${DOCKER_HOST-unset}" "${DOCKER_CONTEXT-unset}" "${DOCKER_TLS-unset}" "${DOCKER_TLS_VERIFY-unset}" "${DOCKER_CERT_PATH-unset}" >> "$TRACE"
+if [[ $1 == context && $2 == inspect ]]; then
+  [[ ${*: -1} != missing ]] || exit 1
+  if [[ ${FAKE_MODE-} == hang ]]; then sleep 30; fi
+  if [[ $ENDPOINT == NUL_CASE ]]; then printf 'unix:///tmp/a\0b\n'; else printf '%s\n' "$ENDPOINT"; fi
+  exit 0
+fi
+if [[ $1 == context && $2 == ls ]]; then
+  [[ ${FAKE_MODE-} != listing_failure ]] || exit 1
+  if [[ ${FAKE_MODE-} == listing_nul ]]; then printf 'first\0extra\tunix:///tmp/a\n'; exit 0; fi
+  if [[ ${FAKE_MODE-} == listing_empty ]]; then exit 0; fi
+  if [[ ${FAKE_MODE-} == listing_duplicate ]]; then printf 'first\tunix:///tmp/a\nfirst\tunix:///tmp/b\n'; exit 0; fi
+  printf 'first\tunix:///tmp/first.sock\nsecond\tunix:///tmp/second.sock\nremote\ttcp://remote:2375\n'
+  exit 0
+fi
+if [[ $1 == --host && $2 == "$ENDPOINT" ]]; then
+  shift 2
+  if [[ -v BUILDER_CALLS ]]; then printf '%s|%s|%s\n' "${BUILDX_BUILDER-unset}" "${BUILDX_CONFIG-unset}" "${COMPOSE_BAKE-unset}" >> "$BUILDER_CALLS"; fi
+  if [[ -v DOCKER_CALLS ]]; then printf '%s\n' "$*" >> "$DOCKER_CALLS"; fi
+  if [[ ${FAKE_MODE-} == fail_first_down && " $* " == *' down '* && $* != *with-writes* ]]; then exit 1; fi
+  if [[ $1 == info && -v TEST_ENGINE ]]; then
+    printf '%s\n' "$*" >> "$TEST_EVENTS"
+    [[ $TEST_ENGINE != unavailable ]] || exit 42
+    printf 'name=seccomp,profile=builtin\n'
+    if [[ $TEST_ENGINE == rootless ]]; then printf 'name=rootless\n'; fi
+    exit 0
+  fi
+  if [[ $1 == compose && -v DOCKER_DELEGATE ]]; then shift; exec bash "$DOCKER_DELEGATE" "$@"; fi
+  if [[ $1 == info || $1 == compose || ( $1 =~ ^(container|network|volume)$ && ${2-} == ls ) ]]; then exit 0; fi
+  exit 4
+fi
+exit 4

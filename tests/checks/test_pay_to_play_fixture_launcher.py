@@ -9,6 +9,10 @@ import unittest
 
 from .common import ROOT
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 EXECUTOR = r'''
 import json, os, pathlib, sys, time
@@ -16,6 +20,9 @@ root = pathlib.Path(os.environ["CASE_ROOT"])
 state_path = root / "state.json"
 state = json.loads(state_path.read_text())
 a = sys.argv[1:]
+if a and a[0] != "deps":
+    assert a[:2] == ["--host", os.environ["TEST_EXPECTED_DOCKER_ENDPOINT"]]
+    a = a[2:]
 mode = os.environ["CASE_MODE"]
 def save(): state_path.write_text(json.dumps(state))
 if a[0] == "deps":
@@ -116,6 +123,8 @@ class FixtureLauncherTest(unittest.TestCase):
         self.assertRegex(descriptor["fixtureId"], r"^run-[0-9a-f]{32}$")
         self.assertIn(descriptor["fixtureId"], diagnostic)
         self.assertIn(f"-C {ROOT}", diagnostic)
+        self.assertIn(f'engine {os.environ["TEST_EXPECTED_DOCKER_ENDPOINT"]}', diagnostic)
+        self.assertIn("select a context resolving to that same endpoint", diagnostic)
         self.assertIn("dependency verification diagnostics", diagnostic)
         self.assertIn("deployment diagnostics", diagnostic)
         self.assertEqual(0, state["downs"])

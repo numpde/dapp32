@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from .docker_test_support import make_environment
 from .common import (
     compose_mapping,
     compose_sequence,
@@ -58,10 +59,11 @@ class EscrowLocalComposeTest(unittest.TestCase):
                         f"include {repo_path('Makefile')}\n.PHONY: wallet-hint\nwallet-hint:\n"
                         f"\t@viewer_url=http://127.0.0.1:5193/; $(call print_local_demo_ready,{app},{variable})\n"
                     )
-                    command = ["make", "--no-print-directory", "-f", str(makefile), "wallet-hint", "COMPOSE_PROJECT_NAME=demo-test"]
+                    command = ["make", "--no-print-directory", "-f", str(makefile), "wallet-hint", "COMPOSE_PROJECT_NAME=demo-test", "DOCKER_CONTEXT=fixture"]
                     if override is not None:
                         command.append(f"{variable}={override}")
-                    result = subprocess.run(command, cwd=repo_path("."), text=True, capture_output=True, check=True)
+                    result = subprocess.run(command, cwd=repo_path("."), env=make_environment(os.environ.copy()), text=True, capture_output=True, check=True)
+                    self.assertIn("Select a context resolving to engine unix:///tmp/context-fixture.sock", result.stdout)
                     hint = next(line.strip() for line in result.stdout.splitlines() if line.strip().startswith("make viewer/local/fixture-wallet/attach "))
                     selections = dict(argument.split("=", 1) for argument in shlex.split(hint)[2:])
                     self.assertEqual(app, selections["FIXTURE_WALLET_APP"])

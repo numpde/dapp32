@@ -9,6 +9,10 @@ import unittest
 from .common import ROOT, rendered_compose_config
 from .text.test_rendered_compose_posture import makefile_compose_unit
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 STUBS = r'''
 timeout() {
@@ -27,7 +31,7 @@ git() {
     *) return 91 ;;
   esac
 }
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   printf '%s\n' "$*" >> "$CASE_ROOT/calls"
   local tag="" tree="" value key count id
   if [[ "$1 $2" == 'image ls' ]]; then
@@ -89,7 +93,7 @@ class ReleaseToolImagesTest(unittest.TestCase):
         for state in ("present", "missing", "daemon-error", "pull-error"):
             with self.subTest(state=state):
                 script = r'''source tools/release_tool_images.sh
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   if [[ "$1 $2" == "image inspect" ]]; then
     case "$TEST_STATE" in
       present) printf 'sha256:%064d\n' 1 ;;
@@ -121,7 +125,7 @@ printf 'consumer\n'
     def test_local_image_ids_and_mutable_tags_cannot_be_acquired(self):
         for image in ("sha256:" + "a" * 64, "node:latest"):
             result = subprocess.run(["bash", "-eu", "-c",
-                'source tools/release_tool_images.sh; docker() { exit 99; }; release_acquire_image "$TEST_IMAGE"'],
+                'source tools/release_tool_images.sh; docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2; exit 99; }; release_acquire_image "$TEST_IMAGE"'],
                 cwd=ROOT, env={**os.environ, "TEST_IMAGE": image}, capture_output=True, text=True, timeout=5, check=False)
             self.assertEqual(2, result.returncode)
             self.assertIn("pinned by SHA-256", result.stderr)

@@ -56,7 +56,7 @@ project="cam-source-$(basename "$stage" | tr -cd 'a-zA-Z0-9' | tr '[:upper:]' '[
 export SOURCE_PUBLICATION_APP="$app" SOURCE_DEPLOYMENT_RECORDS SOURCE_ARTIFACT
 export SOURCE_ARCHIVES="$stage/sources" SOURCE_REQUESTS="$stage/catalog" SOURCE_PUBLICATION_STATE="$job_root/state"
 mkdir --mode=0700 -- "$SOURCE_ARCHIVES" "$SOURCE_REQUESTS" "$stage/menu" "$stage/import"
-compose=(docker compose --env-file /dev/null -p "$project" -f compose/release/source-publication.yml)
+compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null -p "$project" -f compose/release/source-publication.yml)
 cleanup() {
   local status=$?
   if [[ "$status" != 0 ]]; then printf 'Public source verification did not complete. Records and diagnostics: %s\n' "$output" >&2; fi

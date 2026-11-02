@@ -30,7 +30,7 @@ release_instance() {
   project="cam-instance-$(basename "$stage" | tr -cd 'a-zA-Z0-9' | tr '[:upper:]' '[:lower:]')"
   export RELEASE_INSTANCE_ROOT="$instance" RELEASE_INSTANCE_OPERATION="$operation"
   export RELEASE_INSTANCE_DIR="$instance" RELEASE_CONFIG_FILE="$instance/config.json" RELEASE_CREDENTIAL_CONFIG="$instance/config.json" RELEASE_CONFIG_STAGE_DIR="$stage"
-  local -a compose=(docker compose --env-file /dev/null -p "$project" -f compose/release/config.yml)
+  local -a compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null -p "$project" -f compose/release/config.yml)
   retire_instance_selection() {
     if [[ ! -d "$stage" ]]; then return 0; fi
     if ! timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" -- "${compose[@]}" >>"$stage/cleanup.log" 2>&1; then
@@ -65,7 +65,7 @@ release_instance() {
   local name
   for name in "${clear_inputs[@]}"; do environment+=(-u "$name"); done
   if [[ ${#arguments[@]} -gt 0 ]]; then
-    release_run_owned "$release_make_cleanup_grace" "${environment[@]}" "${MAKE:?Make must select its recursive command}" --no-print-directory "${arguments[@]}" || status=$?
+    release_run_owned "$release_make_cleanup_grace" "${environment[@]}" "${MAKE:?Make must select its recursive command}" DOCKER_CONTEXT= "CAM_DOCKER_ENDPOINT=$CAM_DOCKER_ENDPOINT" --no-print-directory "${arguments[@]}" || status=$?
   fi
   if [[ "$status" != 0 ]]; then
     printf 'Operation stopped; records were retained. Resume with: make %q INSTANCE=%q\n' "$app/release/$operation" "$instance" >&2
@@ -78,7 +78,7 @@ release_instance() {
   if [[ ( ! -v RELEASE_REHEARSAL || "$RELEASE_REHEARSAL" != 1 ) && -f "$stage/source-artifacts" ]]; then
     local source_artifact
     while IFS= read -r -d '' source_artifact; do
-      if ! release_run_owned "$release_make_cleanup_grace" "${environment[@]}" "${MAKE:?}" --no-print-directory \
+      if ! release_run_owned "$release_make_cleanup_grace" "${environment[@]}" "${MAKE:?}" DOCKER_CONTEXT= "CAM_DOCKER_ENDPOINT=$CAM_DOCKER_ENDPOINT" --no-print-directory \
           "$app/release/source/publish" "SOURCE_ARTIFACT=$source_artifact"; then
         printf 'Deployment records are complete; public source verification is incomplete. Retry: make %q INSTANCE=%q\n' "$app/release/source/publish" "$instance" >&2
       fi

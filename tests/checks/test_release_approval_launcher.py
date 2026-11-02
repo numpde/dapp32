@@ -14,6 +14,10 @@ from unittest import mock
 
 from .common import ROOT, import_python_module_with_env
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 PREFLIGHT = ROOT / "tools/release_approval_preflight.sh"
 TEST_IMAGE_ID = "sha256:" + "a" * 64
@@ -29,7 +33,7 @@ class ApprovalLauncherTest(unittest.TestCase):
         }
         shell = (
             f'. "{PREFLIGHT}"; '
-            "docker() { "
+            "docker() { [ \"$1\" = --host ] && [ \"$2\" = \"$TEST_EXPECTED_DOCKER_ENDPOINT\" ] || return 91; shift 2; "
             "[ \"$1 $2 $3\" = 'image inspect --format' ] || return 91; "
             "[ \"$5\" = \"$DOCKER_EXPECTED_IMAGE\" ] || return 92; "
             "printf '%s\\n' \"$DOCKER_INSPECT_RESULT\"; "
@@ -94,7 +98,7 @@ class ApprovalRehearsalDiagnosticsTest(unittest.TestCase):
 
         def logs(arguments, **options):
             self.assertEqual(
-                ["docker", "logs", "--tail", "80", identity],
+                ["docker", "--host", os.environ["TEST_EXPECTED_DOCKER_ENDPOINT"], "logs", "--tail", "80", identity],
                 arguments,
             )
             self.assertEqual(subprocess.PIPE, options.get("stdout"))
@@ -193,7 +197,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
                 with self.assertRaisesRegex(FileNotFoundError, "fixture stop"):
                     with self.rehearsal.release_terminal(Path(directory) / "approval-pty.log", app, config_file=None):
                         self.fail("fixture must stop at process launch")
-                self.assertEqual(["make", f"{app}/release/deploy"], launch.call_args.args[0])
+                self.assertEqual(["make", "DOCKER_CONTEXT=", f"CAM_DOCKER_ENDPOINT={os.environ['TEST_EXPECTED_DOCKER_ENDPOINT']}", f"{app}/release/deploy"], launch.call_args.args[0])
 
     def wait_for_file(self, path: Path, process: subprocess.Popen[str]) -> None:
         deadline = time.monotonic() + 10

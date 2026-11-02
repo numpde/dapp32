@@ -4,16 +4,12 @@ set -euo pipefail
 unset MAKEFLAGS MAKEOVERRIDES MFLAGS GNUMAKEFLAGS MAKEFILES
 unset UI_CONFIG CAM_CONFIG CONTRACT_ARTIFACT UI_ARTIFACT ROOT ROOT_ARTIFACT CAM_BUNDLE OUTPUT_DIR
 app="${1:?Pass a supported app}"
-action="${3:?Pass release, waits, ipc-waits, approval-pty, or approval-success}"
+action="${2:?Pass release, waits, ipc-waits, approval-pty, or approval-success}"
 if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits && "$action" != approval-pty && "$action" != approval-success ]]; then
   printf '%s\n' 'Release rehearsal action must be release, waits, ipc-waits, approval-pty, or approval-success.' >&2; exit 2
 fi
 if [[ ( "$action" == waits || "$action" == ipc-waits ) && "$app" != escrow ]]; then
   printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
-fi
-if [[ "${2:?Pass the Compose command}" != "docker compose" ]]; then
-  printf '%s\n' 'Release rehearsals require Docker Compose.' >&2
-  exit 2
 fi
 # This entrypoint owns the documented normal-mode choice. Downstream tools
 # require its explicit selection; an explicitly empty input is invalid.
@@ -156,8 +152,8 @@ printf '%s\n' "$simulation" >"$RELEASE_REHEARSAL_DIR/simulation-mode"
 digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
 project="cam-rehearsal-${digest:0:24}"
 export RELEASE_REHEARSAL_NETWORK="$project-rehearsal"
-compose=(docker compose --project-name "$project" -f compose/release/rehearsal.yml)
-planner_compose=(docker compose --project-name "$project-planner" -f compose/release/deploy.yml -f compose/release/artifact.yml -f compose/release/contracts-artifact.yml -f compose/release/contracts.yml -f compose/release/rehearsal-deploy.yml)
+compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --project-name "$project" -f compose/release/rehearsal.yml)
+planner_compose=(docker --host "$CAM_DOCKER_ENDPOINT" compose --project-name "$project-planner" -f compose/release/deploy.yml -f compose/release/artifact.yml -f compose/release/contracts-artifact.yml -f compose/release/contracts.yml -f compose/release/rehearsal-deploy.yml)
 unset PRIVATE_KEY RPC_URL RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 git_environment="$(git rev-parse --local-env-vars)"
 while IFS= read -r name; do unset "$name"; done <<<"$git_environment"
@@ -210,7 +206,7 @@ run_logged() {
 
 verify_handoffs() {
   run_logged handoffs.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-accept
-  run_logged verification.log make "$app/release/verify" "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json"
+  run_logged verification.log make DOCKER_CONTEXT= "CAM_DOCKER_ENDPOINT=$CAM_DOCKER_ENDPOINT" "$app/release/verify" "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json"
   printf 'Release rehearsal passed: %s\n' "$app"
 }
 
@@ -242,7 +238,7 @@ config = {"schemaVersion": 3, "app": sys.argv[1], "sourceCommit": sys.argv[2],
 (root / "artifact-recovery.json").write_text(json.dumps(config) + "\n")
 ' "$app" "$(git rev-parse HEAD)"
   # Keyless recovery also verifies the recorded pending nominations before acceptance.
-  run_logged pending-verification.log make "$app/release/verify" \
+  run_logged pending-verification.log make DOCKER_CONTEXT= "CAM_DOCKER_ENDPOINT=$CAM_DOCKER_ENDPOINT" "$app/release/verify" \
     "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json" DEPLOYER_PRIVATE_KEY_FILE= PRIVATE_KEY=
   for phase in contracts ui cam; do
     case "$phase" in contracts) artifact=contract-deployment ;; ui) artifact=ui-deployment ;; cam) artifact=cam-publication ;; esac
@@ -299,13 +295,13 @@ planner_started=1
 mkdir --mode=0700 -- "$RELEASE_REHEARSAL_DIR/control/planner-config"
 RELEASE_CONFIG_STAGE_DIR="$RELEASE_REHEARSAL_DIR/control/planner-config" \
   RELEASE_CONFIG_FILE="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_CREDENTIAL_CONFIG="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_LOCAL_NETWORK="$RELEASE_REHEARSAL_NETWORK" \
-  run_logged planner-config.log docker compose --project-name "$project-planner" -f compose/release/config.yml run --rm --no-deps -T release-config \
+  run_logged planner-config.log docker --host "$CAM_DOCKER_ENDPOINT" compose --project-name "$project-planner" -f compose/release/config.yml run --rm --no-deps -T release-config \
   contracts-deploy "$app" "$(git rev-parse HEAD)"
 mapfile -d '' -t planner_inputs < "$RELEASE_REHEARSAL_DIR/control/planner-config/inputs"
 export "${planner_inputs[@]}"
 anvil_id="$("${compose[@]}" ps --quiet release-anvil)"
 if [[ ! "$anvil_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Cannot identify the fixture node.' >&2; exit 1; fi
-anvil_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$anvil_id")"
+anvil_ip="$(docker --host "$CAM_DOCKER_ENDPOINT" inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$anvil_id")"
 run_logged planner-boundaries.log "${planner_compose[@]}" run --build --rm --no-deps -T release-plan \
   timeout --signal=TERM --kill-after=10s 300s run-js-workspace node --experimental-strip-types tools/release-rehearsal/planner-check.ts "$app" "$anvil_ip"
 
@@ -325,7 +321,7 @@ for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release relea
   container_id="$("${planner_compose[@]}" ps --all --quiet "$service")"
   if [[ -n "$container_id" ]]; then
     if [[ ! "$container_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Unexpected planner test container identity.' >&2; exit 1; fi
-    if [[ "$(docker inspect --format '{{.State.StartedAt}}' "$container_id")" != 0001-01-01T00:00:00Z ]]; then
+    if [[ "$(docker --host "$CAM_DOCKER_ENDPOINT" inspect --format '{{.State.StartedAt}}' "$container_id")" != 0001-01-01T00:00:00Z ]]; then
       printf 'Planner rejection failed to prevent %s from starting.\n' "$service" >&2; exit 1
     fi
   fi

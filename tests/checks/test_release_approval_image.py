@@ -199,6 +199,8 @@ block_child() {
   return 91
 }
 docker() {
+  [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 90
+  shift 2
   local project= argument previous=
   if [[ "$2" == ls && "$1" =~ ^(container|network|volume)$ ]]; then return 0; fi
   if [[ "$1 $2" == 'image ls' ]]; then
@@ -300,6 +302,12 @@ python3() {
         env = dict(os.environ)
         env.update({
             "BASH_ENV": str(bash_env),
+            "PATH": f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
+            "CAM_DOCKER_ENDPOINT": "unix:///tmp/context-fixture.sock",
+            "TEST_EXPECTED_DOCKER_ENDPOINT": "unix:///tmp/context-fixture.sock",
+            "ENDPOINT": "unix:///tmp/context-fixture.sock",
+            "TRACE": os.devnull,
+            "FAKE_MODE": "",
             "TEST_BASH": bash,
             "TEST_SETSID": setsid,
             "TEST_PYTHON": sys.executable,
@@ -328,7 +336,7 @@ python3() {
             argv = [bash, str(self.repo / "tools/release_approval_image_build.sh"), "a" * 40, str(self.output)]
             self.project = "cam-approval-image-work"
         else:
-            argv = [bash, str(self.repo / "tools/release_rehearsal.sh"), "escrow", "docker compose", "approval-pty"]
+            argv = [bash, str(self.repo / "tools/release_rehearsal.sh"), "escrow", "approval-pty"]
             if kind == "rehearsal-full":
                 argv[-1] = "release"
 
@@ -352,7 +360,7 @@ python3() {
             generated = subprocess.run(
                 ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), target,
                  "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
-                 "DOCKER_COMPOSE=docker compose"],
+                 "DOCKER_CONTEXT=fixture"],
                 cwd=ROOT, env=env, capture_output=True, text=True, check=True,
             )
             recipe = generated.stdout

@@ -82,7 +82,7 @@ cleanup() {
     cleanup_failed=1
   fi
   if [[ $stage_started == 1 ]]; then
-    if ! release_run_owned 60 docker compose -p "$project_name" "${compose_files[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
+    if ! release_run_owned 60 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
       printf 'Approval image teardown failed; inspect project %s. Mounted inputs retained at %s.\n' "$project_name" "$work_dir" >&2
       status=1
       cleanup_failed=1
@@ -138,7 +138,7 @@ export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) ALLOW_UPDATE=0
 export PACKAGE_INPUT_DIR=$manifest_dir
 export RELEASE_APPROVAL_SOURCE_DIR=$source_dir RELEASE_APPROVAL_CONTEXT_DIR=$context_dir
 
-identity_compose=(docker compose --env-file /dev/null -p "$project_name-identity" -f "$repo_root/compose/release/approval-image.yml")
+identity_compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null -p "$project_name-identity" -f "$repo_root/compose/release/approval-image.yml")
 release_acquire_compose_images "${identity_compose[@]}"
 identity_started=1
 release_run_owned 15 "${identity_compose[@]}" run --pull never --rm --no-deps -T release-approval-identity > "$work_dir/input-digest"
@@ -149,7 +149,7 @@ if [[ ! "$input_digest" =~ ^[0-9a-f]{64}$ ]]; then
 fi
 built=0
 cache_tag="cam-release-approval:$input_digest"
-image_id=$(docker image ls --filter "reference=$cache_tag" --quiet --no-trunc)
+image_id=$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image ls --filter "reference=$cache_tag" --quiet --no-trunc)
 if [[ -z "$image_id" ]]; then
   built=1
   if [[ "$image_owner" != operator ]]; then
@@ -165,11 +165,11 @@ if [[ -z "$image_id" ]]; then
 
   # The npm stage sees manifests through the registry-only proxy, not repository source.
   stage_started=1
-  release_log_step "$release_preparation_log" 'Preparing approval build tools' release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
-  release_log_step "$release_preparation_log" 'Installing locked approval dependencies' release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
-  release_log_step "$release_preparation_log" 'Checking and staging approval runtime' release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
+  release_log_step "$release_preparation_log" 'Preparing approval build tools' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
+  release_log_step "$release_preparation_log" 'Installing locked approval dependencies' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
+  release_log_step "$release_preparation_log" 'Checking and staging approval runtime' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
 
-  release_run_owned 15 docker build --network=none --pull=false --tag "$cache_tag" \
+  release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" build --network=none --pull=false --tag "$cache_tag" \
   --label "org.opencontainers.image.revision=$source_commit" \
   --label "io.cam.approval-inputs=$input_digest" --label "io.cam.approval-owner=$image_owner" \
   --quiet "$context_dir" >"$work_dir/image-id"
@@ -181,7 +181,7 @@ if [[ ! $image_id =~ ^sha256:[0-9a-f]{64}$ ]]; then
   printf 'Docker build returned an invalid image ID: %s\n' "$image_id" >&2
   exit 1
 fi
-metadata=$(docker image inspect --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "io.cam.approval-inputs"}} {{index .Config.Labels "io.cam.approval-owner"}} {{json (index .Config "Entrypoint")}}' "$image_id")
+metadata=$(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" image inspect --format '{{.Id}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "io.cam.approval-inputs"}} {{index .Config.Labels "io.cam.approval-owner"}} {{json (index .Config "Entrypoint")}}' "$image_id")
 read -r observed_id observed_commit observed_digest observed_owner observed_entrypoint extra <<< "$metadata"
 if ! release_approval_is_entrypoint "$observed_entrypoint" || [[ "$built" == 1 && "$observed_commit" != "$source_commit" ]]; then
   printf '%s\n' 'Approval image entrypoint or fresh-build source differs from the selected tool.' >&2

@@ -13,8 +13,8 @@ if [[ $# == 0 ]]; then
   exit 2
 fi
 shift
-if [[ $# -lt 2 || $1 != docker || $2 != compose ]]; then
-  printf '%s\n' 'Use plain docker compose with DOCKER_CONTEXT or DOCKER_HOST so launch and cleanup address the same Docker engine.' >&2
+if [[ $# -lt 4 || $1 != docker || $2 != --host || $3 != "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" || $4 != compose ]]; then
+  printf '%s\n' 'Cleanup requires Docker Compose using the selected operation endpoint.' >&2
   exit 2
 fi
 # Once teardown begins, repeated cancellation must not abandon its resources.
@@ -27,9 +27,9 @@ down=("$@" --project-name "$project" down --timeout 10 --volumes --remove-orphan
 # Shared/external resources carry their actual owner's project label.
 for kind in container network volume; do
   if [[ $kind == container ]]; then
-    remaining=$(docker container ls --all --quiet --filter "label=com.docker.compose.project=$project")
+    remaining=$(docker --host "$CAM_DOCKER_ENDPOINT" container ls --all --quiet --filter "label=com.docker.compose.project=$project")
   else
-    remaining=$(docker "$kind" ls --quiet --filter "label=com.docker.compose.project=$project")
+    remaining=$(docker --host "$CAM_DOCKER_ENDPOINT" "$kind" ls --quiet --filter "label=com.docker.compose.project=$project")
   fi
   if [[ -n $remaining ]]; then
     printf 'Cleanup left %s resources owned by %s: %s\n' "$kind" "$project" "$remaining" >&2

@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from .text.test_rendered_compose_posture import makefile_compose_unit, release_deployment_units
-from .common import compose_command_text, compose_mapping, compose_service, compose_volume, rendered_compose_config
+from .common import compose_command_text, compose_mapping, compose_service, compose_volume, read_text, rendered_compose_config, repo_path
 from .release_posture import (
     expanded_release_target,
     assert_deployment_authority_split,
@@ -80,7 +80,9 @@ class BikeNftReleasePostureTest(unittest.TestCase):
                 deploy = expanded_release_target(f"bike-nft/release/{phase}/{target}")
                 self.assertIn("require_release_rpc_input", deploy)
                 self.assertIn('require_protected_release_file "$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE "$DEPLOYER_PRIVATE_KEY_FILE"', deploy)
-                self.assertIn("git archive", deploy)
+                self.assertIn("source tools/release_source_files.sh", deploy)
+                self.assertIn("release_archive_source", deploy)
+                self.assertIn('GIT_NO_REPLACE_OBJECTS=1 git -C "$repository" archive', read_text(repo_path("tools/release_source_files.sh")))
                 self.assertIn('"${release_phase_overlays[@]}" "${release_transport_args[@]}"', deploy)
                 self.assertIn(f'release_operation="{phase}"', deploy)
                 artifact = expanded_release_target(f"bike-nft/release/{phase}/artifact")

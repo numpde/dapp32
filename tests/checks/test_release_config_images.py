@@ -8,6 +8,10 @@ import unittest
 
 from .common import ROOT
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 IMAGE = "sha256:" + "a" * 64
 SOURCE = "a" * 40
@@ -16,7 +20,7 @@ source tools/release-config.sh
 reject_release_path_symlinks() { [[ ! -L "$1" ]]; }
 require_release_file() { [[ -f "$1" && ! -L "$1" ]]; }
 require_protected_release_file() { [[ -f "$1" && ! -L "$1" ]]; }
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   if [[ "$1 $2" == 'image ls' ]]; then
     [[ " $* " == *' --all '* && " $* " == *' --filter label=org.opencontainers.image.revision '* && " $* " == *' --no-trunc '* && " $* " == *' --quiet '* ]] || return 90
     if [[ "$DISCOVERY_FAULT" == list-failure ]]; then return 1; fi

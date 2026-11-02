@@ -9,13 +9,17 @@ import unittest
 
 from .common import ROOT
 
+from .docker_test_support import docker_environment_fixture, make_environment
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 NEW = "sha256:" + "b" * 64
 OLD = "sha256:" + "a" * 64
 BUSY = "sha256:" + "c" * 64
 SOURCE = "a" * 40
 STUBS = r'''
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   printf '%s\n' "$*" >> "$CASE_ROOT/docker-calls"
   if [[ "$1 $2" == 'image ls' ]]; then
     if [[ "$FIXTURE_STATE" == absent ]]; then return 0; fi
@@ -108,8 +112,8 @@ class ApprovalImageOperatorTest(unittest.TestCase):
                 if outcome == "explicit":
                     environment.update(SOURCE_COMMIT="e" * 40, RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=str(root / "explicit-output"))
                 generated = subprocess.run(
-                    ["make", "--no-print-directory", "--dry-run", "release/approval/image/build", "LANE_GUARD=:"],
-                    cwd=ROOT, env=environment, capture_output=True, text=True, check=True,
+                    ["make", "--no-print-directory", "--dry-run", "release/approval/image/build", "LANE_GUARD=:", "DOCKER_CONTEXT=fixture"],
+                    cwd=ROOT, env=make_environment(environment), capture_output=True, text=True, check=True,
                 )
                 script = r'''
 realpath() { local last; for last; do :; done; printf '%s\n' "$last"; }

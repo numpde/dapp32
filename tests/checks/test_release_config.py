@@ -19,6 +19,10 @@ from tools import release_config
 from .common import ROOT, compose_sequence_or_empty, rendered_compose_config
 from .text.test_rendered_compose_posture import makefile_compose_unit
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
 FIXTURE_KEY = "0x" + "11" * 32
@@ -180,7 +184,7 @@ validate_new_release_output() {
   [[ "$1" == "$CASE_ROOT/selected-output" && "$2" == CAM_RELEASE_OUTPUT_DIR ]]
   printf checked > "$CASE_ROOT/output-checked"
 }
-docker() {
+docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || return 91; shift 2;
   [[ "$1 $2 $3" == 'image inspect --format' ]]
   printf image-checked > "$CASE_ROOT/image-checked"
   printf '%s\n' "$5"
@@ -258,7 +262,9 @@ printf continued > "$CASE_ROOT/continued"
                 finally:
                     os.close(master)
                     os.close(slave)
-                expected_status = {"noninteractive": 3, "retained": 2, "retained-nontty": 3, "retained-reference": 2}.get(mode, 0)
+                expected_status = {"cam-bundle": 0, "cam-artifact": 0, "cam-publish": 0, "update": 0,
+                                   "noninteractive": 3, "retained": 2, "retained-new": 0,
+                                   "retained-nontty": 3, "retained-reference": 2}[mode]
                 self.assertEqual(expected_status, result.returncode, result.stderr)
                 self.assertEqual(expected_status == 0, (root / "continued").exists())
                 self.assertEqual(mode in ("cam-publish", "update", "retained-new"), (root / "image-checked").exists())

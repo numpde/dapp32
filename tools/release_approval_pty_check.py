@@ -415,7 +415,7 @@ def release_terminal(log_path: Path, app: str, *, config_file: Path | None):
             raise SystemExit(128 + cancelled)
         progress(f"Starting the release launcher; live log: {log_path}")
         process = subprocess.Popen(
-            ["make", f"{app}/release/deploy"],
+            ["make", "DOCKER_CONTEXT=", f"CAM_DOCKER_ENDPOINT={os.environ['CAM_DOCKER_ENDPOINT']}", f"{app}/release/deploy"],
             cwd=Path(__file__).resolve().parents[1], env=env,
             stdin=slave, stdout=slave, stderr=slave, close_fds=True, start_new_session=True,
         )
@@ -478,7 +478,7 @@ def required(name: str) -> str:
 
 def docker(*arguments: str) -> str:
     result = subprocess.run(
-        ["docker", *arguments], capture_output=True, text=True, check=False, timeout=20
+        ["docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"], *arguments], capture_output=True, text=True, check=False, timeout=20
     )
     if result.returncode != 0:
         raise RuntimeError(f"docker {' '.join(arguments)} failed: {result.stderr.strip()}")
@@ -511,7 +511,7 @@ def save_container_tail(identity: str, path: Path) -> Path:
         identity,
     )
     result = subprocess.run(
-        ["docker", "logs", "--tail", "80", identity],
+        ["docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"], "logs", "--tail", "80", identity],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, errors="replace", check=False, timeout=20,
     )
@@ -583,7 +583,7 @@ def fixture_nonce(project: str, address: str) -> int:
 def approval_chain_id(signer: str) -> str:
     """Verify Forge's RPC client can read through the live approval listener."""
     result = subprocess.run(
-        ["docker", "exec", signer, "timeout", "8", "cast", "chain-id",
+        ["docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"], "exec", signer, "timeout", "8", "cast", "chain-id",
          "--rpc-url", "file:///run/approval/rpc.sock"],
         capture_output=True, text=True, check=False, timeout=12,
     )
@@ -600,7 +600,7 @@ def approval_chain_id(signer: str) -> str:
 
 def signer_rpc_read(signer: str, operation: str, *arguments: str) -> None:
     result = subprocess.run(
-        ["docker", "exec", signer, "timeout", "8", "cast", operation, *arguments,
+        ["docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"], "exec", signer, "timeout", "8", "cast", operation, *arguments,
          "--rpc-url", "file:///run/approval/rpc.sock"],
         capture_output=True, text=True, check=False, timeout=12,
     )
@@ -625,7 +625,7 @@ def backend_chain_id(gate: str) -> str:
         "process.stdout.write(body.result);"
     )
     result = subprocess.run(
-        ["docker", "exec", gate, "node", "--input-type=module", "-e", script],
+        ["docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"], "exec", gate, "node", "--input-type=module", "-e", script],
         capture_output=True, text=True, check=False, timeout=8,
     )
     if result.returncode != 0:
@@ -658,7 +658,7 @@ def listener_chain_id(gate: str) -> str:
         "}catch(error){finish(error);}});"
     )
     result = subprocess.run(
-        ["docker", "exec", gate, "node", "--input-type=module", "-e", script],
+        ["docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"], "exec", gate, "node", "--input-type=module", "-e", script],
         capture_output=True, text=True, check=False, timeout=8,
     )
     if result.returncode != 0:

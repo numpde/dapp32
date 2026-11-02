@@ -1,6 +1,8 @@
-SHELL := bash
-.SHELLFLAGS := -eu -o pipefail -c
-.DEFAULT_GOAL := help
+# Parse-time probes use a noninteractive POSIX shell, which does not load
+# Bash's ambient startup file. Recipes use Bash after these probes are set up.
+override SHELL := /bin/sh
+override .SHELLFLAGS := -c
+override .DEFAULT_GOAL := help
 
 # Freeze literal release inputs before shell probes can export command-line values.
 ifneq ($(origin INSTANCE),undefined)
@@ -70,7 +72,37 @@ endif
 
 
 COMPOSE_DIR := compose
-DOCKER_COMPOSE ?= docker compose
+# Resolve the local engine once; historical release snapshots also inherit the
+# endpoint through DOCKER_HOST because they may invoke Docker directly.
+override DOCKER_CONTEXT_INPUT := $(value DOCKER_CONTEXT)
+override DOCKER_CONTEXT_ORIGIN := $(origin DOCKER_CONTEXT)
+docker_shell_quote = '$(subst ','"'"',$(1))'
+unexport DOCKER_CONTEXT DOCKER_HOST DOCKER_TLS DOCKER_TLS_VERIFY DOCKER_CERT_PATH CAM_DOCKER_ENDPOINT
+unexport BUILDX_BUILDER BUILDX_CONFIG COMPOSE_BAKE
+unexport BASH_ENV ENV
+unexport $(filter BASH_FUNC_%,$(.VARIABLES))
+ifneq ($(filter-out default undefined,$(origin MAKECMDGOALS)),)
+$(error MAKECMDGOALS is reserved for Make's own goal list)
+endif
+ifneq ($(filter-out help release/rpc/list,$(MAKECMDGOALS)),)
+ifneq ($(filter command line,$(origin DOCKER_HOST) $(origin DOCKER_TLS) $(origin DOCKER_TLS_VERIFY) $(origin DOCKER_CERT_PATH) $(origin DOCKER_COMPOSE) $(origin BUILDX_BUILDER) $(origin BUILDX_CONFIG) $(origin COMPOSE_BAKE)),)
+$(error Select the Docker engine with DOCKER_CONTEXT=<local-context>, not Docker endpoint or command overrides)
+endif
+override CAM_DOCKER_ENDPOINT := $(shell command env -u BASH_ENV -u ENV -u 'BASH_FUNC_timeout%%' -u 'BASH_FUNC_env%%' bash tools/docker_context.sh \
+  $(call docker_shell_quote,$(value DOCKER_CONTEXT_ORIGIN)) \
+  $(call docker_shell_quote,$(value DOCKER_CONTEXT_INPUT)) \
+  $(call docker_shell_quote,$(origin CAM_DOCKER_ENDPOINT)) \
+  $(call docker_shell_quote,$(value CAM_DOCKER_ENDPOINT)) \
+  $(call docker_shell_quote,$(value MAKELEVEL)))
+ifeq ($(strip $(CAM_DOCKER_ENDPOINT)),)
+$(error Docker context selection failed; see the diagnostic above)
+endif
+override DOCKER_HOST := $(CAM_DOCKER_ENDPOINT)
+override BUILDX_BUILDER := default
+export DOCKER_HOST CAM_DOCKER_ENDPOINT BUILDX_BUILDER
+endif
+override DOCKER_COMPOSE = docker --host "$${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose
+override DOCKER_FORWARD = DOCKER_CONTEXT= CAM_DOCKER_ENDPOINT=$(call docker_shell_quote,$(CAM_DOCKER_ENDPOINT))
 # Compose stdout is captured by several operator workflows; progress must not
 # require a console or interleave terminal control sequences with their output.
 export COMPOSE_PROGRESS := plain
@@ -99,8 +131,11 @@ export VIEWER_IMAGE VIEWER_BIND_HOST VIEWER_PORT VIEWER_COMPOSE_PROJECT_NAME
 RELEASE_ARTIFACT_NODE_MODULES_DIR ?= $(CURDIR)/js/node_modules
 export RELEASE_ARTIFACT_NODE_MODULES_DIR
 ACTUAL_UID := $(shell id -u)
-LOCAL_UID ?= $(shell id -u)
-LOCAL_GID ?= $(shell id -g)
+ACTUAL_GID := $(shell id -g)
+LOCAL_UID ?= $(ACTUAL_UID)
+LOCAL_GID ?= $(ACTUAL_GID)
+override SHELL := bash
+override .SHELLFLAGS := -eu -o pipefail -c
 ALLOW_UPDATE ?= 0
 
 RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
@@ -634,7 +669,7 @@ reject_release_path_symlinks "$$CAM_BUNDLE" CAM_BUNDLE; \
 require_release_file "$$CAM_BUNDLE/artifact/cam-bundle.json" 'Prepared CAM bundle artifact'; \
 export CAM_RELEASE_PREPARED_DIR="$$CAM_BUNDLE"; \
 if [[ -n "$${CAM_RECORDS-}" ]]; then \
-  release_full_make() { release_run_owned "$$release_make_cleanup_grace" $(MAKE) --no-print-directory "$$@"; }; \
+  release_full_make() { release_run_owned "$$release_make_cleanup_grace" $(MAKE) $(DOCKER_FORWARD) --no-print-directory "$$@"; }; \
   source tools/release_full.sh; \
   release_full_cam $(patsubst %/release/cam/publish,%,$@) "$$CONFIG" "$$CAM_BUNDLE" "$$CAM_RECORDS" publish; exit $$?; \
 fi; \
@@ -725,7 +760,7 @@ $(release_config_compose); \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'Release composition requires CONFIG.' >&2; exit 2; fi; \
 load_release_config $(1) cam-bundle; \
 release_full_output="$$CAM_RELEASE_OUTPUT_DIR"; \
-release_full_make() { release_run_owned "$$release_make_cleanup_grace" $(MAKE) --no-print-directory "$$@"; }; \
+release_full_make() { release_run_owned "$$release_make_cleanup_grace" $(MAKE) $(DOCKER_FORWARD) --no-print-directory "$$@"; }; \
 source tools/release_full.sh; \
 release_full $(1) $(2) "$$release_full_output"
 endef
@@ -1193,7 +1228,7 @@ js/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
 	package_user="$$LOCAL_UID:$$LOCAL_GID"; \
-	security_options="$$(docker info --format '{{range .SecurityOptions}}{{println .}}{{end}}')"; \
+	security_options="$$(docker --host "$$CAM_DOCKER_ENDPOINT" info --format '{{range .SecurityOptions}}{{println .}}{{end}}')"; \
 	if grep -Fxq 'name=rootless' <<< "$$security_options"; then package_user=0:0; fi; \
 	package_input_dir=""; \
 	created_package_lock_placeholder="0"; \
@@ -1340,7 +1375,7 @@ pay-to-play/cam/publication/preflight/json:
 	$(call cam_publication_preflight,--json)
 
 cam/publication/preflight/check:
-	@$(MAKE) --no-print-directory bike-nft/cam/publication/preflight/json CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
+	@$(MAKE) $(DOCKER_FORWARD) --no-print-directory bike-nft/cam/publication/preflight/json CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
 
 viewer/terminal/check:
 	@$(LANE_GUARD); \
@@ -1562,7 +1597,7 @@ define refresh_demo_viewer
 	$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) exec -T cam-web \
 	  sh /tmp/viewer-refresh/run-js-workspace --refresh sh -eu -c \
 	  'npm run build:packages'
-	@$(MAKE) --no-print-directory cam/integrity/refresh cam/conformance/check dapps/deps/verify
+	@$(MAKE) $(DOCKER_FORWARD) --no-print-directory cam/integrity/refresh cam/conformance/check dapps/deps/verify
 	@$(1) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(2) run --rm --no-deps -T \
 	  -e FOUNDRY_BROADCAST=/foundry-broadcast/cam-refresh --entrypoint bash deploy-$(4)-local \
 	  -eu -c 'exec forge script --offline cam/script/RefreshLocalCam.s.sol \
@@ -1685,11 +1720,11 @@ release/rpc/list:
 	@cat js/packages/cam-viewer/src/rpc-catalog.json
 
 dapps/release/rehearsal/check:
-	@for app in bike-nft escrow pay-to-play; do $(MAKE) "$$app/release/rehearsal/run" RPC_URL_FILE=/must-not-use-parent-rpc DEPLOYER_PRIVATE_KEY_FILE=/must-not-use-parent-key || exit "$$?"; done
+	@for app in bike-nft escrow pay-to-play; do $(MAKE) $(DOCKER_FORWARD) "$$app/release/rehearsal/run" RPC_URL_FILE=/must-not-use-parent-rpc DEPLOYER_PRIVATE_KEY_FILE=/must-not-use-parent-key || exit "$$?"; done
 
 define release_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" release
+	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" release
 endef
 
 .PHONY: dapps/release/rehearsal/check bike-nft/release/rehearsal/run escrow/release/rehearsal/run pay-to-play/release/rehearsal/run
@@ -1702,18 +1737,18 @@ escrow/release/rehearsal/run:
 .PHONY: escrow/release/approval-wait/check
 escrow/release/approval-wait/check:
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" waits
+	env -u CONFIG bash tools/release_rehearsal.sh escrow waits
 
 .PHONY: escrow/release/ipc-approval-wait/check
 escrow/release/ipc-approval-wait/check:
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" ipc-waits
+	env -u CONFIG bash tools/release_rehearsal.sh escrow ipc-waits
 
 .PHONY: escrow/release/approval/start/check escrow/release/approval/success/check
 .PHONY: bike-nft/release/approval/start/check bike-nft/release/approval/success/check pay-to-play/release/approval/start/check pay-to-play/release/approval/success/check
 define release_approval_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	timeout -s TERM -k 420s 600s env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" $(1)
+	timeout -s TERM -k 420s 600s env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" $(1)
 endef
 
 escrow/release/approval/start/check:
@@ -1747,7 +1782,7 @@ endef
 network/local/up:
 	@$(LANE_GUARD); \
 	$(call local_release_compose,up --build --detach --wait --wait-timeout 90 release-anvil release-cam); \
-	$(MAKE) --no-print-directory network/local/info
+	$(MAKE) $(DOCKER_FORWARD) --no-print-directory network/local/info
 
 network/local/info:
 	@$(LANE_GUARD); \
@@ -1862,17 +1897,11 @@ ci: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build da
 
 # Pin the checked local daemon so ambient contexts cannot receive mnemonic input.
 define wallet_compose
-if [[ -v DOCKER_CONTEXT && -n "$$DOCKER_CONTEXT" ]]; then \
-  wallet_endpoint="$$(env -u DOCKER_HOST docker context inspect --format '{{ .Endpoints.docker.Host }}' "$$DOCKER_CONTEXT")"; \
-elif [[ -v DOCKER_HOST && -n "$$DOCKER_HOST" ]]; then \
-  wallet_endpoint="$$DOCKER_HOST"; \
-else \
-  wallet_endpoint="$$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"; \
-fi; \
+wallet_endpoint="$$CAM_DOCKER_ENDPOINT"; \
 if [[ "$$wallet_endpoint" != unix:///* || ! -S "$${wallet_endpoint#unix://}" ]]; then \
   printf '%s\n' 'Wallet derivation requires a local Docker Unix socket; remote Docker endpoints are not allowed.' >&2; exit 2; \
 fi; \
-$(COMPOSE_ENV) env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$$wallet_endpoint" compose --env-file /dev/null -f $(COMPOSE_DIR)/cast.yml $(1)
+$(COMPOSE_ENV) env -u DOCKER_CONTEXT -u DOCKER_HOST $(DOCKER_COMPOSE) --env-file /dev/null -f $(COMPOSE_DIR)/cast.yml $(1)
 endef
 
 define wallet_interactive
@@ -2002,7 +2031,7 @@ bike-nft/local/demo/terminal/down:
 	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(call cleanup_disposable_project,$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME),$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES),0)
 
 define print_local_demo_ready
-printf '\n%s\n\nAttach the local test wallet from another terminal (existing debug browser):\n  make viewer/local/fixture-wallet/attach FIXTURE_WALLET_APP=%s COMPOSE_PROJECT_NAME=%s%s CDP_ORIGIN=http://127.0.0.1:9222\n\n' "$$viewer_url" "$(1)" "$(COMPOSE_PROJECT_NAME)" "$(if $(filter $(COMPOSE_PROJECT_NAME)-$(1)-viewer-gui,$($(2))),, $(2)=$($(2)))"
+printf '\n%s\n\nAttach the local test wallet from another terminal (existing debug browser). Select a context resolving to engine %s:\n  make viewer/local/fixture-wallet/attach FIXTURE_WALLET_APP=%s COMPOSE_PROJECT_NAME=%s%s CDP_ORIGIN=http://127.0.0.1:9222\n\n' "$$viewer_url" "$$CAM_DOCKER_ENDPOINT" "$(1)" "$(COMPOSE_PROJECT_NAME)" "$(if $(filter $(COMPOSE_PROJECT_NAME)-$(1)-viewer-gui,$($(2))),, $(2)=$($(2)))"
 endef
 
 bike-nft/local/demo/gui/up: dapps/deps/verify
@@ -2358,7 +2387,7 @@ pay-to-play/refunds/run:
 # overlay replaces only the scenario command; no live RPC or signing key mounts.
 RECOVERY_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/scenario.yml -f $(COMPOSE_DIR)/pay-to-play/local/recovery-scenario.yml
 pay-to-play/local/recovery/run:
-	@$(MAKE) pay-to-play/local/scenario/run PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES="$(RECOVERY_SCENARIO_COMPOSE_FILES)"
+	@$(MAKE) $(DOCKER_FORWARD) pay-to-play/local/scenario/run PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES="$(RECOVERY_SCENARIO_COMPOSE_FILES)"
 
 .PHONY: bike-nft/release/cam/bundle escrow/release/cam/bundle pay-to-play/release/cam/bundle
 bike-nft/release/cam/bundle escrow/release/cam/bundle pay-to-play/release/cam/bundle:

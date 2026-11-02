@@ -11,10 +11,16 @@ import unittest
 
 from .common import ROOT
 
+from .docker_test_support import docker_environment_fixture
+
+setUpModule, tearDownModule = docker_environment_fixture()
+
 
 DOCKER = r'''#!/usr/bin/env python3
 import json, os, pathlib, stat, sys
 a = sys.argv[1:]
+assert a[:2] == ["--host", os.environ["TEST_EXPECTED_DOCKER_ENDPOINT"]]
+a = a[2:]
 root = pathlib.Path(os.environ["CASE_ROOT"])
 if a[:2] == ["image", "ls"]:
     print("sha256:" + "b" * 64)

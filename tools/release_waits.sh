@@ -23,8 +23,8 @@ export CONTRACT_RELEASE_APP=pay-to-play
 export CONTRACT_RELEASE_SOURCE_COMMIT="${REHEARSAL_SOURCE_COMMIT:?missing rehearsal source commit}"
 export CONTRACT_RELEASE_EXPECTED_CHAIN_ID="${REHEARSAL_CHAIN_ID:?missing rehearsal chain ID}"
 export CONTRACT_RELEASE_SETTINGS_JSON='{"intendedPaymentAdmin":"0x0000000000000000000000000000000000000011","nullClaimPeriod":0}'
-compose=(docker compose --project-name "$project" -f compose/release/deploy.yml -f compose/release/artifact.yml -f compose/release/contracts-artifact.yml -f compose/release/contracts.yml -f compose/release/rehearsal-deploy.yml -f "$overlay")
-infrastructure=(docker compose --project-name "${1}" -f compose/release/rehearsal.yml)
+compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --project-name "$project" -f compose/release/deploy.yml -f compose/release/artifact.yml -f compose/release/contracts-artifact.yml -f compose/release/contracts.yml -f compose/release/rehearsal-deploy.yml -f "$overlay")
+infrastructure=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --project-name "${1}" -f compose/release/rehearsal.yml)
 cleanup() {
   status="$?"
   trap - EXIT
@@ -64,7 +64,7 @@ for case_name in "${cases[@]}"; do
     else
       timeout --foreground 360 "${compose[@]}" run --build --no-deps -T --name "$project-$case_name-signer" deploy-release >"$RELEASE_OUTPUT_DIR/forge.log" 2>&1 || forge_status="$?"
       signer_inspected=0
-      if docker inspect --format '{{.Id}} {{.Image}} {{json .Config.Cmd}}' "$project-$case_name-signer" >"$RELEASE_OUTPUT_DIR/signer-identity.txt"; then signer_inspected=1; fi
+      if docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.Id}} {{.Image}} {{json .Config.Cmd}}' "$project-$case_name-signer" >"$RELEASE_OUTPUT_DIR/signer-identity.txt"; then signer_inspected=1; fi
     fi
     if [[ "$signer_inspected" == 1 ]]; then
       case_status=0
