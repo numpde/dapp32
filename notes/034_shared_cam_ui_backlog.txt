@@ -83,21 +83,22 @@ giving reserve-channel tasks appropriate prominence (note 032, P2).
 
 7. Align text in shared single-line controls
 
-   Status: queued. User screenshot reported 2026-10-29 after height unification.
+   Status: complete. User screenshot reported 2026-10-29 after height unification.
    Owner: shared viewer control CSS and native/composite control rendering.
-   The controls now share a default 36px height, but their text appears to
-   start at different offsets. Compare native selects, text/URL inputs and
-   the address combobox at the same font size; inspect both inline inset and
-   vertical alignment, including browser-native internal spacing.
+   Native select text layout used a different line height from text inputs;
+   the compact address preview also used a different font from its editor.
+   Selects now share the text-field line height and leading inset, with a
+   shared decorative chevron while retaining native select behavior. Address
+   previews and editing use the same monospace font and inset.
 
-   Establish the cause in the rendered controls before changing padding.
-   Use a shared alignment rule where possible, preserving native selection,
-   editing, focus and text scaling. Equal outer heights alone do not prove
-   that the text inside is aligned. No cause or implementation selected yet.
+   Verification: native select keyboard behavior, address editing, focus and
+   popup placement pass the shared browser suite. Text insets and preview
+   alignment were checked at 1280/761/320 with normal and doubled text size.
+   Browser evidence is Chromium; other browser engines were not exercised.
 
 8. Reset copy feedback and align identifier copy controls
 
-   Requested: 2026-11-03. Status: timeout complete; alignment review queued.
+   Requested: 2026-11-03. Status: complete.
    Owner: shared browser clipboard feedback and identifier/copy-control CSS.
    User screenshot shows persistent success ticks beside the viewing account,
    signing wallet and CAM contract, with imperfect vertical alignment between
@@ -111,10 +112,10 @@ giving reserve-channel tasks appropriate prominence (note 032, P2).
    repeated copying, expiry, persistent failure and stale copy completion.
    JSON uses the same copy-icon control at the top-right of each block.
    Copy and success icons now share one SVG size rather than mixing an icon
-   with a font-rendered tick; broader text/icon alignment remains to review.
+   with a font-rendered tick. Identifier text uses an explicit block line
+   box, including inside links, so link baselines cannot offset the copy icon.
 
-   Inspect text/icon alignment in the rendered identifier rows before changing
-   CSS. Check both copy and success states, including linked identifiers,
-   narrow widths and text scaling; preserve focus and full-value selection.
-   This concerns identifier/copy controls, separately from the single-line
-   input/select alignment in item 7. No alignment cause established yet.
+   Verification: copy and success SVGs share the identifier text's vertical
+   centre, including linked identifiers, at 1280/761/320 and normal/doubled
+   text size. Existing full-value selection, keyboard copying and focus checks
+   pass. This is separate from the input/select alignment in item 7.

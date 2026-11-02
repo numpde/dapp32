@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { assertSingleLineControlSizing } from './layout-stability.mjs'
+import { assertSingleLineControlSizing, assertSingleLineControlAlignment } from './layout-stability.mjs'
 import { navigateBrowserDocument, waitForBrowserCondition, finishDisplayFixture } from './escrow-browser-fixture.mjs'
 
 export async function checkAddressEntry({ call, evaluate, viewerURL }) {
@@ -94,6 +94,7 @@ async function checkKnownAddresses({ call, evaluate, wait }) {
     await wait(`${input}.value===${JSON.stringify(entered)}&&!${popup}`)
     await evaluate(`${input}.blur()`)
     await wait(`!!${input}.closest('.address-control').querySelector('.address-display')`)
+    await assertSingleLineControlAlignment(evaluate)
     assert(await evaluate(`${input}.closest('.address-control').querySelector('.address-display code').textContent===${JSON.stringify(entered)}`), 'the compact display retains the exact identifier once')
     assert(await evaluate(`(()=>{const code=${input}.closest('.address-control').querySelector('.address-display code'),style=getComputedStyle(code),canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');ctx.font=style.font;return Math.abs(code.querySelector('.hex-middle').getBoundingClientRect().width-ctx.measureText('...').width)<1})()`), 'the compact ellipsis reserves only its rendered width, without a gap before the suffix')
     await evaluate(`${input}.focus()`)

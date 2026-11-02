@@ -53,7 +53,7 @@ export function AddressInput({ name, label, value, disabled, onInput }: {
             }} />
           {compact ? <span className="address-display" aria-hidden="true"><HexText value={value} /></span> : null}
         </div>
-        <Autocomplete.Trigger className="address-trigger" aria-label={`Use a known address for ${label}`} disabled={disabled || suggestions.length === 0}><span aria-hidden="true">⌄</span></Autocomplete.Trigger>
+        <Autocomplete.Trigger className="address-trigger" aria-label={`Use a known address for ${label}`} disabled={disabled || suggestions.length === 0} />
       </Autocomplete.InputGroup>
       <Autocomplete.Portal>
         <Autocomplete.Positioner className="address-positioner" side="bottom" align="start" sideOffset={4} collisionPadding={12}>

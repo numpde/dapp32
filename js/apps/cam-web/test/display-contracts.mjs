@@ -58,6 +58,7 @@ export async function assertDisplayedValues({ call, evaluate }) {
       assert(item.decorative && item.ellipsis.includes('...') && item.middleFits, 'middle shortening is visible and decorative')
     }
     assert(!item.disabled, 'read-only copy remains available independently of view edits')
+    assert(await evaluate(`(()=>{const code=document.querySelectorAll('.hex-value-controls code')[${item.index}],row=code.closest('.hex-value-controls'),svg=row.querySelector('.copy-button svg'),a=code.getBoundingClientRect(),b=svg.getBoundingClientRect();return Math.abs((a.top+a.bottom-b.top-b.bottom)/2)<1})()`), 'identifier text and its copy icon share a vertical centre, including linked identifiers')
     const { node } = await call('DOM.describeNode', { nodeId: ids[item.index] })
     const root = ax.nodes.find(candidate => candidate.backendDOMNodeId === node.backendNodeId)
     assert(root, 'the identifier has an accessibility subtree')

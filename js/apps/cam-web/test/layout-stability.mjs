@@ -14,6 +14,30 @@ export async function assertSingleLineControlSizing(evaluate) {
   }
 }
 
+export async function assertSingleLineControlAlignment(evaluate) {
+  const controls = await evaluate(`(()=>{
+    const visible=e=>e.checkVisibility()&&!e.closest('.address-control');
+    const measure=e=>{const s=getComputedStyle(e);return {font:s.fontSize,line:s.lineHeight,inset:parseFloat(s.paddingLeft)+parseFloat(s.borderLeftWidth)}};
+    return [...document.querySelectorAll('input[type="text"],input[type="url"],select')].filter(visible).map(measure);
+  })()`)
+  const sizes = new Map()
+  for (const control of controls) {
+    if (!sizes.has(control.font)) sizes.set(control.font, control)
+    const reference = sizes.get(control.font)
+    assert.equal(control.line, reference.line, 'native selects and text fields share a text line height')
+    assert(Math.abs(control.inset-reference.inset)<1, 'native selects and text fields share a leading text inset')
+  }
+  assert(await evaluate(`(()=>{
+    return [...document.querySelectorAll('.address-control')].every(bar=>{
+      const input=bar.querySelector('input'),preview=bar.querySelector('.address-display code');
+      if(!preview)return true;
+      const a=getComputedStyle(input),b=getComputedStyle(preview),r=bar.getBoundingClientRect(),p=preview.getBoundingClientRect();
+      return a.font===b.font&&Math.abs(p.left-r.left-parseFloat(getComputedStyle(bar).borderLeftWidth)-parseFloat(a.paddingLeft))<1
+        &&Math.abs((p.top+p.bottom-r.top-r.bottom)/2)<1;
+    });
+  })()`), 'address previews preserve the editable font, inset and vertical text centre')
+}
+
 export async function assertNoHiddenEditorLayout(evaluate) {
   const offenders = await evaluate(`(()=>{const editors=[...document.querySelectorAll('fieldset')];return editors.flatMap(editor=>[...editor.querySelectorAll('*')].filter(element=>{
     const style=getComputedStyle(element),bounds=element.getBoundingClientRect();
