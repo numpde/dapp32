@@ -167,6 +167,23 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
 
     await open('account-required')
     await wait('!!document.querySelector(".panel.error")')
+    for (const width of [1280, 761, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      assert(await evaluate(`(()=>{
+        const row=document.querySelector('.recovery-actions');const [retry,edit]=row.querySelectorAll('button');
+        const a=retry.getBoundingClientRect(),b=edit.getBoundingClientRect();
+        const quiet=getComputedStyle(edit),primary=getComputedStyle(retry);
+        return retry.textContent==='Retry loading'&&edit.textContent==='Edit app connection'
+          &&retry.type==='button'&&edit.type==='button'&&quiet.backgroundColor==='rgba(0, 0, 0, 0)'
+          &&quiet.borderColor==='rgba(0, 0, 0, 0)'&&primary.borderColor!==quiet.borderColor
+          &&document.documentElement.scrollWidth<=innerWidth
+          &&(innerWidth>=761?Math.abs(a.top-b.top)<1&&Math.abs(a.height-b.height)<1:b.top>=a.top);
+      })()`), `recovery actions distinguish retry from editing and fit ${width}px`)
+    }
+    const failedReadCount = await evaluate('connectionFixture.state.subjects.length')
+    await evaluate(`document.querySelector('.recovery-actions button').click()`)
+    await wait(`!!document.querySelector('.panel.error')&&connectionFixture.state.subjects.length>${failedReadCount}`)
+    assert.equal(await evaluate('connectionFixture.state.sends'), 0, 'retrying a failed app load makes no wallet submission')
     assert(await evaluate(`!!document.querySelector('.wallet-button')`), 'a route rejecting public reads can still connect a wallet')
     await evaluate('document.querySelector(".wallet-button").click()')
     await wait(`!!document.querySelector('input[name=draft]')&&new URL(location.href).searchParams.get('account')===connectionFixture.wallet`)

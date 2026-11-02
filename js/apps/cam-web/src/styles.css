@@ -273,7 +273,7 @@ button.resource-load[aria-busy="true"] { color: var(--accent); background: linea
   line-height: 1.2;
 }
 
-.transaction-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.transaction-actions, .recovery-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 .send-button {
   color: #ffffff;

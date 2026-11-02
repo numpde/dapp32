@@ -998,16 +998,18 @@ export function App(): ReactElement {
         <section className="panel error">
           <h2>Cannot load app</h2>
           <Feedback report={loadState.failure} kind="error" />
-          <button type="button" onClick={() => {
-            resourceLoadAbortRef.current?.abort()
-            setNotice(undefined)
-            const rpcURLs = loadState.startup === undefined ? viewerLink.rpcURLs : [loadState.startup.rpcUrl]
-            setViewerLink({ failure: loadState.failure, rpcURLs })
-            setLoadRequest(undefined)
-            readyRef.current = { status: "setup" }
-            setLoadState(readyRef.current)
-          }}>Edit app connection</button>
-          {connection === undefined ? null : <button type="button" onClick={retryUnfinishedLoad}>Retry loading</button>}
+          <div className="recovery-actions">
+            {connection === undefined ? null : <button type="button" onClick={retryUnfinishedLoad}>Retry loading</button>}
+            <button className="button-quiet" type="button" onClick={() => {
+              resourceLoadAbortRef.current?.abort()
+              setNotice(undefined)
+              const rpcURLs = loadState.startup === undefined ? viewerLink.rpcURLs : [loadState.startup.rpcUrl]
+              setViewerLink({ failure: loadState.failure, rpcURLs })
+              setLoadRequest(undefined)
+              readyRef.current = { status: "setup" }
+              setLoadState(readyRef.current)
+            }}>Edit app connection</button>
+          </div>
         </section>
       ) : null}
 

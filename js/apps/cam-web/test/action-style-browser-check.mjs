@@ -102,7 +102,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       const [read,write] = document.querySelectorAll('.action-button')
       const reference = signature(write)
       const quiet = [...document.querySelectorAll('.ui-meta>button, .transaction-actions>button:not(.send-button)')]
-      quiet.push([...document.querySelectorAll('.document-hash-field button')].find(button => button.textContent === 'Cancel calculation'))
+      quiet.push(...document.querySelectorAll('.document-hash-field button'))
       const send = getComputedStyle(document.querySelector('.send-button'))
       const command = getComputedStyle(write)
       return {
@@ -115,7 +115,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       }
     })()`)
     assert(styles.readDistinct && styles.commandsOutlined && styles.kindsVisible, 'read-only actions and transaction reviews have distinct visible and accessible treatments even when labels suggest the opposite')
-    assert(styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel have a quiet supporting treatment')
+    assert(styles.quietDistinct && styles.quietUnfilled, 'navigation, discard and document calculation helpers have a quiet supporting treatment')
     assert(styles.sendFilled, 'only Send is filled')
     for (const width of [1280, 761, 320]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
