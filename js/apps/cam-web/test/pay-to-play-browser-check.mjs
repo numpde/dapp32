@@ -253,7 +253,7 @@ async function inspect(customer, channelId) {
   if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel, or create a channel')`)) {
     await click('Change account or channel, or create a channel')
     await wait(state => state.readRoute === 'choosePosition', 'context-preserving chooser')
-    await assertHierarchy('choosePosition', ['App navigation', 'View a balance', 'Create a channel (admin only)'], [])
+    await assertHierarchy('choosePosition', ['App navigation', 'Selected balance', 'View a balance'], [])
   }
   await wait(state => state.buttons.some(button => button.name === 'View balance'), 'balance chooser')
   await fill('lookupCustomer', customer)
@@ -287,7 +287,7 @@ try {
   await call('Page.navigate', { url: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
-  await assertHierarchy('home', ['App navigation'], [])
+  await assertHierarchy('home', ['App navigation', 'View a balance'], [])
   await click('Create a channel')
   await wait(state => state.readRoute === 'createChannelForm', 'open channel creation from home')
   await assertHierarchy('createChannelForm', ['App navigation', 'Create a channel (admin only)'], [])
@@ -316,7 +316,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await click('View balance in this channel')
   await wait(state => state.readRoute === 'position' && state.values['Channel ID'] === id, 'open mined channel from receipt')
-  await assertHierarchy('position', ['App navigation', 'Account and channel', 'Position status', 'Balance overview', 'Channel', 'Deposit', 'Withdraw or move funds', 'Voucher signing key', 'Voucher payments', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
+  await assertHierarchy('position', ['App navigation', 'Selected balance', 'Account and channel', 'Position status', 'Balance overview', 'Channel', 'Deposit', 'Withdraw or move funds', 'Voucher signing key', 'Voucher payments', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
   await inspect(accounts.customer.address, id)
   disabled(await evaluate(snapshot), 'Register permanent voucher key')
   await role('customer')
@@ -408,7 +408,7 @@ try {
   phase = 'voucher signing details'
   await click('View signing details')
   const details = await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
-  await assertHierarchy('voucherDigest', ['App navigation', 'Account and channel', 'Voucher signing details'], [['Signing domain', 'Voucher signing details'], ['Signing key', 'Voucher signing details'], ['Voucher message', 'Voucher signing details']])
+  await assertHierarchy('voucherDigest', ['App navigation', 'Selected balance', 'Account and channel', 'Voucher signing details'], [['Signing domain', 'Voucher signing details'], ['Signing key', 'Voucher signing details'], ['Voucher message', 'Voucher signing details']])
   assert.equal(details.values['Invoice hash (bytes32)'], invoiceHash)
   assert.equal(details.values['Signing hash (EIP-712 digest)'], hashTypedData(typed))
   phase = 'voucher draft return'
@@ -482,7 +482,7 @@ try {
   await send('Deposit')
   await click('Manage recovery and channel closure')
   await wait(state => state.buttons.some(button => button.name === 'Set refund recipient' && !button.disabled), 'recovery controls')
-  await assertHierarchy('recovery', ['App navigation', 'Account and channel', 'Position status', 'Balance recovery', 'Retire this channel'], [['Renew funding period', 'Balance recovery'], ['Choose refund recipient', 'Balance recovery'], ['Start wind-down', 'Balance recovery'], ['Refund balance', 'Balance recovery']])
+  await assertHierarchy('recovery', ['App navigation', 'Selected balance', 'Account and channel', 'Position status', 'Balance recovery', 'Retire this channel'], [['Renew funding period', 'Balance recovery'], ['Choose refund recipient', 'Balance recovery'], ['Start wind-down', 'Balance recovery'], ['Refund balance', 'Balance recovery']])
   await fill('newRefundRecipient', accounts.recipient.address)
   await send('Set refund recipient')
   await send('Start position wind-down')

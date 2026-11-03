@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xc2998f932e3f1b15e028c2f2cf3f2e3cce87ea9dc3d303bad17b5e8fde5c27e5"
+      "integrity": "sha256:0xc2580ddebc945191b798a5e263081e72d37b7ee00e2d1f521e0729a1fa700bc8"
     },
     "contracts.PayToPlayUI": {
       "type": "contract",
@@ -43,8 +43,8 @@
         "function": "app",
         "args": {
           "view": {
-            "screen": "home",
-            "navigation": "navigation.none",
+            "screen": "channelLookup",
+            "balanceSection": "balanceSection.none",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "0",
@@ -73,7 +73,7 @@
         "args": {
           "view": {
             "screen": "createChannelFields",
-            "navigation": "navigation.lookup",
+            "balanceSection": "balanceSection.none",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "0",
@@ -105,7 +105,7 @@
         "args": {
           "view": {
             "screen": "position",
-            "navigation": "navigation.position",
+            "balanceSection": "balanceSection.position",
             "task": "$outputs.0"
           }
         }
@@ -598,7 +598,7 @@
         "args": {
           "view": {
             "screen": "voucher",
-            "navigation": "navigation.voucher",
+            "balanceSection": "balanceSection.voucher",
             "task": {
               "digest": "$outputs.0.digest",
               "customer": "$inputs.customer",
@@ -633,7 +633,7 @@
         "args": {
           "view": {
             "screen": "channelLookup",
-            "navigation": "navigation.lookup",
+            "balanceSection": "balanceSection.none",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "",
@@ -665,7 +665,7 @@
         "args": {
           "view": {
             "screen": "channelLookup",
-            "navigation": "navigation.chooser",
+            "balanceSection": "balanceSection.chooser",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "$inputs.channelId",
@@ -697,7 +697,7 @@
         "args": {
           "view": {
             "screen": "recovery",
-            "navigation": "navigation.recovery",
+            "balanceSection": "balanceSection.recovery",
             "task": "$outputs.0"
           }
         }

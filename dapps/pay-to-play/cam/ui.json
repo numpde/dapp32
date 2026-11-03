@@ -14,7 +14,17 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "$view.navigation",
+            "function": "navigation",
+            "args": {
+              "view": "$view.task"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "$view.balanceSection",
             "args": {
               "view": "$view.task"
             }
@@ -32,7 +42,7 @@
         }
       ]
     },
-    "home": {
+    "navigation": {
       "element": "Screen",
       "requires": [
         "view"
@@ -750,32 +760,17 @@
         }
       ]
     },
-    "navigation.none": {
+    "balanceSection.none": {
       "requires": ["view"],
       "element": "Fragment",
       "children": []
     },
-    "homeLink": {
-      "requires": ["view"],
-      "element": "Button",
-      "props": { "label": "Choose a task" },
-      "call": { "namespace": "routes", "function": "home", "args": {} }
-    },
-    "navigation.lookup": {
+    "balanceSection.position": {
       "requires": ["view"],
       "element": "Screen",
-      "props": { "title": "App navigation" },
-      "children": [
-        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } }
-      ]
-    },
-    "navigation.position": {
-      "requires": ["view"],
-      "element": "Screen",
-      "props": { "title": "App navigation" },
+      "props": { "title": "Selected balance" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         {
           "element": "Include",
           "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } }
@@ -786,35 +781,32 @@
         }
       ]
     },
-    "navigation.recovery": {
+    "balanceSection.recovery": {
       "requires": ["view"],
       "element": "Screen",
-      "props": { "title": "App navigation" },
+      "props": { "title": "Selected balance" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } }
       ]
     },
-    "navigation.chooser": {
+    "balanceSection.chooser": {
       "requires": ["view"],
       "element": "Screen",
-      "props": { "title": "App navigation" },
+      "props": { "title": "Selected balance" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } } }
       ]
     },
-    "navigation.voucher": {
+    "balanceSection.voucher": {
       "requires": ["view"],
       "element": "Screen",
-      "props": { "title": "App navigation" },
+      "props": { "title": "Selected balance" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
         {
           "element": "Button",
