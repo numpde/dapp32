@@ -1,995 +1,995 @@
 [
   {
+    "type": "constructor",
     "inputs": [
       {
-        "internalType": "address",
         "name": "managerAddress",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "stateMutability": "nonpayable",
-    "type": "constructor"
+    "stateMutability": "nonpayable"
   },
   {
-    "stateMutability": "payable",
-    "type": "fallback"
+    "type": "fallback",
+    "stateMutability": "payable"
   },
   {
-    "stateMutability": "payable",
-    "type": "receive"
+    "type": "receive",
+    "stateMutability": "payable"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "camHost",
-        "type": "address"
-      }
-    ],
+    "type": "function",
     "name": "deploymentTargets",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "cam",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "components",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "registry",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "manager",
-    "outputs": [
-      {
-        "internalType": "contract IBicycleComponentManagerView",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "serialNumber",
-        "type": "string"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "viewComponent",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "string",
-            "name": "viewId",
-            "type": "string"
-          },
-          {
-            "internalType": "string[]",
-            "name": "actions",
-            "type": "string[]"
-          },
-          {
-            "internalType": "address",
-            "name": "account",
-            "type": "address"
-          },
-          {
-            "internalType": "bool",
-            "name": "paused",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canRegister",
-            "type": "bool"
-          },
-          {
-            "internalType": "string",
-            "name": "accountInfo",
-            "type": "string"
-          },
-          {
-            "internalType": "bool",
-            "name": "exists",
-            "type": "bool"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "serialHash",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "address",
-            "name": "tokenContract",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "owner",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "ownerInfo",
-            "type": "string"
-          },
-          {
-            "internalType": "address",
-            "name": "registrar",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "statusId",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "tokenURI",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "missingReportURI",
-            "type": "string"
-          },
-          {
-            "internalType": "uint48",
-            "name": "registeredAt",
-            "type": "uint48"
-          },
-          {
-            "internalType": "uint48",
-            "name": "updatedAt",
-            "type": "uint48"
-          },
-          {
-            "internalType": "string",
-            "name": "serialNumber",
-            "type": "string"
-          },
-          {
-            "internalType": "uint64",
-            "name": "permissions",
-            "type": "uint64"
-          },
-          {
-            "internalType": "bool",
-            "name": "isOwner",
-            "type": "bool"
-          },
-          {
-            "internalType": "string",
-            "name": "authorityId",
-            "type": "string"
-          },
-          {
-            "internalType": "address",
-            "name": "delegationGrantor",
-            "type": "address"
-          },
-          {
-            "internalType": "uint64",
-            "name": "delegationCapabilities",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint48",
-            "name": "delegationValidUntil",
-            "type": "uint48"
-          },
-          {
-            "internalType": "bool",
-            "name": "delegationActive",
-            "type": "bool"
-          },
-          {
-            "internalType": "uint48",
-            "name": "maxDelegationDuration",
-            "type": "uint48"
-          },
-          {
-            "internalType": "bool",
-            "name": "componentTokenPaused",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canUpdateMetadata",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canMarkMissing",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canClearMissing",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "inactive",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canTransfer",
-            "type": "bool"
-          },
-          {
-            "internalType": "address",
-            "name": "componentsAddress",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct BicycleComponentManagerUI.AppView",
-        "name": "view_",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "serialNumber",
-        "type": "string"
-      },
-      {
-        "internalType": "address",
-        "name": "delegate",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      },
-      {
-        "internalType": "uint48",
-        "name": "duration",
-        "type": "uint48"
-      }
-    ],
-    "name": "viewDelegation",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "string",
-            "name": "viewId",
-            "type": "string"
-          },
-          {
-            "internalType": "string[]",
-            "name": "actions",
-            "type": "string[]"
-          },
-          {
-            "internalType": "address",
-            "name": "account",
-            "type": "address"
-          },
-          {
-            "internalType": "bool",
-            "name": "paused",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "componentTokenPaused",
-            "type": "bool"
-          },
-          {
-            "internalType": "string",
-            "name": "serialNumber",
-            "type": "string"
-          },
-          {
-            "internalType": "address",
-            "name": "owner",
-            "type": "address"
-          },
-          {
-            "internalType": "bool",
-            "name": "isOwner",
-            "type": "bool"
-          },
-          {
-            "internalType": "address",
-            "name": "delegate",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "delegationGrantor",
-            "type": "address"
-          },
-          {
-            "internalType": "uint64",
-            "name": "delegationCapabilities",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint48",
-            "name": "delegationValidUntil",
-            "type": "uint48"
-          },
-          {
-            "internalType": "bool",
-            "name": "delegationActive",
-            "type": "bool"
-          },
-          {
-            "internalType": "uint48",
-            "name": "duration",
-            "type": "uint48"
-          },
-          {
-            "internalType": "uint48",
-            "name": "maxDelegationDuration",
-            "type": "uint48"
-          },
-          {
-            "internalType": "uint48",
-            "name": "validUntil",
-            "type": "uint48"
-          }
-        ],
-        "internalType": "struct BicycleComponentManagerUI.DelegationView",
-        "name": "view_",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "camHost",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "cam",
+        "type": "address",
+        "internalType": "address"
       },
       {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "viewDeploymentHandovers",
-    "outputs": [
+        "name": "components",
+        "type": "address",
+        "internalType": "address"
+      },
       {
-        "components": [
-          {
-            "components": [
-              {
-                "internalType": "address",
-                "name": "target",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "current",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "pending",
-                "type": "address"
-              },
-              {
-                "internalType": "uint48",
-                "name": "readyAt",
-                "type": "uint48"
-              },
-              {
-                "internalType": "string",
-                "name": "status",
-                "type": "string"
-              },
-              {
-                "internalType": "bool",
-                "name": "canAccept",
-                "type": "bool"
-              }
-            ],
-            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
-            "name": "cam",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              {
-                "internalType": "address",
-                "name": "target",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "current",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "pending",
-                "type": "address"
-              },
-              {
-                "internalType": "uint48",
-                "name": "readyAt",
-                "type": "uint48"
-              },
-              {
-                "internalType": "string",
-                "name": "status",
-                "type": "string"
-              },
-              {
-                "internalType": "bool",
-                "name": "canAccept",
-                "type": "bool"
-              }
-            ],
-            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
-            "name": "components",
-            "type": "tuple"
-          },
-          {
-            "components": [
-              {
-                "internalType": "address",
-                "name": "target",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "current",
-                "type": "address"
-              },
-              {
-                "internalType": "address",
-                "name": "pending",
-                "type": "address"
-              },
-              {
-                "internalType": "uint48",
-                "name": "readyAt",
-                "type": "uint48"
-              },
-              {
-                "internalType": "string",
-                "name": "status",
-                "type": "string"
-              },
-              {
-                "internalType": "bool",
-                "name": "canAccept",
-                "type": "bool"
-              }
-            ],
-            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
-            "name": "manager",
-            "type": "tuple"
-          },
-          {
-            "internalType": "string[]",
-            "name": "actions",
-            "type": "string[]"
-          },
-          {
-            "internalType": "bool",
-            "name": "paused",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "componentTokenPaused",
-            "type": "bool"
-          }
-        ],
-        "internalType": "struct BicycleComponentManagerUI.DeploymentHandovers",
-        "name": "view_",
-        "type": "tuple"
+        "name": "registry",
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
-      }
-    ],
-    "name": "viewEntry",
+    "type": "function",
+    "name": "manager",
+    "inputs": [],
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "string",
-            "name": "viewId",
-            "type": "string"
-          },
-          {
-            "internalType": "string[]",
-            "name": "actions",
-            "type": "string[]"
-          },
-          {
-            "internalType": "address",
-            "name": "account",
-            "type": "address"
-          },
-          {
-            "internalType": "bool",
-            "name": "paused",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canRegister",
-            "type": "bool"
-          },
-          {
-            "internalType": "string",
-            "name": "accountInfo",
-            "type": "string"
-          },
-          {
-            "internalType": "bool",
-            "name": "exists",
-            "type": "bool"
-          },
-          {
-            "internalType": "bytes32",
-            "name": "serialHash",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "address",
-            "name": "tokenContract",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "tokenId",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "owner",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "ownerInfo",
-            "type": "string"
-          },
-          {
-            "internalType": "address",
-            "name": "registrar",
-            "type": "address"
-          },
-          {
-            "internalType": "string",
-            "name": "statusId",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "tokenURI",
-            "type": "string"
-          },
-          {
-            "internalType": "string",
-            "name": "missingReportURI",
-            "type": "string"
-          },
-          {
-            "internalType": "uint48",
-            "name": "registeredAt",
-            "type": "uint48"
-          },
-          {
-            "internalType": "uint48",
-            "name": "updatedAt",
-            "type": "uint48"
-          },
-          {
-            "internalType": "string",
-            "name": "serialNumber",
-            "type": "string"
-          },
-          {
-            "internalType": "uint64",
-            "name": "permissions",
-            "type": "uint64"
-          },
-          {
-            "internalType": "bool",
-            "name": "isOwner",
-            "type": "bool"
-          },
-          {
-            "internalType": "string",
-            "name": "authorityId",
-            "type": "string"
-          },
-          {
-            "internalType": "address",
-            "name": "delegationGrantor",
-            "type": "address"
-          },
-          {
-            "internalType": "uint64",
-            "name": "delegationCapabilities",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint48",
-            "name": "delegationValidUntil",
-            "type": "uint48"
-          },
-          {
-            "internalType": "bool",
-            "name": "delegationActive",
-            "type": "bool"
-          },
-          {
-            "internalType": "uint48",
-            "name": "maxDelegationDuration",
-            "type": "uint48"
-          },
-          {
-            "internalType": "bool",
-            "name": "componentTokenPaused",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canUpdateMetadata",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canMarkMissing",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canClearMissing",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "inactive",
-            "type": "bool"
-          },
-          {
-            "internalType": "bool",
-            "name": "canTransfer",
-            "type": "bool"
-          },
-          {
-            "internalType": "address",
-            "name": "componentsAddress",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct BicycleComponentManagerUI.AppView",
-        "name": "view_",
-        "type": "tuple"
+        "name": "",
+        "type": "address",
+        "internalType": "contract IBicycleComponentManagerView"
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
+    "type": "function",
+    "name": "viewComponent",
     "inputs": [
       {
-        "internalType": "string",
         "name": "serialNumber",
-        "type": "string"
+        "type": "string",
+        "internalType": "string"
       },
       {
-        "internalType": "address",
         "name": "account",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
     ],
-    "name": "viewRegister",
     "outputs": [
       {
+        "name": "view_",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.AppView",
         "components": [
           {
-            "internalType": "string",
             "name": "viewId",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "string[]",
             "name": "actions",
-            "type": "string[]"
+            "type": "string[]",
+            "internalType": "string[]"
           },
           {
-            "internalType": "address",
             "name": "account",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "bool",
             "name": "paused",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "bool",
             "name": "canRegister",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "string",
             "name": "accountInfo",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "bool",
             "name": "exists",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "bytes32",
             "name": "serialHash",
-            "type": "bytes32"
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
-            "internalType": "address",
             "name": "tokenContract",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "uint256",
             "name": "tokenId",
-            "type": "uint256"
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
-            "internalType": "address",
             "name": "owner",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "string",
             "name": "ownerInfo",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "address",
             "name": "registrar",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "string",
             "name": "statusId",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "string",
             "name": "tokenURI",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "string",
             "name": "missingReportURI",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "uint48",
             "name": "registeredAt",
-            "type": "uint48"
+            "type": "uint48",
+            "internalType": "uint48"
           },
           {
-            "internalType": "uint48",
             "name": "updatedAt",
-            "type": "uint48"
+            "type": "uint48",
+            "internalType": "uint48"
           },
           {
-            "internalType": "string",
             "name": "serialNumber",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "uint64",
             "name": "permissions",
-            "type": "uint64"
+            "type": "uint64",
+            "internalType": "uint64"
           },
           {
-            "internalType": "bool",
             "name": "isOwner",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "string",
             "name": "authorityId",
-            "type": "string"
+            "type": "string",
+            "internalType": "string"
           },
           {
-            "internalType": "address",
             "name": "delegationGrantor",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           },
           {
-            "internalType": "uint64",
             "name": "delegationCapabilities",
-            "type": "uint64"
+            "type": "uint64",
+            "internalType": "uint64"
           },
           {
-            "internalType": "uint48",
             "name": "delegationValidUntil",
-            "type": "uint48"
+            "type": "uint48",
+            "internalType": "uint48"
           },
           {
-            "internalType": "bool",
             "name": "delegationActive",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "uint48",
             "name": "maxDelegationDuration",
-            "type": "uint48"
+            "type": "uint48",
+            "internalType": "uint48"
           },
           {
-            "internalType": "bool",
             "name": "componentTokenPaused",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "bool",
             "name": "canUpdateMetadata",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "bool",
             "name": "canMarkMissing",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "bool",
             "name": "canClearMissing",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "bool",
             "name": "inactive",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "bool",
             "name": "canTransfer",
-            "type": "bool"
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "internalType": "address",
             "name": "componentsAddress",
-            "type": "address"
+            "type": "address",
+            "internalType": "address"
           }
-        ],
-        "internalType": "struct BicycleComponentManagerUI.AppView",
-        "name": "view_",
-        "type": "tuple"
+        ]
       }
     ],
-    "stateMutability": "view",
-    "type": "function"
+    "stateMutability": "view"
   },
   {
-    "inputs": [],
-    "name": "DoesNotAcceptPayments",
-    "type": "error"
-  },
-  {
+    "type": "function",
+    "name": "viewDelegation",
     "inputs": [
       {
-        "internalType": "uint48",
-        "name": "duration",
-        "type": "uint48"
+        "name": "serialNumber",
+        "type": "string",
+        "internalType": "string"
       },
       {
-        "internalType": "uint48",
-        "name": "maxDuration",
-        "type": "uint48"
+        "name": "delegate",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "duration",
+        "type": "uint48",
+        "internalType": "uint48"
       }
     ],
+    "outputs": [
+      {
+        "name": "view_",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.DelegationView",
+        "components": [
+          {
+            "name": "viewId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentTokenPaused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "delegate",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationGrantor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationCapabilities",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "delegationValidUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "delegationActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "duration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "maxDelegationDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "validUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "viewDeploymentHandovers",
+    "inputs": [
+      {
+        "name": "camHost",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "view_",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.DeploymentHandovers",
+        "components": [
+          {
+            "name": "cam",
+            "type": "tuple",
+            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
+            "components": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "current",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "pending",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "readyAt",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "canAccept",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "components",
+            "type": "tuple",
+            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
+            "components": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "current",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "pending",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "readyAt",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "canAccept",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "manager",
+            "type": "tuple",
+            "internalType": "struct BicycleComponentManagerUI.AuthorityHandover",
+            "components": [
+              {
+                "name": "target",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "current",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "pending",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "readyAt",
+                "type": "uint48",
+                "internalType": "uint48"
+              },
+              {
+                "name": "status",
+                "type": "string",
+                "internalType": "string"
+              },
+              {
+                "name": "canAccept",
+                "type": "bool",
+                "internalType": "bool"
+              }
+            ]
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentTokenPaused",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "viewEntry",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "view_",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.AppView",
+        "components": [
+          {
+            "name": "viewId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canRegister",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "accountInfo",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "exists",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenContract",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "ownerInfo",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registrar",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "statusId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "tokenURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "missingReportURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registeredAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "updatedAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "permissions",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "authorityId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "delegationGrantor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationCapabilities",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "delegationValidUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "delegationActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "maxDelegationDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "componentTokenPaused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canUpdateMetadata",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canMarkMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canClearMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "inactive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canTransfer",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentsAddress",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "viewRegister",
+    "inputs": [
+      {
+        "name": "serialNumber",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "view_",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.AppView",
+        "components": [
+          {
+            "name": "viewId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canRegister",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "accountInfo",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "exists",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenContract",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "ownerInfo",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registrar",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "statusId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "tokenURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "missingReportURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registeredAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "updatedAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "permissions",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "authorityId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "delegationGrantor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationCapabilities",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "delegationValidUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "delegationActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "maxDelegationDuration",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "componentTokenPaused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canUpdateMetadata",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canMarkMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canClearMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "inactive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canTransfer",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentsAddress",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "error",
+    "name": "DoesNotAcceptPayments",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidDelegationDuration",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "managerAddress",
-        "type": "address"
+        "name": "duration",
+        "type": "uint48",
+        "internalType": "uint48"
+      },
+      {
+        "name": "maxDuration",
+        "type": "uint48",
+        "internalType": "uint48"
       }
-    ],
+    ]
+  },
+  {
+    "type": "error",
     "name": "ManagerHasNoCode",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
-        "internalType": "address",
         "name": "managerAddress",
-        "type": "address"
+        "type": "address",
+        "internalType": "address"
       }
-    ],
+    ]
+  },
+  {
+    "type": "error",
     "name": "ManagerUnsupported",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
+        "name": "managerAddress",
+        "type": "address",
+        "internalType": "address"
       }
-    ],
+    ]
+  },
+  {
+    "type": "error",
     "name": "TimestampOutOfRange",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
-        "internalType": "bytes4",
-        "name": "selector",
-        "type": "bytes4"
+        "name": "timestamp",
+        "type": "uint256",
+        "internalType": "uint256"
       }
-    ],
+    ]
+  },
+  {
+    "type": "error",
     "name": "UnknownFunction",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
-        "internalType": "enum IBicycleComponentManagerView.ComponentStatus",
-        "name": "status",
-        "type": "uint8"
+        "name": "selector",
+        "type": "bytes4",
+        "internalType": "bytes4"
       }
-    ],
-    "name": "UnsupportedComponentStatus",
-    "type": "error"
+    ]
   },
   {
-    "inputs": [],
+    "type": "error",
+    "name": "UnsupportedComponentStatus",
+    "inputs": [
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "ZeroAddress",
-    "type": "error"
+    "inputs": []
   }
 ]

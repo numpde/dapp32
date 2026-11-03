@@ -292,9 +292,12 @@ all eight approved ABI files unchanged. Fake-engine tests cover identity
 selection and failure paths; an actual rootful engine was not exercised.
 These preflights do not prevent concurrent path replacement. ABI application
 still clears and replaces outputs sequentially, so interruption or a write
-failure can leave a partial export. The isolated export also produced Bike NFT
-ABIs substantially different from the checked-in files; that pre-existing
-generated-resource discrepancy requires separate investigation.
+failure can leave a partial export. The isolated export exposed Bike NFT ABI
+drift introduced in commit `1e824cc9`: the ownership interface resource was
+replaced with a larger host contract ABI. Its declared route used a function
+present in both, but the resource no longer represented its declared source.
+Regeneration restored the four-function interface ABI; the other three Bike
+ABIs had the same entries with different serialization and ordering.
 
 The ABI export project now removes its locally built service images during its
 existing teardown, including the integrity service. A disposable rootless run
