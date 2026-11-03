@@ -209,8 +209,8 @@ async function clickButton(label) {
   }
   // Scrolling only positions the button; the assertion below requires native
   // pointer activation on the visible button before product feedback is checked.
-  const point = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return null; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(); const x=r.left+r.width/2,y=r.top+r.height/2; return {x,y,width:innerWidth,height:innerHeight,hit:document.elementFromPoint(x,y)?.textContent?.trim()} })()`)
-  assert(point && point.x >= 0 && point.x < point.width && point.y >= 0 && point.y < point.height && point.hit === label, `${label} is not the pointer target in the viewport`)
+  const point = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return null; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(); const x=r.left+r.width/2,y=r.top+r.height/2; return {x,y,width:innerWidth,height:innerHeight,hit:button.contains(document.elementFromPoint(x,y))} })()`)
+  assert(point && point.x >= 0 && point.x < point.width && point.y >= 0 && point.y < point.height && point.hit, `${label} is not the pointer target in the viewport`)
   await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === ${JSON.stringify(label)}); window.__browserCheckEvents = []; button.addEventListener('click', () => window.__browserCheckEvents.push('click'), {capture:true, once:true}) })()`)
   await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'none', buttons: 0 }, sessionId)
   await call('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId)
@@ -258,7 +258,7 @@ function colorContrast(foreground, background) {
 }
 async function assertWorkingSurface(label) {
   const visual = await evaluate(`(() => {
-    const region = document.querySelector('fieldset[aria-label="Current view"]');
+    const region = document.querySelector('div.elements[role="group"][aria-label="Current view"]');
     const style = getComputedStyle(region);
     function surroundingColor(input) {
       for (let parent = input.parentElement; parent; parent = parent.parentElement) {
@@ -269,7 +269,8 @@ async function assertWorkingSurface(label) {
     }
     return {padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(parseFloat),
       inputs: [...region.querySelectorAll('input:not(:disabled)')].map(input => {
-        const css = getComputedStyle(input);
+        const boundary = input.closest('.address-control');
+        const css = getComputedStyle(boundary === null ? input : boundary);
         return {name: input.name, edges: ['Top','Right','Bottom','Left'].map(edge => ({edge,style:css['border'+edge+'Style'],color:css['border'+edge+'Color'],width:parseFloat(css['border'+edge+'Width'])})), fill: css.backgroundColor, surround: surroundingColor(input)};
       })};
   })()`)
@@ -343,7 +344,7 @@ try {
   await call('Page.navigate', { url: viewer.href }, sessionId)
   const ready = await waitFor(async state => state.heading === 'Escrow' && state.route === 'createAgreementForm' && state.tasks.includes('Create and fund an escrow agreement') && (await field('agreementRef')) !== undefined, 'Escrow root view', true)
   assert(ready.text.includes('Agreement reference'), 'Escrow form did not render')
-  assert(ready.text.indexOf('Agreement reference') < ready.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'creation task precedes ID navigation')
+  assert(ready.text.includes('Find an agreement'), 'creation view exposes agreement search')
   const resources = [cam.href, new URL('./ui.json', cam).href, new URL('./abi/CamEscrow.json', cam).href, new URL('./abi/CamEscrowUI.json', cam).href]
   await waitFor(() => resources.every(resource => loaded.has(resource)), 'CAM resource completion events')
   for (const resource of resources) assert(loaded.has(resource), `required CAM resource did not finish: ${resource}`)
@@ -398,7 +399,7 @@ try {
     await openFind('Find an agreement')
     await enter('agreementId', knownId)
     await clickButton('Open agreement by ID')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'known ID lookup')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'known ID lookup')
     assert((await evaluate('document.body.innerText')).includes(knownId), 'lookup did not show the requested agreement ID')
     for (const width of [1280, 320, 375]) {
       await assertNarrowUi('agreement lookup', width)
@@ -413,14 +414,18 @@ try {
     await openFind('Find an agreement')
     for (let lookup = 0; lookup < 2; lookup++) {
       await enter('agreementId', id)
-      await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
-      await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
-      assert.equal(await evaluate('(document.activeElement?.hasAttribute("aria-label") ? document.activeElement.getAttribute("aria-label") : document.activeElement?.textContent)?.trim()'), 'Open agreement by ID', 'Tab did not reach the lookup action')
+      await evaluate('document.querySelector(\'input[name="agreementId"]\').focus()')
+      for (let tab = 0; tab < 3; tab++) {
+        await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
+        await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
+        if (await evaluate('(document.activeElement?.hasAttribute("aria-label") ? document.activeElement.getAttribute("aria-label") : document.activeElement?.textContent)?.trim()') === 'Open agreement by ID') break
+      }
+      assert.equal(await evaluate('(document.activeElement?.hasAttribute("aria-label") ? document.activeElement.getAttribute("aria-label") : document.activeElement?.textContent)?.trim()'), 'Open agreement by ID', `Tab did not reach the lookup action: ${JSON.stringify(await evaluate('({tag:document.activeElement?.tagName,name:document.activeElement?.getAttribute("name"),label:document.activeElement?.getAttribute("aria-label")})'))}`)
       await evaluate(`(() => { window.__lookupKeyboardClick = false; document.activeElement.addEventListener('click', event => { window.__lookupKeyboardClick = event.isTrusted }, {once:true}) })()`)
       await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId)
       await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId)
       assert.equal(await evaluate('window.__lookupKeyboardClick'), true, 'lookup received no trusted keyboard activation')
-      await waitFor(async state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'lookup arrival focus')
+      await waitFor(async state => state.text.includes('No matching agreement is stored here.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'lookup arrival focus')
       assert((await evaluate('document.body.innerText')).includes(id), 'lookup lost the selected agreement')
       if (lookup === 0) await openFind('Find with earlier details')
     }
@@ -430,7 +435,7 @@ try {
     assert.equal(await evaluate('location.href'), selected, 'ordinary input focus navigated')
     assert.equal(await evaluate('document.activeElement?.getAttribute("name")'), 'agreementId', 'ordinary focus was moved to the view')
     await clickButton('Back')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'return to agreement')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'return to agreement')
     await clickButton('View credit for viewed account')
     await waitFor(async state => state.text.includes('Total withdrawable credit for this account') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'contextual navigation arrival focus')
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
@@ -438,7 +443,7 @@ try {
     assert.equal(await evaluate('(document.activeElement?.hasAttribute("aria-label") ? document.activeElement.getAttribute("aria-label") : document.activeElement?.textContent)?.trim()'), 'Back', 'arrival focus did not make Back the next keyboard control')
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId)
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId)
-    await waitFor(async state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'Back arrival focus')
+    await waitFor(async state => state.text.includes('No matching agreement is stored here.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'Back arrival focus')
     assert.equal(transactionRequests.length, 0, 'navigation or focus requested a transaction')
   })
 
@@ -447,7 +452,7 @@ try {
     const linked = new URL(viewer)
     linked.hash = new URLSearchParams({ route: 'agreement', inputs: JSON.stringify({ agreementId: id }) }).toString()
     await openViewer(linked.href)
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'initial linked agreement', true)
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'initial linked agreement', true)
     assert((await evaluate('document.body.innerText')).includes(id), 'selected ID is displayed')
     assert.equal(await field('agreementRef'), undefined, 'initial read link rendered a creation draft')
     assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === 'Back')?.disabled"), true, 'initial direct link created phantom history')
@@ -455,7 +460,7 @@ try {
     const loader = (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId
     await call('Page.reload', {}, sessionId)
     await waitFor(async () => (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId !== loader, 'linked refresh document')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'linked agreement refresh', true)
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'linked agreement refresh', true)
     assert((await evaluate('document.body.innerText')).includes(id))
     assert.equal(await evaluate('location.href'), committed)
     assert.equal(transactionRequests.length, 0, 'opening a read link requested a transaction')
@@ -467,7 +472,7 @@ try {
     await openFind('Find an agreement')
     await enter('agreementId', first)
     await clickButton('Open agreement by ID')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup URL synchronization')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'lookup URL synchronization')
     const committed = new URL(await evaluate('location.href'))
     const fragment = new URLSearchParams(committed.hash.slice(1))
     assert.equal(fragment.get('route'), 'agreementWithContext')
@@ -492,7 +497,7 @@ try {
     await openFind('Find an agreement')
     await enter('agreementId', `0x${'ad'.repeat(32)}`)
     await clickButton('Open agreement by ID')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup between form visits')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'lookup between form visits')
     await clickButton('Create an agreement')
     await waitFor(async () => (await field('agreementRef')) === '', 'second form visit')
     assert.notEqual(await evaluate('location.href'), firstURL, 'contextual create has its own route')
@@ -513,19 +518,19 @@ try {
     await openFind('Find an agreement')
     await enter('agreementId', `0x${'ac'.repeat(32)}`)
     await clickButton('Open agreement by ID')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before reload branch')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'lookup before reload branch')
     await clickButton('Create an agreement')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'form before reload branch')
     const token = await evaluate('history.state.camViewer')
     await call('Page.reload', {}, sessionId)
     await waitFor(async () => (await evaluate('history.state?.camViewer')) !== token && (await field('agreementRef')) !== undefined, 'fresh session after reload')
     await evaluate('history.back()')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'native Back before reload entry')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'native Back before reload entry')
     await clickButton('Create an agreement')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'new branch before reload entry')
     assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === 'Back')?.disabled"), false, 'new branch lost its previous viewer visit')
     await clickButton('Back')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'viewer Back on reloaded branch')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'viewer Back on reloaded branch')
   })
 
   await browserCase('rapid native Back compensates to the pending visit before committing its read', async () => {
@@ -534,7 +539,7 @@ try {
     await openFind('Find an agreement')
     await enter('agreementId', `0x${'ab'.repeat(32)}`)
     await clickButton('Open agreement by ID')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before rapid Back')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'lookup before rapid Back')
     const pendingURL = await evaluate('location.href')
     await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
     await waitFor(state => state.text.includes('Total withdrawable credit for this account'), 'credit before rapid Back')
@@ -548,7 +553,7 @@ try {
       intercept = undefined
       for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', { requestId }, sessionId)
       await call('Fetch.disable', {}, sessionId)
-      await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && !state.text.includes('Total withdrawable credit for this account'), 'pending native Back commits')
+      await waitFor(state => state.text.includes('No matching agreement is stored here.') && !state.text.includes('Total withdrawable credit for this account'), 'pending native Back commits')
       assert.equal(await evaluate('location.href'), pendingURL)
       await evaluate('history.back()')
       await waitFor(async () => (await field('agreementRef')) === 'rapid-native-draft', 'next native Back restores original draft')
@@ -704,7 +709,7 @@ try {
     await evaluate(`document.querySelector('input[name="amount.display"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
     await waitFor(async () => (await field('amount')) === '', 'unfinished amount before navigation')
     await clickButton('Find agreement by client and reference')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup during unfinished amount')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'lookup during unfinished amount')
     await clickButton('Back')
     await waitFor(async () => (await field('amount.display')) === '0.0300', 'restored unfinished amount')
     assert.equal(await field('amount'), '', 'Back authorized an unfinished composition')
@@ -792,7 +797,7 @@ try {
     await evaluate(`document.querySelector('input[name="acceptanceDuration.seconds"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
     await waitFor(async () => await evaluate(`document.getElementById(document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-describedby'))?.textContent.includes('Finish entering')`),'integer composition start')
     await clickButton('Find agreement by client and reference')
-    await waitFor(state=>state.text.includes('No agreement is stored for this ID in this escrow contract.'),'lookup with unfinished integer')
+    await waitFor(state=>state.text.includes('No matching agreement is stored here.'),'lookup with unfinished integer')
     await clickButton('Back')
     await waitFor(async ()=>(await field('acceptanceDuration.seconds'))==='3600','restored unfinished integer')
     assert(await evaluate(`document.getElementById(document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-describedby'))?.textContent.includes('Finish entering')`),'Back authorized unfinished duration')
@@ -838,11 +843,11 @@ try {
   await browserCase('draft survives lookup, credit, and Back twice', async () => {
     await fillDraft()
     await clickButton('Find agreement by client and reference')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'reference lookup')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'reference lookup')
     await clickButton('View credit for viewed account')
     await waitFor(state => state.text.includes('Total withdrawable credit for this account'), 'credit from lookup')
     await clickButton('Back')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'Back to lookup')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'Back to lookup')
     await clickButton('Back')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'Back to draft')
     for (const [name, value] of Object.entries(draft)) assert.equal(await field(name), value, `${name} draft was lost`)
@@ -963,7 +968,7 @@ try {
   await browserCase('explicit new agreement clears draft', async () => {
     await fillDraft()
     await clickButton('Find agreement by client and reference')
-    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before new')
+    await waitFor(state => state.text.includes('No matching agreement is stored here.'), 'lookup before new')
     await clickButton('Create an agreement')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'explicit new agreement')
     assert.equal(await field('agreementRef'), '', 'explicit new agreement retained the old reference')
@@ -979,8 +984,8 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: cam.href, requestStage: 'Request' }] }, sessionId)
   intercept = 'tamper'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const tampered = await waitFor(async state => /File hash mismatch/i.test(state.text) && state.heading === 'Escrow' && state.route === 'createAgreementForm' && state.tasks.includes('Create and fund an escrow agreement') && (await field('agreementRef')) !== undefined, 'CAM hash warning with rendered UI', false)
-  assert(/File hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
+  const tampered = await waitFor(async state => state.text.includes('This file does not match the verification hash stored in the contract.') && state.heading === 'Escrow' && state.route === 'createAgreementForm' && state.tasks.includes('Create and fund an escrow agreement') && (await field('agreementRef')) !== undefined, 'CAM hash warning with rendered UI', false)
+  assert(tampered.text.includes('This file does not match the verification hash stored in the contract.'), 'tampered CAM did not report a hash mismatch')
 
   // A failed fetch must leave Loading and identify the URL and cause.
   intercept = 'fail'

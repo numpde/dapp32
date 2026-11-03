@@ -253,7 +253,7 @@ async function inspect(customer, channelId) {
   if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel, or create a channel')`)) {
     await click('Change account or channel, or create a channel')
     await wait(state => state.readRoute === 'choosePosition', 'context-preserving chooser')
-    await assertHierarchy('choosePosition', ['View a balance', 'Create a channel (admin only)'], [])
+    await assertHierarchy('choosePosition', ['App navigation', 'View a balance', 'Create a channel (admin only)'], [])
   }
   await wait(state => state.buttons.some(button => button.name === 'View balance'), 'balance chooser')
   await fill('lookupCustomer', customer)
@@ -276,6 +276,7 @@ try {
   targetId = (await call('Target.createTarget', { url: 'about:blank', newWindow: false })).targetId
   sessionId = (await call('Target.attachToTarget', { targetId, flatten: true })).sessionId
   await call('Page.enable', {})
+  await call('Page.bringToFront', {})
   await call('Runtime.enable', {})
   await call('Network.enable', {})
   await call('Network.setCacheDisabled', { cacheDisabled: true })
@@ -296,7 +297,7 @@ try {
   await send('Create channel')
   const lookup = await wait(state => state.readRoute === 'channelLookup' && state.tasks.includes('View a balance') && state.fields.includes('lookupChannelId'), 'creation receipt lookup')
   assert(!lookup.buttons.some(button => button.name === 'Create channel'), 'receipt lookup must not repeat the channel creation form')
-  await assertHierarchy('channelLookup', ['View a balance'], [])
+  await assertHierarchy('channelLookup', ['App navigation', 'View a balance'], [])
   assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')
   const receipt = await publicClient.getTransactionReceipt({ hash: lastHash })
   const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && decodeEventLog({ abi, ...log }).eventName === 'ChannelCreated')
@@ -311,7 +312,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await click('View balance in this channel')
   await wait(state => state.readRoute === 'position' && state.values['Channel ID'] === id, 'open mined channel from receipt')
-  await assertHierarchy('position', ['Account and channel', 'Position status', 'Balance overview', 'Channel', 'Deposit', 'Withdraw or move funds', 'Voucher signing key', 'Voucher payments', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
+  await assertHierarchy('position', ['App navigation', 'Account and channel', 'Position status', 'Balance overview', 'Channel', 'Deposit', 'Withdraw or move funds', 'Voucher signing key', 'Voucher payments', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
   await inspect(accounts.customer.address, id)
   disabled(await evaluate(snapshot), 'Register permanent voucher key')
   await role('customer')
@@ -403,7 +404,7 @@ try {
   phase = 'voucher signing details'
   await click('View signing details')
   const details = await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
-  await assertHierarchy('voucherDigest', ['Account and channel', 'Voucher signing details'], [['Signing domain', 'Voucher signing details'], ['Signing key', 'Voucher signing details'], ['Voucher message', 'Voucher signing details']])
+  await assertHierarchy('voucherDigest', ['App navigation', 'Account and channel', 'Voucher signing details'], [['Signing domain', 'Voucher signing details'], ['Signing key', 'Voucher signing details'], ['Voucher message', 'Voucher signing details']])
   assert.equal(details.values['Invoice hash (bytes32)'], invoiceHash)
   assert.equal(details.values['Signing hash (EIP-712 digest)'], hashTypedData(typed))
   phase = 'voucher draft return'
@@ -477,7 +478,7 @@ try {
   await send('Deposit')
   await click('Manage recovery and channel closure')
   await wait(state => state.buttons.some(button => button.name === 'Set refund recipient' && !button.disabled), 'recovery controls')
-  await assertHierarchy('recovery', ['Account and channel', 'Position status', 'Balance recovery', 'Retire this channel'], [['Renew funding period', 'Balance recovery'], ['Choose refund recipient', 'Balance recovery'], ['Start wind-down', 'Balance recovery'], ['Refund balance', 'Balance recovery']])
+  await assertHierarchy('recovery', ['App navigation', 'Account and channel', 'Position status', 'Balance recovery', 'Retire this channel'], [['Renew funding period', 'Balance recovery'], ['Choose refund recipient', 'Balance recovery'], ['Start wind-down', 'Balance recovery'], ['Refund balance', 'Balance recovery']])
   await fill('newRefundRecipient', accounts.recipient.address)
   await send('Set refund recipient')
   await send('Start position wind-down')
