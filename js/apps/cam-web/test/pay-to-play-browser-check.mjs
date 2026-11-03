@@ -250,8 +250,8 @@ async function send(label, inspectReview) {
   await wait(state => sent === before + 1 && state.transactionHash === lastHash && state.transaction.includes('Transaction confirmed in block') && !state.prepared && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), `${label} confirmation and refreshed view`)
 }
 async function inspect(customer, channelId) {
-  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) {
-    await click('Change account or channel')
+  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel, or create a channel')`)) {
+    await click('Change account or channel, or create a channel')
     await wait(state => state.readRoute === 'choosePosition', 'context-preserving chooser')
     await assertHierarchy('choosePosition', ['View a balance', 'Create a channel (admin only)'], [])
   }
@@ -460,7 +460,7 @@ try {
   phase = 'zero-wait recovery channel'
   await role('admin')
   await inspect(accounts.admin.address, '0')
-  await click('Change account or channel')
+  await click('Change account or channel, or create a channel')
   await wait(state => state.readRoute === 'choosePosition' && state.fields.includes('newPayee'), 'new channel task on chooser')
   await fill('newPayee', accounts.recipient.address)
   await fill('newChannelCollector', accounts.relayer.address)

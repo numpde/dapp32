@@ -14,6 +14,16 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
+            "function": "$view.navigation",
+            "args": {
+              "view": "$view.task"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
             "function": "$view.screen",
             "args": {
               "view": "$view.task"
@@ -707,6 +717,86 @@
         }
       ]
     },
+    "navigation.none": {
+      "requires": ["view"],
+      "element": "Fragment",
+      "children": []
+    },
+    "navigation.lookup": {
+      "requires": ["view"],
+      "element": "Screen",
+      "props": { "title": "App navigation" },
+      "children": [
+        {
+          "element": "Button",
+          "props": { "label": "Choose a balance or create a channel" },
+          "call": { "namespace": "routes", "function": "home", "args": {} }
+        }
+      ]
+    },
+    "navigation.position": {
+      "requires": ["view"],
+      "element": "Screen",
+      "props": { "title": "App navigation" },
+      "children": [
+        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        {
+          "element": "Include",
+          "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } }
+        },
+        {
+          "element": "Include",
+          "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } }
+        }
+      ]
+    },
+    "navigation.recovery": {
+      "requires": ["view"],
+      "element": "Screen",
+      "props": { "title": "App navigation" },
+      "children": [
+        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } }
+      ]
+    },
+    "navigation.chooser": {
+      "requires": ["view"],
+      "element": "Screen",
+      "props": { "title": "App navigation" },
+      "children": [
+        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } } }
+      ]
+    },
+    "navigation.voucher": {
+      "requires": ["view"],
+      "element": "Screen",
+      "props": { "title": "App navigation" },
+      "children": [
+        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
+        {
+          "element": "Button",
+          "props": { "label": "View balance with fresh inputs" },
+          "call": { "namespace": "routes", "function": "position", "args": { "customer": "$view.customer", "channelId": "$view.channelId" } }
+        },
+        { "element": "Include", "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } } }
+      ]
+    },
+    "openPosition": {
+      "requires": ["view"],
+      "element": "Button",
+      "props": { "label": "Return to selected balance" },
+      "call": { "namespace": "routes", "function": "position", "args": { "customer": "$view.customer", "channelId": "$view.channelId" } }
+    },
+    "openRecovery": {
+      "requires": ["view"],
+      "element": "Button",
+      "props": { "label": "Manage recovery and channel closure" },
+      "call": { "namespace": "routes", "function": "recovery", "args": { "customer": "$view.customer", "channelId": "$view.channelId" } }
+    },
     "voucher": {
       "requires": [
         "view"
@@ -720,26 +810,6 @@
           },
           "children": [
             {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "accountIdentity",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "changePosition",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
               "element": "Text",
               "props": {
                 "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
@@ -749,20 +819,6 @@
               "element": "Text",
               "props": {
                 "text": "Back restores your earlier inputs when this session has a previous view. View balance with fresh inputs returns to the balance without those drafts."
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "View balance with fresh inputs"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "position",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId"
-                }
               }
             }
           ]
@@ -907,16 +963,6 @@
           },
           "children": [
             {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "accountIdentity",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
               "element": "Text",
               "props": {
                 "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
@@ -926,30 +972,6 @@
               "element": "Text",
               "props": {
                 "text": "Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "changePosition",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Manage recovery and channel closure"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "recovery",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId"
-                }
               }
             }
           ]
@@ -1194,43 +1216,9 @@
           },
           "children": [
             {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "accountIdentity",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "changePosition",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
               "element": "Text",
               "props": {
                 "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Return to account balance"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "position",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId"
-                }
               }
             }
           ]
@@ -1563,7 +1551,7 @@
     "changePosition": {
       "element": "Button",
       "props": {
-        "label": "Change account or channel"
+        "label": "Change account or channel, or create a channel"
       },
       "call": {
         "namespace": "routes",

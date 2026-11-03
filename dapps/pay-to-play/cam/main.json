@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xa4d0cea83311e8bff95e8dfe52183945d83fd2c5349edb3e38963b825c3b3b34"
+      "integrity": "sha256:0x6aafe5e9b562395766ddb502b9319f6cddbacaf729fd4a6209a56d59d6db7cbb"
     },
     "contracts.PayToPlayUI": {
       "type": "contract",
@@ -44,6 +44,7 @@
         "args": {
           "view": {
             "screen": "chooseBalance",
+            "navigation": "navigation.none",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "0",
@@ -75,6 +76,7 @@
         "args": {
           "view": {
             "screen": "position",
+            "navigation": "navigation.position",
             "task": "$outputs.0"
           }
         }
@@ -567,6 +569,7 @@
         "args": {
           "view": {
             "screen": "voucher",
+            "navigation": "navigation.voucher",
             "task": {
               "digest": "$outputs.0.digest",
               "customer": "$inputs.customer",
@@ -601,6 +604,7 @@
         "args": {
           "view": {
             "screen": "channelLookup",
+            "navigation": "navigation.lookup",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "",
@@ -632,6 +636,7 @@
         "args": {
           "view": {
             "screen": "chooseBalance",
+            "navigation": "navigation.chooser",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "$inputs.channelId",
@@ -663,6 +668,7 @@
         "args": {
           "view": {
             "screen": "recovery",
+            "navigation": "navigation.recovery",
             "task": "$outputs.0"
           }
         }
