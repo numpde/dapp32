@@ -123,11 +123,11 @@ engine, failed for the caller-owned Bike manifest. The previous UID 0 override
 therefore masked a real engine/user-namespace mapping problem on a refresh
 that needs to write. No actual output was modified during that probe.
 
-This invocation change must not claim to fix rootless output ownership, nor
-restore UID 0 to make the lane appear green. A durable fix needs a separately
-reviewed host-write/apply boundary or an engine-specific mapping strategy and
-proof of an actual changed output. That is distinct from preserving the
-validated Compose invocation and is not established by a no-op refresh.
+The invocation change did not fix rootless output ownership. A durable fix
+needs a separately reviewed host-write/apply boundary or an engine-specific
+mapping strategy and proof of an actual changed output. That is distinct from
+preserving the validated Compose invocation and is not established by a no-op
+refresh.
 
 ## Implementation review: literal lane URLs and scope
 
@@ -154,3 +154,93 @@ Review also identified overridable Compose-file groups as a distinct boundary.
 The recovery lane intentionally passes an overlay through one such group, so
 protecting them wholesale would change supported behavior. This revision does
 not claim to harden arbitrary Compose-file overrides.
+
+## Rootless refresh follow-up: candidate and constraint
+
+Independent reviews confirmed that both `cam/integrity/refresh` and the final
+integrity step of `cam/abi/export` call the same direct-write Compose service.
+A plausible non-root replacement stages CAM resources in container-local tmpfs,
+validates all dapps, exports only six explicitly admitted output files to a
+private host stage, then applies those files as the caller. Generator failure
+must leave checkout outputs unchanged. A fourth CAM manifest must fail closed;
+staged source drift must be detected before apply; apply failures must report
+which outputs may have changed because six files are not one atomic operation.
+
+This is a change to the current repository instruction that integrity refresh
+may rewrite only the explicitly pre-existing writable bind mounts. Host-side
+apply would preserve the exact output set but change who performs the writes
+and bypass those bind mounts. It must not be presented as the same authority
+boundary. Host Python or Node also cannot be assumed; archive or stream output
+must be bounded and validated without allowing container-controlled paths.
+
+The independent ABI export plan and ABI output directories have the same
+rootless UID-mapping issue before this integrity step. This candidate would not
+make `cam/abi/export` succeed on this engine; that earlier phase needs its own
+bounded design and proof.
+
+## Rootless refresh: two concrete resolution paths
+
+1. **Host-owned apply.** The offline container stays at the validated non-root
+   UID/GID, reads the checkout, generates into private tmpfs, and exports a
+   bounded fixed-order set of six files. The host validates the complete output
+   and applies only the six pre-existing paths. This changes the rule that
+   refresh writes occur through explicit output bind mounts. All inputs—not
+   only outputs—must be checked for drift before apply. Apply must preserve
+   existing inode semantics for consumers with individual file binds, or
+   deliberately change that contract; six files cannot be updated atomically
+   as one unit. No host Python or Node may be assumed.
+2. **Rootless namespace UID 0 for this service.** Detect the selected engine's
+   rootless posture and deliberately run the integrity process as 0:0 only in
+   that case; retain its offline network, read-only root, dropped capabilities,
+   no-new-privileges, and six exact writable file binds. The daemon owner maps
+   to namespace UID 0 in the tested rootless engine. This preserves the bind
+   boundary but is an explicit exception to using the validated UID/GID as the
+   container identity. A rootful or indeterminate engine must never take this
+   exception. `js/deps/install` already makes this distinction for its apply
+   stage, but that precedent alone does not prove suitability here.
+
+Neither option resolves the earlier plan-directory and ABI-directory writes in
+`cam/abi/export`. For either choice, the acceptance test is a disposable
+caller-owned checkout with deliberately stale UI digest, an actual changed
+refresh, verified output ownership and exact hashes, followed by an idempotent
+rerun and a rootful/indeterminate-engine selection test where applicable.
+
+## Resolution selected after review
+
+Retain the prescribed six writable bind mounts and select namespace UID 0 only
+when the selected Docker engine reports rootless mode. This follows the
+repository's existing dependency-apply precedent, while making the exception
+explicit: the Make caller remains non-root, but the integrity container is
+namespace root. Before any refresh writes, the generator verifies that every
+discovered manifest and protocol output is owned and writable by that mapped
+identity. Engine-info failure or an empty result is not a rootless fallback.
+The service remains offline, capability-free, and under no-new-privileges.
+
+This does not fix the earlier rootless ABI export plan or ABI output phase.
+
+Further audit tightened the exception: a rootless refresh rejects requested
+UID/GID values different from the invoking user and group. The host checks
+that all six approved outputs are owned by the invoking user; inside the
+namespace, the generator checks ownership, write access, and single-link
+regular files for all discovered outputs before it writes. Engine inspection
+is time- and output-bounded. The integrity Compose file selection is protected
+from ordinary Make overrides because the namespace-root exception depends on
+its exact mounts and capability posture.
+
+## Rootless refresh: verification and limits
+
+On the selected rootless engine, a disposable caller-owned checkout with a
+stale Bike UI digest refreshed one manifest. Its resulting digest matched the
+exact UI bytes and the output remained caller-owned; a second run refreshed
+zero manifests. A further disposable test added an unapproved fourth CAM app
+and made an existing digest stale: the preflight rejected the fourth app's
+read-only output before the existing manifest changed. No working-tree output
+was changed by those probes.
+
+The engine security-option probe is time- and size-bounded and rejects NULs
+and malformed entries before selecting namespace UID 0. A fake-engine test
+covers rootless, rootful, unavailable, empty, oversized and malformed responses, mismatched
+requested IDs, and attempts to override the fixed Compose selection or output
+guard. The host- and container-side ownership checks are preflights, not a
+claim of race-free protection against concurrent path replacement. Refresh
+still writes files in place and a later failure can leave earlier changes.
