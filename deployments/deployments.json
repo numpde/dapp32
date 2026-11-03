@@ -12,6 +12,17 @@
         "BicycleComponents",
         "BicycleComponentManagerUI"
       ]
+    },
+    {
+      "id": "pay-to-play-fuji",
+      "name": "Pay-to-Play",
+      "guide": "../pay-to-play/",
+      "network": "avalanche-fuji",
+      "host": "0x2714D4566FFf401957a9096C9A6c39d686877D3A",
+      "contracts": [
+        "PayToPlay",
+        "PayToPlayUI"
+      ]
     }
   ]
 }
