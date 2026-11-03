@@ -214,13 +214,24 @@ test("agreement evidence fields explain explicit calculation and required pairs 
     viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [],
   })), CONTEXT)
   for (const field of ["submissionUri", "disputeUri"]) {
+    const input = requiredField(resolvedUi, field)
+    assert.equal(input.element, "UriField")
+    if (input.element !== "UriField") throw new Error("Expected a URI field")
+    assert.equal(input.props.maxBytes, "512")
     const help = precedingHelp(resolvedUi, field)
     assert.match(help, /both fields are required/i)
     assert.match(help, /512 UTF-8 bytes/)
     assert.match(help, /exact file bytes or a browser-readable URL/)
+    assert.match(help, /embedded content, calculate it directly/)
     assert.match(help, /enter the digest manually/)
     assert.match(help, /not uploaded or checked against the URI/)
   }
+  const recordedUris = new Map<string, string>()
+  forEachResolvedUiNode(resolvedUi, node => {
+    if (node.element === "Uri") recordedUris.set(String(node.props.label), String(node.props.value))
+  })
+  assert.equal(recordedUris.get("Submission URI"), "ipfs://submission")
+  assert.equal(recordedUris.get("Dispute URI"), "")
   const texts: string[] = []
   forEachResolvedUiNode(resolvedUi, (node) => {
     if (node.element === "Text") texts.push(String(node.props.text))
@@ -228,6 +239,19 @@ test("agreement evidence fields explain explicit calculation and required pairs 
   assert.ok(texts.some((text) => /ordinary phase actions stop at or after this deadline; finalizing its timeout still needs a transaction/.test(text)))
   assert.ok(texts.some((text) => /claimed SHA-256 fingerprint/.test(text) && /do not fetch or verify/.test(text)))
   assert.ok(texts.some((text) => /empty evidence URI and all-zero digest/.test(text)))
+})
+
+test("document transaction review exposes the exact URI", async () => {
+  const ui = await escrowUi()
+  const view = {
+    ...agreementView({ viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [] }),
+    title: "Review document",
+    document: document("data:text/plain,Work%20evidence", "22"),
+  }
+  const resolved = resolveUiNode(ui, "escrow.agreement.document.review", args(view), CONTEXT)
+  const uris: string[] = []
+  forEachResolvedUiNode(resolved, node => { if (node.element === "Uri") uris.push(String(node.props.value)) })
+  assert.deepEqual(uris, [view.document.uri])
 })
 
 test("credit distinguishes the credit owner, full amount and withdrawal destination", async () => {

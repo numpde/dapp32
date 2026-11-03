@@ -773,7 +773,7 @@
           }
         },
         {
-          "element": "Status",
+          "element": "Uri",
           "props": {
             "label": "Submission URI",
             "value": "$view.agreement.submission.uri"
@@ -787,7 +787,7 @@
           }
         },
         {
-          "element": "Status",
+          "element": "Uri",
           "props": {
             "label": "Dispute URI",
             "value": "$view.agreement.dispute.uri"
@@ -1480,13 +1480,14 @@
         {
           "element": "Text",
           "props": {
-            "text": "“Submission URI” is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
+            "text": "Enter the submission URI or embed a short document. The URI is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL; for embedded content, calculate it directly. You can also enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
           }
         },
         {
-          "element": "TextField",
+          "element": "UriField",
           "props": {
-            "label": "Submission URI"
+            "label": "Submission URI",
+            "maxBytes": "512"
           },
           "state": {
             "key": "submissionUri",
@@ -1542,13 +1543,14 @@
         {
           "element": "Text",
           "props": {
-            "text": "“Dispute URI” is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL, or enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
+            "text": "Enter the dispute URI or embed a short document. The URI is limited to 512 UTF-8 bytes. Calculate SHA-256 from the exact file bytes or a browser-readable URL; for embedded content, calculate it directly. You can also enter the digest manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
           }
         },
         {
-          "element": "TextField",
+          "element": "UriField",
           "props": {
-            "label": "Dispute URI"
+            "label": "Dispute URI",
+            "maxBytes": "512"
           },
           "state": {
             "key": "disputeUri",
@@ -1937,7 +1939,7 @@
           }
         },
         {
-          "element": "Status",
+          "element": "Uri",
           "props": {
             "label": "Document URI",
             "value": "$view.document.uri"

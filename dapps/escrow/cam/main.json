@@ -22,7 +22,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x8434a35509d06599d268a1d6024e9a6cd0b813a28902aa096ae329abf1bf0583"
+      "integrity": "sha256:0xe19c31816f14e7105f4e6f3f4010e4b8f1aa50af94e18e1400e8874be8712a1b"
     }
   },
   "routes": {

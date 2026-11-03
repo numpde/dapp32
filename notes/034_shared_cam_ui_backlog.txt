@@ -23,8 +23,8 @@ Shared CAM UI backlog
    Related evidence: note 031, issue 28 (Escrow recorded documents).
    Design workshop and cross-app inventory: note 041.
    The first slice adds shared URI elements, embedded text/JSON and decoded
-   document hashing for Escrow terms. Submission/dispute documents and NFT
-   integration remain to be assessed against their distinct workflows.
+   document hashing for Escrow terms, submissions and disputes. NFT
+   integration remains to be assessed against its distinct workflow.
 
 2. Compact shared document-hash editor
 
