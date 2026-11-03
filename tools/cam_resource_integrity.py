@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -38,6 +39,18 @@ def reject_symlinked_manifest_path(manifest_path: Path) -> None:
     for path in (manifest_path.parent.parent, manifest_path.parent, manifest_path):
         if path.is_symlink():
             raise CamResourceIntegrityError(f"refusing symlinked CAM manifest path: {path}")
+
+
+def require_owned_outputs(dapps_root: Path) -> None:
+    """Verify rootless namespace identity owns every output before any write."""
+    manifests = sorted(dapps_root.glob("*/cam/main.json"))
+    if not manifests:
+        raise CamResourceIntegrityError(f"no CAM manifests found under {dapps_root}")
+    for manifest in manifests:
+        reject_symlinked_manifest_path(manifest)
+        for path in (manifest, manifest.parent / "protocol.html"):
+            if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1 or path.stat().st_uid != os.geteuid() or not os.access(path, os.W_OK):
+                raise CamResourceIntegrityError(f"rootless CAM output is not owned and writable by the selected engine user: {path}")
 
 
 def refresh_dapps(dapps_root: Path) -> int:
@@ -277,8 +290,8 @@ def write_json_in_place(path: Path, document: dict[object, object]) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        raise SystemExit("usage: cam_resource_integrity.py <dapps-root>")
+    if len(argv) not in (2, 3) or (len(argv) == 3 and argv[2] != "--require-owned-outputs"):
+        raise SystemExit("usage: cam_resource_integrity.py <dapps-root> [--require-owned-outputs]")
 
     # Compose runs this script with Python isolated mode, so the repository root
     # is not importable by default. Keep that path mutation local to CLI use so
@@ -286,6 +299,8 @@ def main(argv: list[str]) -> int:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
     try:
+        if len(argv) == 3:
+            require_owned_outputs(Path(argv[1]))
         changed = refresh_dapps(Path(argv[1]))
     except CamResourceIntegrityError as error:
         raise SystemExit(f"cam-resource-integrity: {error}") from error

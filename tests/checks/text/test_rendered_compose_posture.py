@@ -360,7 +360,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn(f"! -f docs/reference/cam/{protocol_document_version('CAM_VERSION')}/index.html", makefile)
         refresh_recipe = makefile.split("\ncam/integrity/refresh:\n", 1)[1].split("\n\n", 1)[0]
         self.assertLess(refresh_recipe.index("$(LANE_GUARD)"), refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"))
-        self.assertLess(refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"), refresh_recipe.index("$(DOCKER_COMPOSE)"))
+        self.assertLess(refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"), refresh_recipe.index("$(call cam_integrity_refresh,)"))
 
     def test_rendered_compose_fixture_values_override_ambient_inputs(self) -> None:
         baseline = compose_render_env()

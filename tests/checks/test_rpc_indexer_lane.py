@@ -60,23 +60,75 @@ class RpcIndexerLaneTest(unittest.TestCase):
             text=True,
             capture_output=True,
             check=False,
-            timeout=10,
+            timeout=20,
         )
 
-    def test_compose_receives_guarded_identity_despite_internal_overrides(self) -> None:
+    def prepare_cam_outputs(self) -> None:
         reference = self.checkout / "docs/reference/cam/1.4.0/index.html"
-        reference.parent.mkdir(parents=True)
+        reference.parent.mkdir(parents=True, exist_ok=True)
         reference.touch()
         for app in ("bike-nft", "escrow", "pay-to-play"):
             path = self.checkout / "dapps" / app / "cam"
-            path.mkdir(parents=True)
+            path.mkdir(parents=True, exist_ok=True)
             for name in ("main.json", "protocol.html"):
                 (path / name).touch()
+
+    def test_integrity_identity_tracks_the_selected_engine(self) -> None:
+        self.prepare_cam_outputs()
+        events = self.directory / "engine-events"
+        for engine in ("rootful", "rootless", "unavailable", "malformed", "nul", "empty", "oversized"):
+            with self.subTest(engine=engine):
+                self.calls.unlink(missing_ok=True)
+                identity = (f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid()}") if engine == "rootless" else ("LOCAL_UID=1234", "LOCAL_GID=1235")
+                result = self.make("cam/integrity/refresh", overrides=identity, extra_environment={"TEST_ENGINE": engine, "TEST_EVENTS": str(events)})
+                if engine in ("unavailable", "malformed", "nul", "empty", "oversized"):
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertFalse(self.calls.exists())
+                    continue
+                self.assertEqual(0, result.returncode, result.stderr)
+                actual = self.calls.read_text().splitlines()
+                self.assertIn("0:0" if engine == "rootless" else "1234:1235", actual)
+                self.assertEqual(engine == "rootless", "--require-owned-outputs" in actual)
+                self.assertEqual(engine == "rootless", "namespace UID 0" in result.stderr)
+        for identity in ((f"LOCAL_UID={os.getuid() + 1}", f"LOCAL_GID={os.getgid()}"), (f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid() + 1}")):
+            with self.subTest(mismatched_identity=identity):
+                self.calls.unlink(missing_ok=True)
+                result = self.make("cam/integrity/refresh", overrides=identity, extra_environment={"TEST_ENGINE": "rootless", "TEST_EVENTS": str(events)})
+                self.assertNotEqual(0, result.returncode)
+                self.assertFalse(self.calls.exists())
+        result = self.make("cam/integrity/refresh", overrides=("COMPOSE_DIR=/tmp/wrong", "CAM_COMPOSE_FILES=-f /tmp/wrong.yml"), extra_environment={"TEST_ENGINE": "rootless", "TEST_EVENTS": str(events)})
+        self.assertEqual(0, result.returncode, result.stderr)
+        actual = self.calls.read_text().splitlines()
+        self.assertIn("compose/cam.yml", actual)
+        self.assertNotIn("/tmp/wrong.yml", actual)
+
+    def test_stalled_engine_probe_times_out_and_removes_its_temporary_file(self) -> None:
+        self.prepare_cam_outputs()
+        temporary = self.directory / "probe-tmp"
+        temporary.mkdir()
+        result = self.make("cam/integrity/refresh", extra_environment={"TEST_ENGINE": "stalled", "TEST_EVENTS": str(self.directory / "events"), "TMPDIR": str(temporary)})
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("Cannot inspect the selected Docker engine security posture", result.stderr)
+        self.assertFalse(self.calls.exists())
+        self.assertEqual([], list(temporary.iterdir()))
+
+    def test_missing_cam_output_cannot_bypass_preflight(self) -> None:
+        self.prepare_cam_outputs()
+        (self.checkout / "dapps/bike-nft/cam/main.json").unlink()
+        events = self.directory / "engine-events"
+        result = self.make("cam/integrity/refresh", overrides=("CAM_RESOURCE_OUTPUT_GUARD=: ",), extra_environment={"TEST_ENGINE": "rootless", "TEST_EVENTS": str(events)})
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.calls.exists())
+        self.assertFalse(events.exists())
+
+    def test_compose_receives_guarded_identity_despite_internal_overrides(self) -> None:
+        self.prepare_cam_outputs()
+        events = self.directory / "engine-events"
         poison = "LOCAL_UID=0 LOCAL_GID=0 COMPOSE_PROJECT_NAME=wrong"
         for source in ("command", "environment", "environment-e"):
             with self.subTest(source=source):
                 self.calls.unlink(missing_ok=True)
-                result = self.make("cam/integrity/refresh", overrides=("LOCAL_UID=1234", "LOCAL_GID=1235", *((f"COMPOSE_ENV={poison}",) if source == "command" else ())), extra_environment={"COMPOSE_ENV": poison} if source != "command" else None, environment_override=source == "environment-e")
+                result = self.make("cam/integrity/refresh", overrides=("LOCAL_UID=1234", "LOCAL_GID=1235", *((f"COMPOSE_ENV={poison}",) if source == "command" else ())), extra_environment={"TEST_ENGINE": "rootful", "TEST_EVENTS": str(events), **({"COMPOSE_ENV": poison} if source != "command" else {})}, environment_override=source == "environment-e")
                 self.assertEqual(0, result.returncode, result.stderr)
                 actual = self.calls.read_text().splitlines()
                 self.assertIn("project=rpc-lane-check", actual)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import unittest
 from unittest.mock import patch
@@ -18,6 +19,7 @@ from tools.cam_resource_integrity import (
     ROUTES_NAMESPACE,
     UI_NAMESPACE,
     refresh_manifest,
+    require_owned_outputs,
 )
 from tools.json_policy import read_strict_json
 
@@ -63,6 +65,27 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
 
                 self.assertEqual(manifest_before, manifest_path.read_bytes())
                 self.assertEqual(b"previous protocol", protocol_path.read_bytes())
+
+    def test_rootless_output_preflight_checks_all_outputs_before_refresh(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for app in ("first", "second"):
+                cam = root / app / "cam"
+                cam.mkdir(parents=True)
+                (cam / "main.json").write_text("original manifest", encoding="utf-8")
+                (cam / "protocol.html").write_text("original protocol", encoding="utf-8")
+            require_owned_outputs(root)
+            with patch("tools.cam_resource_integrity.os.geteuid", return_value=-1):
+                with self.assertRaisesRegex(CamResourceIntegrityError, "not owned and writable"):
+                    require_owned_outputs(root)
+            for app in ("first", "second"):
+                self.assertEqual("original manifest", (root / app / "cam/main.json").read_text())
+                self.assertEqual("original protocol", (root / app / "cam/protocol.html").read_text())
+            linked = root / "second/cam/protocol.html"
+            linked.unlink()
+            os.link(root / "first/cam/protocol.html", linked)
+            with self.assertRaisesRegex(CamResourceIntegrityError, "not owned and writable"):
+                require_owned_outputs(root)
 
     def test_refresh_rejects_non_object_protocol_without_writes(self) -> None:
         malformed_values = (

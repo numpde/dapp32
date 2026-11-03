@@ -22,6 +22,11 @@ if [[ $1 == --host && $2 == "$ENDPOINT" ]]; then
   if [[ $1 == info && -v TEST_ENGINE ]]; then
     printf '%s\n' "$*" >> "$TEST_EVENTS"
     [[ $TEST_ENGINE != unavailable ]] || exit 42
+    if [[ $TEST_ENGINE == malformed ]]; then printf 'malformed\nname=rootless\n'; exit 0; fi
+    if [[ $TEST_ENGINE == nul ]]; then printf 'name=roo\0tless\n'; exit 0; fi
+    if [[ $TEST_ENGINE == empty ]]; then exit 0; fi
+    if [[ $TEST_ENGINE == oversized ]]; then printf 'name=%016384d\n' 0; exit 0; fi
+    if [[ $TEST_ENGINE == stalled ]]; then exec sleep 30; fi
     printf 'name=seccomp,profile=builtin\n'
     if [[ $TEST_ENGINE == rootless ]]; then printf 'name=rootless\n'; fi
     exit 0
