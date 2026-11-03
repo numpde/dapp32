@@ -157,6 +157,39 @@ function conditionalSupportingPresence(ancestors: readonly ESTree.Node[], scope:
   return false
 }
 
+// A whole field may be conditional, but commentary within an existing field
+// must not appear as its state changes. Buttons and hidden descriptions own
+// their own state; Feedback owns actual operation failures.
+function fieldCommentary(ancestors: readonly ESTree.Node[], scope: Scope, conditional: boolean): boolean {
+  for (let index = ancestors.length - 1; index >= 0; index--) {
+    const ancestor = ancestors[index]!
+    const tag = nativeTag(ancestor, scope)
+    const classes = elementProperty(ancestor, "className", scope)?.split(/\s+/u) ?? []
+    if (tag === "button" || classes.includes("visually-hidden")) return false
+    if (tag === "section" && elementProperty(ancestor, "role", scope) === "tabpanel") return false
+    if (tag === "label" || tag === "fieldset") return conditional
+    if (ancestor.type === "ConditionalExpression" || ancestor.type === "LogicalExpression") conditional = true
+  }
+  return false
+}
+
+function conditionalText(node: ESTree.Node): boolean {
+  function containsText(value: ESTree.Node): boolean {
+    if (value.type === "Literal") return typeof value.value === "string" && value.value.trim() !== ""
+    if (value.type === "TemplateLiteral") return value.quasis.some(part => Boolean(part.value.cooked?.trim()))
+    if (value.type === "ConditionalExpression") return containsText(value.consequent) || containsText(value.alternate)
+    if (value.type === "LogicalExpression") return containsText(value.right)
+    return false
+  }
+  return (node.type === "ConditionalExpression" || node.type === "LogicalExpression") && containsText(node)
+}
+
+function appearingText(node: ESTree.Node): boolean {
+  if (node.type === "LogicalExpression") return conditionalText(node)
+  if (node.type !== "ConditionalExpression" || !conditionalText(node)) return false
+  return [node.consequent, node.alternate].some(branch => branch.type === "Literal" && (branch.value === null || branch.value === "" || branch.value === false))
+}
+
 // This is a source ownership check for statically named JSX and browser APIs,
 // not an interpreter for dynamic React construction or a JavaScript sandbox.
 // Supporting-copy rules cover declared helper classes, not dynamically constructed roles.
@@ -185,6 +218,23 @@ function ownershipFailures(sources: readonly Source[]): string[] {
           const element = node.type === "CallExpression" ? node : parent?.type === "JSXElement" ? parent : node
           if (conditionalSupportingPresence(ancestors, scope) || !staticSupportingMarkup(element, scope, new Set())) failures.push(`${owner}: visible supporting prose must be static within its view; use accessible descriptions, shared feedback or value rows`)
         }
+      }
+      if (tag !== undefined && ["p", "span", "small", "output"].includes(tag)) {
+        const classes = elementProperty(node, "className", scope)?.split(/\s+/u) ?? []
+        const element = node.type === "CallExpression" ? node : ancestors.at(-1)
+        const live = elementProperty(node, "role", scope) === "status" || ["polite", "assertive"].includes(elementProperty(node, "aria-live", scope) ?? "")
+        const changesStatus = live && element !== undefined && elementChildren(element, scope).some(child => {
+          const expression = child.type === "JSXExpressionContainer" ? child.expression : child
+          return expression.type === "ConditionalExpression" || expression.type === "LogicalExpression"
+        })
+        if (!classes.includes("visually-hidden") && fieldCommentary(ancestors, scope, changesStatus)) failures.push(`${owner}: field commentary must not appear conditionally; use the control or an accessible description`)
+      }
+      if (node.type === "JSXExpressionContainer" && node.expression.type !== "JSXEmptyExpression" && conditionalText(node.expression)) {
+        const parent = ancestors.at(-1)
+        const tag = parent === undefined ? undefined : nativeTag(parent, scope)
+        const directText = tag !== undefined && ["label", "fieldset", "div"].includes(tag)
+        const appearing = tag !== undefined && ["p", "span", "small", "output"].includes(tag) && appearingText(node.expression)
+        if ((directText || appearing) && fieldCommentary(ancestors, scope, true)) failures.push(`${owner}: field commentary must not appear conditionally; use the control or an accessible description`)
       }
       // Groups may contain read-only controls such as Copy; each edit control owns its disabled state.
       if (tag === "fieldset") {
@@ -270,4 +320,25 @@ test("supporting prose is static within its view while causes, facts and task co
     "export function bad(status:string){return <p className='field-hint' children={messageFor(status)}>{/* comment */}\n  </p>}",
     "export function bad(selected:boolean,invalid:boolean){return selected?<section role='tabpanel'>{invalid?<p className='field-hint'>Correct it.</p>:null}</section>:null}",
   ]) assert.notDeepEqual(ownershipFailures([rowOwner, copyOwner, { name: "help.tsx", text }]), [], text)
+})
+
+test("field commentary does not appear conditionally, regardless of its tag or class", () => {
+  for (const text of [
+    "export function field(show:boolean){return show?<label><span>Address</span><input/></label>:null}",
+    "export function field(bad:boolean){return <label><span>Address</span><input/>{bad?<span className='visually-hidden'>Invalid</span>:null}</label>}",
+    "export function field(busy:boolean){return <fieldset><input/><button>{busy?<span>Checking</span>:<span>Check</span>}</button></fieldset>}",
+    "export function field(bad:boolean){return <fieldset><input/>{bad?<Feedback report='Invalid'/>:null}</fieldset>}",
+    "export function field(tab:boolean){return <fieldset>{tab?<section role='tabpanel'><label>URL<input/></label></section>:null}</fieldset>}",
+  ]) assert.deepEqual(ownershipFailures([rowOwner, copyOwner, { name: "field.tsx", text }]), [], text)
+  for (const text of [
+    "export function field(bad:boolean){return <label><span>Address</span><input/>{bad?<small>Invalid</small>:null}</label>}",
+    "export function field(busy:boolean){return <fieldset><input/>{busy&&<span className='different-class'>Checking</span>}</fieldset>}",
+    "export function field(bad:boolean){return <fieldset><input/>{bad&&<div><output>Invalid</output></div>}</fieldset>}",
+    "export function field(bad:boolean){return <label>Address<input/>{bad&&'Invalid'}</label>}",
+    "export function field(bad:boolean){return <fieldset><input/><span>{bad?'Invalid':''}</span></fieldset>}",
+    "export function field(busy:boolean){return <fieldset><input/><span role='status'>{busy?'Checking':''}</span></fieldset>}",
+    "export function field(busy:boolean){return <fieldset><input/><span aria-live='polite'>{busy&&'Checking'}</span></fieldset>}",
+    "export function field(bad:boolean){return <section role='tabpanel'><label>Address<input/>{bad&&<span>Invalid</span>}</label></section>}",
+    "import {createElement as h} from 'react';export function field(bad:boolean){return h('fieldset',null,h('input'),bad?h('p',null,'Invalid'):null)}",
+  ]) assert(ownershipFailures([rowOwner, copyOwner, { name: "field.tsx", text }]).some(failure => failure.includes("field commentary")), text)
 })
