@@ -112,7 +112,7 @@ class ApprovalImageOperatorTest(unittest.TestCase):
                 if outcome == "explicit":
                     environment.update(SOURCE_COMMIT="e" * 40, RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=str(root / "explicit-output"))
                 generated = subprocess.run(
-                    ["make", "--no-print-directory", "--dry-run", "release/approval/image/build", "LANE_GUARD=:", "DOCKER_CONTEXT=fixture"],
+                    ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), "-f", str(ROOT / "tests/fixtures/disable-lane-guard.mk"), "release/approval/image/build", "LANE_GUARD=:", "DOCKER_CONTEXT=fixture"],
                     cwd=ROOT, env=make_environment(environment), capture_output=True, text=True, check=True,
                 )
                 script = r'''

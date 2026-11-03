@@ -353,7 +353,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_cam_refresh_guards_the_canonical_source_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
-        first_party_roots = re.search(r"^FIRST_PARTY_ROOTS := (.+)$", makefile, re.MULTILINE)
+        first_party_roots = re.search(r"^(?:override )?FIRST_PARTY_ROOTS := (.+)$", makefile, re.MULTILINE)
         self.assertIsNotNone(first_party_roots)
         assert first_party_roots is not None
         self.assertIn("docs", first_party_roots.group(1).split())

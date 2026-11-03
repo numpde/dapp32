@@ -1,3 +1,12 @@
+# Reject external Make expressions before any shell probe can export them.
+override define reject_external_make_expression
+$(and $(filter command line environment environment override,$(origin $(1))),$(findstring $$,$(value $(1))),$(error $(1) must not contain Make expression syntax))
+endef
+override COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME VIEWER_COMPOSE_PROJECT_NAME RELEASE_VIEWER_COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
+$(foreach name,LOCAL_UID LOCAL_GID ALLOW_UPDATE $(COMPOSE_PROJECT_NAME_VARS) ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN CAM_URI CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS VIEWER_TERMINAL_MOCK,$(call reject_external_make_expression,$(name)))
+
+$(foreach name,DEPS_COMPOSE_ENV PACKAGE_DEPS_COMPOSE_ENV ABI_EXPORT_COMPOSE_ENV RPC_COMPOSE_ENV RPC_INDEXER_COMPOSE_ENV ANVIL_COMPOSE_ENV LIVE_CHECK_COMPOSE_ENV BIKE_NFT_COMPOSE_ENV BIKE_NFT_LOCAL_COMPOSE_ENV BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV BIKE_NFT_VIEWER_GUI_COMPOSE_ENV BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV ESCROW_COMPOSE_ENV ESCROW_LOCAL_SCENARIO_COMPOSE_ENV ESCROW_VIEWER_TERMINAL_COMPOSE_ENV ESCROW_VIEWER_GUI_COMPOSE_ENV ESCROW_RELEASE_CHECK_COMPOSE_ENV TEST_INTEGRATION_FUZZ_ENV TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV VIEWER_TERMINAL_COMPOSE_ENV ANVIL_INTERNAL_COMPOSE_ENV ANVIL_HOST_COMPOSE_ENV ANVIL_ALL_COMPOSE_ENV PAY_TO_PLAY_COMPOSE_ENV PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV COMPOSE_ENV COMPOSE_PROJECT_NAME_VARS cleanup_disposable_project disposable_cleanup_command LANE_GUARD NON_ROOT_GUARD COMPOSE_PROJECT_NAME_GUARD REPO_SHAPE_GUARD FIRST_PARTY_ROOTS ACTUAL_UID ACTUAL_GID DEPS_COMPOSE_PROJECT_NAME PACKAGE_DEPS_COMPOSE_PROJECT_NAME ABI_EXPORT_COMPOSE_PROJECT_NAME ALLOW_UPDATE_GUARD ANVIL_HOST_PORT_GUARD BIKE_NFT_GUI_BIND_GUARD ESCROW_GUI_BIND_GUARD PAY_TO_PLAY_GUI_BIND_GUARD CAM_URI_GUARD CAM_INTEGRATION_INPUT_GUARD VIEWER_TERMINAL_MOCK_GUARD,$(call reject_external_make_expression,$(name)))
+
 # Parse-time probes use a noninteractive POSIX shell, which does not load
 # Bash's ambient startup file. Recipes use Bash after these probes are set up.
 override SHELL := /bin/sh
@@ -130,8 +139,8 @@ VIEWER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-viewer
 export VIEWER_IMAGE VIEWER_BIND_HOST VIEWER_PORT VIEWER_COMPOSE_PROJECT_NAME
 RELEASE_ARTIFACT_NODE_MODULES_DIR ?= $(CURDIR)/js/node_modules
 export RELEASE_ARTIFACT_NODE_MODULES_DIR
-ACTUAL_UID := $(shell id -u)
-ACTUAL_GID := $(shell id -g)
+override ACTUAL_UID := $(shell id -u)
+override ACTUAL_GID := $(shell id -g)
 LOCAL_UID ?= $(ACTUAL_UID)
 LOCAL_GID ?= $(ACTUAL_GID)
 override SHELL := bash
@@ -169,12 +178,12 @@ VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-viewer-terminal
 VIEWER_TERMINAL_CONTAINER_NAME ?= $(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME)-session
 VIEWER_TERMINAL_MOCK ?= bike-nft
 CAM_URI ?=
-BIKE_NFT_CAM_HTTP_ORIGIN := http://bike-nft-cam-http:8080
-BIKE_NFT_BROADCAST_DIR := /foundry-broadcast
-BIKE_NFT_BROADCAST_PATH := $(BIKE_NFT_BROADCAST_DIR)/DeployBikeNftLocal.s.sol/31337/run-latest.json
-ESCROW_CAM_HTTP_ORIGIN := http://escrow-cam-http:8080
-ESCROW_BROADCAST_DIR := /foundry-broadcast
-ESCROW_BROADCAST_PATH := $(ESCROW_BROADCAST_DIR)/DeployEscrowLocal.s.sol/31337/run-latest.json
+override BIKE_NFT_CAM_HTTP_ORIGIN := http://bike-nft-cam-http:8080
+override BIKE_NFT_BROADCAST_DIR := /foundry-broadcast
+override BIKE_NFT_BROADCAST_PATH := $(BIKE_NFT_BROADCAST_DIR)/DeployBikeNftLocal.s.sol/31337/run-latest.json
+override ESCROW_CAM_HTTP_ORIGIN := http://escrow-cam-http:8080
+override ESCROW_BROADCAST_DIR := /foundry-broadcast
+override ESCROW_BROADCAST_PATH := $(ESCROW_BROADCAST_DIR)/DeployEscrowLocal.s.sol/31337/run-latest.json
 
 export ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN
 export CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS
@@ -182,39 +191,36 @@ export LOCAL_UID LOCAL_GID ALLOW_UPDATE
 export RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 export CAM_URI
 export VIEWER_TERMINAL_MOCK
-COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
-export $(COMPOSE_PROJECT_NAME_VARS)
 
-COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
-DEPS_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-solidity-deps
-PACKAGE_DEPS_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-js-deps
-ABI_EXPORT_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-abi-export
-DEPS_COMPOSE_ENV := $(COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(DEPS_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=$(ALLOW_UPDATE)
-PACKAGE_DEPS_COMPOSE_ENV := $(COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=$(ALLOW_UPDATE)
-ABI_EXPORT_COMPOSE_ENV := $(COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ABI_EXPORT_COMPOSE_PROJECT_NAME)
-RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
-RPC_INDEXER_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_INDEXER_COMPOSE_PROJECT_NAME)
-ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
+override DEPS_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-solidity-deps
+override PACKAGE_DEPS_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-js-deps
+override ABI_EXPORT_COMPOSE_PROJECT_NAME := $(COMPOSE_PROJECT_NAME)-abi-export
+override DEPS_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(DEPS_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=$(ALLOW_UPDATE)
+override PACKAGE_DEPS_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=$(ALLOW_UPDATE)
+override ABI_EXPORT_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(ABI_EXPORT_COMPOSE_PROJECT_NAME)
+override RPC_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
+override RPC_INDEXER_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(RPC_INDEXER_COMPOSE_PROJECT_NAME)
+override ANVIL_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
 # The live egress check renders compose/deps.yml but does not install/update
 # dependencies; force locked-mode interpolation for unrelated services there.
-LIVE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(LIVE_CHECK_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=0
-BIKE_NFT_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) BIKE_NFT_BROADCAST_DIR=$(BIKE_NFT_BROADCAST_DIR) BIKE_NFT_BROADCAST_PATH=$(BIKE_NFT_BROADCAST_PATH)
-BIKE_NFT_LOCAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME) CAM_URI=$(CAM_URI)
-BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN)
-BIKE_NFT_VIEWER_GUI_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_GUI_ORIGIN)/cam/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_GUI_ORIGIN) BIKE_NFT_GUI_PORT=$(BIKE_NFT_GUI_PORT) BIKE_NFT_GUI_BIND_HOST=$(BIKE_NFT_GUI_BIND_HOST) BIKE_NFT_GUI_ORIGIN=$(BIKE_NFT_GUI_ORIGIN)
-BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME)
-ESCROW_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) ESCROW_BROADCAST_DIR=$(ESCROW_BROADCAST_DIR) ESCROW_BROADCAST_PATH=$(ESCROW_BROADCAST_PATH)
-ESCROW_LOCAL_SCENARIO_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME) CAM_URI=$(ESCROW_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(ESCROW_CAM_HTTP_ORIGIN)
-ESCROW_VIEWER_TERMINAL_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_URI=$(ESCROW_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(ESCROW_CAM_HTTP_ORIGIN)
-ESCROW_VIEWER_GUI_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI=$(ESCROW_GUI_ORIGIN)/cam/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(ESCROW_GUI_ORIGIN) ESCROW_GUI_PORT=$(ESCROW_GUI_PORT) ESCROW_GUI_BIND_HOST=$(ESCROW_GUI_BIND_HOST) ESCROW_GUI_ORIGIN=$(ESCROW_GUI_ORIGIN)
-ESCROW_RELEASE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME)
-TEST_INTEGRATION_FUZZ_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
-TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
-TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
-VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) VIEWER_TERMINAL_CONTAINER_NAME=$(VIEWER_TERMINAL_CONTAINER_NAME) CAM_VIEWER_MOCK=$(VIEWER_TERMINAL_MOCK)
-ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
-ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
-ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
+override LIVE_CHECK_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(LIVE_CHECK_COMPOSE_PROJECT_NAME) ALLOW_UPDATE=0
+override BIKE_NFT_COMPOSE_ENV := BIKE_NFT_BROADCAST_DIR=$(BIKE_NFT_BROADCAST_DIR) BIKE_NFT_BROADCAST_PATH=$(BIKE_NFT_BROADCAST_PATH)
+override BIKE_NFT_LOCAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME) CAM_URI="$${CAM_URI}"
+override BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN)
+override BIKE_NFT_VIEWER_GUI_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI="$${BIKE_NFT_GUI_ORIGIN}/cam/main.json" CAM_VIEWER_RESOURCE_ORIGIN="$${BIKE_NFT_GUI_ORIGIN}" BIKE_NFT_GUI_PORT=$(BIKE_NFT_GUI_PORT) BIKE_NFT_GUI_BIND_HOST=$(BIKE_NFT_GUI_BIND_HOST) BIKE_NFT_GUI_ORIGIN="$${BIKE_NFT_GUI_ORIGIN}"
+override BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME)
+override ESCROW_COMPOSE_ENV := ESCROW_BROADCAST_DIR=$(ESCROW_BROADCAST_DIR) ESCROW_BROADCAST_PATH=$(ESCROW_BROADCAST_PATH)
+override ESCROW_LOCAL_SCENARIO_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME) CAM_URI=$(ESCROW_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(ESCROW_CAM_HTTP_ORIGIN)
+override ESCROW_VIEWER_TERMINAL_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_URI=$(ESCROW_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(ESCROW_CAM_HTTP_ORIGIN)
+override ESCROW_VIEWER_GUI_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI="$${ESCROW_GUI_ORIGIN}/cam/main.json" CAM_VIEWER_RESOURCE_ORIGIN="$${ESCROW_GUI_ORIGIN}" ESCROW_GUI_PORT=$(ESCROW_GUI_PORT) ESCROW_GUI_BIND_HOST=$(ESCROW_GUI_BIND_HOST) ESCROW_GUI_ORIGIN="$${ESCROW_GUI_ORIGIN}"
+override ESCROW_RELEASE_CHECK_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME)
+override TEST_INTEGRATION_FUZZ_ENV := COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
+override TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
+override TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
+override VIEWER_TERMINAL_COMPOSE_ENV := COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) VIEWER_TERMINAL_CONTAINER_NAME=$(VIEWER_TERMINAL_CONTAINER_NAME) CAM_VIEWER_MOCK=$(VIEWER_TERMINAL_MOCK)
+override ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
+override ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
+override ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
 LIVE_DEPS_EGRESS_COMPOSE_FILES := -f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml
 CAM_COMPOSE_FILES := -f $(COMPOSE_DIR)/cam.yml
 CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES := -f $(COMPOSE_DIR)/cam-publication.yml
@@ -241,8 +247,6 @@ LOCAL_RELEASE_NETWORK := $(LOCAL_RELEASE_PROJECT)_anvil_internal
 # Intentional default: use a separate loopback port for the release attachment.
 RELEASE_VIEWER_PORT ?= 5174
 RELEASE_VIEWER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-release-viewer
-COMPOSE_PROJECT_NAME_VARS += RELEASE_VIEWER_COMPOSE_PROJECT_NAME
-COMPOSE_PROJECT_NAME_VARS += VIEWER_COMPOSE_PROJECT_NAME
 export RELEASE_VIEWER_COMPOSE_PROJECT_NAME
 export RELEASE_VIEWER_PORT
 ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/browser-check.yml
@@ -250,25 +254,25 @@ TEST_INTEGRATION_FUZZ_COMPOSE_FILES := -f $(COMPOSE_DIR)/test/integration-fuzz.y
 TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/test-integration-fuzz.yml
 # Docker resolves host bind sources before container policy applies. Guard the
 # first-party roots in every lane, not only in the repository hygiene checks.
-FIRST_PARTY_ROOTS := compose containers dapps docs js tests tools
-COMPOSE_PROJECT_NAME_GUARD := for name in $(COMPOSE_PROJECT_NAME_VARS); do value="$${!name:?missing_$$name}"; if [[ ! "$$value" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$$ ]]; then printf '%s must be a Docker-safe name, not a path or shell expression.\n' "$$name" >&2; exit 2; fi; done
-NON_ROOT_GUARD := uid="$${LOCAL_UID:?missing_LOCAL_UID}"; gid="$${LOCAL_GID:?missing_LOCAL_GID}"; if [[ ! "$$uid" =~ ^[1-9][0-9]*$$ || ! "$$gid" =~ ^[1-9][0-9]*$$ ]]; then printf '%s\n' 'LOCAL_UID and LOCAL_GID must be positive decimal integers.' >&2; exit 2; fi; if [[ "$(ACTUAL_UID)" == "0" || "$$uid" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
-ALLOW_UPDATE_GUARD := if [[ "$${ALLOW_UPDATE:?missing_ALLOW_UPDATE}" != "0" && "$${ALLOW_UPDATE}" != "1" ]]; then printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2; fi
-REPO_SHAPE_GUARD := for path in $(FIRST_PARTY_ROOTS); do if [[ -L "$$path" ]]; then printf 'Refusing Docker lane because first-party root is a symlink: %s\n' "$$path" >&2; exit 2; fi; if [[ -e "$$path" && ! -d "$$path" ]]; then printf 'Refusing Docker lane because first-party root is not a directory: %s\n' "$$path" >&2; exit 2; fi; done; symlink="$$(find $(FIRST_PARTY_ROOTS) \( -path "dapps/dependencies" -o -path "js/node_modules" \) -prune -o -type l -print -quit)"; if [[ -n "$$symlink" ]]; then printf 'Refusing Docker lane because first-party path is a symlink: %s\n' "$$symlink" >&2; exit 2; fi
-LANE_GUARD := $(COMPOSE_PROJECT_NAME_GUARD); $(NON_ROOT_GUARD); $(REPO_SHAPE_GUARD)
-ANVIL_HOST_PORT_GUARD := port="$${ANVIL_HOST_PORT:?missing_ANVIL_HOST_PORT}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'ANVIL_HOST_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi
-BIKE_NFT_GUI_BIND_GUARD := port="$${BIKE_NFT_GUI_PORT:?missing_BIKE_NFT_GUI_PORT}"; host="$${BIKE_NFT_GUI_BIND_HOST:?missing_BIKE_NFT_GUI_BIND_HOST}"; origin="$${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'BIKE_NFT_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "localhost" ]]; then IFS=. read -r a b c d extra <<< "$$host"; for octet in "$$a" "$$b" "$$c" "$$d"; do if [[ -z "$$octet" || ! "$$octet" =~ ^[0-9]{1,3}$$ || "$$octet" -gt 255 ]]; then printf '%s\n' 'BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; done; if [[ -n "$$extra" ]]; then printf '%s\n' 'BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; fi; if [[ ! "$$origin" =~ ^https?://[^:/@?\#]+(:[1-9][0-9]{0,4})?$$ || "$$origin" == *'$$'* || "$$origin" == *'`'* || "$$origin" == *\\* || "$$origin" == *\"* || "$$origin" == *\'* || "$$origin" == *\;* || "$$origin" == *\#* ]]; then printf '%s\n' 'BIKE_NFT_GUI_ORIGIN must be an http(s) origin without credentials, path, query, fragment, invalid port, or shell syntax.' >&2; exit 2; fi; if [[ "$$origin" =~ :([1-9][0-9]{0,4})$$ ]]; then origin_port="$${BASH_REMATCH[1]}"; if [[ "$$origin_port" -gt 65535 ]]; then printf '%s\n' 'BIKE_NFT_GUI_ORIGIN port must be an integer from 1 to 65535.' >&2; exit 2; fi; fi
-ESCROW_GUI_BIND_GUARD := port="$${ESCROW_GUI_PORT:?missing_ESCROW_GUI_PORT}"; host="$${ESCROW_GUI_BIND_HOST:?missing_ESCROW_GUI_BIND_HOST}"; origin="$${ESCROW_GUI_ORIGIN:?missing_ESCROW_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'ESCROW_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "localhost" ]]; then IFS=. read -r a b c d extra <<< "$$host"; for octet in "$$a" "$$b" "$$c" "$$d"; do if [[ -z "$$octet" || ! "$$octet" =~ ^[0-9]{1,3}$$ || "$$octet" -gt 255 ]]; then printf '%s\n' 'ESCROW_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; done; if [[ -n "$$extra" ]]; then printf '%s\n' 'ESCROW_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; fi; if [[ ! "$$origin" =~ ^https?://[^:/@?\#]+(:[1-9][0-9]{0,4})?$$ || "$$origin" == *'$$'* || "$$origin" == *'`'* || "$$origin" == *\\* || "$$origin" == *\"* || "$$origin" == *\'* || "$$origin" == *\;* || "$$origin" == *\#* ]]; then printf '%s\n' 'ESCROW_GUI_ORIGIN must be an http(s) origin without credentials, path, query, fragment, invalid port, or shell syntax.' >&2; exit 2; fi; if [[ "$$origin" =~ :([1-9][0-9]{0,4})$$ ]]; then origin_port="$${BASH_REMATCH[1]}"; if [[ "$$origin_port" -gt 65535 ]]; then printf '%s\n' 'ESCROW_GUI_ORIGIN port must be an integer from 1 to 65535.' >&2; exit 2; fi; fi
+override FIRST_PARTY_ROOTS := compose containers dapps docs js tests tools
+override COMPOSE_PROJECT_NAME_GUARD = for name in $(COMPOSE_PROJECT_NAME_VARS); do value="$${!name:?missing_$$name}"; if [[ ! "$$value" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$$ ]]; then printf '%s must be a Docker-safe name, not a path or shell expression.\n' "$$name" >&2; exit 2; fi; done
+override NON_ROOT_GUARD = uid="$${LOCAL_UID:?missing_LOCAL_UID}"; gid="$${LOCAL_GID:?missing_LOCAL_GID}"; if [[ ! "$$uid" =~ ^[1-9][0-9]*$$ || ! "$$gid" =~ ^[1-9][0-9]*$$ ]]; then printf '%s\n' 'LOCAL_UID and LOCAL_GID must be positive decimal integers.' >&2; exit 2; fi; if [[ "$(ACTUAL_UID)" == "0" || "$$uid" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
+override ALLOW_UPDATE_GUARD := if [[ "$${ALLOW_UPDATE:?missing_ALLOW_UPDATE}" != "0" && "$${ALLOW_UPDATE}" != "1" ]]; then printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2; fi
+override REPO_SHAPE_GUARD = for path in $(FIRST_PARTY_ROOTS); do if [[ -L "$$path" ]]; then printf 'Refusing Docker lane because first-party root is a symlink: %s\n' "$$path" >&2; exit 2; fi; if [[ -e "$$path" && ! -d "$$path" ]]; then printf 'Refusing Docker lane because first-party root is not a directory: %s\n' "$$path" >&2; exit 2; fi; done; symlink="$$(find $(FIRST_PARTY_ROOTS) \( -path "dapps/dependencies" -o -path "js/node_modules" \) -prune -o -type l -print -quit)"; if [[ -n "$$symlink" ]]; then printf 'Refusing Docker lane because first-party path is a symlink: %s\n' "$$symlink" >&2; exit 2; fi
+override LANE_GUARD = $(COMPOSE_PROJECT_NAME_GUARD); $(NON_ROOT_GUARD); $(REPO_SHAPE_GUARD)
+override ANVIL_HOST_PORT_GUARD := port="$${ANVIL_HOST_PORT:?missing_ANVIL_HOST_PORT}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'ANVIL_HOST_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi
+override BIKE_NFT_GUI_BIND_GUARD := port="$${BIKE_NFT_GUI_PORT:?missing_BIKE_NFT_GUI_PORT}"; host="$${BIKE_NFT_GUI_BIND_HOST:?missing_BIKE_NFT_GUI_BIND_HOST}"; origin="$${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'BIKE_NFT_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "localhost" ]]; then IFS=. read -r a b c d extra <<< "$$host"; for octet in "$$a" "$$b" "$$c" "$$d"; do if [[ -z "$$octet" || ! "$$octet" =~ ^[0-9]{1,3}$$ || "$$octet" -gt 255 ]]; then printf '%s\n' 'BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; done; if [[ -n "$$extra" ]]; then printf '%s\n' 'BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; fi; if [[ ! "$$origin" =~ ^https?://[^:/@?\#]+(:[1-9][0-9]{0,4})?$$ || "$$origin" == *'$$'* || "$$origin" == *'`'* || "$$origin" == *\\* || "$$origin" == *\"* || "$$origin" == *\'* || "$$origin" == *\;* || "$$origin" == *\#* ]]; then printf '%s\n' 'BIKE_NFT_GUI_ORIGIN must be an http(s) origin without credentials, path, query, fragment, invalid port, or shell syntax.' >&2; exit 2; fi; if [[ "$$origin" =~ :([1-9][0-9]{0,4})$$ ]]; then origin_port="$${BASH_REMATCH[1]}"; if [[ "$$origin_port" -gt 65535 ]]; then printf '%s\n' 'BIKE_NFT_GUI_ORIGIN port must be an integer from 1 to 65535.' >&2; exit 2; fi; fi
+override ESCROW_GUI_BIND_GUARD := port="$${ESCROW_GUI_PORT:?missing_ESCROW_GUI_PORT}"; host="$${ESCROW_GUI_BIND_HOST:?missing_ESCROW_GUI_BIND_HOST}"; origin="$${ESCROW_GUI_ORIGIN:?missing_ESCROW_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'ESCROW_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "localhost" ]]; then IFS=. read -r a b c d extra <<< "$$host"; for octet in "$$a" "$$b" "$$c" "$$d"; do if [[ -z "$$octet" || ! "$$octet" =~ ^[0-9]{1,3}$$ || "$$octet" -gt 255 ]]; then printf '%s\n' 'ESCROW_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; done; if [[ -n "$$extra" ]]; then printf '%s\n' 'ESCROW_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; fi; if [[ ! "$$origin" =~ ^https?://[^:/@?\#]+(:[1-9][0-9]{0,4})?$$ || "$$origin" == *'$$'* || "$$origin" == *'`'* || "$$origin" == *\\* || "$$origin" == *\"* || "$$origin" == *\'* || "$$origin" == *\;* || "$$origin" == *\#* ]]; then printf '%s\n' 'ESCROW_GUI_ORIGIN must be an http(s) origin without credentials, path, query, fragment, invalid port, or shell syntax.' >&2; exit 2; fi; if [[ "$$origin" =~ :([1-9][0-9]{0,4})$$ ]]; then origin_port="$${BASH_REMATCH[1]}"; if [[ "$$origin_port" -gt 65535 ]]; then printf '%s\n' 'ESCROW_GUI_ORIGIN port must be an integer from 1 to 65535.' >&2; exit 2; fi; fi
 CAM_RESOURCE_OUTPUT_GUARD := if [[ ! -f docs/reference/cam/1.4.0/index.html ]]; then printf '%s\n' 'CAM protocol reference must be an existing regular file: docs/reference/cam/1.4.0/index.html' >&2; exit 2; fi; for cam_path in dapps/bike-nft/cam/{main.json,protocol.html} dapps/escrow/cam/{main.json,protocol.html} dapps/pay-to-play/cam/{main.json,protocol.html}; do if [[ ! -f "$$cam_path" ]]; then printf 'CAM output must be an existing regular file: %s\n' "$$cam_path" >&2; exit 2; fi; done
-CAM_URI_GUARD := uri="$${CAM_URI?missing_CAM_URI}"; if [[ -z "$$uri" ]]; then printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; exit 2; fi; if [[ ! "$$uri" =~ ^(https?|ipfs):// || "$$uri" == *'$$'* || "$$uri" == *'`'* || "$$uri" == *\"* || "$$uri" == *\'* || "$$uri" == *\;* ]]; then printf '%s\n' 'CAM_URI must be an absolute http(s) or ipfs URI without shell syntax.' >&2; exit 2; fi
-CAM_INTEGRATION_INPUT_GUARD := seed="$${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"; runs="$${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"; steps="$${CAM_INTEGRATION_STEPS:?missing_CAM_INTEGRATION_STEPS}"; if [[ ! "$$seed" =~ ^[A-Za-z0-9_.:-]{1,128}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_SEED must be 1-128 URL-safe label characters.' >&2; exit 2; fi; if [[ ! "$$runs" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_RUNS must be a positive decimal integer under 10000.' >&2; exit 2; fi; if [[ ! "$$steps" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_STEPS must be a positive decimal integer under 10000.' >&2; exit 2; fi
-VIEWER_TERMINAL_MOCK_GUARD := if [[ ! "$${VIEWER_TERMINAL_MOCK:?missing_VIEWER_TERMINAL_MOCK}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then printf '%s\n' 'VIEWER_TERMINAL_MOCK must be a mock name, not a path or shell expression.' >&2; exit 2; fi
+override CAM_URI_GUARD := uri="$${CAM_URI?missing_CAM_URI}"; if [[ -z "$$uri" ]]; then printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; exit 2; fi; if [[ ! "$$uri" =~ ^(https?|ipfs):// || "$$uri" == *'$$'* || "$$uri" == *'`'* || "$$uri" == *\"* || "$$uri" == *\'* || "$$uri" == *\;* ]]; then printf '%s\n' 'CAM_URI must be an absolute http(s) or ipfs URI without shell syntax.' >&2; exit 2; fi
+override CAM_INTEGRATION_INPUT_GUARD := seed="$${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"; runs="$${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"; steps="$${CAM_INTEGRATION_STEPS:?missing_CAM_INTEGRATION_STEPS}"; if [[ ! "$$seed" =~ ^[A-Za-z0-9_.:-]{1,128}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_SEED must be 1-128 URL-safe label characters.' >&2; exit 2; fi; if [[ ! "$$runs" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_RUNS must be a positive decimal integer under 10000.' >&2; exit 2; fi; if [[ ! "$$steps" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_STEPS must be a positive decimal integer under 10000.' >&2; exit 2; fi
+override VIEWER_TERMINAL_MOCK_GUARD := if [[ ! "$${VIEWER_TERMINAL_MOCK:?missing_VIEWER_TERMINAL_MOCK}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then printf '%s\n' 'VIEWER_TERMINAL_MOCK must be a mock name, not a path or shell expression.' >&2; exit 2; fi
 # Preserve a lane's primary error and retain mounted inputs if teardown fails.
-define disposable_cleanup_command
+override define disposable_cleanup_command
 timeout -k 15s 60s bash tools/compose_cleanup.sh "$(1)" -- $(DOCKER_COMPOSE) $(2)
 endef
 
-define cleanup_disposable_project
+override define cleanup_disposable_project
 $(call disposable_cleanup_command,$(1),$(2)) || { cleanup_status="$$?"; if [[ "$(3)" != "0" ]]; then exit "$(3)"; fi; exit "$$cleanup_status"; }
 endef
 
@@ -776,7 +780,7 @@ endef
 
 define compose_run
 @$(LANE_GUARD); \
-$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
+$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
 PACKAGE_DEPS_GUARD := if [[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Refusing package lane because node_modules or package-lock.json is a symlink.' >&2; exit 2; fi; if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make js/deps/install to install the locked package dependencies.' >&2; exit 2; fi
@@ -785,7 +789,7 @@ SOLDEER_DEPS_GUARD := if [[ -L "$(DEPENDENCIES_DIR)" || -L "$(FOUNDRY_MANIFEST_F
 define compose_run_with_package_deps
 @$(LANE_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
-$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
+$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
 .PHONY: wallet/addresses/with-keys wallet/addresses wallet/addresses/check release/rpc/list help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
@@ -1352,7 +1356,7 @@ define cam_publication_preflight
 	CAM_PREFLIGHT_ROOT_PATH="/work/dapps/$$DAPP/cam/main.json" \
 	CAM_PREFLIGHT_ARGS='$(1)' \
 	CAM_URI="$$CAM_URI" \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --quiet-build --rm cam-publication-preflight
+	$(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --quiet-build --rm cam-publication-preflight
 endef
 
 .PHONY: bike-nft/cam/publication/preflight escrow/cam/publication/preflight pay-to-play/cam/publication/preflight bike-nft/cam/publication/preflight/json escrow/cam/publication/preflight/json pay-to-play/cam/publication/preflight/json
@@ -1392,7 +1396,7 @@ cam/integration/fuzz/check:
 pay-to-play/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES) run --build --rm release-check
+	$(DOCKER_COMPOSE) $(PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES) run --build --rm release-check
 
 escrow/release/check:
 	@$(LANE_GUARD); \
@@ -1480,7 +1484,7 @@ tests/live/dependency-egress:
 
 tests/checks/anvil-compose:
 	@$(LANE_GUARD); \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm checks -I -B -m unittest discover -s tests/checks -t . -p test_anvil_compose.py
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm checks -I -B -m unittest discover -s tests/checks -t . -p test_anvil_compose.py
 
 define dapp_format
 	@$(LANE_GUARD); \
@@ -1508,7 +1512,7 @@ define dapp_format
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml run --build --rm \
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml run --build --rm \
 	  --env "DAPP=$$DAPP" \
 	  --volume "$$format_stage_dir:/format-output:rw" \
 	  forge-fmt \
@@ -1582,7 +1586,7 @@ viewer/status:
 viewer/browser/check:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -p "$(COMPOSE_PROJECT_NAME)-viewer-browser-check" -f $(COMPOSE_DIR)/browser-ui-check.yml run --build --rm --no-deps -T browser-ui-check
+	$(DOCKER_COMPOSE) -p "$(COMPOSE_PROJECT_NAME)-viewer-browser-check" -f $(COMPOSE_DIR)/browser-ui-check.yml run --build --rm --no-deps -T browser-ui-check
 
 # Deliver current helpers to older running images without recreating the viewer.
 # Interpret them with sh because /tmp is noexec. Vite watches env-file changes
@@ -1622,7 +1626,7 @@ pay-to-play/local/demo/gui/refresh:
 cam/integrity/refresh:
 	@$(LANE_GUARD); \
 	$(CAM_RESOURCE_OUTPUT_GUARD); \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
+	$(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
 
 dapps/tests/unit-scenario: dapps/deps/verify tests/checks
 	$(call compose_run,forge.yml,forge-test)
@@ -1901,7 +1905,7 @@ wallet_endpoint="$$CAM_DOCKER_ENDPOINT"; \
 if [[ "$$wallet_endpoint" != unix:///* || ! -S "$${wallet_endpoint#unix://}" ]]; then \
   printf '%s\n' 'Wallet derivation requires a local Docker Unix socket; remote Docker endpoints are not allowed.' >&2; exit 2; \
 fi; \
-$(COMPOSE_ENV) env -u DOCKER_CONTEXT -u DOCKER_HOST $(DOCKER_COMPOSE) --env-file /dev/null -f $(COMPOSE_DIR)/cast.yml $(1)
+env -u DOCKER_CONTEXT -u DOCKER_HOST $(DOCKER_COMPOSE) --env-file /dev/null -f $(COMPOSE_DIR)/cast.yml $(1)
 endef
 
 define wallet_interactive
@@ -2144,7 +2148,7 @@ escrow/live/browser/fixture-writes/check:
 	$(PACKAGE_DEPS_GUARD); \
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T escrow-viewer-browser-write-check
+	$(DOCKER_COMPOSE) $(ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T escrow-viewer-browser-write-check
 
 define release_setup
 $(LANE_GUARD); \
@@ -2243,19 +2247,19 @@ PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-pay-to-pl
 PAY_TO_PLAY_GUI_PORT ?= 5175
 PAY_TO_PLAY_GUI_BIND_HOST ?= 127.0.0.1
 PAY_TO_PLAY_GUI_ORIGIN ?= http://127.0.0.1:$(PAY_TO_PLAY_GUI_PORT)
-PAY_TO_PLAY_CAM_HTTP_ORIGIN := http://pay-to-play-cam-http:8080
-PAY_TO_PLAY_BROADCAST_DIR := /foundry-broadcast
-PAY_TO_PLAY_BROADCAST_PATH := $(PAY_TO_PLAY_BROADCAST_DIR)/DeployPayToPlayLocal.s.sol/31337/run-latest.json
-PAY_TO_PLAY_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) PAY_TO_PLAY_BROADCAST_DIR=$(PAY_TO_PLAY_BROADCAST_DIR) PAY_TO_PLAY_BROADCAST_PATH=$(PAY_TO_PLAY_BROADCAST_PATH)
-PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV := $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME) CAM_URI=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)
-PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV := $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI=$(PAY_TO_PLAY_GUI_ORIGIN)/cam/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(PAY_TO_PLAY_GUI_ORIGIN) PAY_TO_PLAY_GUI_PORT=$(PAY_TO_PLAY_GUI_PORT) PAY_TO_PLAY_GUI_BIND_HOST=$(PAY_TO_PLAY_GUI_BIND_HOST) PAY_TO_PLAY_GUI_ORIGIN=$(PAY_TO_PLAY_GUI_ORIGIN)
+override PAY_TO_PLAY_CAM_HTTP_ORIGIN := http://pay-to-play-cam-http:8080
+override PAY_TO_PLAY_BROADCAST_DIR := /foundry-broadcast
+override PAY_TO_PLAY_BROADCAST_PATH := $(PAY_TO_PLAY_BROADCAST_DIR)/DeployPayToPlayLocal.s.sol/31337/run-latest.json
+override PAY_TO_PLAY_COMPOSE_ENV := PAY_TO_PLAY_BROADCAST_DIR=$(PAY_TO_PLAY_BROADCAST_DIR) PAY_TO_PLAY_BROADCAST_PATH=$(PAY_TO_PLAY_BROADCAST_PATH)
+override PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV := $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME) CAM_URI=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)
+override PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV := $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI="$${PAY_TO_PLAY_GUI_ORIGIN}/cam/main.json" CAM_VIEWER_RESOURCE_ORIGIN="$${PAY_TO_PLAY_GUI_ORIGIN}" PAY_TO_PLAY_GUI_PORT=$(PAY_TO_PLAY_GUI_PORT) PAY_TO_PLAY_GUI_BIND_HOST=$(PAY_TO_PLAY_GUI_BIND_HOST) PAY_TO_PLAY_GUI_ORIGIN="$${PAY_TO_PLAY_GUI_ORIGIN}"
 PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/scenario.yml
 PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/viewer-gui.yml
-COMPOSE_PROJECT_NAME_VARS += PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
 export PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
 export PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN
+export $(COMPOSE_PROJECT_NAME_VARS)
 
-PAY_TO_PLAY_GUI_BIND_GUARD := port="$${PAY_TO_PLAY_GUI_PORT:?missing_PAY_TO_PLAY_GUI_PORT}"; host="$${PAY_TO_PLAY_GUI_BIND_HOST:?missing_PAY_TO_PLAY_GUI_BIND_HOST}"; origin="$${PAY_TO_PLAY_GUI_ORIGIN:?missing_PAY_TO_PLAY_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "127.0.0.1" && "$$host" != "localhost" ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_BIND_HOST must be 127.0.0.1 or localhost.' >&2; exit 2; fi; if [[ "$$origin" != "http://$$host:$$port" ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_ORIGIN must match the loopback HTTP bind host and port.' >&2; exit 2; fi
+override PAY_TO_PLAY_GUI_BIND_GUARD := port="$${PAY_TO_PLAY_GUI_PORT:?missing_PAY_TO_PLAY_GUI_PORT}"; host="$${PAY_TO_PLAY_GUI_BIND_HOST:?missing_PAY_TO_PLAY_GUI_BIND_HOST}"; origin="$${PAY_TO_PLAY_GUI_ORIGIN:?missing_PAY_TO_PLAY_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "127.0.0.1" && "$$host" != "localhost" ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_BIND_HOST must be 127.0.0.1 or localhost.' >&2; exit 2; fi; if [[ "$$origin" != "http://$$host:$$port" ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_ORIGIN must match the loopback HTTP bind host and port.' >&2; exit 2; fi
 
 pay-to-play/local/scenario/run: dapps/deps/verify
 	@$(LANE_GUARD); \
@@ -2323,7 +2327,7 @@ pay-to-play/local/voucher/sign:
 	if [[ ! "$$PAY_TO_PLAY_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$$ || ! "$$PAY_TO_PLAY_CHANNEL_ID" =~ ^[0-9]+$$ || ! "$$PAY_TO_PLAY_TOTAL" =~ ^[0-9]+$$ || ! "$$PAY_TO_PLAY_INVOICE_HASH" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then \
 	  printf '%s\n' 'Set PAY_TO_PLAY_ADDRESS to the local PayToPlay address and PAY_TO_PLAY_CHANNEL_ID/PAY_TO_PLAY_TOTAL to unsigned decimal integers, and PAY_TO_PLAY_INVOICE_HASH to the signed invoice reference (0x plus 64 hex digits).' >&2; exit 2; \
 	fi; \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml run --build --rm --no-deps -T \
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml run --build --rm --no-deps -T \
 	  -e PAY_TO_PLAY_ADDRESS -e PAY_TO_PLAY_CHANNEL_ID -e PAY_TO_PLAY_TOTAL -e PAY_TO_PLAY_INVOICE_HASH cast-offline \
 	  bash -eu -c 'customer="$$(cast wallet address --private-key 0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca)"; \
 	  typed="$$(printf '\''{"types":{"EIP712Domain":[{"name":"name","type":"string"},{"name":"version","type":"string"},{"name":"chainId","type":"uint256"},{"name":"verifyingContract","type":"address"}],"Voucher":[{"name":"customer","type":"address"},{"name":"channelId","type":"uint256"},{"name":"cumulativeTotal","type":"uint256"},{"name":"invoiceHash","type":"bytes32"}]},"primaryType":"Voucher","domain":{"name":"PayToPlay","version":"2","chainId":31337,"verifyingContract":"%s"},"message":{"customer":"%s","channelId":"%s","cumulativeTotal":"%s","invoiceHash":"%s"}}'\'' "$$PAY_TO_PLAY_ADDRESS" "$$customer" "$$PAY_TO_PLAY_CHANNEL_ID" "$$PAY_TO_PLAY_TOTAL" "$$PAY_TO_PLAY_INVOICE_HASH")"; \
@@ -2335,7 +2339,7 @@ pay-to-play/live/browser/check:
 	$(PACKAGE_DEPS_GUARD); \
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/pay-to-play/local/browser-check.yml run --build --rm --no-deps -T pay-to-play-viewer-browser-check
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/pay-to-play/local/browser-check.yml run --build --rm --no-deps -T pay-to-play-viewer-browser-check
 
 # Distinct foreground grant: a local signer for one already-running browser tab.
 .PHONY: viewer/local/fixture-wallet/attach
@@ -2350,7 +2354,7 @@ viewer/local/fixture-wallet/attach:
 	esac; \
 	export FIXTURE_BROADCAST_VOLUME FIXTURE_BROADCAST_PATH; \
 	FIXTURE_WALLET_APP="$$FIXTURE_WALLET_APP" CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/browser-fixture-wallet.yml run --build --rm --no-deps browser-fixture-wallet
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/browser-fixture-wallet.yml run --build --rm --no-deps browser-fixture-wallet
 export REFUND_CONFIG_FILE RPC_URL_FILE REFUND_PRIVATE_KEY_FILE REFUND_STATE_DIR
 .PHONY: pay-to-play/local/recovery/run pay-to-play/refunds/check pay-to-play/refunds/plan pay-to-play/refunds/run
 REFUND_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/refunds/check.yml
@@ -2359,7 +2363,7 @@ REFUND_EXECUTE_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/refunds/run.yml -f
 
 pay-to-play/refunds/check:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(REFUND_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds-check
+	$(DOCKER_COMPOSE) $(REFUND_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds-check
 
 define refund_input_guards
 $(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
@@ -2370,7 +2374,7 @@ endef
 
 pay-to-play/refunds/plan:
 	@$(refund_input_guards); \
-	$(COMPOSE_ENV) env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_PLAN_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+	env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_PLAN_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
 
 pay-to-play/refunds/run:
 	@$(refund_input_guards); \
@@ -2381,7 +2385,7 @@ pay-to-play/refunds/run:
 	reject_release_path_symlinks "$$state" REFUND_STATE_DIR; \
 	if [[ ! -d "$$state" || "$$(stat -c %a -- "$$state")" != 700 || "$$(stat -c %u -- "$$state")" != "$(LOCAL_UID)" ]]; then printf '%s\n' 'Pre-create REFUND_STATE_DIR owned by LOCAL_UID with mode 0700.' >&2; exit 2; fi; \
 	case "$$state" in "$$(pwd -P)"|"$$(pwd -P)"/*) printf '%s\n' 'REFUND_STATE_DIR must be outside the repository.' >&2; exit 2 ;; esac; \
-	$(COMPOSE_ENV) env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_EXECUTE_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+	env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_EXECUTE_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
 
 # Reuse the maintained fixture lifecycle and its existing account grants. The
 # overlay replaces only the scenario command; no live RPC or signing key mounts.

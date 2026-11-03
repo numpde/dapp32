@@ -19,8 +19,9 @@ def expanded_release_target(target: str, overrides: tuple[str, ...] = ()) -> str
     env = {key: value for key, value in os.environ.items() if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS")}
     env.update(PATH=f"{ROOT / 'tests/fixtures/docker-context'}:{env['PATH']}",
                TRACE=os.devnull, ENDPOINT="unix:///tmp/context-fixture.sock", FAKE_MODE="")
+    fixture = ["-f", str(ROOT / "tests/fixtures/disable-lane-guard.mk")] if "LANE_GUARD=:" in overrides else []
     return subprocess.run(
-        ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), target,
+        ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), *fixture, target,
          "DOCKER_CONTEXT=fixture", *overrides],
         cwd=ROOT, env=env, capture_output=True, text=True, check=True, timeout=10,
     ).stdout

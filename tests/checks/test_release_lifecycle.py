@@ -400,7 +400,7 @@ printf "%s\n" "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEAS
 ''')
                 env = make_environment(env, delegate=compose)
                 arguments = [
-                    "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "escrow/release/contracts/artifact", f"CONTRACT_RECORDS={records}",
+                    "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(ROOT / "tests/fixtures/disable-lane-guard.mk"), "escrow/release/contracts/artifact", f"CONTRACT_RECORDS={records}",
                     f"CURDIR={checkout}", "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=exit 97",
                     f"release_host_guard_functions=source {prelude}", "release_config_compose=:",
                     'release_snapshot_allocate=release_preparation_log="$$CASE_ROOT/preparation.log"; ceremony_root="$$CASE_ROOT/ceremony"; ceremony_source="$$ceremony_root/source"; ceremony_project=fixture; mkdir -p "$$ceremony_source/js"; printf "allocate\\n" >> "$$CASE_ROOT/events"',
@@ -589,7 +589,7 @@ fi
                 env.pop("COMPOSE_PROGRESS", None)
                 env.pop("COMPOSE_ANSI", None)
                 result = subprocess.run(
-                    ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(overrides),
+                    ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), "-f", str(overrides), "-f", str(ROOT / "tests/fixtures/disable-lane-guard.mk"),
                      f"{app}/local/demo/gui/up", "LANE_GUARD=:", "PACKAGE_DEPS_GUARD=:",
                      "DOCKER_CONTEXT=fixture"],
                     cwd=ROOT, env=env, capture_output=True, text=True, timeout=10,

@@ -29,10 +29,10 @@ class RpcIndexerLaneTest(unittest.TestCase):
         self.stub = self.directory / "compose-stub.sh"
         self.stub.write_text(
             'printf "%s\\n" "$@" > "$COMPOSE_CALLS"\n'
-            'printf "project=%s\\ninput=%s\\n" "$COMPOSE_PROJECT_NAME" "$RPC_URL_FILE" >> "$COMPOSE_CALLS"\n'
+            'printf "project=%s\\nuid=%s\\ngid=%s\\ninput=%s\\nuri=%s\\norigin=%s\\nresource_origin=%s\\n" "$COMPOSE_PROJECT_NAME" "$LOCAL_UID" "$LOCAL_GID" "${RPC_URL_FILE-}" "${CAM_URI-}" "${BIKE_NFT_GUI_ORIGIN-}" "${CAM_VIEWER_RESOURCE_ORIGIN-}" >> "$COMPOSE_CALLS"\n'
         )
 
-    def make(self, target: str, upstream: Path | str | None = None) -> subprocess.CompletedProcess[str]:
+    def make(self, target: str, upstream: Path | str | None = None, *, overrides: tuple[str, ...] | None = None, extra_environment: dict[str, str] | None = None, environment_override: bool | None = None) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         for name in ("MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES", "RPC_URL_FILE", "RPC_URL"):
             if name in environment:
@@ -47,10 +47,14 @@ class RpcIndexerLaneTest(unittest.TestCase):
             "TRACE": os.devnull, "ENDPOINT": "unix:///tmp/context-fixture.sock", "FAKE_MODE": "",
             "DOCKER_DELEGATE": str(self.stub),
         })
+        if overrides is None:
+            overrides = ()
         if upstream is not None:
             environment["RPC_URL_FILE"] = str(upstream)
+        if extra_environment is not None:
+            environment.update(extra_environment)
         return subprocess.run(
-            ["make", "--no-print-directory", "-s", target, "DOCKER_CONTEXT=fixture"],
+            ["make", "--no-print-directory", "-s", *(["-e"] if environment_override else []), target, "DOCKER_CONTEXT=fixture", *overrides],
             cwd=self.checkout,
             env=environment,
             text=True,
@@ -58,6 +62,91 @@ class RpcIndexerLaneTest(unittest.TestCase):
             check=False,
             timeout=10,
         )
+
+    def test_compose_receives_guarded_identity_despite_internal_overrides(self) -> None:
+        reference = self.checkout / "docs/reference/cam/1.4.0/index.html"
+        reference.parent.mkdir(parents=True)
+        reference.touch()
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            path = self.checkout / "dapps" / app / "cam"
+            path.mkdir(parents=True)
+            for name in ("main.json", "protocol.html"):
+                (path / name).touch()
+        poison = "LOCAL_UID=0 LOCAL_GID=0 COMPOSE_PROJECT_NAME=wrong"
+        for source in ("command", "environment", "environment-e"):
+            with self.subTest(source=source):
+                self.calls.unlink(missing_ok=True)
+                result = self.make("cam/integrity/refresh", overrides=("LOCAL_UID=1234", "LOCAL_GID=1235", *((f"COMPOSE_ENV={poison}",) if source == "command" else ())), extra_environment={"COMPOSE_ENV": poison} if source != "command" else None, environment_override=source == "environment-e")
+                self.assertEqual(0, result.returncode, result.stderr)
+                actual = self.calls.read_text().splitlines()
+                self.assertIn("project=rpc-lane-check", actual)
+                self.assertIn("uid=1234", actual)
+                self.assertIn("gid=1235", actual)
+
+    def test_lane_bundle_cannot_override_guarded_project_or_identity(self) -> None:
+        poison = "LOCAL_UID=0 LOCAL_GID=0 COMPOSE_PROJECT_NAME=wrong"
+        for source in ("command", "environment", "environment-e"):
+            with self.subTest(source=source):
+                self.calls.unlink(missing_ok=True)
+                result = self.make("rpc/indexer/logs", overrides=(f"RPC_INDEXER_COMPOSE_ENV={poison}",) if source == "command" else (), extra_environment={"RPC_INDEXER_COMPOSE_ENV": poison} if source != "command" else None, environment_override=source == "environment-e")
+                self.assertEqual(0, result.returncode, result.stderr)
+                actual = self.calls.read_text().splitlines()
+                self.assertIn("project=rpc-base-sepolia", actual)
+                self.assertIn(f"uid={os.getuid()}", actual)
+                self.assertIn(f"gid={os.getgid()}", actual)
+
+    def test_lane_uri_reaches_compose_as_one_literal_value(self) -> None:
+        (self.checkout / "probe.mk").write_text(
+            "probe:\n\t@$(LANE_GUARD); $(CAM_URI_GUARD); $(BIKE_NFT_LOCAL_COMPOSE_ENV) $(DOCKER_COMPOSE) config\n"
+        )
+        uri = "https://example.test/path?a=1&b=2"
+        result = self.make("probe", overrides=("-f", "Makefile", "-f", "probe.mk", f"CAM_URI={uri}"))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn(f"uri={uri}", self.calls.read_text().splitlines())
+        self.assertIn("project=rpc-lane-check-bike-nft-local", self.calls.read_text().splitlines())
+
+    def test_gui_origin_reaches_compose_as_one_literal_value(self) -> None:
+        (self.checkout / "probe.mk").write_text(
+            "probe:\n\t@$(LANE_GUARD); $(BIKE_NFT_GUI_BIND_GUARD); $(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) $(DOCKER_COMPOSE) config\n"
+        )
+        origin = "http://example&fixture.test:5173"
+        result = self.make("probe", overrides=("-f", "Makefile", "-f", "probe.mk", f"BIKE_NFT_GUI_ORIGIN={origin}"))
+        self.assertEqual(0, result.returncode, result.stderr)
+        actual = self.calls.read_text().splitlines()
+        self.assertIn(f"origin={origin}", actual)
+        self.assertIn(f"resource_origin={origin}", actual)
+        self.assertIn(f"uri={origin}/cam/main.json", actual)
+        self.assertIn("project=rpc-lane-check-bike-nft-viewer-gui", actual)
+
+    def test_start_and_shutdown_use_the_same_validated_project(self) -> None:
+        poison = "LOCAL_UID=0 LOCAL_GID=0 COMPOSE_PROJECT_NAME=wrong"
+        for target in ("rpc/indexer/up", "rpc/indexer/down"):
+            with self.subTest(target=target):
+                self.calls.unlink(missing_ok=True)
+                result = self.make(target, self.upstream, overrides=(f"RPC_INDEXER_COMPOSE_ENV={poison}",))
+                self.assertEqual(0, result.returncode, result.stderr)
+                actual = self.calls.read_text().splitlines()
+                self.assertIn("project=rpc-base-sepolia", actual)
+                self.assertIn(f"uid={os.getuid()}", actual)
+                self.assertIn(f"gid={os.getgid()}", actual)
+                self.assertIn(target.rsplit("/", 1)[1], actual)
+
+    def test_invalid_identity_cannot_bypass_guard_with_internal_overrides(self) -> None:
+        result = self.make("rpc/indexer/logs", overrides=("LOCAL_UID=0", "LANE_GUARD=:", "NON_ROOT_GUARD=:", "ACTUAL_UID=1000"))
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.calls.exists())
+
+    def test_external_make_expression_is_rejected_before_it_runs(self) -> None:
+        for name in ("LOCAL_UID", "COMPOSE_PROJECT_NAME", "RPC_INDEXER_COMPOSE_PROJECT_NAME", "ALLOW_UPDATE", "COMPOSE_ENV", "RPC_INDEXER_COMPOSE_ENV", "LANE_GUARD"):
+            for as_environment in (False, True):
+                with self.subTest(name=name, as_environment=as_environment):
+                    marker = self.directory / "expression-ran"
+                    marker.unlink(missing_ok=True)
+                    expression = f"$(shell touch {marker})"
+                    result = self.make("rpc/indexer/logs", overrides=() if as_environment else (f"{name}={expression}",), extra_environment={name: expression} if as_environment else None, environment_override=as_environment)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertFalse(marker.exists())
+                    self.assertFalse(self.calls.exists())
 
     def test_start_uses_protected_file_without_printing_its_contents(self) -> None:
         result = self.make("rpc/indexer/up", self.upstream)

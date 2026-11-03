@@ -358,7 +358,7 @@ python3() {
             if kind == "image-target":
                 env.update({"SOURCE_COMMIT": "a" * 40, "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.output)})
             generated = subprocess.run(
-                ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), target,
+                ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), "-f", str(ROOT / "tests/fixtures/disable-lane-guard.mk"), target,
                  "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
                  "DOCKER_CONTEXT=fixture"],
                 cwd=ROOT, env=env, capture_output=True, text=True, check=True,
