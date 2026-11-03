@@ -12,7 +12,21 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await navigateBrowserDocument({ call, url: fixture.href, description: 'the action fixture',
       ready: () => evaluate(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`) })
     const uri = `document.querySelector('input[name="documentURI"]')`
-    await evaluate(`document.querySelector('.uri-field > button').click()`)
+    for (const width of [1280, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      const control = await evaluate(`(() => {
+        const group = document.querySelector('.uri-control');
+        const input = group.querySelector('input').getBoundingClientRect();
+        const button = group.querySelector('button').getBoundingClientRect();
+        const bounds = group.getBoundingClientRect();
+        return { label: group.querySelector('button').getAttribute('aria-label'), text: group.querySelector('button').textContent,
+          joined: Math.abs(input.right - button.left) < 1, aligned: Math.abs(input.top - button.top) < 1 && Math.abs(input.bottom - button.bottom) < 1,
+          contained: bounds.width <= innerWidth && button.right <= innerWidth && input.width > 0 };
+      })()`)
+      assert.deepEqual(control, { label: 'Embed document for Terms URI', text: 'Embed', joined: true, aligned: true, contained: true }, `URI input and action share one usable control at ${width}px`)
+    }
+    await call('Emulation.clearDeviceMetricsOverride')
+    await evaluate(`document.querySelector('.uri-control > button').click()`)
     await wait(`document.querySelector('.uri-field dialog')?.open`)
     await evaluate(`(()=>{const select=document.querySelector('.uri-field dialog select');select.value='application/json';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
     await wait(`document.querySelector('.uri-field dialog select').value==='application/json'`)
@@ -37,12 +51,12 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     assert.equal(await evaluate(`document.querySelector('.uri-value .hex-copy-error input').value`), embeddedURI, 'clipboard failure retains a manually selectable exact URI')
     await evaluate(`navigator.clipboard.writeText=async value=>{window.copiedURI=value};document.querySelector('.uri-value button[aria-label="Copy Recorded URI"]').click()`)
     await wait(`!document.querySelector('.uri-value .hex-copy-error')`)
-    await evaluate(`document.querySelector('.uri-field > button').click()`)
+    await evaluate(`document.querySelector('.uri-control > button').click()`)
     await wait(`document.querySelector('.uri-field dialog')?.open`)
     await evaluate(`[...document.querySelectorAll('.uri-field dialog button')].find(button=>button.textContent==='Cancel').click()`)
     await wait(`!document.querySelector('.uri-field dialog').open`)
     assert.equal(await evaluate(`${uri}.value`), embeddedURI, 'cancelling preserves the exact URI')
-    await evaluate(`document.querySelector('.uri-field > button').click()`)
+    await evaluate(`document.querySelector('.uri-control > button').click()`)
     await wait(`document.querySelector('.uri-field dialog')?.open`)
     await evaluate(`(()=>{const select=document.querySelector('.uri-field dialog select');select.value='text/plain';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
     await wait(`document.querySelector('.uri-field dialog select').value==='text/plain'`)
@@ -52,7 +66,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     assert.equal(await evaluate(`${uri}.value`), embeddedURI, 'an oversized embedded URI does not change the bound value')
     await evaluate(`[...document.querySelectorAll('.uri-field dialog button')].find(button=>button.textContent==='Cancel').click()`)
     await wait(`!document.querySelector('.uri-field dialog').open`)
-    await evaluate(`document.querySelector('.uri-field > button').click()`)
+    await evaluate(`document.querySelector('.uri-control > button').click()`)
     await wait(`document.querySelector('.uri-field dialog')?.open`)
     await evaluate(`window.actionFixture.uri('https://example.test/newer')`)
     await wait(`${uri}.value==='https://example.test/newer'`)

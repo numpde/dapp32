@@ -22,6 +22,7 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
   readonly disabled: boolean
   readonly onInput: (name: string, value: string | null) => void
 }): ReactElement {
+  const inputId = useId()
   const dialog = useRef<HTMLDialogElement>(null)
   const [draft, setDraft] = useState<{ original: string; scope: string; initial: string; initialType: "text/plain" | "application/json" | undefined; text: string; type: "text/plain" | "application/json" }>()
   const [error, setError] = useState<unknown>()
@@ -57,8 +58,11 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
     } catch (cause) { setError(cause) }
   }
   return <div className="uri-field">
-    <label className="field"><span>{displayText(label)}</span><input name={name} value={value} disabled={disabled} onChange={event => onInput(name, event.currentTarget.value)} /></label>
-    <button type="button" className="button-quiet" disabled={disabled} onClick={open}>{/^data:/i.test(value) ? "Edit embedded document" : "Embed document"}</button>
+    <label htmlFor={inputId}>{displayText(label)}</label>
+    <div className="uri-control">
+      <input id={inputId} name={name} value={value} disabled={disabled} onChange={event => onInput(name, event.currentTarget.value)} />
+      <button type="button" aria-haspopup="dialog" aria-label={`${/^data:/i.test(value) ? "Edit embedded document for" : "Embed document for"} ${label}`} disabled={disabled} onClick={open}>{/^data:/i.test(value) ? "Edit" : "Embed"}</button>
+    </div>
     {draft === undefined && error !== undefined ? <Feedback report={failureReport(error)} kind="error" /> : null}
     <dialog ref={dialog} aria-label={`Embed ${label}`} onCancel={event => { event.preventDefault(); setDraft(undefined); setError(undefined) }}>
       {draft === undefined ? null : <>
