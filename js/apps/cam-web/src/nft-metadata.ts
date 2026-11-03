@@ -1,12 +1,12 @@
-import { isRecordObject, parseJsonText, readBoundedResponseBytes, requireHttpURL, resolveCamResourceURI, resolveIpfsGatewayURL, toInertValue } from "@cam/protocol"
+import { isRecordObject, parseJsonText, requireHttpURL, resolveCamResourceURI, resolveIpfsGatewayURL, toInertValue } from "@cam/protocol"
 import type { HttpURL, InertRecord } from "@cam/protocol"
 
 import { UserFacingError } from "./errors.ts"
 import { readDataURI } from "./data-uri.ts"
+import { RESOURCE_FETCH_OPTIONS, readAbortableBoundedBytes, withResourceDeadline } from "./resource-read.ts"
 
 export const NFT_METADATA_MAX_BYTES = 256 * 1024
 export const NFT_IMAGE_MAX_BYTES = 4 * 1024 * 1024
-const DEADLINE_MS = 15_000
 const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"])
 
 export function parseNftMetadata(text: string): InertRecord {
@@ -177,7 +177,7 @@ function assertMetadataTextBounds(text: string): void {
 async function fetchReadable(uri: string, signal: AbortSignal, label: string): Promise<Response> {
   let response: Response
   try {
-    response = await fetch(uri, { signal, mode: "cors", credentials: "omit", referrerPolicy: "no-referrer", redirect: "error", cache: "no-store" })
+    response = await fetch(uri, { ...RESOURCE_FETCH_OPTIONS, signal })
   } catch (cause) {
     signal.throwIfAborted()
     throw new UserFacingError(`Cannot load ${label}: check connectivity, browser CORS access and redirects. Choose a directly readable URL.`, { cause })
@@ -194,44 +194,17 @@ async function fetchReadable(uri: string, signal: AbortSignal, label: string): P
 }
 
 async function readBytes(response: Response, signal: AbortSignal, maxBytes: number, label: string): Promise<Uint8Array> {
-  const reader = response.body!.getReader()
-  const cancel = () => { void reader.cancel().catch(() => {}) }
-  signal.addEventListener("abort", cancel, { once: true })
   try {
-    signal.throwIfAborted()
-    const bytes = await readBoundedResponseBytes({ body: { getReader: () => reader } }, label, maxBytes)
-    signal.throwIfAborted()
-    return bytes
+    return await readAbortableBoundedBytes(response.body!, signal, label, maxBytes)
   } catch (cause) {
     signal.throwIfAborted()
     if (cause instanceof Error && cause.message === `CAM resource is too large: ${label}`) {
       throw new UserFacingError(`Cannot load ${label}: content exceeds the ${maxBytes / 1024} KiB limit. Choose a smaller resource.`, { cause })
     }
     throw new UserFacingError(`Cannot read ${label} bytes. Retry or choose another resource.`, { cause })
-  } finally {
-    signal.removeEventListener("abort", cancel)
-    if (signal.aborted) cancel()
   }
 }
 
 async function withDeadline<T>(signal: AbortSignal, label: string, acquire: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const controller = new AbortController()
-  const cancel = () => controller.abort(signal.reason)
-  signal.addEventListener("abort", cancel, { once: true })
-  if (signal.aborted) cancel()
-  const timer = setTimeout(() => controller.abort(new UserFacingError(`Cannot load ${label}: the request exceeded 15 seconds. Retry or choose another resource.`)), DEADLINE_MS)
-  let rejectAbort: () => void = () => {}
-  const aborted = new Promise<never>((_resolve, reject) => {
-    rejectAbort = () => reject(controller.signal.reason)
-    controller.signal.addEventListener("abort", rejectAbort, { once: true })
-    if (controller.signal.aborted) rejectAbort()
-  })
-  try {
-    controller.signal.throwIfAborted()
-    return await Promise.race([aborted, acquire(controller.signal)])
-  } finally {
-    clearTimeout(timer)
-    signal.removeEventListener("abort", cancel)
-    controller.signal.removeEventListener("abort", rejectAbort)
-  }
+  return withResourceDeadline(signal, new UserFacingError(`Cannot load ${label}: the request exceeded 15 seconds. Retry or choose another resource.`), () => signal.reason, acquire)
 }

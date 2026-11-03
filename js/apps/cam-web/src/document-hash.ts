@@ -1,10 +1,10 @@
-import { readBoundedResponseBytes, requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
+import { requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
 import type { HttpURL } from "@cam/protocol"
 import { UserFacingError } from "./errors.ts"
 import { readDataURI } from "./data-uri.ts"
+import { RESOURCE_FETCH_OPTIONS, readAbortableBoundedBytes, withResourceDeadline } from "./resource-read.ts"
 
 export const DOCUMENT_HASH_MAX_BYTES = 8 * 1024 * 1024
-const DEADLINE_MS = 15_000
 const ALTERNATIVES = "Choose a local file or enter the digest manually."
 
 export async function calculateDocumentHashFromURL(uri: string, signal: AbortSignal, assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string): Promise<string> {
@@ -20,8 +20,7 @@ export async function calculateDocumentHashFromURL(uri: string, signal: AbortSig
     let response: Response
     try {
       response = await fetch(url.href, {
-        signal: activeSignal, mode: "cors", credentials: "omit",
-        referrerPolicy: "no-referrer", redirect: "error", cache: "no-store",
+        ...RESOURCE_FETCH_OPTIONS, signal: activeSignal,
       })
     } catch (cause) {
       activeSignal.throwIfAborted()
@@ -42,52 +41,24 @@ export async function calculateDocumentHashFromFile(file: File, signal: AbortSig
 }
 
 async function readDocumentBytes(body: ReadableStream<Uint8Array>, signal: AbortSignal): Promise<Uint8Array> {
-  if (signal.aborted) {
-    void body.cancel().catch(() => {})
-    signal.throwIfAborted()
-  }
-  const reader = body.getReader()
-  const cancel = () => { void reader.cancel().catch(() => {}) }
-  signal.addEventListener("abort", cancel, { once: true })
   try {
-    signal.throwIfAborted()
-    return await readBoundedResponseBytes({ body: { getReader: () => reader } }, "document", DOCUMENT_HASH_MAX_BYTES)
+    return await readAbortableBoundedBytes(body, signal, "document", DOCUMENT_HASH_MAX_BYTES)
   } catch (cause) {
     signal.throwIfAborted()
     if (cause instanceof Error && cause.message === "CAM resource is too large: document") {
       throw new UserFacingError("Document exceeds the 8 MiB limit. Enter its digest manually.", { cause })
     }
     throw new UserFacingError(`Cannot read document bytes. ${ALTERNATIVES}`, { cause })
-  } finally {
-    signal.removeEventListener("abort", cancel)
   }
 }
 
 async function calculate(signal: AbortSignal, acquire: (signal: AbortSignal) => Promise<Uint8Array>): Promise<string> {
-  const controller = new AbortController()
-  const cancel = () => controller.abort(new UserFacingError("Document calculation cancelled."))
-  signal.addEventListener("abort", cancel, { once: true })
-  if (signal.aborted) cancel()
-  const timer = setTimeout(() => controller.abort(new UserFacingError(`Document calculation exceeded 15 seconds. ${ALTERNATIVES}`)), DEADLINE_MS)
-  let rejectAbort: () => void = () => {}
-  const aborted = new Promise<never>((_resolve, reject) => {
-    rejectAbort = () => reject(controller.signal.reason)
-    controller.signal.addEventListener("abort", rejectAbort, { once: true })
-    if (controller.signal.aborted) rejectAbort()
+  return withResourceDeadline(signal, new UserFacingError(`Document calculation exceeded 15 seconds. ${ALTERNATIVES}`), () => new UserFacingError("Document calculation cancelled."), async activeSignal => {
+    const bytes = await acquire(activeSignal)
+    activeSignal.throwIfAborted()
+    // Web Crypto hashes the exact buffer; no text decoding or normalization.
+    const digest = await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>)
+    activeSignal.throwIfAborted()
+    return `0x${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("")}`
   })
-  try {
-    return await Promise.race([aborted, (async () => {
-      controller.signal.throwIfAborted()
-      const bytes = await acquire(controller.signal)
-      controller.signal.throwIfAborted()
-      // Web Crypto hashes the exact buffer; no text decoding or normalization.
-      const digest = await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>)
-      controller.signal.throwIfAborted()
-      return `0x${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("")}`
-    })()])
-  } finally {
-    clearTimeout(timer)
-    signal.removeEventListener("abort", cancel)
-    controller.signal.removeEventListener("abort", rejectAbort)
-  }
 }

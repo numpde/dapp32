@@ -107,6 +107,14 @@ test("unreadable and failed HTTP responses give file/manual alternatives", async
   await assert.rejects(calculateDocumentHashFromURL("https://example.test/private", new AbortController().signal, allowDownload), /CORS.*file.*manual/i)
 })
 
+test("an already cancelled document operation does not start a fetch", async t => {
+  const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected fetch") })
+  const controller = new AbortController()
+  controller.abort()
+  await assert.rejects(calculateDocumentHashFromURL("https://example.test/document", controller.signal, allowDownload), /cancelled/i)
+  assert.equal(fetch.mock.callCount(), 0)
+})
+
 test("cancelling a stalled body stops acquisition", async (t) => {
   let cancelled = false
   t.mock.method(globalThis, "fetch", async () => new Response(new ReadableStream({ cancel() { cancelled = true } })))
