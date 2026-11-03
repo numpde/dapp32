@@ -32,6 +32,39 @@
         }
       ]
     },
+    "home": {
+      "element": "Screen",
+      "requires": [
+        "view"
+      ],
+      "props": {
+        "title": "App navigation"
+      },
+      "children": [
+        {
+          "element": "Button",
+          "props": {
+            "label": "View a balance"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "channelLookup",
+            "args": {}
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Create a channel"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "createChannelForm",
+            "args": {}
+          }
+        }
+      ]
+    },
     "positionFields": {
       "requires": [
         "view"
@@ -722,16 +755,18 @@
       "element": "Fragment",
       "children": []
     },
+    "homeLink": {
+      "requires": ["view"],
+      "element": "Button",
+      "props": { "label": "Choose a task" },
+      "call": { "namespace": "routes", "function": "home", "args": {} }
+    },
     "navigation.lookup": {
       "requires": ["view"],
       "element": "Screen",
       "props": { "title": "App navigation" },
       "children": [
-        {
-          "element": "Button",
-          "props": { "label": "Choose a balance or create a channel" },
-          "call": { "namespace": "routes", "function": "home", "args": {} }
-        }
+        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } }
       ]
     },
     "navigation.position": {
@@ -740,6 +775,7 @@
       "props": { "title": "App navigation" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         {
           "element": "Include",
           "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } }
@@ -756,6 +792,7 @@
       "props": { "title": "App navigation" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } }
       ]
@@ -766,6 +803,7 @@
       "props": { "title": "App navigation" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } } }
       ]
@@ -776,6 +814,7 @@
       "props": { "title": "App navigation" },
       "children": [
         { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
+        { "element": "Include", "call": { "namespace": "ui", "function": "homeLink", "args": { "view": "$view" } } },
         { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
         {
           "element": "Button",
@@ -1163,42 +1202,6 @@
           "props": {
             "label": "Channels created (including channel 0)",
             "value": "$view.channelCount"
-          }
-        }
-      ]
-    },
-    "chooseBalance": {
-      "requires": [
-        "view"
-      ],
-      "element": "Fragment",
-      "children": [
-        {
-          "element": "Screen",
-          "props": {
-            "title": "View a balance"
-          },
-          "children": [
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "balanceChooserFields",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            }
-          ]
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "createChannelFields",
-            "args": {
-              "view": "$view"
-            }
           }
         }
       ]

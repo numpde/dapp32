@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x6aafe5e9b562395766ddb502b9319f6cddbacaf729fd4a6209a56d59d6db7cbb"
+      "integrity": "sha256:0xc2998f932e3f1b15e028c2f2cf3f2e3cce87ea9dc3d303bad17b5e8fde5c27e5"
     },
     "contracts.PayToPlayUI": {
       "type": "contract",
@@ -43,8 +43,37 @@
         "function": "app",
         "args": {
           "view": {
-            "screen": "chooseBalance",
+            "screen": "home",
             "navigation": "navigation.none",
+            "task": {
+              "customer": "$outputs.0.customer",
+              "channelId": "0",
+              "channelCount": "$outputs.0.channelCount",
+              "actions": "$outputs.0.actions"
+            }
+          }
+        }
+      }
+    },
+    "createChannelForm": {
+      "kind": "read",
+      "inputs": [],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$account.address",
+          "channelId": "0",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "createChannelFields",
+            "navigation": "navigation.lookup",
             "task": {
               "customer": "$outputs.0.customer",
               "channelId": "0",
@@ -635,7 +664,7 @@
         "function": "app",
         "args": {
           "view": {
-            "screen": "chooseBalance",
+            "screen": "channelLookup",
             "navigation": "navigation.chooser",
             "task": {
               "customer": "$outputs.0.customer",

@@ -129,10 +129,10 @@ test("empty numeric actions identify their own fields before any RPC, while expl
   for (const [route, actor, actionName, field, enterZero] of [
     ["position", customer, "fund", "fundAmount", () => session.editAmount("fundAmount", "base", "0")],
     ["choosePosition", customer, "position", "lookupChannelId", () => session.editInteger("lookupChannelId", "0")],
-    ["home", other, "createChannel", "newClaimPeriod", () => session.editDuration("newClaimPeriod", "seconds", "0")],
+    ["createChannelForm", other, "createChannel", "newClaimPeriod", () => session.editDuration("newClaimPeriod", "seconds", "0")],
   ] as const) {
     await session.setAccount({ address: actor })
-    let opened = await session.navigate(route, route === "home" ? {} : { customer, channelId: "1" })
+    let opened = await session.navigate(route, route === "createChannelForm" ? {} : { customer, channelId: "1" })
     if (field === "lookupChannelId") opened = session.editInteger(field, "")
     const action = resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === actionName && (field !== "lookupChannelId" || button.props.label === "View balance"))!
     assert(action)
@@ -219,11 +219,12 @@ test("every read destination retains the application heading above its task", as
   await session.load()
   const inputs = { customer, channelId: "1", cumulativeTotal: "20", invoiceHash }
   const titles: Record<string, readonly string[]> = {
-    home: ["View a balance", "Create a channel (admin only)"],
+    home: ["App navigation"],
+    createChannelForm: ["Create a channel (admin only)"],
     position: ["Account and channel", "Position status", "Balance overview", "Channel", "Deposit", "Withdraw or move funds", "Voucher signing key", "Voucher payments", "Channel settings"],
     voucherDigest: ["Account and channel", "Voucher signing details"],
     channelLookup: ["View a balance"],
-    choosePosition: ["View a balance", "Create a channel (admin only)"],
+    choosePosition: ["View a balance"],
     recovery: ["Account and channel", "Position status", "Balance recovery", "Retire this channel"],
   }
   for (const [route, declaration] of Object.entries(cam.routes)) {
@@ -236,6 +237,7 @@ test("every read destination retains the application heading above its task", as
     else {
       assert.equal(navigation?.element, "Screen", route)
       assert.equal(navigation.props.title, "App navigation", route)
+      assert(resolvedUiButtons(navigation).some(button => button.call.function === "home"), `${route} can return to the task menu`)
     }
     const body = opened.resolvedUi.children[1]
     assert(body)
@@ -244,6 +246,10 @@ test("every read destination retains the application heading above its task", as
       assert.equal(task.element, "Screen")
       return task.props.title
     }), titles[route], route)
+    if (route !== "home") {
+      await session.dispatchAction(resolvedUiButtons(navigation!).find(button => button.call.function === "home")!)
+      assert.equal(session.snapshot().route, "home", `${route} returns to the task menu`)
+    }
   }
 })
 
@@ -360,7 +366,7 @@ test("chooser navigation keeps the selected balance separate from an edited look
   forEachResolvedUiNode(menu, node => { if (node.element === "Status") identity[String(node.props.label)] = node.props.value })
   assert.deepEqual(identity, { "Balance owner": customer, "Channel ID": "1" })
   for (const button of resolvedUiButtons(menu)) {
-    assert.deepEqual(button.call.args, toInertValue({ customer, channelId: "1" }))
+    assert.deepEqual(button.call.args, toInertValue(button.call.function === "home" ? {} : { customer, channelId: "1" }))
   }
   const lookup = resolvedUiButtons(edited.resolvedUi).find(button => button.props.label === "View balance")
   assert(lookup)
@@ -368,43 +374,28 @@ test("chooser navigation keeps the selected balance separate from an edited look
   assert.equal(edited.account?.address, customer)
 })
 
-test("opening a balance and creating a channel are peer tasks with separate controls", async () => {
+test("the home menu opens separate balance and channel creation screens", async () => {
   const { session } = await fixture()
-  await session.load()
-  for (const account of [customer, other]) {
-    const opened = await session.setAccount({ address: account })
-    assert.equal(opened.resolvedUi.element, "Screen")
-    const tasks = opened.resolvedUi.children[1]
-    assert.equal(tasks?.element, "Fragment")
-    const [lookup, creation] = tasks.children
-    assert.equal(lookup?.element, "Screen")
-    assert.equal(lookup.props.title, "View a balance")
-    assert.deepEqual(resolvedUiButtons(lookup).map(button => button.call.function), ["position"])
-    assert.equal(creation?.element, "Screen")
-    assert.equal(creation.props.title, "Create a channel (admin only)")
-    const buttons = resolvedUiButtons(creation)
-    assert.deepEqual(buttons.map(button => button.call.function), ["createChannel"])
-    assert.equal(buttons[0]?.disabled === true, account !== other, "admin controls remain visible with contract-projected availability")
-    assert.equal(tasks.children.length, 2)
-  }
-})
-
-test("entry chooses an explicit balance before displaying money or business writes", async () => {
-  const { session, cam } = await fixture()
-  assert.equal(cam.routes.myPosition, undefined)
   const entry = await session.load()
-  assert.equal(entry.state.lookupCustomer, customer)
-  assert.equal(entry.state.lookupChannelId, "0")
-  assert.equal(entry.state.fundAmount, undefined)
-  assert.deepEqual(resolvedUiButtons(entry.resolvedUi).map(button => button.call.function).sort(), ["createChannel", "position"])
-  assert.equal(resolvedUiButtons(entry.resolvedUi).find(button => button.call.function === "createChannel")?.disabled, true)
-  const connected = await session.setAccount({ address: other })
-  assert.equal(connected.state.lookupCustomer, other)
-  assert.equal(resolvedUiButtons(connected.resolvedUi).find(button => button.call.function === "createChannel")?.disabled, false)
-  session.editInteger("lookupChannelId", "1")
-  await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "position")!)
-  assert.equal(session.snapshot().route, "position")
-  assert.deepEqual(session.snapshot().inputs, toInertValue({ customer: other, channelId: "1" }))
+  assert.deepEqual(resolvedUiButtons(entry.resolvedUi).map(button => button.call.function), ["channelLookup", "createChannelForm"])
+  assert.equal(entry.state.lookupCustomer, undefined)
+  assert.equal(entry.state.newPayee, undefined)
+  for (const account of [customer, other]) {
+    await session.setAccount({ address: account })
+    await session.navigate("home", {})
+    await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "createChannelForm")!)
+    const creation = session.snapshot()
+    assert.equal(resolvedUiButtons(creation.resolvedUi!).find(button => button.call.function === "createChannel")?.disabled === true, account !== other)
+    assert.equal(creation.state?.lookupCustomer, undefined)
+    await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "home")!)
+    await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "channelLookup")!)
+    const lookup = session.snapshot()
+    assert.equal(lookup.state?.lookupCustomer, account)
+    assert.equal(lookup.state?.newPayee, undefined)
+    session.editInteger("lookupChannelId", "1")
+    await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "position")!)
+    assert.deepEqual(session.snapshot().inputs, toInertValue({ customer: account, channelId: "1" }))
+  }
 })
 
 test("opened balances stay pinned across wallet changes and chooser round trips", async () => {
@@ -463,7 +454,7 @@ test("channel creation continues to a current lookup without predicting a create
   const admin = await session.setAccount({ address: other })
   assert.deepEqual(resolvedUiButtons(admin.resolvedUi).map(button => button.call.function), ["home", "position"], "receipt lookup must not offer another channel creation")
   await session.setAccount({ address: customer })
-  assert.equal(lookup.state.lookupCustomer, customer)
+  assert.equal(lookup.state?.lookupCustomer, customer)
   assert.equal(lookup.state.lookupChannelId, null)
   const blank = resolvedUiButtons(lookup.resolvedUi).find(button => button.call.function === "position")!
   await assert.rejects(() => session.dispatchAction(blank))
@@ -785,7 +776,7 @@ test("creation receipt exposes its actual ID and views its balance, independentl
   const { session } = await fixture()
   await session.load()
   await session.setAccount({ address: other })
-  await session.navigate("home", {})
+  await session.navigate("createChannelForm", {})
   session.updateState({ newPayee: customer, newChannelCollector: other })
   const edited = session.editDuration("newClaimPeriod", "seconds", "60")
   const action = resolvedUiButtons(edited.resolvedUi).find(button => button.call.function === "createChannel")!

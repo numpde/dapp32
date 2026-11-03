@@ -287,7 +287,10 @@ try {
   await call('Page.navigate', { url: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
-  await assertHierarchy('home', ['View a balance', 'Create a channel (admin only)'], [])
+  await assertHierarchy('home', ['App navigation'], [])
+  await click('Create a channel')
+  await wait(state => state.readRoute === 'createChannelForm', 'open channel creation from home')
+  await assertHierarchy('createChannelForm', ['App navigation', 'Create a channel (admin only)'], [])
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Reconnect wallet'), 'wallet connection')
   await fill('newPayee', accounts.recipient.address)
@@ -498,7 +501,10 @@ try {
   tamper = true
   await call('Fetch.enable', { patterns: [{ urlPattern: camURI.href, requestStage: 'Request' }] })
   await call('Page.navigate', { url: viewer.href })
-  await wait(state => state.readRoute === cam.entry && state.text.includes('This file does not match the verification hash stored in the contract.') && state.buttons.some(button => button.name === 'Create channel'), 'tampered manifest warning with rendered home')
+  await wait(state => state.readRoute === cam.entry && state.text.includes('Hash mismatch') && state.buttons.some(button => button.name === 'Create a channel'), 'tampered manifest warning with rendered home')
+  await evaluate(`document.querySelector('.resource-status-warning').click()`)
+  await wait(state => state.text.includes('This file does not match the verification hash stored in the contract.'), 'inspect manifest mismatch details')
+  await evaluate(`[...document.querySelectorAll('.resources dialog[open] button')].find(button=>button.textContent==='Close').click()`)
   assert.equal(sent, beforeTamper, 'displaying an integrity warning must never submit a transaction')
 
   tamper = false
