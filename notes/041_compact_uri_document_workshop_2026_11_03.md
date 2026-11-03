@@ -220,9 +220,8 @@ substitute. Resource URL admission and contract URI acceptance are different
 policies; an unsupported open/preview action must not silently rewrite a string
 that the receiving contract otherwise accepts.
 
-Implementation decision: UI 1.1.0 declares dedicated `UriField` and `Uri`
-elements; existing UI 1.0.0 documents remain supported but cannot use those
-elements. Older viewers reject 1.1.0 rather than misreading it as UI 1.0.0.
+Implementation decision: UI 1.0.0 includes dedicated `UriField` and `Uri`
+elements. Older viewers reject elements they do not recognize.
 Escrow terms is the first authored adoption. This is a local source change,
 not evidence that any existing published viewer or deployment was upgraded.
 

@@ -4,7 +4,6 @@ import {
   CAM_VERSION,
   CAM_RESOURCE_MAX_BYTES,
   UI_VERSION,
-  UI_URI_VERSION,
 } from "@cam/protocol"
 
 import {
@@ -130,11 +129,10 @@ test("valid minimal bundle returns no issues", () => {
   assert.doesNotThrow(() => assertCamBundle(minimalBundle()))
 })
 
-test("URI elements require UI 1.1 while UI 1.0 remains supported", () => {
+test("URI elements are supported in UI 1.0", () => {
   const node = { requires: ["view"], element: "UriField", props: { label: "Terms" }, state: { key: "terms", defaultValue: "" } }
   const issues = (version: string) => validateEditedRoot<RootWithNamespaces>((root, bundle) => replaceBundleResources(root, bundle, { uiBytes: jsonBytes({ ui: version, nodes: { app: node } }) }))
-  assert.deepEqual(issueLocations(issues(UI_VERSION)), [["CAM_UI_DOCUMENT_INVALID", "nodes.app.element"]])
-  assert.deepEqual(issues(UI_URI_VERSION), [])
+  assert.deepEqual(issues(UI_VERSION), [])
 })
 
 test("AmountField unit declarations are literal while ordinary label expressions retain their policy", () => {

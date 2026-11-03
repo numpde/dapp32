@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { toInertValue, UI_VERSION, UI_URI_VERSION } from "@cam/protocol"
+import { toInertValue, UI_VERSION } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import {
   forEachResolvedUiNode,
@@ -29,11 +29,10 @@ const context = {
 }
 
 test("URI elements preserve exact values and expose their state and byte limit", () => {
-  const declaration = { ui: UI_URI_VERSION, nodes: { app: { requires: ["view"], element: "Fragment", children: [
+  const declaration = { ui: UI_VERSION, nodes: { app: { requires: ["view"], element: "Fragment", children: [
     { element: "UriField", props: { label: "Terms", maxBytes: "$view.limit" }, state: { key: "terms", defaultValue: "ipfs://example/%2F" } },
     { element: "Uri", props: { label: "Recorded", value: "$view.uri" } },
   ] } } }
-  assert.throws(() => parseUi({ ...declaration, ui: UI_VERSION }), /not available in UI 1\.0\.0/)
   const ui = parseUi(declaration)
   const { state, resolvedUi } = resolveInitialUiNode(ui, "app", { view: { limit: "512", uri: "data:text/plain,A%20B" } }, { ...context, state: {} })
   assert.equal(state.terms, "ipfs://example/%2F")

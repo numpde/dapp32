@@ -1,11 +1,8 @@
 import {
   UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_VERSION,
-  UI_URI_VERSION,
-  isUiVersion,
   isRecordObject,
   parseJsonBytes,
-  uiElementSupported,
 } from "@cam/protocol"
 
 export type RawUiDocument = {
@@ -40,12 +37,6 @@ export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
     throw new RawUiDocumentError("UI resource must declare at least one node", "nodes")
   }
 
-  forEachUiNode(value.nodes, (node, path) => {
-    if (typeof value.ui === "string" && typeof node.element === "string" && !uiElementSupported(value.ui, node.element)) {
-      throw new RawUiDocumentError(`${node.element} is not available in UI ${value.ui}`, `${path}.element`)
-    }
-  })
-
   return {
     value,
     nodes: value.nodes,
@@ -53,12 +44,12 @@ export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
 }
 
 function validateUiVersion(version: unknown): void {
-  if (isUiVersion(version)) return
+  if (version === UI_VERSION) return
 
   throw new RawUiDocumentError(
     typeof version === "string" && version.length > 0
       ? `unsupported UI version: ${version}`
-      : `UI version must be ${UI_VERSION} or ${UI_URI_VERSION}`,
+      : `UI version must be ${UI_VERSION}`,
     "ui",
   )
 }

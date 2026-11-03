@@ -46,7 +46,7 @@
 <li><a href="#evm">Bind EVM calls and results</a></li>
 <li><a href="#resolved-target">Resolve a write destination</a></li>
 <li><a href="#expressions">Resolve expressions and handoffs</a></li>
-<li><a href="#ui">Interpret UI 1.0.0 and 1.1.0</a></li>
+<li><a href="#ui">Interpret UI 1.0.0</a></li>
 <li><a href="#execution">Execute and report outcomes</a></li>
 <li><a href="#example">Worked route and UI example</a></li>
 <li><a href="#provenance">Evidence and limits</a></li>
@@ -217,9 +217,9 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <p>Do not manufacture write outputs from events, receipts, or simulation results.</p>
 </section>
 <section id="ui">
-<h2>Interpret UI 1.0.0 and 1.1.0</h2>
+<h2>Interpret UI 1.0.0</h2>
 <p>The UI resource is another declared graph, joined to routes by named node invocations. The repository's UI runtime resolves a selected node into a structured interface tree with action descriptions. An agent can inspect that tree without drawing it, and a viewer can render it; read continuations still target the UI namespace.</p>
-<p>The document declares <code>ui: "1.0.0"</code> or <code>ui: "1.1.0"</code> and a nonempty <code>nodes</code> object. UI 1.1.0 adds <code>Uri</code> and <code>UriField</code>; UI 1.0.0 does not permit them. Viewers that do not support a declared version must reject it. Node names are nonempty strings. Named nodes declare <code>requires</code> as <code>[]</code> or <code>["view"]</code>, and receive exactly those argument names. Inline children cannot declare <code>requires</code>. A supplied <code>view</code> becomes <code>$view</code> during resolution; it is the handoff value, not the UI tree. Node arguments cannot shadow runtime roots.</p>
+<p>The document declares <code>ui: "1.0.0"</code> and a nonempty <code>nodes</code> object. Viewers that do not support a declared version must reject it. Node names are nonempty strings. Named nodes declare <code>requires</code> as <code>[]</code> or <code>["view"]</code>, and receive exactly those argument names. Inline children cannot declare <code>requires</code>. A supplied <code>view</code> becomes <code>$view</code> during resolution; it is the handoff value, not the UI tree. Node arguments cannot shadow runtime roots.</p>
 <p>Elements have closed structures and props. String props may contain references but must resolve to strings. There are no arbitrary HTML, style, script, or event-handler fields.</p>
 <div class="table-scroll" tabindex="0" role="region" aria-label="UI element fields">
 <table>

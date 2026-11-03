@@ -1,14 +1,13 @@
 import {
   createStringMap,
   isExpressionReferenceString,
-  isUiVersion,
   parseExpressionReference,
   UI_CALL_NAMESPACE_BY_ELEMENT,
   UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_NODE_ARGUMENT_KEYS,
   UI_PROP_SCHEMAS,
   UI_STATUS_FORMATS,
-  uiElementSupported,
+  UI_VERSION,
 } from "@cam/protocol"
 import { UiError } from "./errors.ts"
 import { parseAmountUnit } from "./amount.ts"
@@ -54,18 +53,12 @@ export function parseUi(input: unknown): UiDocument {
     throw new UiError("UI_INVALID_FIELD", "UI resource must declare at least one node", "")
   }
 
-  function checkVersion(node: UiNode, path: string): void {
-    if (!uiElementSupported(ui, node.element)) throw new UiError("UI_INVALID_FIELD", `${node.element} is not available in UI ${ui}`, `${path}.element`)
-    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach((child, index) => checkVersion(child, `${path}.children.${index}`))
-  }
-  for (const [name, node] of Object.entries(nodes)) checkVersion(node, `nodes.${name}`)
-
   return { ui, nodes }
 }
 
 function parseUiVersion(value: unknown): string {
   const version = requiredNonEmptyString(value, "ui")
-  if (!isUiVersion(version)) {
+  if (version !== UI_VERSION) {
     throw new UiError("UI_INVALID_FIELD", `unsupported UI version: ${version}`, "ui")
   }
 

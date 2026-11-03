@@ -6,7 +6,6 @@ import {
   CAM_ROUTE_CONTEXT_KEYS,
 } from "./runtime-context.ts"
 import { isAbiBytesValue } from "./abi-types.ts"
-import { UI_URI_VERSION } from "./versions.ts"
 
 // Named UI nodes expose a deliberately tiny call interface. Keep shared UI
 // vocabulary here so UI parsing and conformance use one source.
@@ -59,8 +58,8 @@ export const UI_PROP_SCHEMAS = {
     string: ["label"],
     address: [],
   },
-  UriField: { required: ["label"], optional: ["maxBytes"], string: ["label"], address: [], since: UI_URI_VERSION },
-  Uri: { required: ["label", "value"], string: ["label", "value"], address: [], since: UI_URI_VERSION },
+  UriField: { required: ["label"], optional: ["maxBytes"], string: ["label"], address: [] },
+  Uri: { required: ["label", "value"], string: ["label", "value"], address: [] },
   ChoiceField: { required: ["label", "options"], string: ["label"], address: [], literal: ["options"] },
   NftMetadataField: { required: ["label"], string: ["label"], address: [] },
   DocumentHashField: { required: ["label", "algorithm"], optional: ["sourceURI"], string: ["label"], address: [], literal: ["algorithm"] },
@@ -98,12 +97,6 @@ export type UiPropElement = keyof typeof UI_PROP_SCHEMAS
 
 export function isUiPropElement(value: string): value is UiPropElement {
   return Object.hasOwn(UI_PROP_SCHEMAS, value)
-}
-
-export function uiElementSupported(version: string, element: string): boolean {
-  if (!isUiPropElement(element)) return true
-  const schema = UI_PROP_SCHEMAS[element]
-  return !("since" in schema) || version === schema.since
 }
 
 export function isDocumentHashDigest(value: unknown): value is string {
