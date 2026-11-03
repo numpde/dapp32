@@ -957,6 +957,8 @@ export function App(): ReactElement {
           host={displayedConnection.host}
           account={loadState.status === "ready" ? currentViewerAccount(loadState) : displayedConnection.account}
           wallet={wallet.status === "connected" ? wallet.address : undefined}
+          route={loadState.status === "ready" ? loadState.snapshot.route : undefined}
+          uiURI={loadState.status === "ready" ? loadState.snapshot.uiURI : undefined}
           walletAction={(
             <button className="wallet-button" type="button" aria-busy={walletRefreshing} disabled={wallet.status === "unavailable" || connection === undefined || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
               {walletRefreshing ? "Updating account…" : wallet.status === "unavailable" ? "Wallet not detected" : wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}

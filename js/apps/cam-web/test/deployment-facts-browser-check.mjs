@@ -36,7 +36,7 @@ export async function checkDeploymentFacts({ call, evaluate }) {
       const route = new URLSearchParams(link.hash.slice(1)).get('route')
       const documentStart = await evaluate('performance.timeOrigin')
       await evaluate(`document.querySelector('#local-fixture-facts section a').click()`)
-      await wait(`location.hash===${JSON.stringify(link.hash)}&&[...document.querySelectorAll('.ui-meta .key-value')].some(row=>row.firstElementChild.textContent==='Read route'&&row.lastElementChild.textContent===${JSON.stringify(route)})&&!document.querySelector('.ui-meta > button:last-of-type').disabled`)
+      await wait(`location.hash===${JSON.stringify(link.hash)}&&[...document.querySelectorAll('.connection-facts .key-value')].some(row=>row.firstElementChild.textContent==='Read route'&&row.lastElementChild.textContent===${JSON.stringify(route)})&&!document.querySelector('.ui-meta > button:last-of-type').disabled`)
       assert.equal(await evaluate('location.hash'), link.hash)
       assert.equal(await evaluate('performance.timeOrigin'), documentStart, 'opening a record must preserve the connected document')
       assert.equal((await evaluate('new URL(location.href).searchParams.get("account")')).toLowerCase(), connection.address.toLowerCase(), 'opening a record must preserve the connected account')

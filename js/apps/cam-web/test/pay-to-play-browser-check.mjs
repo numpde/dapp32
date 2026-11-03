@@ -189,7 +189,7 @@ const snapshot = `(()=>{
     }));
   };
   return {
-    readRoute:[...document.querySelectorAll('.ui-meta .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,
+    readRoute:[...document.querySelectorAll('.connection-facts .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,
     tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),
     fields:[...document.querySelectorAll('.elements input')].map(node=>node.name),
     timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),

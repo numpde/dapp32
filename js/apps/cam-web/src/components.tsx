@@ -46,6 +46,8 @@ export function ConnectionSummary({
   account,
   wallet,
   walletAction,
+  route,
+  uiURI,
   children,
 }: {
   readonly chainId: string
@@ -53,15 +55,19 @@ export function ConnectionSummary({
   readonly account: string | undefined
   readonly wallet: string | undefined
   readonly walletAction: ReactElement
+  readonly route: string | undefined
+  readonly uiURI: string | undefined
   readonly children?: ReactNode
 }): ReactElement {
   return (
-    <section className="connection" aria-label="Account and wallet">
+    <section className="connection" aria-label="App and connection">
       <div className="connection-facts">
         <PropertyRow label="Viewing as" value={account === undefined ? "Public view" : account} />
         <PropertyRow label="Signing wallet" value={<span className="wallet-value">{wallet === undefined ? null : <span role="status"><HexValue value={wallet} label="wallet address" /></span>}{walletAction}</span>} />
         <PropertyRow label="Chain" value={<ChainLabel key={chainId} chainId={chainId} />} />
         <PropertyRow label="CAM contract" value={host} />
+        {route === undefined ? null : <PropertyRow label="Read route" value={route} />}
+        {uiURI === undefined ? null : <PropertyRow label="UI resource" value={uiURI} />}
         {children}
       </div>
     </section>
@@ -138,11 +144,6 @@ export function UiView({
         <button className="button-quiet" type="button" disabled={changingView || sending} onClick={() => { void onRefresh() }}>
           Refresh
         </button>
-        <details>
-          <summary>App details</summary>
-          <KeyValue label="Read route" value={snapshot.route} mono={false} />
-          <KeyValue label="UI resource" value={snapshot.uiURI} mono={false} />
-        </details>
       </div>
       <div className="elements" role="group" aria-label="Current view">
         <AddressSuggestions sources={addresses}>

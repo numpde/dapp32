@@ -211,7 +211,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await evaluate(`window.actionFixture.connectionChain('eip155:31337')`)
     await wait(`${displayedChain}==='Anvil (eip155:31337)'`)
     const preamble = await evaluate(`(() => {
-      const connection=document.querySelector('section[aria-label="Account and wallet"]')
+      const connection=document.querySelector('section[aria-label="App and connection"]')
       const labels=[...connection.querySelectorAll('dt')]
       const value=label=>labels.find(term=>term.textContent===label)?.nextElementSibling
       return {expanded:!connection.querySelector('details'),
@@ -219,11 +219,27 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
         wallet:value('Signing wallet')?.querySelector('code')?.textContent,
         chain:value('Chain')?.textContent,
         host:value('CAM contract')?.querySelector('code')?.textContent,
-        visible:['Viewing as','Signing wallet','Chain','CAM contract'].every(label=>value(label)?.getClientRects().length>0),
+        route:value('Read route')?.textContent,
+        uiURI:value('UI resource')?.textContent,
+        visible:['Viewing as','Signing wallet','Chain','CAM contract','Read route','UI resource'].every(label=>value(label)?.getClientRects().length>0),
         walletStatus:!!value('Signing wallet').querySelector('[role="status"]'),
         walletEnabled:!connection.querySelector('.wallet-button').disabled}
     })()`)
-    assert.deepEqual(preamble, { expanded: true, account: '0x1111111111111111111111111111111111111111', wallet: '0x2222222222222222222222222222222222222222', chain: 'Anvil (eip155:31337)', host: '0x3333333333333333333333333333333333333333', visible: true, walletStatus: true, walletEnabled: true }, 'account, wallet, chain and contract facts are visible without expansion, with the wallet action available')
+    assert.deepEqual(preamble, { expanded: true, account: '0x1111111111111111111111111111111111111111', wallet: '0x2222222222222222222222222222222222222222', chain: 'Anvil (eip155:31337)', host: '0x3333333333333333333333333333333333333333', route: 'fixture', uiURI: 'fixture', visible: true, walletStatus: true, walletEnabled: true }, 'connection and app facts are visible without expansion, with the wallet action available')
+    const longResource = `https://example.test/${'x'.repeat(500)}`
+    await evaluate(`window.actionFixture.appDetails('next',${JSON.stringify(longResource)})`)
+    await wait(`[...document.querySelectorAll('.connection-facts .key-value')].some(row=>row.querySelector('dt')?.textContent==='UI resource'&&row.querySelector('dd')?.textContent===${JSON.stringify(longResource)})`)
+    const viewport = await evaluate('({width:innerWidth,height:innerHeight})')
+    for (const width of [1280, 761, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth&&[...document.querySelectorAll('.connection-facts .key-value')].some(row=>row.querySelector('dt')?.textContent==='Read route'&&row.querySelector('dd')?.textContent==='next')`), `changed app details remain visible without overflowing at ${width}px`)
+    }
+    await call('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false })
+    await wait(`innerWidth===${viewport.width}&&innerHeight===${viewport.height}`)
+    await evaluate('window.actionFixture.appDetails(undefined,undefined)')
+    await wait(`![...document.querySelectorAll('.connection-facts dt')].some(term=>['Read route','UI resource'].includes(term.textContent))`)
+    await evaluate(`window.actionFixture.appDetails('fixture','fixture')`)
+    await wait(`[...document.querySelectorAll('.connection-facts dt')].some(term=>term.textContent==='Read route')`)
     await evaluate(`Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedIdentifier=value}}})`)
     await assertDisplayedValues({ call, evaluate })
     await assertDisplayFailureWitnesses({ call, evaluate })
@@ -331,14 +347,14 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await evaluate('actionFixture.sending(false)')
 
     assert(await evaluate(`(() => {
-      const controls = [...document.querySelectorAll('.ui-meta>button, .ui-meta>details>summary')]
+      const controls = [...document.querySelectorAll('.ui-meta>button')]
       const tops = controls.map(control => {
         const range = document.createRange()
         range.selectNodeContents(control)
         return range.getBoundingClientRect().top
       })
       return Math.max(...tops) - Math.min(...tops) <= 1
-    })()`), 'toolbar actions and details share a text baseline')
+    })()`), 'toolbar actions share a text baseline')
 
     assert(await evaluate(`(() => {
       const [read,write,unknown,disabledRead,disabledWrite] = document.querySelectorAll('.action-button')

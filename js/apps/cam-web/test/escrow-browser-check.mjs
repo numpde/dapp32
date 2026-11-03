@@ -224,7 +224,7 @@ async function feedback(kind) {
 async function waitFor(predicate, label, failOnViewerError) {
   let lastState
   for (let count = 0; count < 80 && !timeout.aborted; count++) {
-    const state = await evaluate(`(()=>{const body=document.body;const root=document.documentElement;if(body===null||root===null)return null;return {heading:document.querySelector('h1')?.textContent,route:[...document.querySelectorAll('.ui-meta .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),text:body.innerText,width:root.scrollWidth,viewport:innerWidth};})()`)
+    const state = await evaluate(`(()=>{const body=document.body;const root=document.documentElement;if(body===null||root===null)return null;return {heading:document.querySelector('h1')?.textContent,route:[...document.querySelectorAll('.connection-facts .key-value')].find(row=>row.querySelector('dt')?.textContent==='Read route')?.querySelector('dd')?.textContent,tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),text:body.innerText,width:root.scrollWidth,viewport:innerWidth};})()`)
     lastState = state
     if (state !== null) {
       if (await predicate(state)) return state
@@ -237,7 +237,7 @@ async function waitFor(predicate, label, failOnViewerError) {
 }
 async function assertNarrowUi(label, width) {
   await call('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: width < 500 }, sessionId)
-  const layout = await evaluate(`(() => { const ui = document.querySelector('.ui'); const meta = ui?.querySelector('.ui-meta'); const uri = meta?.lastElementChild; return { page: document.documentElement.scrollWidth, viewport: innerWidth, meta: meta?.scrollWidth, metaClient: meta?.clientWidth, uri: uri?.scrollWidth, uriClient: uri?.clientWidth, uriText: uri?.textContent, uriRight: uri?.getBoundingClientRect().right, uiRight: ui?.getBoundingClientRect().right } })()`)
+  const layout = await evaluate(`(() => { const meta = document.querySelector('.connection-facts'); const uri = [...meta.querySelectorAll('.key-value')].find(row=>row.querySelector('dt')?.textContent==='UI resource')?.querySelector('dd'); return { page: document.documentElement.scrollWidth, viewport: innerWidth, meta: meta?.scrollWidth, metaClient: meta?.clientWidth, uri: uri?.scrollWidth, uriClient: uri?.clientWidth, uriText: uri?.textContent, uriRight: uri?.getBoundingClientRect().right, uiRight: meta?.getBoundingClientRect().right } })()`)
   assert.equal(layout.uriText, new URL('./ui.json', cam).href, `${label}: UI URI is missing`)
   assert(layout.page <= layout.viewport, `${label}: document overflows at ${width}px`)
   assert(layout.meta <= layout.metaClient && layout.uri <= layout.uriClient && layout.uriRight <= layout.uiRight, `${label}: UI URI is clipped at ${width}px`)

@@ -44,6 +44,8 @@ let documentURI = "https://example.test/terms"
 let documentDigest = ""
 let viewingAccount = "0x1111111111111111111111111111111111111111"
 let connectionChainId = "eip155:31337"
+let appRoute: string | undefined = "fixture"
+let appResource: string | undefined = "fixture"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
 function monetaryFact(label: string, value: string) {
@@ -112,6 +114,7 @@ function render(): void {
     createElement(ConnectionSummary, {
       chainId: connectionChainId, host: "0x3333333333333333333333333333333333333333",
       account: viewingAccount,
+      route: appRoute, uiURI: appResource,
       wallet: "0x2222222222222222222222222222222222222222",
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
@@ -136,6 +139,7 @@ Object.assign(window, { actionFixture: { events, reviewJson, reviewURI, reviewCa
   build(mode: "known" | "modified" | "development" | "unknown") { buildMode = mode; render() },
   account(value: string) { viewingAccount = value; render() },
   connectionChain(value: string) { connectionChainId = value; render() },
+  appDetails(route: string | undefined, uri: string | undefined) { appRoute = route; appResource = uri; render() },
   transaction(chainId: string, hash: `0x${string}` | undefined) { transactionReport = { transaction: hash === undefined ? undefined : { chainId, hash } }; render() },
   hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, uri(value: string) { documentURI = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
 render()

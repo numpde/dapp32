@@ -218,16 +218,6 @@ button.resource-load[aria-busy="true"] { color: var(--accent); background: linea
 }
 
 .ui-meta > button { padding-inline: 0; }
-.ui-meta > details { min-width: 0; }
-.ui-meta summary { cursor: pointer; }
-.ui-meta > details[open] { flex-basis: 100%; }
-.ui-meta > details[open] > summary { margin-block-end: 8px; }
-
-.ui-meta span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
 .elements {
   display: grid;
   gap: 8px;

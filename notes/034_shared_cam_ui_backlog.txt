@@ -72,8 +72,9 @@ both paths and keep inside clicks and drags from dismissing the dialog.
 
 4. Complete navigation and visible app details
 
-   Status: queued. Owners: app-authored navigation across all apps; shared
-   viewer for visible route/resource details in the preamble. Preserve object
+   Status: in progress. Owners: app-authored navigation across all apps; shared
+   viewer for visible route/resource details in the preamble. The read route
+   and UI resource now appear in the preamble without expansion. Preserve object
    and account context. Complete navigation is an authoring convention, not a
    protocol requirement.
 
