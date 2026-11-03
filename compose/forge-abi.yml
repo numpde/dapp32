@@ -56,6 +56,35 @@ services:
       - "/work/dapps"
       - "/work/abi-plan/manifest.tsv"
 
+  # Compare the pinned compiler's exact export bytes without writable ABI mounts.
+  forge-abi-check:
+    <<: *forge_base
+    volumes:
+      - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:ro
+      - ../dapps:/work/dapps:ro
+    command:
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        plan="/work/abi-plan/manifest.tsv"
+        if [ ! -s "$$plan" ]; then
+          printf '%s\n' 'forge-abi-check: missing ABI export plan' >&2
+          exit 2
+        fi
+        while IFS="	" read -r dapp inspect_target abi_name; do
+          output="$$dapp/cam/abi/$$abi_name"
+          if [ ! -f "$$output" ] || [ ! -r "$$output" ]; then
+            printf 'forge-abi-check: cannot read declared ABI: %s\n' "$$output" >&2
+            exit 1
+          fi
+          forge inspect --json "$$inspect_target" abi > /tmp/generated-abi.json
+          if ! cmp -s /tmp/generated-abi.json "$$output"; then
+            printf 'forge-abi-check: %s differs from its compiled contract; run make cam/abi/export\n' "$$output" >&2
+            exit 1
+          fi
+        done < "$$plan"
+
   # Only dapps listed by forge-abi-plan participate. Outputs are staged in tmpfs
   # first so a failed inspection does not erase the last good ABI set.
   forge-abi:

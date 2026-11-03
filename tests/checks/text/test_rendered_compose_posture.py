@@ -784,6 +784,8 @@ class RenderedComposePostureTest(unittest.TestCase):
                 self.assert_hardened(config_service)
                 self.assertEqual("none", config_service.get("network_mode"))
 
+        abi_check = compose_service(abi_config, "forge-abi-check")
+        self.assert_read_only_volumes(abi_check, "/work/dapps", "/work/abi-plan")
         forge_abi = compose_service(abi_config, "forge-abi")
         self.assertEqual(True, compose_volume(forge_abi, "/work/dapps").get("read_only"))
         self.assert_no_volume_target(forge_abi, "/work")

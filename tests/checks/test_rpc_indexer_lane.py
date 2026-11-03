@@ -32,6 +32,7 @@ class RpcIndexerLaneTest(unittest.TestCase):
             'printf "%s\\n" "$@" > "$COMPOSE_CALLS"\n'
             'printf "%s\\n" "$*" >> "$COMPOSE_HISTORY"\n'
             'printf "project=%s\\nuid=%s\\ngid=%s\\ninput=%s\\nuri=%s\\norigin=%s\\nresource_origin=%s\\n" "$COMPOSE_PROJECT_NAME" "$LOCAL_UID" "$LOCAL_GID" "${RPC_URL_FILE-}" "${CAM_URI-}" "${BIKE_NFT_GUI_ORIGIN-}" "${CAM_VIEWER_RESOURCE_ORIGIN-}" >> "$COMPOSE_CALLS"\n'
+            'if [[ ${TEST_FAIL_ABI_CHECK-} == 1 && ${*: -1} == forge-abi-check ]]; then exit 12; fi\n'
         )
 
     def make(self, target: str, upstream: Path | str | None = None, *, overrides: tuple[str, ...] | None = None, extra_environment: dict[str, str] | None = None, environment_override: bool | None = None) -> subprocess.CompletedProcess[str]:
@@ -145,6 +146,22 @@ class RpcIndexerLaneTest(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("requires the invoking user and group IDs", result.stderr)
         self.assertFalse(self.history.exists())
+
+    def test_abi_check_uses_a_disposable_project(self) -> None:
+        events = self.directory / "engine-events"
+        result = self.make("cam/abi/check", overrides=("-o", "dapps/deps/verify"), extra_environment={"TEST_ENGINE": "rootless", "TEST_EVENTS": str(events)})
+        self.assertEqual(0, result.returncode, result.stderr)
+        commands = self.history.read_text().splitlines()
+        self.assertTrue(any(line.endswith("--user 0:0 forge-abi-plan") for line in commands), commands)
+        self.assertTrue(any(line.endswith("--user 0:0 forge-abi-check") for line in commands), commands)
+        self.assertTrue(any("--project-name rpc-lane-check-cam-abi-check-" in line and " down " in line and line.endswith("--rmi local") for line in commands), commands)
+
+    def test_failed_abi_check_still_cleans_up(self) -> None:
+        events = self.directory / "engine-events"
+        result = self.make("cam/abi/check", overrides=("-o", "dapps/deps/verify"), extra_environment={"TEST_ENGINE": "rootless", "TEST_EVENTS": str(events), "TEST_FAIL_ABI_CHECK": "1"})
+        self.assertNotEqual(0, result.returncode)
+        commands = self.history.read_text().splitlines()
+        self.assertTrue(any("--project-name rpc-lane-check-cam-abi-check-" in line and " down " in line and line.endswith("--rmi local") for line in commands), commands)
 
     def test_missing_cam_output_cannot_bypass_preflight(self) -> None:
         self.prepare_cam_outputs()
