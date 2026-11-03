@@ -24,7 +24,7 @@
 <div class="topbar">
 <div class="shell">
 <a class="brand" href="../">dapp32</a>
-<nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployment/">Deploy an app</a><a href="../deployments/">Deployments</a></nav>
+<nav aria-label="Primary"><a href="./" aria-current="page">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav>
 </div>
 </div>
 <header>
@@ -58,7 +58,7 @@
 </section>
 <section id="examples">
 <h2>Follow the actual escrow read route</h2>
-<p class="narrow">This complete route excerpt comes from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/main.json">escrow's manifest</a>. It reads the projection for the currently viewed account and hands the first output to the UI's <code>app</code> node. In <code>main.json</code>, place this object at <code>routes.createAgreementForm</code>; it is not a standalone manifest.</p>
+<p class="narrow">This complete route excerpt comes from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/main.json">escrow's manifest</a>. It reads the projection for the currently viewed account and hands the first output and a navigation selector to the UI's <code>app</code> node. In <code>main.json</code>, place this object at <code>routes.createAgreementForm</code>; it is not a standalone manifest.</p>
 <pre class="code-block" data-source-route="escrow:createAgreementForm">
 <code>{
   "kind": "read",
@@ -66,12 +66,19 @@
   "call": {
     "namespace": "contracts.CamEscrowUI",
     "function": "viewCreateAgreement",
-    "args": { "client": "$account.address" }
+    "args": {
+      "client": "$account.address"
+    }
   },
   "then": {
     "namespace": "ui",
     "function": "app",
-    "args": { "view": "$outputs.0" }
+    "args": {
+      "view": {
+        "screen": "$outputs.0",
+        "navigation": "navigation.create"
+      }
+    }
   }
 }</code>
 </pre>
@@ -83,12 +90,16 @@
 <pre class="code-block" data-source-route="escrow:createAgreement">
 <code>{
   "kind": "write",
-  "inputs": ["params"],
+  "inputs": [
+    "params"
+  ],
   "value": "$inputs.params.amount",
   "call": {
     "namespace": "contracts.CamEscrow",
     "function": "createAgreement",
-    "args": { "params": "$inputs.params" }
+    "args": {
+      "params": "$inputs.params"
+    }
   },
   "then": {
     "namespace": "routes",
@@ -96,6 +107,25 @@
     "args": {
       "client": "$account.address",
       "agreementRef": "$inputs.params.agreementRef"
+    }
+  },
+  "review": {
+    "call": {
+      "namespace": "contracts.CamEscrowUI",
+      "function": "arbitrationTimeoutBeneficiaryId",
+      "args": {
+        "beneficiary": "$inputs.params.arbitrationTimeoutBeneficiary"
+      }
+    },
+    "then": {
+      "namespace": "ui",
+      "function": "escrow.create.review",
+      "args": {
+        "view": {
+          "params": "$inputs.params",
+          "timeoutRecipient": "$outputs.0.read.0"
+        }
+      }
     }
   }
 }</code>
@@ -105,7 +135,7 @@
 </section>
 <section>
 <h2>Compose a declarative UI</h2>
-<p class="narrow">Named nodes declare <code>requires: ["view"]</code> when they receive a view argument. <code>Include</code> calls UI nodes, <code>Button</code> calls routes, and fields bind local <code>state.key</code> values that expressions can read through <code>$state</code>. Escrow's <code>app</code> node selects a named screen using <code>$view.viewId</code>.</p>
+<p class="narrow">Named nodes declare <code>requires: ["view"]</code> when they receive a view argument. <code>Include</code> calls UI nodes, <code>Button</code> calls routes, and fields bind local <code>state.key</code> values that expressions can read through <code>$state</code>. Escrow's <code>app</code> node selects a named screen using <code>$view.screen.viewId</code>.</p>
 <div class="route-table">
 <table>
 <caption>Current UI elements and their purpose</caption>
@@ -201,7 +231,7 @@
   }
 }</code>
 </pre>
-<p class="narrow">Escrow keeps document URIs in TextField and digest values in DocumentHashField. This complete terms field belongs among <code>nodes["escrow.create"].children</code> in <code>ui.json</code>:</p>
+<p class="narrow">Escrow keeps document URIs in UriField and digest values in DocumentHashField. This complete terms field belongs among <code>nodes["escrow.create"].children</code> in <code>ui.json</code>:</p>
 <pre class="code-block" data-source-ui="escrow:DocumentHashField">
 <code>{
   "element": "DocumentHashField",

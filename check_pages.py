@@ -9,6 +9,73 @@ from pathlib import Path
 
 SOURCE_ARCHIVE_ROOT: Path | None = None
 
+# The published pages keep static, usable links; this is their single source.
+PRIMARY_NAVIGATION = (
+    ("authoring/", "Authoring"),
+    ("reference/cam/", "CAM reference"),
+    ("examples/", "Example apps"),
+    ("deployments/", "Deployments"),
+    ("deployment/", "Deploy an app"),
+)
+
+
+def navigation_pages(root: Path):
+    import re
+
+    for page in sorted(root.rglob("*.html")):
+        relative = page.relative_to(root)
+        if relative.parent.parent == Path("reference/cam") and re.fullmatch(r"\d+\.\d+\.\d+", relative.parent.name):
+            continue  # Versioned protocol documents are immutable copied resources.
+        yield page
+
+
+def navigation_html(root: Path, page: Path) -> str:
+    prefix = os.path.relpath(root, page.parent)
+    links = []
+    for destination, label in PRIMARY_NAVIGATION:
+        current = page.parent == root / destination
+        href = "./" if current else f"{prefix}/{destination}"
+        attribute = ' aria-current="page"' if current else ""
+        links.append(f'<a href="{href}"{attribute}>{label}</a>')
+    return '<nav aria-label="Primary">' + "".join(links) + '</nav>'
+
+
+def navigation_updates(root: Path):
+    import re
+
+    pattern = re.compile(r'<nav aria-label="Primary"(?:\s[^>]*)?>.*?</nav>', re.DOTALL)
+    for page in navigation_pages(root):
+        text = page.read_text(encoding="utf-8")
+        matches = list(pattern.finditer(text))
+        if len(matches) != 1:
+            raise AssertionError(f"expected one primary navigation: {page}")
+        match = matches[0]
+        expected = navigation_html(root, page)
+        if match.group() != expected:
+            yield page, text[:match.start()] + expected + text[match.end():]
+
+
+def check_navigation(root: Path) -> None:
+    stale = [str(page.relative_to(root)) for page, _ in navigation_updates(root)]
+    if stale:
+        raise AssertionError(f"primary navigation differs; run make pages/navigation/update: {', '.join(stale)}")
+
+
+def navigation_archive(root: Path) -> None:
+    import io
+    import stat
+    import sys
+    import tarfile
+
+    updates = list(navigation_updates(root))
+    with tarfile.open(fileobj=sys.stdout.buffer, mode="w|") as archive:
+        for page, text in updates:
+            data = text.encode("utf-8")
+            info = tarfile.TarInfo(str(page.relative_to(root)))
+            info.size = len(data)
+            info.mode = stat.S_IMODE(page.stat().st_mode)
+            archive.addfile(info, io.BytesIO(data))
+
 BIKE_CAM_MANIFEST_RELATIVE = Path("dapps/bike-nft/cam/main.json")
 CHECKED_SOURCE_PATHS = (
     BIKE_CAM_MANIFEST_RELATIVE,
@@ -345,8 +412,14 @@ if __name__ == "__main__":
     import argparse
 
     argument_parser = argparse.ArgumentParser(description="Check published docs against a clean source checkout or explicit git archive export.")
+    argument_parser.add_argument("--navigation-archive", action="store_true", help="emit an archive with refreshed static primary navigation")
     argument_parser.add_argument("--source-archive", type=Path, help="source directory produced by git archive of the reviewed commit; default checks DAPP32_REPO_ROOT git cleanliness")
     arguments = argument_parser.parse_args()
+    site_root = Path(__file__).resolve().parent
+    if arguments.navigation_archive:
+        navigation_archive(site_root)
+        raise SystemExit(0)
+    check_navigation(site_root)
     if arguments.source_archive:
         if (arguments.source_archive / ".git").exists():
             raise RuntimeError("--source-archive requires a git archive export, not a worktree")

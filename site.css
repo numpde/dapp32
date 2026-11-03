@@ -123,12 +123,6 @@
       font-size: 0.94rem;
     }
 
-    .topbar-actions {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-
     nav a {
       color: var(--muted);
       text-decoration: none;
@@ -407,11 +401,6 @@
         padding: 14px 0;
       }
 
-      .topbar-actions {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 12px;
-      }
     }
   .registry-panel,.component-card,.flow-step {padding:18px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
 .serial {font-family:ui-monospace,monospace;font-weight:700}
@@ -428,13 +417,13 @@ a:focus-visible {outline:3px solid var(--green);outline-offset:3px}.skip-link {p
 code {overflow-wrap:anywhere}pre code {overflow-wrap:normal}
 
 /* Homepage navigation separates site destinations from the app guide collection. */
-.home-topbar .shell {display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
-.home-topbar nav {justify-self:end;align-items:center}
-.home-topbar nav a {display:inline-flex;align-items:center;min-height:32px}
+.topbar .shell {display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+.topbar nav {justify-self:end;align-items:center}
+.topbar nav a {display:inline-flex;align-items:center;min-height:32px}
 @media(max-width:860px){
-  .home-topbar .shell {grid-template-columns:minmax(0,1fr) auto;gap:12px 18px}
-  .home-topbar nav {grid-column:1/-1;grid-row:2;justify-self:start}
-  .home-topbar .theme-toggle {grid-column:2;grid-row:1}
+  .topbar .shell {grid-template-columns:minmax(0,1fr) auto;gap:12px 18px}
+  .topbar nav {grid-column:1/-1;grid-row:2;justify-self:start}
+  .topbar .theme-toggle {grid-column:2;grid-row:1}
 }
 
 .document > .deployment-guide { margin-top: 40px; }
