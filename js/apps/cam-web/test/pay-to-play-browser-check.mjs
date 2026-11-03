@@ -221,6 +221,7 @@ async function assertHierarchy(route, peers, nested) {
     const headings=[...body.querySelectorAll('h2')];
     return {
       brand:document.querySelector('h1')?.textContent,
+      navigation:[...body.querySelectorAll('section[aria-label="App navigation"] button')].map(button=>button.getAttribute('aria-label')),
       peers:headings.map(node=>node.textContent),
       direct:headings.every(node=>node.parentElement.parentElement===body),
       boundaries:headings.slice(1).every(node=>parseFloat(getComputedStyle(node.parentElement).borderTopWidth)>0),
@@ -229,6 +230,7 @@ async function assertHierarchy(route, peers, nested) {
   })()`)
   assert.equal((await evaluate(snapshot)).readRoute, route)
   assert.equal(actual.brand, 'Pay-to-Play')
+  assert.deepEqual(actual.navigation, ['View a balance', 'Create a channel'], `${route} keeps the same direct navigation links`)
   assert.deepEqual(actual.peers, peers, `${route} peer headings`)
   assert(actual.direct && actual.boundaries, `${route} task sections own their boundaries`)
   assert.deepEqual(actual.nested, nested, `${route} only genuine subtasks are nested`)
@@ -250,8 +252,8 @@ async function send(label, inspectReview) {
   await wait(state => sent === before + 1 && state.transactionHash === lastHash && state.transaction.includes('Transaction confirmed in block') && !state.prepared && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), `${label} confirmation and refreshed view`)
 }
 async function inspect(customer, channelId) {
-  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel, or create a channel')`)) {
-    await click('Change account or channel, or create a channel')
+  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) {
+    await click('Change account or channel')
     await wait(state => state.readRoute === 'choosePosition', 'context-preserving chooser')
     await assertHierarchy('choosePosition', ['App navigation', 'Selected balance', 'View a balance'], [])
   }
@@ -465,8 +467,9 @@ try {
   phase = 'zero-wait recovery channel'
   await role('admin')
   await inspect(accounts.admin.address, '0')
-  await click('Change account or channel, or create a channel')
-  await wait(state => state.readRoute === 'choosePosition' && state.fields.includes('newPayee'), 'new channel task on chooser')
+  await click('Create a channel')
+  await wait(state => state.readRoute === 'createChannelForm' && state.fields.includes('newPayee'), 'create channel from selected balance')
+  await assertHierarchy('createChannelForm', ['App navigation', 'Create a channel (admin only)'], [])
   await fill('newPayee', accounts.recipient.address)
   await fill('newChannelCollector', accounts.relayer.address)
   await fill('newClaimPeriod.seconds', '0')

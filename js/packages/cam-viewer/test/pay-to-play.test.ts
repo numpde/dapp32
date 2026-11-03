@@ -340,6 +340,7 @@ test("account destinations offer navigation with the inspected identity across w
     const menuButtons = resolvedUiButtons(menu)
     const chooser = menuButtons.find(button => button.call.function === "choosePosition")
     assert(chooser, `${route} must offer a way to change the inspected account or channel`)
+    assert.equal(chooser.props.label, "Change account or channel")
     assert.deepEqual(chooser.call.args, toInertValue({ customer, channelId: "1" }))
     const destination = route === "position" ? "recovery" : "position"
     const navigation = menuButtons.find(button => button.call.function === destination)
@@ -447,7 +448,7 @@ test("channel creation continues to a current lookup without predicting a create
   assert.equal((lookup.values[0] as Record<string, unknown>).channelCount, "5")
   assert.equal(lookup.state.fundAmount, undefined)
   const admin = await session.setAccount({ address: other })
-  assert.deepEqual(resolvedUiButtons(admin.resolvedUi).map(button => button.call.function), ["channelLookup", "createChannelForm", "position"], "receipt lookup must not offer another channel creation")
+  assert.deepEqual(resolvedUiButtons(admin.resolvedUi).map(button => button.call.function), ["channelLookup", "createChannelForm", "position"], "receipt lookup offers navigation and balance lookup without a direct creation action")
   await session.setAccount({ address: customer })
   assert.equal(lookup.state?.lookupCustomer, customer)
   assert.equal(lookup.state.lookupChannelId, null)

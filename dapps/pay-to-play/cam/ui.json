@@ -1546,7 +1546,7 @@
     "changePosition": {
       "element": "Button",
       "props": {
-        "label": "Change account or channel, or create a channel"
+        "label": "Change account or channel"
       },
       "call": {
         "namespace": "routes",
