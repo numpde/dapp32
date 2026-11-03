@@ -1,7 +1,7 @@
 import { useState } from "react"
 import type { ReactElement, ReactNode } from "react"
 import { displayText } from "./display.ts"
-import { CopyButton } from "./copy-button.tsx"
+import { CopyButton, CopyRecovery } from "./copy-button.tsx"
 import { useClipboardCopy } from "./clipboard.ts"
 
 type HexValueProps = { readonly value: string; readonly label: string; readonly href?: string }
@@ -19,7 +19,7 @@ function CopyableHex({ value, label, href }: HexValueProps): ReactElement {
       {href === undefined ? code : <a href={href} target="_blank" rel="noopener noreferrer" title={`View ${label}`}>{code}</a>}
       <CopyButton label={label} result={result} onCopy={copy} />
     </span>
-    {failure === undefined ? null : <span className="hex-copy-error" role="alert">{failure.message} <input aria-label={`Full value: ${label}`} readOnly value={value} />{failure.diagnostic === undefined ? null : <span className="feedback-diagnostic">{failure.diagnostic}</span>}</span>}
+    <CopyRecovery failure={failure} label={label} value={value} />
   </span>
 }
 

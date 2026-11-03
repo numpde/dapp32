@@ -2,7 +2,7 @@ import { useContext, useId, useMemo, useState } from "react"
 import type { ReactElement } from "react"
 import { requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
 import { useClipboardCopy } from "./clipboard.ts"
-import { CopyButton } from "./copy-button.tsx"
+import { CopyButton, CopyRecovery } from "./copy-button.tsx"
 import { readTextDataURI, textDataURI } from "./data-uri.ts"
 import { DownloadContext } from "./download-context.ts"
 import { DismissibleDialog } from "./dismissible-dialog.tsx"
@@ -57,7 +57,7 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
       if (candidate === undefined) throw new Error("Cannot apply a document without an active draft.")
       if (candidate.kind === "failed") throw candidate.error
       const next = candidate.uri
-      if (maxBytes !== undefined && BigInt(new TextEncoder().encode(next).byteLength) > BigInt(maxBytes)) throw new UserFacingError(`Cannot embed this document: the URI exceeds the ${maxBytes}-byte limit.`)
+      if (overLimit) throw new UserFacingError(`Cannot embed this document: the URI exceeds the ${maxBytes}-byte limit.`)
       onInput(name, next)
       setDraft(undefined)
       setError(undefined)
@@ -121,7 +121,7 @@ export function UriValueView({ label, value }: { readonly label: string; readonl
         : /^(?:https?:|ipfs:)/i.test(value) ? <button type="button" className="button-quiet" onClick={open}>Open</button> : null}
     </>}
     {preview === undefined ? null : <div className="uri-preview" id={previewId}>{preview.type === "application/json" ? <JsonView text={preview.text} label={label} /> : <pre>{preview.text}</pre>}</div>}
-    {failure === undefined ? null : <span className="hex-copy-error" role="alert">{failure.message} <input aria-label={`Full value: ${label}`} readOnly value={value} />{failure.diagnostic === undefined ? null : <span className="feedback-diagnostic">{failure.diagnostic}</span>}</span>}
+    <CopyRecovery failure={failure} label={label} value={value} />
     {error === undefined ? null : <Feedback report={failureReport(error)} kind="error" />}
   </div>} />
 }

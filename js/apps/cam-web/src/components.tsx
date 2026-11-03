@@ -446,8 +446,10 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
   ]
   return <fieldset className="document-hash-field">
     <legend id={labelId}>{displayText(node.props.label)}</legend>
-    <input disabled={disabled} name={node.state.key} value={value} autoComplete="off" spellCheck={false} aria-labelledby={labelId} aria-invalid={invalid} aria-describedby={invalid ? `${hintId} ${issueId}` : hintId}
-      onChange={event => onInput(node.state.key, event.currentTarget.value)} />
+    <CompactHexEntry value={value} compact={value !== "" && !invalid}>
+      <input disabled={disabled} name={node.state.key} value={value} autoComplete="off" spellCheck={false} aria-labelledby={labelId} aria-invalid={invalid} aria-describedby={invalid ? `${hintId} ${issueId}` : hintId}
+        onChange={event => onInput(node.state.key, event.currentTarget.value)} />
+    </CompactHexEntry>
     <p id={hintId} className="field-hint">Enter 0x followed by 64 hexadecimal characters, or calculate from exact document bytes. Files stay on this device; selecting one does not upload it or check the URI. Limit: 8 MiB and 15 seconds.</p>
     {invalid ? <p id={issueId} className="visually-hidden" role="status">The digest must be 0x followed by exactly 64 hexadecimal characters. Your entry is kept unchanged.</p> : null}
     <button ref={fileAction} disabled={disabled} className="button-quiet resource-load" aria-busy={pending && status.source === "file"} type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>

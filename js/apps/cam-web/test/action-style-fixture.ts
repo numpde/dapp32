@@ -41,6 +41,7 @@ let bytes32Draft = ""
 let signatureDraft = ""
 let boundedDraft = ""
 let documentURI = "https://example.test/terms"
+let documentDigest = ""
 let viewingAccount = "0x1111111111111111111111111111111111111111"
 let connectionChainId = "eip155:31337"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
@@ -66,7 +67,7 @@ function render(): void {
   const integer = projectIntegerDraft(integerDraft, { min: "0", max: "100" })
   const duration = projectDurationDraft(durationDraft, { min: "0", max: "100" })
   const amount = projectAmountDraft(amountDraft)
-  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, bytes32Draft, signatureDraft, boundedDraft, documentURI, document: "", metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, bytes32Draft, signatureDraft, boundedDraft, documentURI, document: documentDigest, metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Screen", props: { title: "Overview" }, children: [
       { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
     ] },
@@ -103,7 +104,7 @@ function render(): void {
   const props: ComponentProps<typeof UiView> = { snapshot, canReviewTransaction: true, actionKind: fixtureActionKind, viewRef: null, changingView: busy, sending,
     onBack: async () => { events.back++ }, onRefresh: async () => { events.refresh++ },
     onAction: async (action: ResolvedButtonNode) => { const kind = fixtureActionKind(action); events[kind]++; if (kind === "contractCall") prepared = true; render() },
-    onInput: (name: string, value: string | null) => { if (name === "documentURI") { if (value === null) throw new Error("URI fixture requires a string"); documentURI = value } else if (name === "bytes32Draft") { if (value === null) throw new Error("Hex fixture requires a string"); bytes32Draft = value } else if (name === "signatureDraft") { if (value === null) throw new Error("Signature fixture requires a string"); signatureDraft = value } else if (name === "boundedDraft") { if (value === null) throw new Error("Reference fixture requires a string"); boundedDraft = value } else draft = value; render() }, onAmount: (_name, representation, text, options) => { amountDraft = editAmountDraft(numericUnit, representation, text, options?.composing); render() },
+    onInput: (name: string, value: string | null) => { if (name === "documentURI") { if (value === null) throw new Error("URI fixture requires a string"); documentURI = value } else if (name === "document") { if (value === null) throw new Error("Digest fixture requires a string"); documentDigest = value } else if (name === "bytes32Draft") { if (value === null) throw new Error("Hex fixture requires a string"); bytes32Draft = value } else if (name === "signatureDraft") { if (value === null) throw new Error("Signature fixture requires a string"); signatureDraft = value } else if (name === "boundedDraft") { if (value === null) throw new Error("Reference fixture requires a string"); boundedDraft = value } else draft = value; render() }, onAmount: (_name, representation, text, options) => { amountDraft = editAmountDraft(numericUnit, representation, text, options?.composing); render() },
     onInteger: (_name, text, options) => { integerDraft = editIntegerDraft(text, options?.composing); render() },
     onDuration: (_name, part, text, options) => { durationDraft = editDurationDraft(durationDraft, part, text, options?.composing); render() }, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },
   }
