@@ -311,10 +311,23 @@ test("bike component actions keep the loaded target and use app navigation for a
   assert.equal(prepared.type, "contractCall")
   if (prepared.type !== "contractCall") assert.fail("Expected metadata preparation")
   assert.deepEqual(prepared.call.args, toInertValue({ serialNumber: BIKE_SERIAL_NUMBER, tokenURI_: BIKE_REGISTRATION_TOKEN_URI }))
-  const find = resolvedUiButtons(snapshot.resolvedUi).find(node => node.call.function === "entry")
+  const find = resolvedUiButtons(snapshot.resolvedUi).find(node => node.call.function === "findComponentForm")
   assert.ok(find)
   const entry = await session.dispatchAction(find)
   assert.equal(entry.type, "navigated")
+  if (entry.type !== "navigated") assert.fail("Find must navigate")
+  assert.equal(entry.snapshot.state.serialNumber, BIKE_SERIAL_NUMBER)
+  const edited = session.updateState({ serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER })
+  const handovers = resolvedUiButtons(edited.resolvedUi).find(node => node.call.function === "deploymentHandoversWithContext")
+  assert.equal(handovers?.call.args.serialNumber, BIKE_UNKNOWN_SERIAL_NUMBER, "Find navigation uses the visible draft")
+  const registration = resolvedUiButtons(edited.resolvedUi).find(node => node.props.label === "Open registration")
+  assert.equal(registration?.call.args.serialNumber, BIKE_UNKNOWN_SERIAL_NUMBER, "registration uses the visible draft")
+  assert.ok(registration)
+  routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress)
+  const registered = await session.dispatchAction(registration)
+  assert.equal(registered.type, "navigated")
+  assert.equal(session.snapshot().inputs.serialNumber, BIKE_UNKNOWN_SERIAL_NUMBER)
+  await session.back()
   const lookup = resolvedUiButtons(session.updateState({ serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER }).resolvedUi).find(node => node.call.function === "component")
   assert.ok(lookup)
   routeResults[BIKE_VIEW_COMPONENT] = bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress, "active")
@@ -491,7 +504,7 @@ for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as cons
   })
 }
 
-test("Bike screen links navigate without a wallet and start registration with a fresh serial", async () => {
+test("Bike screen links navigate without a wallet and retain the selected serial", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({
     routeResults: {
       ...bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active"),
@@ -512,12 +525,12 @@ test("Bike screen links navigate without a wallet and start registration with a 
   }
   await follow("register")
   assert.equal(session.snapshot().inputs.serialNumber, "")
-  await follow("entry")
+  await follow("findComponentForm")
   session.updateState({ serialNumber: BIKE_SERIAL_NUMBER })
   await follow("component")
   await follow("register")
-  assert.equal(session.snapshot().inputs.serialNumber, "", "new registration must not target the loaded NFT")
-  await follow("entry")
+  assert.equal(session.snapshot().inputs.serialNumber, BIKE_SERIAL_NUMBER, "registration keeps the selected serial")
+  await follow("findComponentForm")
 })
 
 test("load resolves host CAM, entry route, UI resource, and entry view", async () => {
@@ -2196,7 +2209,8 @@ test("updateState resolves route actions, while write routes are surfaced withou
   assert.equal(accountResult.call.function, "setAccountInfo")
   assert.deepEqual(accountResult.call.args, toInertValue({ infoURI: BIKE_ACCOUNT_INFO_URI }))
   assert.equal(accountResult.call.then.namespace, "routes")
-  assert.equal(accountResult.call.then.function, BIKE_ROUTE_ENTRY)
+  assert.equal(accountResult.call.then.function, "findComponentForm")
+  assert.deepEqual(accountResult.call.then.args, toInertValue({ serialNumber: "" }))
 
   routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress)
   const registerSnapshot = await session.navigate("register", { serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER })

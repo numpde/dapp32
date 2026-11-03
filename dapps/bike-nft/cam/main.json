@@ -27,7 +27,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x1c053ce927688fd6223b0dc22500b39b5611d3014edc564ceca0856ca37cf553"
+      "integrity": "sha256:0xc003a0752b4146f0c9149f208dfe9c09dc17a1d81f2aebd9736b7d1135044ca2"
     },
     "contracts.BicycleComponents": {
       "type": "contract",
@@ -53,14 +53,26 @@
         "args": {
           "view": {
             "screen": "deploymentHandovers",
-            "task": "$outputs.0"
+            "task": {
+              "paused": "$outputs.0.paused",
+              "componentTokenPaused": "$outputs.0.componentTokenPaused",
+              "cam": "$outputs.0.cam",
+              "components": "$outputs.0.components",
+              "manager": "$outputs.0.manager",
+              "actions": "$outputs.0.actions",
+              "navigationSerial": ""
+            },
+            "navigationSerial": "",
+            "navigation": "navigation"
           }
         }
       }
     },
     "acceptCamOwnership": {
       "kind": "write",
-      "inputs": [],
+      "inputs": [
+        "serialNumber"
+      ],
       "resolve": {
         "namespace": "contracts.BicycleComponentManagerUI",
         "function": "deploymentTargets",
@@ -76,8 +88,10 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "deploymentHandovers",
-        "args": {}
+        "function": "deploymentHandoversWithContext",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
       },
       "review": {
         "call": {
@@ -102,7 +116,9 @@
     },
     "acceptComponentsAdmin": {
       "kind": "write",
-      "inputs": [],
+      "inputs": [
+        "serialNumber"
+      ],
       "resolve": {
         "namespace": "contracts.BicycleComponentManagerUI",
         "function": "deploymentTargets",
@@ -118,8 +134,10 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "deploymentHandovers",
-        "args": {}
+        "function": "deploymentHandoversWithContext",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
       },
       "review": {
         "call": {
@@ -144,7 +162,9 @@
     },
     "acceptManagerAdmin": {
       "kind": "write",
-      "inputs": [],
+      "inputs": [
+        "serialNumber"
+      ],
       "resolve": {
         "namespace": "contracts.BicycleComponentManagerUI",
         "function": "deploymentTargets",
@@ -160,8 +180,10 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "deploymentHandovers",
-        "args": {}
+        "function": "deploymentHandoversWithContext",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
       },
       "review": {
         "call": {
@@ -184,6 +206,73 @@
         }
       }
     },
+    "findComponentForm": {
+      "kind": "read",
+      "inputs": [
+        "serialNumber"
+      ],
+      "call": {
+        "namespace": "contracts.BicycleComponentManagerUI",
+        "function": "viewEntry",
+        "args": {
+          "account": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "entry",
+            "task": {
+              "serialNumber": "$inputs.serialNumber",
+              "actions": "$outputs.0.actions",
+              "paused": "$outputs.0.paused",
+              "componentTokenPaused": "$outputs.0.componentTokenPaused",
+              "account": "$outputs.0.account",
+              "canRegister": "$outputs.0.canRegister",
+              "accountInfo": "$outputs.0.accountInfo"
+            },
+            "navigationSerial": "$inputs.serialNumber",
+            "navigation": "navigation.find"
+          }
+        }
+      }
+    },
+    "deploymentHandoversWithContext": {
+      "kind": "read",
+      "inputs": [
+        "serialNumber"
+      ],
+      "call": {
+        "namespace": "contracts.BicycleComponentManagerUI",
+        "function": "viewDeploymentHandovers",
+        "args": {
+          "camHost": "$host.address",
+          "account": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "deploymentHandovers",
+            "task": {
+              "paused": "$outputs.0.paused",
+              "componentTokenPaused": "$outputs.0.componentTokenPaused",
+              "cam": "$outputs.0.cam",
+              "components": "$outputs.0.components",
+              "manager": "$outputs.0.manager",
+              "actions": "$outputs.0.actions",
+              "navigationSerial": "$inputs.serialNumber"
+            },
+            "navigationSerial": "$inputs.serialNumber",
+            "navigation": "navigation"
+          }
+        }
+      }
+    },
     "entry": {
       "kind": "read",
       "inputs": [],
@@ -200,7 +289,9 @@
         "args": {
           "view": {
             "screen": "$outputs.0.viewId",
-            "task": "$outputs.0"
+            "task": "$outputs.0",
+            "navigationSerial": "",
+            "navigation": "navigation.find"
           }
         }
       }
@@ -224,7 +315,9 @@
         "args": {
           "view": {
             "screen": "$outputs.0.viewId",
-            "task": "$outputs.0"
+            "task": "$outputs.0",
+            "navigationSerial": "$inputs.serialNumber",
+            "navigation": "navigation"
           }
         }
       }
@@ -248,7 +341,9 @@
         "args": {
           "view": {
             "screen": "$outputs.0.viewId",
-            "task": "$outputs.0"
+            "task": "$outputs.0",
+            "navigationSerial": "$inputs.serialNumber",
+            "navigation": "navigation"
           }
         }
       }
@@ -303,7 +398,8 @@
     "setAccountInfo": {
       "kind": "write",
       "inputs": [
-        "accountInfo"
+        "accountInfo",
+        "serialNumber"
       ],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
@@ -314,8 +410,10 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "entry",
-        "args": {}
+        "function": "findComponentForm",
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
       },
       "review": {
         "call": {
@@ -573,7 +671,9 @@
         "args": {
           "view": {
             "screen": "$outputs.0.viewId",
-            "task": "$outputs.0"
+            "task": "$outputs.0",
+            "navigationSerial": "$inputs.serialNumber",
+            "navigation": "navigation"
           }
         }
       }

@@ -27,10 +27,15 @@ test("acceptances use authoritative destinations after rebinding, not the sessio
       return fixture.options.publicClient.readContract(request)
     },
   }
-  const session = createCamViewerSession({ ...fixture.options, publicClient, route: "deploymentHandovers", inputs: {} })
+  const session = createCamViewerSession({ ...fixture.options, publicClient, route: "deploymentHandoversWithContext", inputs: { serialNumber: BIKE_SERIAL_NUMBER } })
   await session.load()
   components = CURRENT_COLLECTION
   await session.refresh()
+  const refresh = resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.props.label === "Refresh handovers")
+  assert.ok(refresh)
+  const refreshed = await session.dispatchAction(refresh)
+  assert.equal(refreshed.type, "navigated")
+  assert.equal(session.snapshot().inputs.serialNumber, BIKE_SERIAL_NUMBER)
   for (const [route, target, method] of [
     ["acceptCamOwnership", BIKE_HOST_ADDRESS, "acceptOwnership"],
     ["acceptComponentsAdmin", CURRENT_COLLECTION, "acceptDefaultAdminTransfer"],
@@ -46,7 +51,8 @@ test("acceptances use authoritative destinations after rebinding, not the sessio
     assert.equal(result.call.address, target)
     assert.equal(result.call.function, method)
     assert.equal(Object.keys(result.call.args).length, 0)
-    assert.equal(result.call.then.function, "deploymentHandovers")
+    assert.equal(result.call.then.function, "deploymentHandoversWithContext")
+    assert.deepEqual({ ...result.call.then.args }, { serialNumber: BIKE_SERIAL_NUMBER })
   }
 })
 

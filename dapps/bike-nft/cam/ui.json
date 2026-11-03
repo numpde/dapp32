@@ -29,8 +29,8 @@
           },
           "call": {
             "namespace": "routes",
-            "function": "deploymentHandovers",
-            "args": {}
+            "function": "deploymentHandoversWithContext",
+            "args": { "serialNumber": "$view.navigationSerial" }
           }
         },
         {
@@ -91,7 +91,7 @@
               "call": {
                 "namespace": "routes",
                 "function": "acceptCamOwnership",
-                "args": {}
+                "args": { "serialNumber": "$view.navigationSerial" }
               }
             }
           ]
@@ -163,7 +163,7 @@
               "call": {
                 "namespace": "routes",
                 "function": "acceptComponentsAdmin",
-                "args": {}
+                "args": { "serialNumber": "$view.navigationSerial" }
               }
             }
           ]
@@ -235,7 +235,7 @@
               "call": {
                 "namespace": "routes",
                 "function": "acceptManagerAdmin",
-                "args": {}
+                "args": { "serialNumber": "$view.navigationSerial" }
               }
             }
           ]
@@ -255,8 +255,8 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "navigation",
-            "args": {}
+            "function": "$view.navigation",
+            "args": { "view": "$view" }
           }
         },
         {
@@ -1182,7 +1182,8 @@
         "namespace": "routes",
         "function": "setAccountInfo",
         "args": {
-          "accountInfo": "$state.accountInfo"
+          "accountInfo": "$state.accountInfo",
+          "serialNumber": "$state.serialNumber"
         }
       },
       "enabledWhen": {
@@ -1799,32 +1800,33 @@
     },
     "navigation": {
       "element": "Screen",
-      "requires": [],
+      "requires": ["view"],
       "props": {
         "title": "App navigation"
       },
       "children": [
+        { "element": "Status", "props": { "label": "Selected serial", "value": "$view.navigationSerial" } },
         {
           "element": "Button",
           "props": {
-            "label": "Find a component"
+            "label": "Find selected serial"
           },
           "call": {
             "namespace": "routes",
-            "function": "entry",
-            "args": {}
+            "function": "findComponentForm",
+            "args": { "serialNumber": "$view.navigationSerial" }
           }
         },
         {
           "element": "Button",
           "props": {
-            "label": "Register a component"
+            "label": "Register selected serial"
           },
           "call": {
             "namespace": "routes",
             "function": "register",
             "args": {
-              "serialNumber": ""
+              "serialNumber": "$view.navigationSerial"
             }
           }
         },
@@ -1835,8 +1837,33 @@
           },
           "call": {
             "namespace": "routes",
-            "function": "deploymentHandovers",
-            "args": {}
+            "function": "deploymentHandoversWithContext",
+            "args": { "serialNumber": "$view.navigationSerial" }
+          }
+        }
+      ]
+    },
+    "navigation.find": {
+      "element": "Screen",
+      "requires": ["view"],
+      "props": { "title": "App navigation" },
+      "children": [
+        {
+          "element": "Button",
+          "props": { "label": "Open registration" },
+          "call": {
+            "namespace": "routes",
+            "function": "register",
+            "args": { "serialNumber": "$state.serialNumber" }
+          }
+        },
+        {
+          "element": "Button",
+          "props": { "label": "Deployment handovers" },
+          "call": {
+            "namespace": "routes",
+            "function": "deploymentHandoversWithContext",
+            "args": { "serialNumber": "$state.serialNumber" }
           }
         }
       ]

@@ -9,7 +9,7 @@ test("deployment acceptances stay visible and follow the contract's independent 
   const authority = { target: BIKE_HOST_ADDRESS, current: BIKE_HOST_ADDRESS, pending: BIKE_ACCOUNT_ADDRESS,
     readyAt: "2000000000", status: "Waiting for acceptance time", canAccept: false }
   for (const actions of [[], ["acceptCamOwnership"], ["acceptComponentsAdmin", "acceptManagerAdmin"]]) {
-    const view = toInertValue({ screen: "deploymentHandovers", task: {
+    const view = toInertValue({ screen: "deploymentHandovers", navigationSerial: "", navigation: "navigation", task: { navigationSerial: "",
       paused: false, componentTokenPaused: false, cam: authority, components: authority, manager: authority, actions,
     } })
     const screen = resolveInitialUiNode(parseUi(parseJsonBytes(bikeUiBytes)), "app", { view }, {
@@ -20,9 +20,9 @@ test("deployment acceptances stay visible and follow the contract's independent 
       const button = buttons.find(button => button.call.function === route)
       assert.ok(button, `${route} remains visible`)
       assert.equal(button.disabled === true, !actions.includes(route))
-      assert.equal(Object.keys(button.call.args).length, 0)
+      assert.deepEqual({ ...button.call.args }, { serialNumber: "" })
     }
-    assert.ok(buttons.some(button => button.call.function === "deploymentHandovers"), "refresh chain state without sending")
-    assert.ok(buttons.some(button => button.call.function === "entry"), "return to the registry")
+    assert.ok(buttons.some(button => button.call.function === "deploymentHandoversWithContext"), "refresh chain state without sending")
+    assert.ok(buttons.some(button => button.call.function === "findComponentForm"), "return to the registry")
   }
 })

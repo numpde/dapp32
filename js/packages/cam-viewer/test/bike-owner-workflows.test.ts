@@ -52,7 +52,7 @@ test("a loaded component keeps lookup in app navigation without blocking metadat
   const session = createCamViewerSession(fixture.options)
   const loaded = await session.load()
   assert.equal(loaded.state.duration, null)
-  assert.deepEqual(button(loaded, "entry").call.args, toInertValue({}), "app navigation keeps component lookup reachable")
+  assert.deepEqual(button(loaded, "findComponentForm").call.args, toInertValue({ serialNumber: BIKE_SERIAL_NUMBER }), "app navigation keeps component lookup reachable")
   assert.equal(resolvedUiButtons(loaded.resolvedUi).some(action => action.call.function === "component"), false, "loaded component actions do not duplicate the lookup form")
   const snapshot = session.updateState({ tokenURI: "fixture://corrected", to: BUYER })
   assert.equal((await session.dispatchAction(button(snapshot, "updateComponentMetadata"))).type, "contractCall")

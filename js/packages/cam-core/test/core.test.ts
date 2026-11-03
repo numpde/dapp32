@@ -80,6 +80,8 @@ test("resolves a CAM route into a plain call descriptor", () => {
       view: {
         screen: "component.found",
         task: { viewId: "component.found" },
+        navigationSerial: "ABC123",
+        navigation: "navigation",
       },
     }),
   })
