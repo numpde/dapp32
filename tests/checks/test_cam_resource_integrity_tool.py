@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -19,6 +20,8 @@ from tools.cam_resource_integrity import (
     ROUTES_NAMESPACE,
     UI_NAMESPACE,
     refresh_manifest,
+    refresh_dapps,
+    apply_refresh,
     require_owned_outputs,
 )
 from tools.json_policy import read_strict_json
@@ -65,6 +68,44 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
 
                 self.assertEqual(manifest_before, manifest_path.read_bytes())
                 self.assertEqual(b"previous protocol", protocol_path.read_bytes())
+
+    def test_all_manifests_are_validated_before_any_refresh_write(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = root / "first/cam"
+            second = root / "second/cam"
+            first.mkdir(parents=True)
+            second.mkdir(parents=True)
+            (first / "protocol.html").write_bytes(b"old protocol")
+            (first / "ui.json").write_bytes(b"{}")
+            manifest = {"cam": PUBLICATION_CAM_VERSION, "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256}, "namespaces": {"ui": {"type": "ui", "uri": "./ui.json", "integrity": ZERO_SHA256}}}
+            write_json(first / "main.json", manifest)
+            (second / "main.json").write_text("{broken", encoding="utf-8")
+            before = {path: path.read_bytes() for path in (first / "main.json", first / "protocol.html")}
+            with self.assertRaises(CamResourceIntegrityError):
+                refresh_dapps(root)
+            self.assertEqual(before, {path: path.read_bytes() for path in before})
+
+    def test_write_failure_names_completed_and_potentially_partial_output(self) -> None:
+        with TemporaryDirectory() as tmp:
+            first, second = Path(tmp) / "first", Path(tmp) / "second"
+            first.write_bytes(b"original first")
+            second.write_bytes(b"original second")
+            original_write = Path.write_bytes
+            def write(path: Path, content: bytes) -> int:
+                if path == second:
+                    original_write(path, b"partial")
+                    raise OSError(errno.ENOSPC, "No space left on device")
+                return original_write(path, content)
+            with patch.object(Path, "write_bytes", write):
+                with self.assertRaises(CamResourceIntegrityError) as failure:
+                    apply_refresh([(first, b"updated"), (second, b"data")])
+            self.assertIn(str(first), str(failure.exception))
+            self.assertIn(str(second), str(failure.exception))
+            self.assertIn("may be partial", str(failure.exception))
+            self.assertIn("No space left on device", str(failure.exception))
+            self.assertEqual(b"updated", first.read_bytes())
+            self.assertEqual(b"partial", second.read_bytes())
 
     def test_rootless_output_preflight_checks_all_outputs_before_refresh(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -287,7 +328,9 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
                 "namespaces": {},
             })
+            inodes = (manifest_path.stat().st_ino, protocol_path.stat().st_ino)
             self.assertTrue(refresh_manifest(manifest_path))
+            self.assertEqual(inodes, (manifest_path.stat().st_ino, protocol_path.stat().st_ino))
             canonical = PROTOCOL_REFERENCE_PATH.read_bytes()
             self.assertEqual(canonical, protocol_path.read_bytes())
             self.assertEqual(

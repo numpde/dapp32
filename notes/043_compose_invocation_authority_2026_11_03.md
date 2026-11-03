@@ -244,3 +244,34 @@ requested IDs, and attempts to override the fixed Compose selection or output
 guard. The host- and container-side ownership checks are preflights, not a
 claim of race-free protection against concurrent path replacement. Refresh
 still writes files in place and a later failure can leave earlier changes.
+
+## ABI export and remaining caveats: comparison and next slice
+
+The ABI export plan directory and the ABI output directories are also
+caller-owned host binds. On the tested rootless engine, their configured nonzero container IDs map to
+subordinate host IDs, so the planner cannot write its 0700 plan directory and
+Forge cannot update the ABI directories. The relevant
+boundary is both offline ABI services plus their existing plan and ABI binds;
+the later integrity step alone is insufficient.
+
+Nearby repositories confirm that rootless mode is not itself proof of a
+particular UID/GID mapping. `nmrnet-repro` checks the exact probe process's
+namespace maps; `container-tools` similarly reads the selected process's maps.
+Those probes establish explicit process, namespace, and retirement boundaries;
+adopting them here would add probe lifecycle and host-namespace requirements.
+Here, preserve the existing explicit bind boundary and verify
+caller ownership on the host and effective ownership/writability inside the
+selected rootless containers before writes. Rootful selection must retain the
+configured IDs; failures to establish the mapping must not fall back to root.
+
+For multiple outputs, nearby `magnet-deploy` uses staged atomic replacement of
+a single lock file; `nmrpeak-repro` also exercises atomic replacement of an
+individual test-state file. That is not a transaction across several
+files. In this repository individual file bind mounts can retain the old inode
+after rename, so an atomic-rename claim cannot simply be imported. The integrity generator now plans every discovered manifest before the first
+write, so a later validation failure leaves earlier outputs untouched. It
+preserves file inodes and reports completed and potentially partial outputs on
+write failure. Planning retains changed output bytes for all apps, so it does
+not establish a bounded aggregate-memory guarantee. It cannot guarantee
+crash-atomic multi-file changes or prevent a non-cooperating same-user process
+from racing a preflight.

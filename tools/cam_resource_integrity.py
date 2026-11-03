@@ -59,19 +59,22 @@ def refresh_dapps(dapps_root: Path) -> int:
     if not dapps_root.is_dir():
         raise CamResourceIntegrityError(f"dapps root is not a directory: {dapps_root}")
 
-    changed = 0
     manifests = sorted(dapps_root.glob("*/cam/main.json"))
     if not manifests:
         raise CamResourceIntegrityError(f"no CAM manifests found under {dapps_root}")
 
-    for manifest_path in manifests:
-        if refresh_manifest(manifest_path):
-            changed += 1
-
-    return changed
+    plans = [plan_manifest(manifest_path) for manifest_path in manifests]
+    apply_refresh([output for plan in plans for output in plan])
+    return sum(bool(plan) for plan in plans)
 
 
 def refresh_manifest(manifest_path: Path) -> bool:
+    plan = plan_manifest(manifest_path)
+    apply_refresh(plan)
+    return bool(plan)
+
+
+def plan_manifest(manifest_path: Path) -> list[tuple[Path, bytes]]:
     reject_symlinked_manifest_path(manifest_path)
 
     try:
@@ -134,12 +137,27 @@ def refresh_manifest(manifest_path: Path) -> bool:
             f"{INTEGRITY_PREFIX}{digest}",
         )
 
+    outputs: list[tuple[Path, bytes]] = []
     if protocol_copy is not None:
-        protocol_copy[0].write_bytes(protocol_copy[1])
+        outputs.append(protocol_copy)
     if changed:
-        write_json_in_place(manifest_path, document)
+        outputs.append((manifest_path, (json.dumps(document, indent=2) + "\n").encode("utf-8")))
+    return outputs
 
-    return changed
+
+def apply_refresh(outputs: list[tuple[Path, bytes]]) -> None:
+    completed: list[str] = []
+    for path, content in outputs:
+        try:
+            # Individual file binds must keep their existing inode.
+            path.write_bytes(content)
+        except OSError as error:
+            prior = ", ".join(completed) if completed else "none"
+            reason = error.strerror if error.strerror else type(error).__name__
+            raise CamResourceIntegrityError(
+                f"cannot write CAM output {path}: {reason}; it may be partial; completed outputs: {prior}",
+            ) from error
+        completed.append(str(path))
 
 
 def resource_declarations(
@@ -280,13 +298,6 @@ def local_resource_path(manifest_path: Path, uri: object, path: str) -> Path:
         )
 
     return resource_path
-
-
-def write_json_in_place(path: Path, document: dict[object, object]) -> None:
-    # The Docker lane mounts only main.json read-write while the surrounding
-    # repository stays read-only, so an atomic sibling-file replace is not
-    # available there. Write the existing file directly and let checks verify it.
-    path.write_text(f"{json.dumps(document, indent=2)}\n", encoding="utf-8")
 
 
 def main(argv: list[str]) -> int:
