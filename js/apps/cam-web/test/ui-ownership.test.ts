@@ -230,6 +230,12 @@ function ownershipFailures(sources: readonly Source[]): string[] {
       const path = reference(node, scope, new Set())
       if (["navigator.clipboard", "window.navigator.clipboard", "globalThis.navigator.clipboard"].some(base => path === base || path?.startsWith(`${base}.`))) clipboardOwners.add(owner)
       const tag = node.type === "JSXElement" ? undefined : nativeTag(node, scope)
+      if (tag === "dialog") {
+        if (name !== "dismissible-dialog.tsx") failures.push(`${owner}: native dialogs must use the shared dismissible dialog owner`)
+        if (elementProperty(node, "closedby", scope) !== "any" || elementValue(node, "onCancel", scope) === undefined) {
+          failures.push(`${owner}: native dialogs must declare light dismissal and handle cancellation`)
+        }
+      }
       if (node.type === "CallExpression") {
         const callee = reference(node.callee, scope, new Set())
         if ((callee === "document.execCommand" || callee === "window.document.execCommand" || callee === "globalThis.document.execCommand") && node.arguments[0] !== undefined && property(node.arguments[0]) === "copy") failures.push(`${owner}: legacy clipboard copy bypasses the shared owner`)
@@ -307,6 +313,18 @@ function ownershipFailures(sources: readonly Source[]): string[] {
 const rowOwner: Source = { name: "rows.tsx", text: "export function Row(){return <dl><dt>Label</dt><dd>Value</dd></dl>}" }
 const copyOwner: Source = { name: "copy.ts", text: "export async function copy(value:string){await navigator.clipboard.writeText(value)}" }
 
+test("native dialogs use the shared owner and declare light dismissal", () => {
+  const valid = "export const view=<dialog closedby='any' onCancel={cancel}/>"
+  assert.deepEqual(ownershipFailures([rowOwner, copyOwner, { name: "dismissible-dialog.tsx", text: valid }]), [])
+  assert(ownershipFailures([rowOwner, copyOwner, { name: "other.tsx", text: valid }]).some(failure => failure.includes("shared dismissible dialog owner")))
+  for (const text of [
+    "export const view=<dialog onCancel={cancel}/>",
+    "export const view=<dialog closedby='any'/>",
+    "import {createElement as h} from 'react';export const view=h('dialog',{onCancel:cancel})",
+    "export const view=<dialog closedby='none' onCancel={cancel} onPointerDown={down} onPointerUp={up} onPointerCancel={reset}/>",
+  ]) assert(ownershipFailures([rowOwner, copyOwner, { name: "dismissible-dialog.tsx", text }]).some(failure => failure.includes("light dismissal")), text)
+})
+
 test("production UI source has one native fact markup owner and one browser clipboard owner", () => {
   const directory = new URL("../src/", import.meta.url)
   const sources = readdirSync(directory, { recursive: true }).filter(name => typeof name === "string" && /\.tsx?$/.test(name)).map(name => ({ name: String(name), text: readFileSync(new URL(String(name), directory), "utf8") }))
@@ -347,9 +365,9 @@ test("supporting prose is static within its view while causes, facts and task co
     "export const help=<p className='field-hint'><span children='Use the URL.'/></p>",
     "export function help(status:string){return <p className='field-hint' children={messageFor(status)}>{' '}</p>}",
     "export function content(show:boolean,value:string){return <>{show?<p className='nft-placeholder'>NFT preview</p>:<p>{value}</p>}{show?<PropertyRow label='Total' value={value}/>:<Feedback report={value}/>}</>}",
-    "export function editor(value:number){return <dialog><textarea/><p>Content may be public.</p><meter value={value} max={100}/></dialog>}",
+    "export function editor(value:number){return <form><textarea/><p>Content may be public.</p><meter value={value} max={100}/></form>}",
     "export function editor(error:string){return <form><input/><p role='alert'>{error}</p></form>}",
-    "export function editor(value:number){return <dialog><textarea/><output aria-live='off'>{value} / 512</output></dialog>}",
+    "export function editor(value:number){return <form><textarea/><output aria-live='off'>{value} / 512</output></form>}",
     "export function editor(checked:boolean){const icon=checked?<span role='img' aria-label='Checked'>✓</span>:null;return <form><input/><span role='status'>{icon}</span></form>}",
   ]) assert.deepEqual(ownershipFailures([rowOwner, copyOwner, { name: "help.tsx", text }]), [], text)
   for (const text of [
@@ -370,15 +388,15 @@ test("supporting prose is static within its view while causes, facts and task co
     "export function bad(status:string){return <p className='field-hint' children={messageFor(status)}>\n  </p>}",
     "export function bad(status:string){return <p className='field-hint' children={messageFor(status)}>{/* comment */}\n  </p>}",
     "export function bad(selected:boolean,invalid:boolean){return selected?<section role='tabpanel'>{invalid?<p className='field-hint'>Correct it.</p>:null}</section>:null}",
-    "export function editor(value:number){return <dialog><textarea/><p>Used: {value} bytes</p></dialog>}",
+    "export function editor(value:number){return <form><textarea/><p>Used: {value} bytes</p></form>}",
     "export function editor(value:string){return <form><input/><p>{value}</p></form>}",
     "import {createElement as h} from 'react';export function editor(value:number){return h('fieldset',null,h('input'),h('p',null,'Used: ',value))}",
-    "export function editor(value:number){return <dialog><textarea/><small>Used: {value}</small></dialog>}",
-    "export function editor(value:string){return <dialog><textarea/><span>{value}</span></dialog>}",
+    "export function editor(value:number){return <form><textarea/><small>Used: {value}</small></form>}",
+    "export function editor(value:string){return <form><textarea/><span>{value}</span></form>}",
     "export function editor(value:number){return <form><input/><span>{`Remaining: ${value}`}</span></form>}",
     "export function editor(value:number){return <fieldset><input/><div>Used: {value}</div></fieldset>}",
-    "export function editor(busy:boolean){return <dialog><input/><span>{busy?'Working':'Ready'}</span></dialog>}",
-    "export function editor(value:string){return <dialog><textarea/><span role='status'>{value}</span></dialog>}",
+    "export function editor(busy:boolean){return <form><input/><span>{busy?'Working':'Ready'}</span></form>}",
+    "export function editor(value:string){return <form><textarea/><span role='status'>{value}</span></form>}",
   ]) assert.notDeepEqual(ownershipFailures([rowOwner, copyOwner, { name: "help.tsx", text }]), [], text)
 })
 

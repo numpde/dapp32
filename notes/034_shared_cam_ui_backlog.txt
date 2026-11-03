@@ -7,6 +7,12 @@ The repository check flags adjacent literal quiet-then-prominent JSX buttons;
 browser checks cover rendered order and keyboard behavior. Computed styles,
 conditional markup and unrelated actions still require review.
 
+Native dialogs use the shared dismissible-dialog owner: Escape and a pointer
+press and release outside dismiss them. Outside dismissal follows the same
+discard behavior as Cancel. The owner uses native light dismissal where
+available and a pointer-position fallback elsewhere; browser checks exercise
+both paths and keep inside clicks and drags from dismissing the dialog.
+
 1. Shared URI input and display components
 
    Requested: 2026-10-29. Status: in progress.

@@ -1,10 +1,11 @@
-import { useContext, useEffect, useId, useMemo, useRef, useState } from "react"
+import { useContext, useId, useMemo, useState } from "react"
 import type { ReactElement } from "react"
 import { requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
 import { useClipboardCopy } from "./clipboard.ts"
 import { CopyButton } from "./copy-button.tsx"
 import { readTextDataURI, textDataURI } from "./data-uri.ts"
 import { DownloadContext } from "./download-context.ts"
+import { DismissibleDialog } from "./dismissible-dialog.tsx"
 import { displayText } from "./display.ts"
 import { failureReport, UserFacingError } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
@@ -27,7 +28,6 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
   const capacityId = useId()
   const embedded = /^data:/i.test(value)
   const actionLabel = `${embedded ? "Edit embedded document for" : "Embed document for"} ${label}`
-  const dialog = useRef<HTMLDialogElement>(null)
   const [draft, setDraft] = useState<{ original: string; scope: string; initial: string; initialType: "text/plain" | "application/json" | undefined; text: string; type: "text/plain" | "application/json" }>()
   const [error, setError] = useState<unknown>()
   const candidate = useMemo(() => {
@@ -41,10 +41,7 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
   const capacityLabel = uriBytes === undefined ? "Encoded URI size unavailable until the document is valid"
     : maxBytes === undefined ? `Encoded URI: ${uriBytes} bytes`
       : `Encoded URI: ${uriBytes} of ${maxBytes} bytes${overLimit ? ", over limit" : ""}`
-  useEffect(() => {
-    if (draft === undefined && dialog.current?.open) dialog.current.close()
-    if (draft !== undefined && !dialog.current?.open) dialog.current?.showModal()
-  }, [draft])
+  function dismiss(): void { setDraft(undefined); setError(undefined) }
 
   function open(): void {
     try {
@@ -78,7 +75,7 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
       </button>
     </div>
     {draft === undefined && error !== undefined ? <Feedback report={failureReport(error)} kind="error" /> : null}
-    <dialog ref={dialog} aria-label={`Embed ${label}`} onCancel={event => { event.preventDefault(); setDraft(undefined); setError(undefined) }}>
+    <DismissibleDialog open={draft !== undefined} label={`Embed ${label}`} onDismiss={dismiss}>
       {draft === undefined ? null : <>
         <h2>Embed document</h2>
         <label className="field"><span className="visually-hidden">Content type</span><select value={draft.type} onChange={event => setDraft({ ...draft, type: event.currentTarget.value as typeof draft.type })}><option value="text/plain">Plain text</option><option value="application/json">JSON</option></select></label>
@@ -90,9 +87,9 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
           </div>
         </div>
         {error === undefined ? null : <Feedback report={failureReport(error)} kind="error" />}
-        <div className="uri-dialog-actions"><button type="button" onClick={apply}>Use document</button><button type="button" className="button-quiet" onClick={() => { setDraft(undefined); setError(undefined) }}>Cancel</button></div>
+        <div className="uri-dialog-actions"><button type="button" onClick={apply}>Use document</button><button type="button" className="button-quiet" onClick={dismiss}>Cancel</button></div>
       </>}
-    </dialog>
+    </DismissibleDialog>
   </div>
 }
 

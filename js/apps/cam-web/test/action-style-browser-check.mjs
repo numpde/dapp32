@@ -24,6 +24,10 @@ async function assertActionOrder({ call, evaluate, selector, labels }) {
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
 }
 
+async function pointer({ call, type, x, y, buttons }) {
+  await call('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons, clickCount: 1 })
+}
+
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/action-style-fixture.html', viewerURL)
   fixture.search = new URL(viewerURL).search
@@ -47,9 +51,43 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       assert.deepEqual(control, { label: 'Embed document for Terms URI', title: 'Embed document for Terms URI', icon: true, joined: true, aligned: true, contained: true }, `URI input and action share one usable control at ${width}px`)
     }
     await call('Emulation.clearDeviceMetricsOverride')
-    await evaluate(`document.querySelector('.uri-control > button').click()`)
+    await evaluate(`(()=>{const button=document.querySelector('.uri-control > button');button.focus();button.click()})()`)
     await wait(`document.querySelector('.uri-field dialog')?.open`)
     await assertActionOrder({ call, evaluate, selector: '.uri-dialog-actions', labels: ['Use document', 'Cancel'] })
+    const nativeLightDismiss = await evaluate(`'closedBy' in HTMLDialogElement.prototype`)
+    for (const fallback of nativeLightDismiss ? [false, true] : [true]) {
+      if (fallback && nativeLightDismiss) await evaluate(`(()=>{window.dialogClosedByDescriptor=Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype,'closedBy');delete HTMLDialogElement.prototype.closedBy;document.querySelector('.uri-field dialog').setAttribute('closedby','closerequest')})()`)
+      try {
+        await evaluate(`(()=>{const input=document.querySelector('.uri-field dialog textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Unapplied draft');input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+        const inside = await evaluate(`(()=>{const r=document.querySelector('.uri-field dialog').getBoundingClientRect();return {x:r.left+8,y:r.top+8}})()`)
+        await pointer({ call, type: 'mousePressed', ...inside, buttons: 1 })
+        await pointer({ call, type: 'mouseReleased', ...inside, buttons: 0 })
+        assert(await evaluate(`document.querySelector('.uri-field dialog').open`), 'clicking dialog padding does not dismiss it')
+        await pointer({ call, type: 'mousePressed', ...inside, buttons: 1 })
+        await pointer({ call, type: 'mouseMoved', x: 2, y: 2, buttons: 1 })
+        await pointer({ call, type: 'mouseReleased', x: 2, y: 2, buttons: 0 })
+        assert(await evaluate(`document.querySelector('.uri-field dialog').open`), 'a drag starting inside does not dismiss the dialog')
+        await pointer({ call, type: 'mousePressed', x: 2, y: 2, buttons: 1 })
+        await pointer({ call, type: 'mouseMoved', ...inside, buttons: 1 })
+        await pointer({ call, type: 'mouseReleased', ...inside, buttons: 0 })
+        assert(await evaluate(`document.querySelector('.uri-field dialog').open`), 'a drag ending inside does not dismiss the dialog')
+        await pointer({ call, type: 'mousePressed', x: 2, y: 2, buttons: 1 })
+        await pointer({ call, type: 'mouseReleased', x: 2, y: 2, buttons: 0 })
+        await wait(`!document.querySelector('.uri-field dialog').open`)
+        assert.equal(await evaluate(`${uri}.value`), 'https://example.test/terms', 'outside dismissal does not apply the draft')
+        assert(await evaluate(`document.activeElement===document.querySelector('.uri-control > button')`), 'outside dismissal restores focus to the opener')
+      } finally {
+        if (fallback && nativeLightDismiss) await evaluate(`Object.defineProperty(HTMLDialogElement.prototype,'closedBy',window.dialogClosedByDescriptor);delete window.dialogClosedByDescriptor;document.querySelector('.uri-field dialog').setAttribute('closedby','any')`)
+      }
+      await evaluate(`(()=>{const button=document.querySelector('.uri-control > button');button.focus();button.click()})()`)
+      await wait(`document.querySelector('.uri-field dialog')?.open`)
+    }
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+    await wait(`!document.querySelector('.uri-field dialog').open`)
+    assert.equal(await evaluate(`${uri}.value`), 'https://example.test/terms', 'Escape leaves the URI unchanged')
+    await evaluate(`document.querySelector('.uri-control > button').click()`)
+    await wait(`document.querySelector('.uri-field dialog')?.open`)
     assert(await evaluate(`(()=>{const counter=document.querySelector('.uri-capacity'),input=document.querySelector('.uri-document-control textarea'),a=input.getBoundingClientRect(),b=counter.getBoundingClientRect();return counter.getAttribute('aria-label').includes('of 512 bytes') && input.getAttribute('aria-describedby')===counter.id && b.right<=a.right && b.bottom<=a.bottom && b.top>=a.bottom-parseFloat(getComputedStyle(input).paddingBottom)})()`), 'the accessible capacity counter fits inside the reserved lower-right area')
     const axDocument = await call('DOM.getDocument', {})
     const axInput = await call('DOM.querySelector', { nodeId: axDocument.root.nodeId, selector: '.uri-document-control textarea' })
