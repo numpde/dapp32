@@ -12,13 +12,14 @@ export async function assertBuildFooter({ call, evaluate, wait }) {
   assert.equal(shown.target, '_blank', 'opening source preserves the current app page')
   assert.equal(shown.timestamp, '2026-01-01T01:02:03Z')
   assert.equal(shown.title, shown.timestamp)
-  assert.equal(shown.date, '1 Jan 2026 UTC')
+  assert.equal(shown.date, '2026-01-01 UTC')
   assert(!shown.overflow, 'the footer fits its viewport')
+  assert(await evaluate(`(()=>{const footer=${footer},label=footer.querySelector('.build-revision > span'),link=footer.querySelector('a'),icon=footer.querySelector('.copy-button svg'),a=label.getBoundingClientRect(),b=link.getBoundingClientRect(),c=icon.getBoundingClientRect();return b.left>a.right&&b.left-a.right<8&&Math.abs((a.top+a.bottom-c.top-c.bottom)/2)<1})()`), 'footer revision and copy icon have clear spacing and aligned centers')
   await call('Emulation.setTimezoneOverride', { timezoneId: 'Pacific/Honolulu' })
   try {
     await evaluate(`window.actionFixture.build('modified')`)
     await wait(`${footer}.textContent.includes('(modified)')`)
-    assert.equal(await evaluate(`${footer}.querySelector('time').textContent`), '1 Jan 2026 UTC', 'the build date stays in UTC across browser timezones')
+    assert.equal(await evaluate(`${footer}.querySelector('time').textContent`), '2026-01-01 UTC', 'the build date stays in UTC across browser timezones')
     for (const [mode, message] of [['development', 'Viewer · Development build'], ['unknown', 'Viewer · Build metadata unavailable']]) {
       await evaluate(`window.actionFixture.build(${JSON.stringify(mode)})`)
       await wait(`${footer}.textContent===${JSON.stringify(message)}`)

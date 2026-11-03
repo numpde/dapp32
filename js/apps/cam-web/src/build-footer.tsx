@@ -9,9 +9,9 @@ export function BuildFooter({ revision, builtAt, modified, development }: {
 }): ReactElement {
   return <footer className="build-footer" aria-label="Viewer build">
     {revision && builtAt ? <>
-      <span>Viewer <HexValue value={revision} label="viewer revision" href={`https://github.com/numpde/dapp32/commit/${revision}`} />{modified ? " (modified)" : ""}</span>
+      <span className="build-revision"><span>Viewer</span><HexValue value={revision} label="viewer revision" href={`https://github.com/numpde/dapp32/commit/${revision}`} />{modified ? <span>(modified)</span> : null}</span>
       <span aria-hidden="true">·</span>
-      <span>Built <time dateTime={builtAt} title={builtAt}>{new Date(builtAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })} UTC</time></span>
+      <span>Built <time dateTime={builtAt} title={builtAt}>{new Date(builtAt).toISOString().slice(0, 10)} UTC</time></span>
     </> : <span>Viewer · {development ? "Development build" : "Build metadata unavailable"}</span>}
   </footer>
 }
