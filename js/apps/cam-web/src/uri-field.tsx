@@ -23,6 +23,8 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
   readonly onInput: (name: string, value: string | null) => void
 }): ReactElement {
   const inputId = useId()
+  const documentId = useId()
+  const capacityId = useId()
   const embedded = /^data:/i.test(value)
   const actionLabel = `${embedded ? "Edit embedded document for" : "Embed document for"} ${label}`
   const dialog = useRef<HTMLDialogElement>(null)
@@ -34,6 +36,11 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
     try { return { kind: "ready" as const, uri: textDataURI(draft.text, draft.type, DOCUMENT_LIMIT) } }
     catch (cause) { return { kind: "failed" as const, error: cause } }
   }, [draft])
+  const uriBytes = candidate?.kind === "ready" ? new TextEncoder().encode(candidate.uri).byteLength : undefined
+  const overLimit = uriBytes !== undefined && maxBytes !== undefined && BigInt(uriBytes) > BigInt(maxBytes)
+  const capacityLabel = uriBytes === undefined ? "Encoded URI size unavailable until the document is valid"
+    : maxBytes === undefined ? `Encoded URI: ${uriBytes} bytes`
+      : `Encoded URI: ${uriBytes} of ${maxBytes} bytes${overLimit ? ", over limit" : ""}`
   useEffect(() => {
     if (draft === undefined && dialog.current?.open) dialog.current.close()
     if (draft !== undefined && !dialog.current?.open) dialog.current?.showModal()
@@ -75,11 +82,15 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
       {draft === undefined ? null : <>
         <h2>Embed document</h2>
         <label className="field"><span>Content type</span><select value={draft.type} onChange={event => setDraft({ ...draft, type: event.currentTarget.value as typeof draft.type })}><option value="text/plain">Plain text</option><option value="application/json">JSON</option></select></label>
-        <label className="field"><span>Document</span><textarea value={draft.text} maxLength={DOCUMENT_LIMIT} onChange={event => { setDraft({ ...draft, text: event.currentTarget.value }); setError(undefined) }} /></label>
-        <p>Embedded content can become public and may increase transaction cost.</p>
-        <p>Encoded URI: {candidate === undefined || candidate.kind === "failed" ? "—" : new TextEncoder().encode(candidate.uri).byteLength} bytes{maxBytes === undefined ? null : ` (limit ${maxBytes})`}</p>
+        <div className="field uri-document">
+          <label htmlFor={documentId}>Document</label>
+          <div className="uri-document-control">
+            <textarea id={documentId} aria-describedby={capacityId} value={draft.text} maxLength={DOCUMENT_LIMIT} onChange={event => { setDraft({ ...draft, text: event.currentTarget.value }); setError(undefined) }} />
+            <output id={capacityId} htmlFor={documentId} aria-live="off" className="uri-capacity" data-over-limit={overLimit} aria-label={capacityLabel} title={capacityLabel}>{uriBytes === undefined ? "—" : uriBytes}{maxBytes === undefined ? " bytes" : ` / ${maxBytes}`}{overLimit ? " !" : null}</output>
+          </div>
+        </div>
         {error === undefined ? null : <Feedback report={failureReport(error)} kind="error" />}
-        <div className="uri-dialog-actions"><button type="button" className="button-quiet" onClick={() => { setDraft(undefined); setError(undefined) }}>Cancel</button><button type="button" onClick={apply}>Use document</button></div>
+        <div className="uri-dialog-actions"><button type="button" onClick={apply}>Use document</button><button type="button" className="button-quiet" onClick={() => { setDraft(undefined); setError(undefined) }}>Cancel</button></div>
       </>}
     </dialog>
   </div>

@@ -441,7 +441,7 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
       onCancel(node.state.key)
       if (restoreFocus) requestAnimationFrame(() => action?.focus())
     }}>Cancel calculation</button>
-    <p className="resource-status" role="status">
+    <p className="resource-status visually-hidden" role="status">
       {statusMessages.find(message => message.visible)?.text}
     </p>
     {status?.status === "failed" ? <Feedback report={status} kind="error" /> : null}

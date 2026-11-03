@@ -173,9 +173,9 @@ both encoded input and decoded output, and keep the input responsive.
 
 Embedding a URI means the document itself becomes part of the transaction
 argument and potentially public contract data; the exact storage consequences
-depend on the contract. A compact persistent note inside the editor should say
-that embedding can increase transaction size and cost and content may become
-public. Do not hardcode gas or estimate fees from byte count: the network,
+depend on the contract. The editor displays encoded bytes and the applicable
+limit as a compact counter within the document control, including an over-limit
+indication. Do not hardcode gas or estimate fees from byte count: the network,
 transaction and contract determine them. Transaction review remains the place
 to inspect the actual prepared operation and estimation.
 

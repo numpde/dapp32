@@ -3,6 +3,27 @@ import { assertHiddenEditorLayoutWitnesses, assertNoHiddenEditorLayout } from '.
 import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
 import { assertBuildFooter, assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery, assertNumericValidationPresentation } from './display-contracts.mjs'
 
+async function assertActionOrder({ call, evaluate, selector, labels }) {
+  for (const width of [1280, 761, 320]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+    const result = await evaluate(`(() => {
+      const buttons = [...document.querySelectorAll(${JSON.stringify(selector)} + ' > button')];
+      if (buttons.length !== 2) return null;
+      const [first, second] = buttons.map(button => button.getBoundingClientRect());
+      return { labels: buttons.map(button => button.textContent.trim()),
+        ordered: second.top > first.top + 1 || (Math.abs(second.top - first.top) <= 1 && second.left > first.left),
+        fits: document.documentElement.scrollWidth <= innerWidth };
+    })()`)
+    assert.deepEqual(result, { labels, ordered: true, fits: true }, `${selector}: primary action precedes the secondary action at ${width}px`)
+  }
+  await evaluate(`document.querySelector(${JSON.stringify(selector)} + ' > button').focus()`)
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 })
+  assert(await evaluate(`document.activeElement === document.querySelectorAll(${JSON.stringify(selector)} + ' > button')[1]`), `${selector}: Tab moves from primary to secondary action`)
+  await call('Emulation.clearDeviceMetricsOverride')
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+}
+
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/action-style-fixture.html', viewerURL)
   fixture.search = new URL(viewerURL).search
@@ -28,18 +49,27 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await call('Emulation.clearDeviceMetricsOverride')
     await evaluate(`document.querySelector('.uri-control > button').click()`)
     await wait(`document.querySelector('.uri-field dialog')?.open`)
+    await assertActionOrder({ call, evaluate, selector: '.uri-dialog-actions', labels: ['Use document', 'Cancel'] })
+    assert(await evaluate(`(()=>{const counter=document.querySelector('.uri-capacity'),input=document.querySelector('.uri-document-control textarea'),a=input.getBoundingClientRect(),b=counter.getBoundingClientRect();return counter.getAttribute('aria-label').includes('of 512 bytes') && input.getAttribute('aria-describedby')===counter.id && b.right<=a.right && b.bottom<=a.bottom && b.top>=a.bottom-parseFloat(getComputedStyle(input).paddingBottom)})()`), 'the accessible capacity counter fits inside the reserved lower-right area')
+    const axDocument = await call('DOM.getDocument', {})
+    const axInput = await call('DOM.querySelector', { nodeId: axDocument.root.nodeId, selector: '.uri-document-control textarea' })
+    const axTree = await call('Accessibility.getPartialAXTree', { nodeId: axInput.nodeId, fetchRelatives: false })
+    assert(axTree.nodes[0].description?.value.includes('of 512 bytes'), 'the textbox exposes the encoded byte count and limit as its accessible description')
     await evaluate(`(()=>{const select=document.querySelector('.uri-field dialog select');select.value='application/json';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
     await wait(`document.querySelector('.uri-field dialog select').value==='application/json'`)
     await evaluate(`(()=>{const input=document.querySelector('.uri-field dialog textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'{');input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
     await evaluate(`[...document.querySelectorAll('.uri-field dialog button')].find(button=>button.textContent==='Use document').click()`)
     await wait(`!!document.querySelector('.uri-field dialog [role="alert"]')`)
+    assert(await evaluate(`document.querySelector('.uri-capacity').getAttribute('aria-label').includes('size unavailable')`), 'invalid JSON does not claim a size for an unavailable URI')
     assert.equal(await evaluate(`${uri}.value`), 'https://example.test/terms', 'invalid JSON does not change the URI')
     const documentText = '{ "serial": 9007199254740993, "title": "🚲" }'
     await evaluate(`(()=>{const input=document.querySelector('.uri-field dialog textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,${JSON.stringify(documentText)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+    const displayedBytes = await evaluate(`Number(document.querySelector('.uri-capacity').textContent.split('/')[0].trim())`)
     await evaluate(`[...document.querySelectorAll('.uri-field dialog button')].find(button=>button.textContent==='Use document').click()`)
     await wait(`!document.querySelector('.uri-field dialog').open`)
     assert.equal(await evaluate(`fetch(${uri}.value).then(response=>response.text())`), documentText, 'embedded JSON preserves the entered text')
     const embeddedURI = await evaluate(`${uri}.value`)
+    assert.equal(displayedBytes, new TextEncoder().encode(embeddedURI).byteLength, 'counter measures encoded URI bytes rather than document characters')
     assert.equal(await evaluate(`document.querySelector('.uri-control > button').getAttribute('aria-label')`), 'Edit embedded document for Terms URI')
     assert.equal(await evaluate(`document.querySelector('.uri-control > button').title`), 'Edit embedded document for Terms URI')
     await evaluate(`[...document.querySelectorAll('.uri-value button')].find(button=>button.textContent==='View').click()`)
@@ -63,6 +93,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await evaluate(`(()=>{const select=document.querySelector('.uri-field dialog select');select.value='text/plain';select.dispatchEvent(new Event('change',{bubbles:true}))})()`)
     await wait(`document.querySelector('.uri-field dialog select').value==='text/plain'`)
     await evaluate(`(()=>{const input=document.querySelector('.uri-field dialog textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'x'.repeat(520));input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+    assert(await evaluate(`document.querySelector('.uri-capacity').dataset.overLimit==='true' && document.querySelector('.uri-capacity').textContent.includes('!') && document.querySelector('.uri-capacity').getAttribute('aria-label').includes('over limit')`), 'over-limit capacity is exposed without relying on color')
     await evaluate(`[...document.querySelectorAll('.uri-field dialog button')].find(button=>button.textContent==='Use document').click()`)
     await wait(`document.querySelector('.uri-field dialog [role="alert"]')?.textContent.includes('512-byte limit')`)
     assert.equal(await evaluate(`${uri}.value`), embeddedURI, 'an oversized embedded URI does not change the bound value')
@@ -184,6 +215,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     assert(styles.readDistinct && styles.commandsOutlined && styles.kindsVisible, 'read-only actions and transaction reviews have distinct visible and accessible treatments even when labels suggest the opposite')
     assert(styles.quietDistinct && styles.quietUnfilled, 'navigation, discard and document calculation helpers have a quiet supporting treatment')
     assert(styles.sendFilled, 'only Send is filled')
+    await assertActionOrder({ call, evaluate, selector: '.transaction-actions', labels: ['Send with wallet', 'Discard transaction'] })
     for (const width of [1280, 761, 320]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
       assert(await evaluate(`(()=>{
@@ -255,7 +287,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       await wait(`innerWidth===${width}`)
       await evaluate(`window.actionFixture.hashPhase('idle')`)
       await wait(`!document.querySelector('.document-hash-field button[aria-busy="true"]')`)
-      const hashGeometry = `(()=>{const field=document.querySelector('.document-hash-field'),input=field.querySelector('input[name="document"]'),box=field.getBoundingClientRect(),buttons=[...field.querySelectorAll('button')].filter(button=>button.getClientRects().length);return {top:box.top,height:box.height,inputTop:input.getBoundingClientRect().top,bottomGap:box.bottom-Math.max(...buttons.map(button=>button.getBoundingClientRect().bottom)),status:field.querySelector('[role=status].resource-status').textContent.trim(),cancel:!!field.querySelector('.resource-cancel').getClientRects().length}})()`
+      const hashGeometry = `(()=>{const field=document.querySelector('.document-hash-field'),input=field.querySelector('input[name="document"]'),box=field.getBoundingClientRect(),buttons=[...field.querySelectorAll('button')].filter(button=>button.getClientRects().length),status=field.querySelector('[role=status].resource-status');return {top:box.top,height:box.height,inputTop:input.getBoundingClientRect().top,bottomGap:box.bottom-Math.max(...buttons.map(button=>button.getBoundingClientRect().bottom)),status:status.textContent.trim(),statusHidden:getComputedStyle(status).position==='absolute'&&status.getBoundingClientRect().width<=1,cancel:!!field.querySelector('.resource-cancel').getClientRects().length}})()`
       const idle = await evaluate(hashGeometry)
       assert(idle.bottomGap <= 14 && !idle.cancel && idle.status === '', 'idle digest controls end at their normal padding without reserved feedback or cancellation rows')
       await assertHiddenEditorLayoutWitnesses(evaluate)
@@ -271,6 +303,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
         assert.equal(current.inputTop, idle.inputTop, 'feedback does not move the digest input')
         assert.equal(current.cancel, phase === 'pending')
         assert.equal(current.status.length > 0, phase !== 'idle')
+        assert(current.statusHidden, 'transient calculation status does not add visible commentary')
         await assertNoHiddenEditorLayout(evaluate)
         if (phase === 'idle') assert.equal(current.height, idle.height, 'the editor returns to its compact idle height')
       }

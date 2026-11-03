@@ -1,6 +1,12 @@
 Shared CAM UI backlog
 =====================
 
+Action pairs put the primary action first and the quiet secondary or cancel
+action second, in source, keyboard and visual order, including when wrapped.
+The repository check flags adjacent literal quiet-then-prominent JSX buttons;
+browser checks cover rendered order and keyboard behavior. Computed styles,
+conditional markup and unrelated actions still require review.
+
 1. Shared URI input and display components
 
    Requested: 2026-10-29. Status: in progress.

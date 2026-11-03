@@ -311,6 +311,11 @@ select:disabled {
 .uri-field dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .uri-field dialog .field { margin-block: 12px; }
 .uri-field dialog textarea { min-height: 12em; resize: vertical; }
+.uri-document > label { color: var(--muted); font-size: 0.86rem; }
+.uri-document-control { position: relative; min-width: 0; }
+.uri-field dialog .uri-document-control textarea { display: block; width: 100%; padding-bottom: 2.5em; }
+.uri-capacity { position: absolute; inset-inline-end: 20px; inset-block-end: 6px; max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); background: var(--panel); font-size: 0.8rem; pointer-events: none; }
+.uri-capacity[data-over-limit="true"] { color: var(--danger); }
 .uri-dialog-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .uri-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
 .uri-value pre { flex-basis: 100%; max-height: 20em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -320,11 +325,10 @@ select:disabled {
 .document-hash-field { min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
 .document-hash-field button { margin: 8px 8px 0 0; }
 .document-hash-field .resource-cancel[aria-hidden="true"] { display: none; }
-.resource-status:empty { margin: 0; }
 .duration-parts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .amount-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .amount-field legend, .duration-field legend { padding: 0; margin-bottom: 8px; }
-.field-hint, .resource-status { margin: 8px 0 0; color: var(--muted); font-size: 0.86rem; overflow-wrap: anywhere; }
+.field-hint { margin: 8px 0 0; color: var(--muted); font-size: 0.86rem; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .amount-pair { grid-template-columns: minmax(0, 1fr); } .duration-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .field span {

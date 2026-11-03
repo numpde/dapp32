@@ -124,6 +124,28 @@ function staticSupportingMarkup(node: ESTree.Node, scope: Scope, seen: Set<Bindi
     && elementChildren(node, scope).every(child => staticSupportingCopy(child, scope, seen))
 }
 
+function hasInlineProse(node: ESTree.Node, scope: Scope): boolean {
+  return elementChildren(node, scope).some(child => {
+    if (child.type === "JSXText") return child.value.trim() !== ""
+    const expression = child.type === "JSXExpressionContainer" ? child.expression : child
+    return expression.type === "Literal" ? typeof expression.value === "string" && expression.value.trim() !== ""
+      : expression.type === "TemplateLiteral" && expression.quasis.some(part => Boolean(part.value.cooked?.trim()))
+  })
+}
+
+function graphicalStatus(node: ESTree.Node, scope: Scope, seen: Set<Binding>): boolean {
+  if (node.type === "JSXExpressionContainer") return graphicalStatus(node.expression, scope, seen)
+  if (node.type === "Literal") return node.value === null
+  if (node.type === "Identifier") {
+    const binding = bindingFor(scope, node.name)
+    if (binding === undefined || typeof binding === "string" || !binding.constant || binding.member !== undefined || seen.has(binding)) return false
+    return graphicalStatus(binding.expression, binding.scope, new Set([...seen, binding]))
+  }
+  if (node.type === "ConditionalExpression") return graphicalStatus(node.consequent, scope, seen) && graphicalStatus(node.alternate, scope, seen)
+  if (node.type === "LogicalExpression") return graphicalStatus(node.right, scope, seen)
+  return node.type === "JSXElement" && elementProperty(node, "role", scope) === "img"
+}
+
 // Supporting prose accepts authored literals and local const aliases, never runtime helper execution.
 function staticSupportingCopy(node: ESTree.Node, scope: Scope, seen: Set<Binding>): boolean {
   if (node.type === "Literal") {
@@ -220,6 +242,28 @@ function ownershipFailures(sources: readonly Source[]): string[] {
           if (conditionalSupportingPresence(ancestors, scope) || !staticSupportingMarkup(element, scope, new Set())) failures.push(`${owner}: visible supporting prose must be static within its view; use accessible descriptions, shared feedback or value rows`)
         }
       }
+      if (tag !== undefined && ["p", "span", "small", "output", "div"].includes(tag)) {
+        const classes = elementProperty(node, "className", scope)?.split(/\s+/u)
+        const editor = ancestors.some(ancestor => {
+          const enclosingTag = nativeTag(ancestor, scope)
+          return enclosingTag === "dialog" || enclosingTag === "form" || enclosingTag === "fieldset" || elementProperty(ancestor, "role", scope) === "dialog"
+        })
+        const owned = ancestors.some(ancestor => {
+          const name = nativeTag(ancestor, scope)
+          return name !== undefined && ["button", "label", "PropertyRow"].includes(name)
+        })
+        const parent = ancestors.at(-1)
+        const element = node.type === "CallExpression" ? node : parent?.type === "JSXElement" ? parent : node
+        const conditional = elementChildren(element, scope).some(child => conditionalText(child.type === "JSXExpressionContainer" ? child.expression : child))
+        const liveMode = elementProperty(node, "aria-live", scope)
+        const children = elementChildren(element, scope)
+        const graphical = children.length > 0 && children.every(child => graphicalStatus(child, scope, new Set()))
+        const status = (elementProperty(node, "role", scope) === "status" || liveMode === "polite" || liveMode === "assertive") && !graphical
+        const measurement = tag === "output" && liveMode === "off"
+        if (editor && !owned && !graphical && !measurement && !classes?.includes("visually-hidden") && elementProperty(node, "role", scope) !== "alert" && (tag !== "div" || status || conditional || hasInlineProse(element, scope)) && !staticSupportingMarkup(element, scope, new Set())) {
+          failures.push(`${owner}: editor commentary must not change with input state; use an owned value control or feedback`)
+        }
+      }
       if (tag !== undefined && ["p", "span", "small", "output"].includes(tag)) {
         const className = elementProperty(node, "className", scope)
         const classes = className === undefined ? [] : className.split(/\s+/u)
@@ -303,6 +347,10 @@ test("supporting prose is static within its view while causes, facts and task co
     "export const help=<p className='field-hint'><span children='Use the URL.'/></p>",
     "export function help(status:string){return <p className='field-hint' children={messageFor(status)}>{' '}</p>}",
     "export function content(show:boolean,value:string){return <>{show?<p className='nft-placeholder'>NFT preview</p>:<p>{value}</p>}{show?<PropertyRow label='Total' value={value}/>:<Feedback report={value}/>}</>}",
+    "export function editor(value:number){return <dialog><textarea/><p>Content may be public.</p><meter value={value} max={100}/></dialog>}",
+    "export function editor(error:string){return <form><input/><p role='alert'>{error}</p></form>}",
+    "export function editor(value:number){return <dialog><textarea/><output aria-live='off'>{value} / 512</output></dialog>}",
+    "export function editor(checked:boolean){const icon=checked?<span role='img' aria-label='Checked'>✓</span>:null;return <form><input/><span role='status'>{icon}</span></form>}",
   ]) assert.deepEqual(ownershipFailures([rowOwner, copyOwner, { name: "help.tsx", text }]), [], text)
   for (const text of [
     "export function bad(invalid:boolean){return invalid?<p className='field-hint'>Correct it.</p>:null}",
@@ -322,6 +370,15 @@ test("supporting prose is static within its view while causes, facts and task co
     "export function bad(status:string){return <p className='field-hint' children={messageFor(status)}>\n  </p>}",
     "export function bad(status:string){return <p className='field-hint' children={messageFor(status)}>{/* comment */}\n  </p>}",
     "export function bad(selected:boolean,invalid:boolean){return selected?<section role='tabpanel'>{invalid?<p className='field-hint'>Correct it.</p>:null}</section>:null}",
+    "export function editor(value:number){return <dialog><textarea/><p>Used: {value} bytes</p></dialog>}",
+    "export function editor(value:string){return <form><input/><p>{value}</p></form>}",
+    "import {createElement as h} from 'react';export function editor(value:number){return h('fieldset',null,h('input'),h('p',null,'Used: ',value))}",
+    "export function editor(value:number){return <dialog><textarea/><small>Used: {value}</small></dialog>}",
+    "export function editor(value:string){return <dialog><textarea/><span>{value}</span></dialog>}",
+    "export function editor(value:number){return <form><input/><span>{`Remaining: ${value}`}</span></form>}",
+    "export function editor(value:number){return <fieldset><input/><div>Used: {value}</div></fieldset>}",
+    "export function editor(busy:boolean){return <dialog><input/><span>{busy?'Working':'Ready'}</span></dialog>}",
+    "export function editor(value:string){return <dialog><textarea/><span role='status'>{value}</span></dialog>}",
   ]) assert.notDeepEqual(ownershipFailures([rowOwner, copyOwner, { name: "help.tsx", text }]), [], text)
 })
 
