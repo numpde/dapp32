@@ -211,8 +211,8 @@ a dedicated element is justified only if the existing shape cannot express
 those semantics without ambiguity. Do not create both overlapping forms or
 specify new properties speculatively.
 
-This is a protocol-facing decision: UI elements and props are closed, and
-`TextField.format` currently accepts only `address`. A new format or element
+This was a protocol-facing decision: UI elements and props are closed, and
+at the time `TextField.format` accepted only `address`. A new format or element
 requires deliberate UI specification/version/compatibility decisions, strict
 parser and resolved types, state initialization and agent behavior, conformance
 checks, all supported renderers, examples and tests, and coherent manifest

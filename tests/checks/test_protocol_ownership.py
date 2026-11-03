@@ -108,6 +108,9 @@ class ProtocolOwnershipTest(unittest.TestCase):
             repo_path("js/packages/cam-screen/src/status-format.ts"),
             # Human diagnostics project decoded revert bigint arguments to text.
             repo_path("js/packages/cam-viewer/src/error-message.ts"),
+            # Text entry compares UTF-8 byte counts with exact inert bounds;
+            # runtime integers remain private to the validator.
+            repo_path("js/packages/cam-screen/src/text-field.ts"),
             # Duration editing converts bounded parts to inert whole seconds.
             repo_path("js/packages/cam-screen/src/duration.ts"),
         }

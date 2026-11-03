@@ -34,6 +34,10 @@ def text_fields(value: object):
             yield from text_fields(child)
 
 
+def declared_bound(value: object) -> bool:
+    return isinstance(value, str) and (value.startswith("$") and len(value) > 1 or bool(value) and all(char in "0123456789" for char in value))
+
+
 def review_ui(app: str, document: dict[str, object], reviewed: dict[tuple[str, str, str, str], str]) -> tuple[list[str], Counter]:
     failures: list[str] = []
     seen: Counter = Counter()
@@ -52,11 +56,19 @@ def review_ui(app: str, document: dict[str, object], reviewed: dict[tuple[str, s
                 continue
             identity = (app, node_name, key, label)
             seen[identity] += 1
-            if "format" in props:
-                if props["format"] not in ("address", "bytes32"):
-                    failures.append(f"{app}:{node_name}:{key}: unknown TextField format")
-                elif identity in reviewed:
-                    failures.append(f"{app}:{node_name}:{key}: remove the plain-field decision after adding a format")
+            format_name = props.get("format")
+            byte_length = props.get("byteLength")
+            minimum, maximum = props.get("minBytes"), props.get("maxBytes")
+            has_bounds = "minBytes" in props or "maxBytes" in props
+            bounds_valid = all(bound is None or declared_bound(bound) for bound in (minimum, maximum))
+            bounded = bounds_valid and any(isinstance(bound, str) and (bound.startswith("$") or any(char != "0" for char in bound)) for bound in (minimum, maximum))
+            valid_address = format_name == "address" and "byteLength" not in props and not has_bounds
+            valid_hex = format_name == "hex" and type(byte_length) is int and 1 <= byte_length <= 4503599627370495 and not has_bounds
+            if valid_address or valid_hex or (format_name is None and "byteLength" not in props and bounded):
+                if identity in reviewed:
+                    failures.append(f"{app}:{node_name}:{key}: remove the plain-field decision after adding validation")
+            elif format_name is not None or "byteLength" in props or minimum is not None or maximum is not None:
+                failures.append(f"{app}:{node_name}:{key}: invalid or ineffective TextField validation")
             else:
                 reason = reviewed.get(identity)
                 if not isinstance(reason, str) or not reason.startswith("intentional: ") or len(reason.split()) < 3:
@@ -71,9 +83,12 @@ class CamTextFieldReviewTest(unittest.TestCase):
 
         self.assertTrue(review_ui("sample", field({"label": "Value"}), {})[0])
         self.assertTrue(review_ui("sample", field({"label": "Value", "format": "anything"}), {})[0])
-        for format_name in ("address", "bytes32"):
-            with self.subTest(format_name=format_name):
-                self.assertEqual([], review_ui("sample", field({"label": "Value", "format": format_name}), {})[0])
+        for props in ({"label": "Value", "format": "address"}, {"label": "Value", "format": "hex", "byteLength": 32}, {"label": "Value", "minBytes": "1"}, {"label": "Value", "maxBytes": "$view.limit"}):
+            with self.subTest(props=props):
+                self.assertEqual([], review_ui("sample", field(props), {})[0])
+        for props in ({"label": "Value", "format": "hex"}, {"label": "Value", "minBytes": "0"}, {"label": "Value", "minBytes": "000"}, {"label": "Value", "maxBytes": "nonsense"}, {"label": "Value", "format": "bytes32"}, {"label": "Value", "format": "address", "minBytes": "1"}):
+            with self.subTest(props=props):
+                self.assertTrue(review_ui("sample", field(props), {})[0])
         decision = {("sample", "edit", "value", "Value"): "intentional: optional free text"}
         self.assertEqual([], review_ui("sample", field({"label": "Value"}), decision)[0])
         self.assertTrue(review_ui("sample", field({"label": "Changed"}), decision)[0])

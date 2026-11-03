@@ -30,6 +30,7 @@ export type {
 
 export { editAmountDraft, projectAmountDraft, sameAmountUnit } from "./amount.ts"
 export { editIntegerDraft, projectIntegerDraft, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "./numeric.ts"
+export { textFieldIssue } from "./text-field.ts"
 
 export { UiError } from "./errors.ts"
 export type { UiErrorCode } from "./errors.ts"

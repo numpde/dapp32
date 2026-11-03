@@ -70,7 +70,9 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Agreement reference"
+                "label": "Agreement reference",
+                "minBytes": "1",
+                "maxBytes": "$view.maxAgreementRefBytes"
               },
               "state": {
                 "key": "agreementRef",
@@ -1670,7 +1672,9 @@
         {
           "element": "TextField",
           "props": {
-            "label": "Agreement ID"
+            "label": "Agreement ID",
+            "format": "hex",
+            "byteLength": 32
           },
           "state": {
             "key": "agreementId",

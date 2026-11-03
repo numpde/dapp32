@@ -12,6 +12,7 @@ import {
 import { UiError } from "./errors.ts"
 import { parseAmountUnit } from "./amount.ts"
 import { parseExpressionPayload } from "./expressions.ts"
+import { compareUnsignedDigits, integerBound } from "./numeric.ts"
 import {
   requiredArray,
   requiredNonEmptyString,
@@ -291,9 +292,21 @@ function parseChoiceOptions(value: unknown, path: string): readonly ChoiceOption
 
 function parseTextFieldProps(value: unknown, path: string): InertRecord {
   const props = parseProps(value, path, UI_PROP_SCHEMAS.TextField)
-  if (Object.hasOwn(props, "format") && props.format !== "address") {
-    throw new UiError("UI_INVALID_FIELD", 'Cannot display TextField: format must be the literal "address".', `${path}.format`)
+  if (Object.hasOwn(props, "format") && props.format !== "address" && props.format !== "hex") {
+    throw new UiError("UI_INVALID_FIELD", 'Cannot display TextField: format must be the literal "address" or "hex".', `${path}.format`)
   }
+  if (props.format === "hex") {
+    if (typeof props.byteLength !== "number" || !Number.isSafeInteger(props.byteLength) || props.byteLength < 1 || !Number.isSafeInteger(props.byteLength * 2)) throw new UiError("UI_INVALID_FIELD", "Hex TextField byteLength must be a positive integer with a safe hexadecimal digit count.", `${path}.byteLength`)
+  } else if (Object.hasOwn(props, "byteLength")) throw new UiError("UI_INVALID_FIELD", "TextField byteLength requires hex format.", `${path}.byteLength`)
+  if (props.format !== undefined && (Object.hasOwn(props, "minBytes") || Object.hasOwn(props, "maxBytes"))) throw new UiError("UI_INVALID_FIELD", "TextField byte bounds apply only to plain text.", path)
+  const bounds: Record<string, string> = {}
+  for (const name of ["minBytes", "maxBytes"]) {
+    if (!Object.hasOwn(props, name)) continue
+    const value = props[name]
+    if (typeof value !== "string") throw new UiError("UI_INVALID_FIELD", `TextField ${name} must be a decimal string or reference.`, `${path}.${name}`)
+    if (!isExpressionReferenceString(value)) bounds[name] = integerBound(value, `${path}.${name}`)
+  }
+  if (bounds.minBytes !== undefined && bounds.maxBytes !== undefined && compareUnsignedDigits(bounds.minBytes, bounds.maxBytes) > 0) throw new UiError("UI_INVALID_FIELD", "TextField minimum bytes must not exceed its maximum.", path)
   return props
 }
 

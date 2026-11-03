@@ -12,6 +12,7 @@ import {
 import {
   resolvedUiButtons,
   DURATION_PARTS,
+  textFieldIssue,
 } from "../../packages/cam-screen/dist/index.js"
 import type {
   ResolvedButtonNode,
@@ -270,7 +271,15 @@ function renderNode(
     case "Text":
       output.write(`\n${formatValue(node.props.text)}\n`)
       return
-    case "TextField":
+    case "TextField": {
+      const value = textFieldValue(node, state)
+      output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(value)}\n`)
+      if (typeof value === "string" && value !== "") {
+        const issue = textFieldIssue(value, node.props)
+        if (issue !== undefined) output.write(`  ${issue}\n`)
+      }
+      return
+    }
     case "UriField":
     case "NftMetadataField":
       output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(textFieldValue(node, state))}\n`)

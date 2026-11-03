@@ -36,6 +36,28 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
   try {
     await navigateBrowserDocument({ call, url: fixture.href, description: 'the action fixture',
       ready: () => evaluate(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`) })
+    const enterText = async (name, value) => {
+      await evaluate(`(()=>{const input=document.querySelector('input[name=${JSON.stringify(name)}]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+      await wait(`document.querySelector('input[name=${JSON.stringify(name)}]').value===${JSON.stringify(value)}`)
+    }
+    assert(await evaluate(`document.querySelector('input[name="bytes32Draft"]').getAttribute('aria-invalid')==='false'`), 'untouched empty hex field is neutral')
+    await enterText('bytes32Draft', 'asdfasd')
+    assert(await evaluate(`(()=>{const input=document.querySelector('input[name="bytes32Draft"]'),hint=document.getElementById(input.getAttribute('aria-describedby'));return input.getAttribute('aria-invalid')==='true'&&getComputedStyle(input).borderColor==='rgb(154, 52, 46)'&&hint.textContent.includes('64 hexadecimal')&&getComputedStyle(hint).position==='absolute'})()`), 'malformed bytes32 has visible and accessible feedback without commentary')
+    await enterText('bytes32Draft', '0x' + 'aB'.repeat(32))
+    assert(await evaluate(`document.querySelector('input[name="bytes32Draft"]').getAttribute('aria-invalid')==='false'`), 'a valid mixed-case 32-byte value is accepted without rewriting')
+    await enterText('signatureDraft', '0x' + 'ab'.repeat(64))
+    assert(await evaluate(`document.querySelector('input[name="signatureDraft"]').getAttribute('aria-invalid')==='true'`), 'a 64-byte signature is rejected')
+    await enterText('signatureDraft', '0x' + 'ab'.repeat(65))
+    assert(await evaluate(`document.querySelector('input[name="signatureDraft"]').getAttribute('aria-invalid')==='false'`), 'a 65-byte signature has a valid shape')
+    await enterText('boundedDraft', 'éé')
+    assert(await evaluate(`document.querySelector('input[name="boundedDraft"]').getAttribute('aria-invalid')==='false'`), 'four UTF-8 bytes fit the bound')
+    await enterText('boundedDraft', 'ééé')
+    assert(await evaluate(`document.querySelector('input[name="boundedDraft"]').getAttribute('aria-invalid')==='true'`), 'UTF-8 byte limits do not count characters')
+    await enterText('boundedDraft', ' ')
+    assert(await evaluate(`document.querySelector('input[name="boundedDraft"]').getAttribute('aria-invalid')==='false'`), 'nonempty text is not trimmed')
+    await enterText('boundedDraft', '')
+    await evaluate(`(()=>{const input=document.querySelector('input[name="boundedDraft"]');input.focus();input.blur()})()`)
+    await wait(`document.querySelector('input[name="boundedDraft"]').getAttribute('aria-invalid')==='true'`)
     const uri = `document.querySelector('input[name="documentURI"]')`
     for (const width of [1280, 320]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })

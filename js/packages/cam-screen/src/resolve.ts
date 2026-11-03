@@ -192,7 +192,15 @@ function resolveNode(
       const maxBytes = hasOwn(node.props, "maxBytes") ? integerBound(resolveValueAtPath(node.props.maxBytes, boundContext, `${path}.props.maxBytes`), `${path}.props.maxBytes`) : undefined
       return [{ element: node.element, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), props: { label, ...(maxBytes === undefined ? {} : { maxBytes }) }, state: resolveStateBinding(node.state, context, `${path}.state`, false, node.element), children: [] }]
     }
-    case "TextField":
+    case "TextField": {
+      const { minBytes: rawMin, maxBytes: rawMax, ...otherProps } = node.props
+      const props = resolveProps(node.element, otherProps, context, `${path}.props`)
+      const bounds = { ...context, state: createStringMap<InertValue>() }
+      const minBytes = rawMin === undefined ? undefined : integerBound(resolveValueAtPath(rawMin, bounds, `${path}.props.minBytes`), `${path}.props.minBytes`)
+      const maxBytes = rawMax === undefined ? undefined : integerBound(resolveValueAtPath(rawMax, bounds, `${path}.props.maxBytes`), `${path}.props.maxBytes`)
+      if (minBytes !== undefined && maxBytes !== undefined && compareUnsignedDigits(minBytes, maxBytes) > 0) throw new UiError("UI_INVALID_FIELD", "TextField minimum bytes must not exceed its maximum.", `${path}.props`)
+      return [{ element: node.element, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), props: { ...props, ...(minBytes === undefined ? {} : { minBytes }), ...(maxBytes === undefined ? {} : { maxBytes }) }, state: resolveStateBinding(node.state, context, `${path}.state`, false, node.element), children: [] }]
+    }
     case "NftMetadataField":
       return [{
         element: node.element,

@@ -37,6 +37,9 @@ let prepared = false
 let busy = false
 let sending = false
 let draft: string | null = "unchanged"
+let bytes32Draft = ""
+let signatureDraft = ""
+let boundedDraft = ""
 let documentURI = "https://example.test/terms"
 let viewingAccount = "0x1111111111111111111111111111111111111111"
 let connectionChainId = "eip155:31337"
@@ -63,7 +66,7 @@ function render(): void {
   const integer = projectIntegerDraft(integerDraft, { min: "0", max: "100" })
   const duration = projectDurationDraft(durationDraft, { min: "0", max: "100" })
   const amount = projectAmountDraft(amountDraft)
-  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, documentURI, document: "", metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, bytes32Draft, signatureDraft, boundedDraft, documentURI, document: "", metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Screen", props: { title: "Overview" }, children: [
       { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
     ] },
@@ -84,6 +87,9 @@ function render(): void {
       { element: "Status", props: { label: "Progress", value: "Ready" }, children: [] },
     ] },
     { element: "DocumentHashField", props: { label: "Document", algorithm: "sha256", sourceURI: "https://example.test/document" }, state: { key: "document" }, children: [] },
+    { element: "TextField", props: { label: "Agreement ID", format: "hex", byteLength: 32 }, state: { key: "bytes32Draft" }, children: [] },
+    { element: "TextField", props: { label: "Signature", format: "hex", byteLength: 65 }, state: { key: "signatureDraft" }, children: [] },
+    { element: "TextField", props: { label: "Reference", minBytes: "1", maxBytes: "4" }, state: { key: "boundedDraft" }, children: [] },
     { element: "UriField", props: { label: "Terms URI", maxBytes: "512" }, state: { key: "documentURI" }, children: [] },
     { element: "Uri", props: { label: "Recorded URI", value: documentURI }, children: [] },
     { element: "Nft", props: { contractAddress: "0x5555555555555555555555555555555555555555", tokenId: "42", metadataURI: metadata }, children: [] },
@@ -97,7 +103,7 @@ function render(): void {
   const props: ComponentProps<typeof UiView> = { snapshot, canReviewTransaction: true, actionKind: fixtureActionKind, viewRef: null, changingView: busy, sending,
     onBack: async () => { events.back++ }, onRefresh: async () => { events.refresh++ },
     onAction: async (action: ResolvedButtonNode) => { const kind = fixtureActionKind(action); events[kind]++; if (kind === "contractCall") prepared = true; render() },
-    onInput: (name: string, value: string | null) => { if (name === "documentURI") { if (value === null) throw new Error("URI fixture requires a string"); documentURI = value } else draft = value; render() }, onAmount: (_name, representation, text, options) => { amountDraft = editAmountDraft(numericUnit, representation, text, options?.composing); render() },
+    onInput: (name: string, value: string | null) => { if (name === "documentURI") { if (value === null) throw new Error("URI fixture requires a string"); documentURI = value } else if (name === "bytes32Draft") { if (value === null) throw new Error("Hex fixture requires a string"); bytes32Draft = value } else if (name === "signatureDraft") { if (value === null) throw new Error("Signature fixture requires a string"); signatureDraft = value } else if (name === "boundedDraft") { if (value === null) throw new Error("Reference fixture requires a string"); boundedDraft = value } else draft = value; render() }, onAmount: (_name, representation, text, options) => { amountDraft = editAmountDraft(numericUnit, representation, text, options?.composing); render() },
     onInteger: (_name, text, options) => { integerDraft = editIntegerDraft(text, options?.composing); render() },
     onDuration: (_name, part, text, options) => { durationDraft = editDurationDraft(durationDraft, part, text, options?.composing); render() }, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },
   }

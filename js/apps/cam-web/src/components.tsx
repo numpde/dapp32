@@ -1,11 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react"
 import type { ReactElement, ReactNode, Ref } from "react"
 
-import type { InertValue } from "@cam/protocol"
+import type { InertRecord, InertValue } from "@cam/protocol"
 import { isDocumentHashDigest } from "@cam/protocol"
 import { encodeCamContractCall, evmChainMetadata } from "@cam/evm-viem"
 import { evmNetworkChoices } from "@cam/viewer"
-import { formatRelativeTimestamp, DURATION_PARTS, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
+import { formatRelativeTimestamp, DURATION_PARTS, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS, textFieldIssue } from "@cam/screen"
 import type {
   ResolvedButtonNode,
   ResolvedStatusNode,
@@ -263,6 +263,7 @@ function UiNodeView({
     case "TextField": {
       const name = stateKey(node)
       if (node.props.format === "address") return <AddressInput key={JSON.stringify([scopeKey, name])} name={name} label={stringProp(node.props, "label")} value={stateString(state, name)} disabled={busy || node.disabled === true} onInput={onInput} />
+      if (node.props.format === "hex" || node.props.minBytes !== undefined || node.props.maxBytes !== undefined) return <ValidatedTextInput key={JSON.stringify([scopeKey, name])} name={name} label={stringProp(node.props, "label")} value={stateString(state, name)} disabled={busy || node.disabled === true} props={node.props} onInput={onInput} />
       return (
         <label className="field">
           <span>{displayText(stringProp(node.props, "label"))}</span>
@@ -310,6 +311,27 @@ function UiNodeView({
   }
 
   return unreachableUiNode(node)
+}
+
+function ValidatedTextInput({ name, label, value, disabled, props, onInput }: {
+  readonly name: string
+  readonly label: string
+  readonly value: string
+  readonly disabled: boolean
+  readonly props: InertRecord
+  readonly onInput: (name: string, value: string | null) => void
+}): ReactElement {
+  const issueId = useId()
+  const [touched, setTouched] = useState(false)
+  const issue = textFieldIssue(value, props)
+  const invalid = issue !== undefined && (value !== "" || touched)
+  return <div>
+    <label className="field">
+      <span>{displayText(label)}</span>
+      <input name={name} disabled={disabled} value={value} aria-invalid={invalid} aria-describedby={invalid ? issueId : undefined} onBlur={() => setTouched(true)} onChange={event => onInput(name, event.currentTarget.value)} />
+    </label>
+    {invalid ? <span id={issueId} className="visually-hidden">{issue}</span> : null}
+  </div>
 }
 
 export function TransactionPresentationView({ node, onAction, busy, headingLevel }: {

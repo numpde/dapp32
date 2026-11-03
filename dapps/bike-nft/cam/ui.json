@@ -339,7 +339,8 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Serial number to look up"
+                "label": "Serial number to look up",
+                "minBytes": "1"
               },
               "state": {
                 "key": "serialNumber",
@@ -455,7 +456,8 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Serial number to look up"
+                "label": "Serial number to look up",
+                "minBytes": "1"
               },
               "state": {
                 "key": "serialNumber",
@@ -513,7 +515,8 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Serial number to look up"
+                "label": "Serial number to look up",
+                "minBytes": "1"
               },
               "state": {
                 "key": "serialNumber",
@@ -781,7 +784,8 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Missing report text or link"
+                "label": "Missing report text or link",
+                "minBytes": "1"
               },
               "state": {
                 "key": "reportURI",
@@ -817,7 +821,8 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Resolution text or link"
+                "label": "Resolution text or link",
+                "minBytes": "1"
               },
               "state": {
                 "key": "resolutionURI",
@@ -1291,7 +1296,8 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Serial number"
+                "label": "Serial number",
+                "minBytes": "1"
               },
               "state": {
                 "key": "serialNumber",

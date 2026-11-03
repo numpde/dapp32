@@ -484,7 +484,9 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Invoice hash (bytes32)"
+                "label": "Invoice hash (bytes32)",
+                "format": "hex",
+                "byteLength": 32
               },
               "state": {
                 "key": "invoiceHash",
@@ -544,7 +546,9 @@
             {
               "element": "TextField",
               "props": {
-                "label": "Registered key’s voucher signature"
+                "label": "Registered key’s voucher signature",
+                "format": "hex",
+                "byteLength": 65
               },
               "state": {
                 "key": "signature",

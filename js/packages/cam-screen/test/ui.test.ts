@@ -10,6 +10,7 @@ import {
   resolvedUiInputNames,
   resolveInitialUiNode,
   resolveUiNode,
+  textFieldIssue,
   UiError,
 } from "../src/index.ts"
 
@@ -1322,9 +1323,9 @@ test("Nft accepts an optional metadata URI string while retaining arbitrary iner
   assert.throws(() => resolveUiNode(ui, "app", {}, { ...context, inputs: { uri: 3 } }), /metadataURI/)
 })
 
-test("TextField address format is explicit literal metadata and preserves ordinary string editing", () => {
+test("TextField formats are explicit literal metadata and preserve ordinary string editing", () => {
   const field = (format: unknown) => ({ ui: UI_VERSION, nodes: { input: {
-    requires: [], element: "TextField", props: { label: "Recipient", format }, state: { key: "recipient", defaultValue: "" },
+    requires: [], element: "TextField", props: { label: "Recipient", format, ...(format === "hex" ? { byteLength: 32 } : {}) }, state: { key: "recipient", defaultValue: "" },
   } } })
   const ui = parseUi(field("address"))
   const { state, resolvedUi } = resolveInitialUiNode(ui, "input", {}, { ...context, state: {} })
@@ -1333,7 +1334,43 @@ test("TextField address format is explicit literal metadata and preserves ordina
   if (resolvedUi.element !== "TextField") throw new Error("Address input was not resolved")
   assert.equal(resolvedUi.props.format, "address")
   assert.equal(resolveUiNode(ui, "input", {}, { ...context, state: { recipient: "still editing" } }).element, "TextField")
-  for (const format of ["hash", "$view.format", null, 1]) assert.throws(() => parseUi(field(format)), /format.*literal/)
+  const bytes = resolveUiNode(parseUi(field("hex")), "input", {}, { ...context, state: { recipient: "still editing" } })
+  assert.equal(bytes.element, "TextField")
+  if (bytes.element !== "TextField") throw new Error("Bytes input was not resolved")
+  assert.equal(bytes.props.format, "hex")
+  assert.equal(bytes.props.byteLength, 32)
+  for (const format of ["hash", "bytes32", "$view.format", null, 1]) assert.throws(() => parseUi(field(format)), /format.*literal/)
+  const invalidHex = (byteLength: unknown) => ({ ui: UI_VERSION, nodes: { input: { requires: [], element: "TextField", props: { label: "Hash", format: "hex", byteLength }, state: { key: "hash", defaultValue: "" } } } })
+  assert.doesNotThrow(() => parseUi(invalidHex(257)))
+  for (const size of [0, 1.5, 4503599627370496, "32", "$view.size", null]) assert.throws(() => parseUi(invalidHex(size)), /byteLength/)
+})
+
+test("TextField byte bounds resolve from the view without changing string drafts", () => {
+  const ui = parseUi({ ui: UI_VERSION, nodes: { input: { requires: ["view"], element: "TextField", props: { label: "Reference", minBytes: "1", maxBytes: "$view.limit" }, state: { key: "reference", defaultValue: "" } } } })
+  const resolved = resolveUiNode(ui, "input", { view: { limit: "128" } }, { ...context, state: { reference: "  " } })
+  assert.equal(resolved.element, "TextField")
+  if (resolved.element !== "TextField") throw new Error("Text input was not resolved")
+  assert.equal(resolved.props.minBytes, "1")
+  assert.equal(resolved.props.maxBytes, "128")
+  assert.throws(() => resolveUiNode(ui, "input", { view: { limit: "0" } }, { ...context, state: {} }), /minimum bytes/)
+  for (const bounds of [{ minBytes: "invalid" }, { maxBytes: 12 }, { minBytes: "5", maxBytes: "4" }]) {
+    assert.throws(() => parseUi({ ui: UI_VERSION, nodes: { input: { requires: [], element: "TextField", props: { label: "Reference", ...bounds }, state: { key: "reference", defaultValue: "" } } } }), UiError)
+  }
+})
+
+test("TextField validation uses exact hex lengths and UTF-8 bytes without trimming", () => {
+  const hex32 = toInertValue({ format: "hex", byteLength: 32 }) as InertRecord
+  const hex65 = toInertValue({ format: "hex", byteLength: 65 }) as InertRecord
+  const text = toInertValue({ minBytes: "1", maxBytes: "4" }) as InertRecord
+  assert.match(textFieldIssue("asdfasd", hex32)!, /64 hexadecimal/)
+  assert.equal(textFieldIssue(`0x${"aB".repeat(32)}`, hex32), undefined)
+  assert.match(textFieldIssue(`0x${"ab".repeat(64)}`, hex65)!, /130 hexadecimal/)
+  assert.equal(textFieldIssue(`0x${"ab".repeat(65)}`, hex65), undefined)
+  assert.match(textFieldIssue("", text)!, /at least 1/)
+  assert.equal(textFieldIssue(" ", text), undefined)
+  assert.equal(textFieldIssue("éé", text), undefined)
+  assert.match(textFieldIssue("ééé", text)!, /no more than 4/)
+  assert.equal(textFieldIssue("🚲", text), undefined)
 })
 
 test("ChoiceField keeps ordered literal options and exact state through Includes", () => {
