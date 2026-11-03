@@ -33,7 +33,7 @@ import {
 import { NftView, NftMetadataFieldView } from "./nft-components.tsx"
 import { Feedback, FeedbackBox } from "./feedback.tsx"
 import type { TransactionStage } from "./transactions.ts"
-import { HexValue } from "./hex-value.tsx"
+import { CompactHexEntry, HexValue } from "./hex-value.tsx"
 import { AddressInput, AddressSuggestions } from "./address-input.tsx"
 import { currentViewAddresses } from "./known-addresses.ts"
 import { JsonView } from "./json-view.tsx"
@@ -325,11 +325,11 @@ function ValidatedTextInput({ name, label, value, disabled, props, onInput }: {
   const [touched, setTouched] = useState(false)
   const issue = textFieldIssue(value, props)
   const invalid = issue !== undefined && (value !== "" || touched)
-  return <div>
-    <label className="field">
-      <span>{displayText(label)}</span>
-      <input name={name} disabled={disabled} value={value} aria-invalid={invalid} aria-describedby={invalid ? issueId : undefined} onBlur={() => setTouched(true)} onChange={event => onInput(name, event.currentTarget.value)} />
-    </label>
+  return <div className="field">
+    <label htmlFor={issueId + "-input"}>{displayText(label)}</label>
+    <CompactHexEntry value={value} compact={props.format === "hex" && issue === undefined && value.length > 15}>
+      <input id={issueId + "-input"} name={name} disabled={disabled} value={value} aria-invalid={invalid} aria-describedby={invalid ? issueId : undefined} onBlur={() => setTouched(true)} onChange={event => onInput(name, event.currentTarget.value)} />
+    </CompactHexEntry>
     {invalid ? <span id={issueId} className="visually-hidden">{issue}</span> : null}
   </div>
 }

@@ -4,7 +4,7 @@ import { Autocomplete } from "@base-ui/react/autocomplete"
 import { addressSuggestions, enteredAddresses } from "./known-addresses.ts"
 import type { KnownAddress } from "./known-addresses.ts"
 import { isAbiAddressValue } from "@cam/protocol"
-import { HexText } from "./hex-value.tsx"
+import { CompactHexEntry, HexText } from "./hex-value.tsx"
 import { displayText } from "./display.ts"
 
 const KnownAddresses = createContext<{
@@ -32,27 +32,22 @@ export function AddressInput({ name, label, value, disabled, onInput }: {
 }): ReactElement {
   const { suggestions, remember } = useContext(KnownAddresses)
   const edited = useRef<string | undefined>(undefined)
-  const [editing, setEditing] = useState(false)
   const inputId = useId()
-  const compact = !editing && isAbiAddressValue(value)
   return <div className="address-input">
     <Autocomplete.Root items={suggestions} mode="none" disabled={disabled} value={value}
       itemToStringValue={entry => entry.address}
       onValueChange={next => { if (next !== value) onInput(name, next) }}>
       <label htmlFor={inputId}>{displayText(label)}</label>
       <Autocomplete.InputGroup className="address-control">
-        <div className="address-entry" data-compact={compact}>
+        <CompactHexEntry className="address-entry" value={value} compact={isAbiAddressValue(value)}>
           <Autocomplete.Input id={inputId} name={name} autoCapitalize="none" spellCheck={false}
             aria-invalid={value !== "" && !isAbiAddressValue(value)}
-            onFocus={() => setEditing(true)}
             onChange={event => { edited.current = event.currentTarget.value }}
             onBlur={() => {
-              setEditing(false)
               if (edited.current === value && !disabled) remember({ address: value, label: `Entered in: ${label}` })
               edited.current = undefined
             }} />
-          {compact ? <span className="address-display" aria-hidden="true"><HexText value={value} /></span> : null}
-        </div>
+        </CompactHexEntry>
         <Autocomplete.Trigger className="address-trigger" aria-label={`Use a known address for ${label}`} disabled={disabled || suggestions.length === 0} />
       </Autocomplete.InputGroup>
       <Autocomplete.Portal>

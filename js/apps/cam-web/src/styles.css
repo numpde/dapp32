@@ -330,7 +330,8 @@ select:disabled {
 .field-hint { margin: 8px 0 0; color: var(--muted); font-size: 0.86rem; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .amount-pair { grid-template-columns: minmax(0, 1fr); } .duration-parts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-.field span {
+.field > span,
+.field > label {
   color: var(--muted);
   font-size: 0.86rem;
 }
@@ -427,12 +428,13 @@ summary:focus-visible {
 .address-control:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .address-control:has(input[aria-invalid="true"]) { border-color: var(--danger); outline-color: var(--danger); }
 .address-control :is(input, button):focus-visible { outline: none; }
-.address-entry { position: relative; flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.compact-hex-entry { position: relative; min-width: 0; }
+.address-entry { flex: 1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .address-entry > input { block-size: 100%; border: 0; background: transparent; }
-.address-entry[data-compact="true"] > input { color: transparent; }
-.address-display { position: absolute; inset: 0; display: flex; align-items: center; padding-inline: var(--control-padding-inline); pointer-events: none; overflow: hidden; }
-.address-display > code { font: inherit; white-space: nowrap; }
-.address-entry > input:disabled + .address-display { color: var(--muted); }
+.compact-hex-entry[data-compact="true"] > input { color: transparent; }
+.compact-hex-display { color: var(--ink); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; position: absolute; inset: 0; display: flex; align-items: center; padding-inline: var(--control-padding-inline); pointer-events: none; overflow: hidden; }
+.compact-hex-display > code { font: inherit; white-space: nowrap; }
+.compact-hex-entry > input:disabled + .compact-hex-display { color: var(--muted); }
 .address-trigger { flex: 0 0 40px; align-self: stretch; min-height: 0; padding: 0; border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent var(--control-chevron) no-repeat center / 12px 12px; }
 .address-positioner { width: var(--anchor-width); max-inline-size: calc(100vw - 24px); z-index: 10; }
 .address-popover { display: flex; flex-direction: column; max-height: min(320px, var(--available-height)); border: 1px solid var(--control-border); border-radius: 6px; background: var(--panel); color: var(--ink); box-shadow: 0 4px 16px #0002; }

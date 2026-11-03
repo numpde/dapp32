@@ -29,7 +29,7 @@ export async function assertSingleLineControlAlignment(evaluate) {
   }
   assert(await evaluate(`(()=>{
     return [...document.querySelectorAll('.address-control')].every(bar=>{
-      const input=bar.querySelector('input'),preview=bar.querySelector('.address-display code');
+      const input=bar.querySelector('input'),preview=bar.querySelector('.compact-hex-display code');
       if(!preview)return true;
       const a=getComputedStyle(input),b=getComputedStyle(preview),r=bar.getBoundingClientRect(),p=preview.getBoundingClientRect();
       return a.font===b.font&&Math.abs(p.left-r.left-parseFloat(getComputedStyle(bar).borderLeftWidth)-parseFloat(a.paddingLeft))<1
