@@ -277,6 +277,7 @@ try {
   sessionId = (await call('Target.attachToTarget', { targetId, flatten: true })).sessionId
   await call('Page.enable', {})
   await call('Page.bringToFront', {})
+  await call('Emulation.setFocusEmulationEnabled', { enabled: true })
   await call('Runtime.enable', {})
   await call('Network.enable', {})
   await call('Network.setCacheDisabled', { cacheDisabled: true })

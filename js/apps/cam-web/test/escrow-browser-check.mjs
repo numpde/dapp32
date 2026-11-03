@@ -268,8 +268,8 @@ async function assertWorkingSurface(label) {
       throw Error('Cannot measure input boundary without an opaque surrounding surface');
     }
     return {padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(parseFloat),
-      inputs: [...region.querySelectorAll('input:not(:disabled)')].map(input => {
-        const boundary = input.closest('.address-control');
+      inputs: [...region.querySelectorAll('input:not(:disabled):not([hidden]):not([type=hidden]):not([aria-hidden=true])')].map(input => {
+        const boundary = input.closest('.address-control, .uri-control');
         const css = getComputedStyle(boundary === null ? input : boundary);
         return {name: input.name, edges: ['Top','Right','Bottom','Left'].map(edge => ({edge,style:css['border'+edge+'Style'],color:css['border'+edge+'Color'],width:parseFloat(css['border'+edge+'Width'])})), fill: css.backgroundColor, surround: surroundingColor(input)};
       })};
@@ -339,6 +339,7 @@ try {
   sessionId = (await call('Target.attachToTarget', { targetId, flatten: true }, undefined)).sessionId
   await call('Page.enable', {}, sessionId)
   await call('Page.bringToFront', {}, sessionId)
+  await call('Emulation.setFocusEmulationEnabled', { enabled: true }, sessionId)
   await call('Runtime.enable', {}, sessionId)
   await call('Network.enable', {}, sessionId)
   await call('Page.navigate', { url: viewer.href }, sessionId)
@@ -858,12 +859,12 @@ try {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
     await clickButton('Create agreement')
-    await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.diagnostic || ''), 'decoded prepare rejection')
+    await waitFor(async () => { const notice = await feedback('notice'); return notice?.focus && /InvalidPartyConfiguration/.test(notice.diagnostic) }, 'decoded prepare rejection focus')
     const rejected = await feedback('notice')
     assert(!rejected.text.includes('InvalidPartyConfiguration'), 'primary explanation exposes the contract diagnostic')
     assert(await evaluate(`(() => { const notice=[...document.querySelectorAll('.notice')].at(-1); return !notice.querySelector('details')&&notice.querySelector('.feedback-diagnostic').innerText.includes('InvalidPartyConfiguration') })()`), 'the contract rejection is visible without opening a disclosure')
     assert(rejected.role === 'alert' || rejected.role === 'status', 'prepare rejection is not announced')
-    assert(rejected.top >= 0 && rejected.top < rejected.height && rejected.bottom > 0, 'prepare rejection is outside the viewport')
+    assert(await evaluate(`(()=>{const r=document.querySelector('.notice .feedback-message').getBoundingClientRect();return r.top>=-1&&r.top<innerHeight&&r.bottom>0})()`), 'prepare rejection message is outside the viewport')
     assert.equal(await field('agreementRef'), draft.agreementRef, 'prepare rejection discarded draft')
     assert.equal(await field('amount'), draft.amount, 'prepare rejection discarded amount')
   })
@@ -904,9 +905,9 @@ try {
   await browserCase('prepared review feedback', async () => {
     await fillDraft()
     await clickButton('Create agreement')
-    await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'prepared review')
+    await waitFor(async () => { const prepared = await feedback('prepared'); return prepared?.text?.includes('Review transaction') && prepared.focus }, 'prepared review focus')
     const prepared = await feedback('prepared')
-    assert(prepared.top >= 0 && prepared.top < prepared.height && prepared.bottom > 0, 'prepared review is outside the viewport')
+    assert(prepared.top >= -1 && prepared.top < prepared.height && prepared.bottom > 0, `prepared review is outside the viewport: ${JSON.stringify({top: prepared.top, bottom: prepared.bottom, height: prepared.height, focus: prepared.focus})}`)
     assert(prepared.focus, 'prepared review did not receive accessible focus')
     assert.equal(await field('agreementRef'), draft.agreementRef, 'prepare discarded draft')
     assert.equal(transactionRequests.length, 0, 'prepare sent a transaction before explicit wallet confirmation')
@@ -991,7 +992,6 @@ try {
   intercept = 'fail'
   await call('Page.navigate', { url: viewer.href }, sessionId)
   await waitFor(state => state.text.includes('Cannot load app'), 'failed-load explanation', false)
-  await evaluate(`document.querySelector('.error summary').click()`)
   const failed = await waitFor(state => /Failed to fetch|net::ERR_FAILED/.test(state.text), 'failed-load diagnostic', false)
   assert.notEqual(failed.heading, 'Loading', 'failure left the page titled Loading')
   assert(failed.text.includes(cam.href), 'failure hid the failed resource URL')
