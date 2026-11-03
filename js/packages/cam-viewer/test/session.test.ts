@@ -450,7 +450,7 @@ for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as cons
     mutableRecord(cam.protocol).integrity = sha256Integrity(protocolBytes)
     resources[BIKE_PROTOCOL_URI] = protocolBytes
     resources[camURI] = encodeJson(cam)
-    assert.equal(cam.cam, "1.3.0")
+    assert.equal(cam.cam, "1.4.0")
     const fixtureClient = createPublicClient(publicClientFixtureOptions({ camHash: fixtureDigest(resources[camURI]) }))
     const requests: string[] = []
     const publicClient: CamPublicClient = {

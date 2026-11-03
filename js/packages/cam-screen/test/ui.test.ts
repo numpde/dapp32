@@ -29,6 +29,10 @@ const context = {
   },
 }
 
+test("UI parser rejects the retired 1.0 format explicitly", () => {
+  assert.throws(() => parseUi({ ui: "1.0.0", nodes: {} }), /unsupported UI version: 1\.0\.0/)
+})
+
 test("URI elements preserve exact values and expose their state and byte limit", () => {
   const declaration = { ui: UI_VERSION, nodes: { app: { requires: ["view"], element: "Fragment", children: [
     { element: "UriField", props: { label: "Terms", maxBytes: "$view.limit" }, state: { key: "terms", defaultValue: "ipfs://example/%2F" } },

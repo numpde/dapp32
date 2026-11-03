@@ -6,12 +6,12 @@ render or interpret those workflows. Contracts enforce business rules and
 transaction authority.
 
 This repository contains the protocol, viewers, shared packages, and example
-contracts. Current software supports CAM 1.3.0 with UI 1.0.0.
+contracts. Current software supports CAM 1.4.0 with UI 1.1.0.
 
 ## Documentation
 
 - [Project overview](https://numpde.github.io/dapp32/)
-- [Protocol reference](https://numpde.github.io/dapp32/reference/cam/1.3.0/)
+- [Protocol reference](https://numpde.github.io/dapp32/reference/cam/1.4.0/)
 - [Examples and local demos](https://numpde.github.io/dapp32/examples/#local-demos)
 - [Deployment and verification](https://numpde.github.io/dapp32/deployment/)
 - [Networks](https://numpde.github.io/dapp32/deployment/networks/) and

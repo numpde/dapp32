@@ -154,6 +154,6 @@ test("CAM 1.3 rejects transaction value on read routes", () => {
       error instanceof CamError
       && error.code === "CAM_UNKNOWN_FIELD"
       && error.path === "routes.valueRoute.value"
-      && error.message === "routes.valueRoute.value: field is not allowed in CAM 1.3.0: value",
+      && error.message === "routes.valueRoute.value: field is not allowed in CAM 1.4.0: value",
   )
 })

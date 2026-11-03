@@ -24,11 +24,11 @@ const screen = (title: string) => ({ element: "Screen", requires: [], props: { t
     { element: "DocumentHashField", props: { label: "Document hash", algorithm: "sha256", sourceURI: "$state.documentURI" }, state: { key: "digest", defaultValue: "" } },
   ] : [{ element: "Nft", props: { contractAddress: address, tokenId: "1", metadataURI: `ipfs://${cid}/metadata/nft.json` } }]),
 ] })
-const uiBytes = encode({ ui: "1.0.0", nodes: { home: screen("Bicycle component registry"), detail: screen("Gateway detail") } })
+const uiBytes = encode({ ui: "1.1.0", nodes: { home: screen("Bicycle component registry"), detail: screen("Gateway detail") } })
 const abiBytes = encode(abi)
 const protocolBytes = new TextEncoder().encode("Fixture protocol")
 const route = (node: string) => ({ kind: "read", inputs: [], call: { namespace: "contracts.App", function: "read", args: {} }, then: { namespace: "ui", function: node, args: {} } })
-const camBytes = encode({ cam: "1.3.0", protocol: { uri: "./protocol.html", integrity: `sha256:${sha256(protocolBytes)}` }, entry: "home",
+const camBytes = encode({ cam: "1.4.0", protocol: { uri: "./protocol.html", integrity: `sha256:${sha256(protocolBytes)}` }, entry: "home",
   namespaces: { "contracts.App": { type: "contract", abiURI: "./abi.json", integrity: `sha256:${sha256(abiBytes)}` },
     ui: { type: "ui", uri: "./ui.json", integrity: `sha256:${sha256(uiBytes)}` }, routes: { type: "routes" } },
   routes: { home: route("home"), detail: route("detail") },

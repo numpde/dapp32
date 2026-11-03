@@ -29,11 +29,11 @@ const screen = (title: string) => ({ element: "Screen", requires: [], props: { t
   { element: "NftMetadataField", props: { label: "NFT details" }, state: { key: "tokenURI", defaultValue: "" } },
   { element: "Button", props: { label: "Update metadata" }, call: { namespace: "routes", function: "metadata", args: { uri: "$state.tokenURI" } } },
 ] })
-const ui = encode({ ui: "1.0.0", nodes: { home: screen("Connection fixture"), detail: screen("Connection detail") } })
+const ui = encode({ ui: "1.1.0", nodes: { home: screen("Connection fixture"), detail: screen("Connection detail") } })
 const abiBytes = encode(abi)
 const protocol = new TextEncoder().encode("Connection fixture protocol")
 const read = (node: string) => ({ kind: "read", inputs: [], call: { namespace: "contracts.App", function: "read", args: { subject: "$account.address" } }, then: { namespace: "ui", function: node, args: {} } })
-const cam = encode({ cam: "1.3.0", protocol: { uri: "./protocol.html", integrity: `sha256:${sha256(protocol)}` }, entry: "home",
+const cam = encode({ cam: "1.4.0", protocol: { uri: "./protocol.html", integrity: `sha256:${sha256(protocol)}` }, entry: "home",
   namespaces: { "contracts.App": { type: "contract", abiURI: "./abi.json", integrity: `sha256:${sha256(abiBytes)}` },
     ui: { type: "ui", uri: "./ui.json", integrity: `sha256:${sha256(ui)}` }, routes: { type: "routes" } },
   routes: { home: read("home"), detail: read("detail"), anotherUpdate: { kind: "write", inputs: [], call: { namespace: "contracts.App", function: "update", args: { amount: "42" } }, then: { namespace: "routes", function: "detail", args: {} } }, update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: { amount: "9007199254740993" } }, then: { namespace: "routes", function: "detail", args: {} } }, metadata: { kind: "write", inputs: ["uri"], call: { namespace: "contracts.App", function: "updateMetadata", args: { tokenURI: "$inputs.uri" } }, then: { namespace: "routes", function: "detail", args: {} } } },

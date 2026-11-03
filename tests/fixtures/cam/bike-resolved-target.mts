@@ -54,7 +54,7 @@ export function resolvedTargetHash(bytes: Uint8Array): `0x${string}` { return `0
 export function resolvedTargetBundle(edit?: (document: ReturnType<typeof resolvedTargetDocument>) => void, managerAbi: unknown = resolvedTargetManagerAbi) {
   const document = resolvedTargetDocument()
   const resources = new Map<string, Uint8Array>([
-    ["./protocol.html", new TextEncoder().encode("CAM 1.3.0 bounded resolved target test fixture")],
+    ["./protocol.html", new TextEncoder().encode("CAM 1.4.0 bounded resolved target test fixture")],
     ["./Manager.json", resolvedTargetBytes(managerAbi)],
     ["./BikeNFT.json", resolvedTargetBytes(resolvedTargetNftAbi)],
     ["./ui.json", resolvedTargetBytes(resolvedTargetUi)],

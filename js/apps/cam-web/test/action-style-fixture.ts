@@ -46,7 +46,7 @@ let connectionChainId = "eip155:31337"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
 function monetaryFact(label: string, value: string) {
-  const ui = parseUi({ ui: "1.0.0", nodes: { fact: { requires: [], element: "Status", props: { label, value, format: "amount", unit: { assetId: "native", baseLabel: "wei", displayLabel: "Native asset", decimals: 18 } } } } })
+  const ui = parseUi({ ui: "1.1.0", nodes: { fact: { requires: [], element: "Status", props: { label, value, format: "amount", unit: { assetId: "native", baseLabel: "wei", displayLabel: "Native asset", decimals: 18 } } } } })
   return resolveUiNode(ui, "fact", {}, { host: { chainId: "eip155:31337", address: "0x0000000000000000000000000000000000000001" }, inputs: {}, outputs: [], state: {} })
 }
 const monetaryFacts = [monetaryFact("Readonly amount", "1000000000000000"), monetaryFact("Zero amount", "0")]

@@ -1,7 +1,7 @@
 # Bicycle Registry V1 Permissions
 
 This note describes the current fresh-contract implementation and checked-in
-CAM 1.3.0 publication. See `002_owner_workflow_test_contract.md` for workflow
+CAM 1.4.0 publication. See `002_owner_workflow_test_contract.md` for workflow
 qualification boundaries and the README for deployment and handoff policy.
 Previously deployed irreversible `Retired` records retain their original
 meaning; these workflows do not migrate them or introduce recovery authority.
@@ -105,7 +105,7 @@ grant write. It rejects zero/over-limit durations and timestamps/expiries outsid
 uint48. The owner must refresh an expired preview; execution rechecks expiry and
 authority. Manager pause disables grant/revoke actions; collection pause does not.
 
-## Direct handover through CAM 1.3.0
+## Direct handover through CAM 1.4.0
 
 The published `transferComponent` route is not a manager write. Its single
 read-only resolver calls `tokenReference(serialNumber)` on the host-bound

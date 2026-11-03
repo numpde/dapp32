@@ -1,5 +1,5 @@
-export const CAM_VERSION = "1.3.0"
-export const UI_VERSION = "1.0.0"
+export const CAM_VERSION = "1.4.0"
+export const UI_VERSION = "1.1.0"
 
 export type CamVersion = typeof CAM_VERSION
 

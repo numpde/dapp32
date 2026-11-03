@@ -234,7 +234,7 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
         )
 
     def test_unsupported_version_cannot_choose_a_reference_or_change_outputs(self) -> None:
-        for version in ("1.2.0", "1.3.1", "../1.3.0", "/tmp/reference", "2.0.0", None, [], {}):
+        for version in ("1.2.0", "1.3.0", "1.3.1", "../1.3.0", "/tmp/reference", "2.0.0", None, [], {}):
             with self.subTest(version=version), TemporaryDirectory() as tmp:
                 manifest_path = Path(tmp) / "cam" / "main.json"
                 manifest_path.parent.mkdir()

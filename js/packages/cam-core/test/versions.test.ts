@@ -52,7 +52,7 @@ function camDocument(version: unknown): Record<string, unknown> {
 }
 
 test("parseCam preserves the current document version", () => {
-  assert.equal(parseCam(camDocument("1.3.0")).cam, "1.3.0")
+  assert.equal(parseCam(camDocument("1.4.0")).cam, "1.4.0")
 })
 
 test("parseCam rejects unsupported versions", () => {
@@ -66,8 +66,8 @@ test("parseCam rejects unsupported versions", () => {
   )
 })
 
-test("parseCam rejects retired CAM 1.0, 1.1, and 1.2 documents", () => {
-  for (const version of ["1.0.0", "1.1.0", "1.2.0"]) {
+test("parseCam rejects retired CAM 1.0, 1.1, 1.2, and 1.3 documents", () => {
+  for (const version of ["1.0.0", "1.1.0", "1.2.0", "1.3.0"]) {
     assert.throws(
       () => parseCam(camDocument(version)),
       (error) =>
@@ -80,7 +80,7 @@ test("parseCam rejects retired CAM 1.0, 1.1, and 1.2 documents", () => {
 })
 
 
-test("CAM 1.3 requires a closed protocol resource declaration with secondary URI policy", () => {
+test("CAM 1.4 requires a closed protocol resource declaration with secondary URI policy", () => {
   for (const protocol of [undefined, null, {}, { uri: "./protocol.html" }, { uri: "https://example.com/protocol", integrity: "sha256:fixture" }, { uri: "./protocol.html", integrity: "sha256:fixture", extra: true }]) {
     assert.throws(() => parseCam({ ...camDocument(CAM_VERSION), protocol }), CamError)
   }

@@ -66,7 +66,7 @@ test("bundle conformance accepts the current CAM version", () => {
   assert.equal(isRecordObject(root), true)
   if (!isRecordObject(root)) assert.fail("expected a CAM root object")
 
-  root.cam = "1.3.0"
+  root.cam = "1.4.0"
   assert.deepEqual(validateCamBundle({
     ...bundle,
     rootBytes: jsonBytes(root),
@@ -74,7 +74,7 @@ test("bundle conformance accepts the current CAM version", () => {
 })
 
 test("conformance rejects unsupported versions before route inventory", () => {
-  for (const rejectedVersion of ["1.0.0", "1.1.0", "1.2.0", "2.0.0"]) {
+  for (const rejectedVersion of ["1.0.0", "1.1.0", "1.2.0", "1.3.0", "2.0.0"]) {
     const root = rootDocument(rejectedVersion)
     const issues: CamConformanceIssue[] = []
     const version = validateRootManifest({

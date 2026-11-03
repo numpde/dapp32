@@ -1,8 +1,8 @@
 {
-  "cam": "1.3.0",
+  "cam": "1.4.0",
   "protocol": {
     "uri": "./protocol.html",
-    "integrity": "sha256:0x8b658aa38f60ef0c9ebcdc5e5003cc6be6a1bfc43a049abebbe6616db197a740"
+    "integrity": "sha256:0x30df7d0f03312ed89bc5e44182209f61e85a76a5d1647052d3e6a7b78f620a53"
   },
   "entry": "entry",
   "namespaces": {
@@ -27,7 +27,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x91dfb7a587c44c8f2a3b553594b7625cb721db758d343feed05d62401b265f54"
+      "integrity": "sha256:0xe6ec92d2f34ae90836983b1c99d823df3641a26bf382dabf48ef6090b163f529"
     },
     "contracts.BicycleComponents": {
       "type": "contract",

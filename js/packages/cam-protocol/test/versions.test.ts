@@ -8,27 +8,27 @@ import {
 } from "../src/index.ts"
 
 test("owns the current CAM version", () => {
-  assert.equal(CAM_VERSION, "1.3.0")
+  assert.equal(CAM_VERSION, "1.4.0")
 
   assert.equal(isCamVersion("1.0.0"), false)
   assert.equal(isCamVersion("1.1.0"), false)
   assert.equal(isCamVersion("1.2.0"), false)
-  assert.equal(isCamVersion("1.3.0"), true)
+  assert.equal(isCamVersion("1.4.0"), true)
   assert.equal(isCamVersion(null), false)
 })
 
 test("collects the current CAM root version exactly", () => {
   const result = collectCamRootFact({
-    cam: "1.3.0",
+    cam: "1.4.0",
     extra: true,
   }, { resource: "cam" })
 
-  assert.equal(result.value?.version, "1.3.0")
+  assert.equal(result.value?.version, "1.4.0")
   assert.deepEqual(result.diagnostics, [{
     code: "CAM_FACT_ROOT_FIELD_UNKNOWN",
     resource: "cam",
     path: "extra",
-    message: "field is not allowed in CAM 1.3.0: extra",
+    message: "field is not allowed in CAM 1.4.0: extra",
   }])
 })
 
@@ -47,13 +47,13 @@ test("reports unsupported and absent CAM versions without inventing a default", 
       code: "CAM_FACT_ROOT_VERSION_INVALID",
       resource: "cam",
       path: "cam",
-      message: "CAM version must be 1.3.0",
+      message: "CAM version must be 1.4.0",
     }],
   })
 })
 
-test("rejects retired CAM 1.0, 1.1, and 1.2 roots", () => {
-  for (const version of ["1.0.0", "1.1.0", "1.2.0"]) {
+test("rejects retired CAM 1.0, 1.1, 1.2, and 1.3 roots", () => {
+  for (const version of ["1.0.0", "1.1.0", "1.2.0", "1.3.0"]) {
     assert.deepEqual(collectCamRootFact({ cam: version }, { resource: "cam" }), {
       diagnostics: [{
         code: "CAM_FACT_ROOT_VERSION_INVALID",

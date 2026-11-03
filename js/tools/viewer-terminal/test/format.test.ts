@@ -225,7 +225,7 @@ test("terminal duration commands edit a real viewer session without normalizing 
     import { BIKE_CAM_URI, BIKE_UI_URI, BIKE_ACCOUNT_ADDRESS, BIKE_SERIAL_NUMBER, bikeHost, bikeContractAddresses, bikeRouteResults } from ${JSON.stringify(new URL("bike.mts", fixtures).href)};
     const digest = bytes => '0x'+createHash('sha256').update(bytes).digest('hex');
     const resources = bikeResourceBytes({});
-    const uiBytes = encodeJson({ui:'1.0.0',nodes:{app:{requires:['view'],element:'DurationField',props:{label:'Wait',min:'1',max:'86400'},state:{key:'wait',defaultValue:''}}}});
+    const uiBytes = encodeJson({ui:'1.1.0',nodes:{app:{requires:['view'],element:'DurationField',props:{label:'Wait',min:'1',max:'86400'},state:{key:'wait',defaultValue:''}}}});
     const cam = JSON.parse(new TextDecoder().decode(resources[BIKE_CAM_URI]));
     cam.namespaces.ui.integrity = 'sha256:0x'+createHash('sha256').update(uiBytes).digest('hex');
     const camBytes = encodeJson(cam);

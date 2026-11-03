@@ -37,7 +37,7 @@ function render(timestamp: ResolvedUiNode | undefined): void {
 }
 const fixture = {
   show(value: string, label: string, zeroText: string | undefined): void {
-    const ui = parseUi({ ui: "1.0.0", nodes: { app: { element: "Status", requires: [], props: {
+    const ui = parseUi({ ui: "1.1.0", nodes: { app: { element: "Status", requires: [], props: {
       label, value, format: "timestampSeconds", ...(zeroText === undefined ? {} : { zeroText }),
     } } } })
     render(resolveUiNode(ui, "app", {}, context))

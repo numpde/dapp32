@@ -1,7 +1,7 @@
 # Owner workflow test contract
 
 Bike implements reversible owner lifecycle, workshop grants invalidated by an
-ownership change, and direct ERC-721 handover through the checked-in CAM 1.3.0
+ownership change, and direct ERC-721 handover through the checked-in CAM 1.4.0
 publication. This note defines the product laws and the boundaries exercised
 by the contract, protocol, adapter, viewer, and publication tests.
 
@@ -39,7 +39,7 @@ and full public-release qualification remain outstanding.
 
 ## CAM boundary
 
-The production publication uses CAM `1.3.0`. A write route can have one
+The production publication uses CAM `1.4.0`. A write route can have one
 `resolve` invocation against a static host-bound contract namespace. That ABI
 function must be read-only. Its outputs supply the final `call.target` and
 arguments; the target must be a scalar address output, not editable UI input.

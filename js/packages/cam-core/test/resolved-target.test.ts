@@ -15,7 +15,7 @@ function document() {
 
 test("CAM 1.3 accepts one bounded resolver and includes the final owner in account preflight", () => {
   const parsed = parseCam(document())
-  assert.equal(String(parsed.cam), "1.3.0")
+  assert.equal(String(parsed.cam), "1.4.0")
   assert.equal(routeRequiresAccount(parsed, "transferComponent"), true)
   assert.equal(parsed.routes.transferComponent.kind, "write")
 })
@@ -34,7 +34,7 @@ test("CAM 1.3 static writes retain their meaning without resolved targets", () =
   delete (route.call as Record<string, unknown>).target
   source.routes.transferComponent.call.args.tokenId = "17"
   const parsed = parseCam(source)
-  assert.equal(parsed.cam, "1.3.0")
+  assert.equal(parsed.cam, "1.4.0")
   assert.equal(routeRequiresAccount(parsed, "transferComponent"), true)
 })
 

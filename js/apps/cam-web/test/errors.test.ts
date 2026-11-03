@@ -185,7 +185,7 @@ test("hostile custom-revert argument access cannot replace the original failure"
 })
 
 test("a real failed UI load exposes its parse cause through the web consumer", async () => {
-  const bytes = encodeJson({ ui: "1.0.0", nodes: { app: { element: "UnsupportedFixtureElement" } } })
+  const bytes = encodeJson({ ui: "1.1.0", nodes: { app: { element: "UnsupportedFixtureElement" } } })
   const cam = structuredClone(bikeCamJson)
   assert(isRecordObject(cam.namespaces))
   assert(isRecordObject(cam.namespaces.ui))

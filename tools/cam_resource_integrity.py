@@ -24,7 +24,7 @@ LOCAL_URI_PREFIX = "./"
 MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
 UI_NAMESPACE = "ui"
 ROUTES_NAMESPACE = "routes"
-PUBLICATION_CAM_VERSION = "1.3.0"
+PUBLICATION_CAM_VERSION = "1.4.0"
 PROTOCOL_REFERENCE_PATH = Path(__file__).resolve().parent.parent / f"docs/reference/cam/{PUBLICATION_CAM_VERSION}/index.html"
 
 

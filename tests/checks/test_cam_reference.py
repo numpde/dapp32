@@ -3,7 +3,7 @@ from html.parser import HTMLParser
 import unittest
 from urllib.parse import urlsplit
 
-from tests.checks.common import ROOT
+from tests.checks.common import ROOT, protocol_document_version
 from tools.json_policy import strict_json_loads
 
 
@@ -67,8 +67,14 @@ class CamReferenceTests(unittest.TestCase):
                         linked_document = ReferenceHTML(linked_path.read_text(encoding="utf-8"))
                         self.assertIn(target.fragment, linked_document.ids, link)
 
+    def test_current_reference_declares_current_document_versions(self):
+        cam = protocol_document_version("CAM_VERSION")
+        ui = protocol_document_version("UI_VERSION")
+        reference = (REFERENCE / cam / "index.html").read_text(encoding="utf-8")
+        self.assertIn(f"Document format versions: CAM <code>{cam}</code>, UI <code>{ui}</code>", reference)
+
     def test_worked_example_resource_bytes_match_manifest(self):
-        for version in ("1.1.0", "1.2.0", "1.3.0"):
+        for version in ("1.1.0", "1.2.0", "1.3.0", "1.4.0"):
             with self.subTest(version=version):
                 document = ReferenceHTML((REFERENCE / version / "index.html").read_text(encoding="utf-8"))
                 manifest = strict_json_loads(document.examples["example-cam"])

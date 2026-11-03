@@ -222,8 +222,9 @@ substitute. Resource URL admission and contract URI acceptance are different
 policies; an unsupported open/preview action must not silently rewrite a string
 that the receiving contract otherwise accepts.
 
-Implementation decision: UI 1.0.0 includes dedicated `UriField` and `Uri`
-elements. Older viewers reject elements they do not recognize.
+Implementation decision: dedicated `UriField` and `Uri` elements were first
+introduced under UI 1.0.0 and are now versioned as UI 1.1.0. Older viewers
+reject elements they do not recognize.
 Escrow terms is the first authored adoption. This is a local source change,
 not evidence that any existing published viewer or deployment was upgraded.
 
@@ -382,7 +383,7 @@ transaction is required merely to verify editing and review.
 
 ## Sources
 
-- `docs/reference/cam/1.3.0/index.html`: current closed UI elements, resource
+- `docs/reference/cam/1.4.0/index.html`: current closed UI elements, resource
   admission, state, NFT editor and digest behavior.
 - RFC 2397, data URL syntax: https://datatracker.ietf.org/doc/html/rfc2397
 - RFC 8259, JSON and UTF-8: https://www.rfc-editor.org/rfc/rfc8259
