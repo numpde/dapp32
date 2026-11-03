@@ -21,6 +21,7 @@ Shared CAM UI backlog
    resolutions and public profiles, remain text fields.
 
    Related evidence: note 031, issue 28 (Escrow recorded documents).
+   Design workshop and cross-app inventory: note 041.
 
 2. Compact shared document-hash editor
 
