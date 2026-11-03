@@ -736,7 +736,7 @@ function isDisabled(node: ResolvedUiNode): boolean {
 function requiredField(resolvedUi: ResolvedUiNode, name: string): ResolvedUiNode {
   let field: ResolvedUiNode | undefined
   forEachResolvedUiNode(resolvedUi, (node) => {
-    if ((node.element === "TextField" || node.element === "DocumentHashField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.state.key === name) field = node
+    if ((node.element === "TextField" || node.element === "UriField" || node.element === "DocumentHashField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.state.key === name) field = node
   })
   assert.notEqual(field, undefined, `missing resolved field: ${name}`)
   return field as ResolvedUiNode

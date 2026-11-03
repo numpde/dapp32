@@ -164,7 +164,8 @@ function fieldCommentary(ancestors: readonly ESTree.Node[], scope: Scope, condit
   for (let index = ancestors.length - 1; index >= 0; index--) {
     const ancestor = ancestors[index]!
     const tag = nativeTag(ancestor, scope)
-    const classes = elementProperty(ancestor, "className", scope)?.split(/\s+/u) ?? []
+    const className = elementProperty(ancestor, "className", scope)
+    const classes = className === undefined ? [] : className.split(/\s+/u)
     if (tag === "button" || classes.includes("visually-hidden")) return false
     if (tag === "section" && elementProperty(ancestor, "role", scope) === "tabpanel") return false
     if (tag === "label" || tag === "fieldset") return conditional
@@ -220,9 +221,11 @@ function ownershipFailures(sources: readonly Source[]): string[] {
         }
       }
       if (tag !== undefined && ["p", "span", "small", "output"].includes(tag)) {
-        const classes = elementProperty(node, "className", scope)?.split(/\s+/u) ?? []
+        const className = elementProperty(node, "className", scope)
+        const classes = className === undefined ? [] : className.split(/\s+/u)
         const element = node.type === "CallExpression" ? node : ancestors.at(-1)
-        const live = elementProperty(node, "role", scope) === "status" || ["polite", "assertive"].includes(elementProperty(node, "aria-live", scope) ?? "")
+        const liveMode = elementProperty(node, "aria-live", scope)
+        const live = elementProperty(node, "role", scope) === "status" || liveMode === "polite" || liveMode === "assertive"
         const changesStatus = live && element !== undefined && elementChildren(element, scope).some(child => {
           const expression = child.type === "JSXExpressionContainer" ? child.expression : child
           return expression.type === "ConditionalExpression" || expression.type === "LogicalExpression"

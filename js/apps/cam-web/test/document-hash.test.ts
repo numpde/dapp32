@@ -10,6 +10,17 @@ const allowDownload = (uri: string) => assertDownloadAllowed(uri, { kind: "https
 
 const expected = (bytes: Uint8Array) => `0x${createHash("sha256").update(bytes).digest("hex")}`
 
+test("embedded document hashing uses decoded bytes without network access", async t => {
+  const fetch = t.mock.method(globalThis, "fetch", () => { throw new Error("unexpected network") })
+  const admit = () => { throw new Error("embedded bytes do not use network admission") }
+  const bytes = new Uint8Array([0, 255, 13, 10])
+  for (const uri of ["data:application/octet-stream,%00%FF%0D%0A", "data:application/octet-stream;base64,AP8NCg=="]) {
+    assert.equal(await calculateDocumentHashFromURL(uri, new AbortController().signal, admit), expected(bytes))
+  }
+  await assert.rejects(calculateDocumentHashFromURL("data:text/plain,%zz", new AbortController().signal, admit), /data URI/)
+  assert.equal(fetch.mock.callCount(), 0)
+})
+
 test("IPFS document hashing uses the selected gateway and hashes its exact response bytes", async t => {
   const cid = "bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva"
   const bytes = new Uint8Array([0, 255, 13, 10])

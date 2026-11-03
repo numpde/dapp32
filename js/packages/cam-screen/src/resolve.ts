@@ -151,6 +151,7 @@ function resolveNode(
       return [resolveElementNode(ui, node, context, path, stack)]
     case "Text":
     case "Address":
+    case "Uri":
       return [{
         element: node.element,
         props: resolveProps(node.element, node.props, context, `${path}.props`),
@@ -183,6 +184,13 @@ function resolveNode(
       }
       return [{ element: node.element, props: resolveProps(node.element, node.props, context, `${path}.props`),
         options: node.options, state, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), children: [] }]
+    }
+    case "UriField": {
+      const label = resolveValueAtPath(node.props.label, context, `${path}.props.label`)
+      if (typeof label !== "string") throw new UiError("UI_INVALID_FIELD", "UriField label must resolve to a string", `${path}.props.label`)
+      const boundContext = { ...context, state: createStringMap<InertValue>() }
+      const maxBytes = hasOwn(node.props, "maxBytes") ? integerBound(resolveValueAtPath(node.props.maxBytes, boundContext, `${path}.props.maxBytes`), `${path}.props.maxBytes`) : undefined
+      return [{ element: node.element, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), props: { label, ...(maxBytes === undefined ? {} : { maxBytes }) }, state: resolveStateBinding(node.state, context, `${path}.state`, false, node.element), children: [] }]
     }
     case "TextField":
     case "NftMetadataField":
@@ -333,6 +341,7 @@ function collectInitialStateFromNode(
     case "DocumentHashField":
     case "ChoiceField":
     case "TextField":
+    case "UriField":
     case "NftMetadataField":
     case "AmountField": {
       const binding = resolveStateBinding(node.state, context, `${path}.state`, true, node.element)
@@ -392,6 +401,7 @@ function collectInitialStateFromNode(
     case "Text":
     case "Address":
     case "Status":
+    case "Uri":
     case "Nft":
       return
   }
@@ -437,6 +447,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
     case "DocumentHashField":
     case "ChoiceField":
     case "TextField":
+    case "UriField":
     case "NftMetadataField":
     case "AmountField":
     case "DurationField":
@@ -453,6 +464,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
     case "Text":
     case "Address":
     case "Status":
+    case "Uri":
     case "Nft":
       return false
   }
@@ -463,6 +475,7 @@ function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): 
     case "DocumentHashField":
     case "ChoiceField":
     case "TextField":
+    case "UriField":
     case "NftMetadataField":
     case "AmountField":
     case "DurationField":
@@ -477,6 +490,7 @@ function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): 
     case "Text":
     case "Address":
     case "Status":
+    case "Uri":
     case "Nft":
       return false
   }
@@ -490,7 +504,7 @@ function resolveStateBinding(
   context: UiRuntimeContext,
   path: string,
   includeDefault: boolean,
-  element: "ChoiceField" | "TextField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField",
+  element: "ChoiceField" | "TextField" | "UriField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField",
 ): {
   readonly key: string
   readonly defaultValue?: string

@@ -3,7 +3,7 @@ Shared CAM UI backlog
 
 1. Shared URI input and display components
 
-   Requested: 2026-10-29. Status: queued.
+   Requested: 2026-10-29. Status: in progress.
    Owner: shared CAM UI authoring/rendering, with adoption across Bike,
    Escrow, Pay-to-Play and other apps wherever a value is a document location.
 
@@ -22,6 +22,9 @@ Shared CAM UI backlog
 
    Related evidence: note 031, issue 28 (Escrow recorded documents).
    Design workshop and cross-app inventory: note 041.
+   The first slice adds shared URI elements, embedded text/JSON and decoded
+   document hashing for Escrow terms. Submission/dispute documents and NFT
+   integration remain to be assessed against their distinct workflows.
 
 2. Compact shared document-hash editor
 

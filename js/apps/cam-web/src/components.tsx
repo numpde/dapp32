@@ -38,6 +38,7 @@ import { AddressInput, AddressSuggestions } from "./address-input.tsx"
 import { currentViewAddresses } from "./known-addresses.ts"
 import { JsonView } from "./json-view.tsx"
 import { PropertyRow } from "./property-row.tsx"
+import { UriFieldView, UriValueView } from "./uri-field.tsx"
 
 export function ConnectionSummary({
   chainId,
@@ -277,6 +278,8 @@ function UiNodeView({
         </label>
       )
     }
+    case "UriField":
+      return <UriFieldView key={node.state.key} label={node.props.label} name={node.state.key} value={stateString(state, node.state.key)} scope={scopeKey} {...(node.props.maxBytes === undefined ? {} : { maxBytes: node.props.maxBytes })} disabled={busy || node.disabled === true} onInput={onInput} />
     case "ChoiceField":
       return <label className="field">
         <span>{displayText(stringProp(node.props, "label"))}</span>
@@ -285,6 +288,7 @@ function UiNodeView({
         </select>
       </label>
     case "Address":
+    case "Uri":
       return factNodeView(node, [], root, headingLevel)
     case "AmountField":
       return <AmountFieldView node={node} disabled={busy || node.disabled === true} onAmount={onAmount} />
@@ -333,6 +337,7 @@ function factNodeView(node: ResolvedUiNode, children: readonly ReactElement[], r
     case "Fragment": return <>{children}</>
     case "Text": return <p className="text-row"><HexValue value={stringProp(node.props, "text")} label="value" /></p>
     case "Address": return <KeyValue label={stringProp(node.props, "label")} value={stringProp(node.props, "address")} mono={true} />
+    case "Uri": return <UriValueView key={stringProp(node.props, "value")} label={stringProp(node.props, "label")} value={stringProp(node.props, "value")} />
     case "Status":
       if (node.props.format === "timestampSeconds") return <TimestampStatusView key={JSON.stringify([node.props.label, node.props.zeroText])} node={node} />
       return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
@@ -411,10 +416,11 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
   const urlAction = useRef<HTMLButtonElement>(null)
   const pending = status?.status === "pending"
   const invalid = value !== "" && !isDocumentHashDigest(value)
+  const embeddedHash = status?.sourceURI !== undefined && /^data:/i.test(status.sourceURI)
   const statusMessages = [
     { visible: pending, text: "Calculating SHA-256… Your current digest is kept until calculation succeeds." },
     { visible: status?.status === "succeeded" && status.source === "file", text: "SHA-256 calculated from local file bytes. The URI has not been checked." },
-    { visible: status?.status === "succeeded" && status.source === "url", text: "SHA-256 calculated from the bytes returned by this URL after HTTP decoding." },
+    { visible: status?.status === "succeeded" && status.source === "url", text: embeddedHash ? "SHA-256 calculated from the embedded document bytes." : "SHA-256 calculated from the bytes returned by this URL after HTTP decoding." },
   ]
   return <fieldset className="document-hash-field">
     <legend id={labelId}>{displayText(node.props.label)}</legend>
@@ -428,7 +434,7 @@ function DocumentHashFieldView({ node, disabled, value, status, onInput, onCalcu
       event.currentTarget.value = ""
       if (file !== undefined) void onCalculate(node.state.key, "file", file)
     }} />
-    {node.props.sourceURI === undefined ? null : <button ref={urlAction} className="button-quiet resource-load" aria-busy={pending && status.source === "url"} type="button" disabled={disabled || node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
+    {node.props.sourceURI === undefined ? null : <button ref={urlAction} className="button-quiet resource-load" aria-busy={pending && status.source === "url"} type="button" disabled={disabled || node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>{/^data:/i.test(node.props.sourceURI) ? "Calculate from embedded document" : "Calculate from URL"}</button>}
     <button className="button-quiet resource-cancel" type="button" aria-hidden={!pending} disabled={disabled || !pending} onClick={event => {
       const restoreFocus = document.activeElement === event.currentTarget
       const action = status?.source === "file" ? fileAction.current : urlAction.current

@@ -31,6 +31,8 @@ export {
   CAM_VERSION,
   isCamVersion,
   UI_VERSION,
+  UI_URI_VERSION,
+  isUiVersion,
 } from "./versions.ts"
 export type {
   CamVersion,
@@ -181,6 +183,7 @@ export {
   UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_NODE_ARGUMENT_KEYS,
   UI_PROP_SCHEMAS,
+  uiElementSupported,
   UI_STATUS_FORMATS,
   UI_RUNTIME_ROOTS,
   isUiPropElement,

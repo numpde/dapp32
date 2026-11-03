@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { toInertValue, UI_VERSION } from "@cam/protocol"
+import { toInertValue, UI_VERSION, UI_URI_VERSION } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import {
   forEachResolvedUiNode,
@@ -27,6 +27,23 @@ const context = {
     serialNumber: "ABC123",
   },
 }
+
+test("URI elements preserve exact values and expose their state and byte limit", () => {
+  const declaration = { ui: UI_URI_VERSION, nodes: { app: { requires: ["view"], element: "Fragment", children: [
+    { element: "UriField", props: { label: "Terms", maxBytes: "$view.limit" }, state: { key: "terms", defaultValue: "ipfs://example/%2F" } },
+    { element: "Uri", props: { label: "Recorded", value: "$view.uri" } },
+  ] } } }
+  assert.throws(() => parseUi({ ...declaration, ui: UI_VERSION }), /not available in UI 1\.0\.0/)
+  const ui = parseUi(declaration)
+  const { state, resolvedUi } = resolveInitialUiNode(ui, "app", { view: { limit: "512", uri: "data:text/plain,A%20B" } }, { ...context, state: {} })
+  assert.equal(state.terms, "ipfs://example/%2F")
+  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["terms"])
+  assert.equal(resolvedUi.element, "Fragment")
+  if (resolvedUi.element !== "Fragment") throw new Error("Expected fragment")
+  assert.deepEqual(resolvedUi.children[0], { element: "UriField", props: { label: "Terms", maxBytes: "512" }, state: { key: "terms" }, children: [] })
+  assert.deepEqual(toInertValue(resolvedUi.children[1]), toInertValue({ element: "Uri", props: { label: "Recorded", value: "data:text/plain,A%20B" }, children: [] }))
+  assert.throws(() => resolveInitialUiNode(ui, "app", { view: { limit: "-1", uri: "x" } }, { ...context, state: {} }), UiError)
+})
 
 test("rendered actions retain only their own direct state bindings through Includes", () => {
   const ui = parseUi({ ui: UI_VERSION, nodes: {

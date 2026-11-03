@@ -1,5 +1,5 @@
 {
-  "ui": "1.0.0",
+  "ui": "1.1.0",
   "nodes": {
     "app": {
       "requires": [
@@ -344,13 +344,14 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "Publish the agreed terms and enter their URI. Calculate SHA-256 from the exact document bytes using a local file or a browser-readable URL, or enter it manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
+                    "text": "Enter the agreed terms URI or embed a short document. Use a local file or a browser-readable URL to calculate SHA-256 from the exact document bytes; for embedded content, calculate it directly. You can also enter it manually. Local files are not uploaded or checked against the URI. Both fields are required; replace the all-zero placeholder."
                   }
                 },
                 {
-                  "element": "TextField",
+                  "element": "UriField",
                   "props": {
-                    "label": "Terms URI"
+                    "label": "Terms URI",
+                    "maxBytes": "$view.maxDocumentUriBytes"
                   },
                   "state": {
                     "key": "termsUri",
@@ -758,7 +759,7 @@
           }
         },
         {
-          "element": "Status",
+          "element": "Uri",
           "props": {
             "label": "Terms URI",
             "value": "$view.agreement.terms.uri"
@@ -1824,7 +1825,7 @@
           }
         },
         {
-          "element": "Status",
+          "element": "Uri",
           "props": {
             "label": "Terms document URI",
             "value": "$view.params.terms.uri"

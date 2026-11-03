@@ -37,6 +37,7 @@ let prepared = false
 let busy = false
 let sending = false
 let draft: string | null = "unchanged"
+let documentURI = "https://example.test/terms"
 let viewingAccount = "0x1111111111111111111111111111111111111111"
 let connectionChainId = "eip155:31337"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
@@ -62,7 +63,7 @@ function render(): void {
   const integer = projectIntegerDraft(integerDraft, { min: "0", max: "100" })
   const duration = projectDurationDraft(durationDraft, { min: "0", max: "100" })
   const amount = projectAmountDraft(amountDraft)
-  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, document: "", metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, documentURI, document: "", metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Screen", props: { title: "Overview" }, children: [
       { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
     ] },
@@ -83,6 +84,8 @@ function render(): void {
       { element: "Status", props: { label: "Progress", value: "Ready" }, children: [] },
     ] },
     { element: "DocumentHashField", props: { label: "Document", algorithm: "sha256", sourceURI: "https://example.test/document" }, state: { key: "document" }, children: [] },
+    { element: "UriField", props: { label: "Terms URI", maxBytes: "512" }, state: { key: "documentURI" }, children: [] },
+    { element: "Uri", props: { label: "Recorded URI", value: documentURI }, children: [] },
     { element: "Nft", props: { contractAddress: "0x5555555555555555555555555555555555555555", tokenId: "42", metadataURI: metadata }, children: [] },
     { element: "NftMetadataField", props: { label: "NFT details" }, state: { key: "metadata" }, children: [] },
     { element: "NonNegativeIntegerField", props: { label: "Count", min: "0", max: "100" }, state: { key: "numericCount" }, draft: integer.draft, children: [] },
@@ -94,7 +97,7 @@ function render(): void {
   const props: ComponentProps<typeof UiView> = { snapshot, canReviewTransaction: true, actionKind: fixtureActionKind, viewRef: null, changingView: busy, sending,
     onBack: async () => { events.back++ }, onRefresh: async () => { events.refresh++ },
     onAction: async (action: ResolvedButtonNode) => { const kind = fixtureActionKind(action); events[kind]++; if (kind === "contractCall") prepared = true; render() },
-    onInput: (_name: string, value: string | null) => { draft = value; render() }, onAmount: (_name, representation, text, options) => { amountDraft = editAmountDraft(numericUnit, representation, text, options?.composing); render() },
+    onInput: (name: string, value: string | null) => { if (name === "documentURI") { if (value === null) throw new Error("URI fixture requires a string"); documentURI = value } else draft = value; render() }, onAmount: (_name, representation, text, options) => { amountDraft = editAmountDraft(numericUnit, representation, text, options?.composing); render() },
     onInteger: (_name, text, options) => { integerDraft = editIntegerDraft(text, options?.composing); render() },
     onDuration: (_name, part, text, options) => { durationDraft = editDurationDraft(durationDraft, part, text, options?.composing); render() }, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },
   }
@@ -127,5 +130,5 @@ Object.assign(window, { actionFixture: { events, reviewJson, reviewURI, reviewCa
   account(value: string) { viewingAccount = value; render() },
   connectionChain(value: string) { connectionChainId = value; render() },
   transaction(chainId: string, hash: `0x${string}` | undefined) { transactionReport = { transaction: hash === undefined ? undefined : { chainId, hash } }; render() },
-  hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
+  hashPhase(value: "idle" | "pending" | "succeeded") { hashPhase = value; render() }, uri(value: string) { documentURI = value; render() }, busy(value: boolean) { busy = value; render() }, sending(value: boolean) { sending = value; render() }, draft() { return draft } } })
 render()

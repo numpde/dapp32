@@ -10,6 +10,8 @@ export type UiNode =
   | FragmentNode
   | TextNode
   | TextFieldNode
+  | UriFieldNode
+  | UriNode
   | ChoiceFieldNode
   | NftMetadataFieldNode
   | DocumentHashFieldNode
@@ -47,6 +49,18 @@ export type TextFieldNode = UiNodeBase & {
   readonly enabledWhen?: UiMembership
   readonly props: InertRecord
   readonly state: UiStateBinding
+}
+
+export type UriFieldNode = UiNodeBase & {
+  readonly element: "UriField"
+  readonly enabledWhen?: UiMembership
+  readonly props: InertRecord
+  readonly state: UiStateBinding
+}
+
+export type UriNode = UiNodeBase & {
+  readonly element: "Uri"
+  readonly props: InertRecord
 }
 
 export type ChoiceOption = { readonly value: string; readonly label: string }
@@ -230,6 +244,7 @@ export type ResolvedElementNode =
   | ResolvedContainerNode
   | ResolvedLeafElementNode
   | ResolvedTextFieldNode
+  | ResolvedUriFieldNode
   | ResolvedChoiceFieldNode
   | ResolvedNftMetadataFieldNode
   | ResolvedDocumentHashFieldNode
@@ -245,7 +260,7 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "ChoiceField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField" | "Status">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "UriField" | "ChoiceField" | "NftMetadataField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField" | "Status">
   readonly props: InertRecord
   readonly children: readonly []
 }
@@ -261,6 +276,14 @@ export type ResolvedTextFieldNode = {
   readonly element: "TextField"
   readonly disabled?: boolean
   readonly props: InertRecord
+  readonly state: ResolvedUiStateBinding
+  readonly children: readonly []
+}
+
+export type ResolvedUriFieldNode = {
+  readonly element: "UriField"
+  readonly disabled?: boolean
+  readonly props: { readonly label: string; readonly maxBytes?: string }
   readonly state: ResolvedUiStateBinding
   readonly children: readonly []
 }

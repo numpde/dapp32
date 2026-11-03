@@ -194,7 +194,7 @@ function walkNode(
   const element = node.element
   if (typeof element !== "string") return
 
-  if (scope.phase !== undefined && !["Screen", "Fragment", "Text", "Address", "Status", "Include", ...(scope.phase === "review" ? [] : ["Button"])].includes(element)) {
+  if (scope.phase !== undefined && !["Screen", "Fragment", "Text", "Address", "Status", "Uri", "Include", ...(scope.phase === "review" ? [] : ["Button"])].includes(element)) {
     reportTypeflowIssue(scope, path, `transaction ${scope.phase} presentation cannot contain ${element}`)
   }
 
@@ -218,7 +218,7 @@ function validateAvailability(
   path: string,
   context: AbiContext,
 ): void {
-  if (element !== "ChoiceField" && element !== "TextField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField" && element !== "Button") return
+  if (element !== "ChoiceField" && element !== "TextField" && element !== "UriField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField" && element !== "Button") return
   if (!isRecordObject(node.enabledWhen)) return
   validateBoundValue(scope, `${path}.enabledWhen.in`, "UI enabledWhen.in", node.enabledWhen.in, "string-array", context)
 }
@@ -267,7 +267,7 @@ function validateStateBinding(
   path: string,
   context: AbiContext,
 ): void {
-  if ((element !== "ChoiceField" && element !== "TextField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField") || !isRecordObject(node.state)) return
+  if ((element !== "ChoiceField" && element !== "TextField" && element !== "UriField" && element !== "NftMetadataField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField") || !isRecordObject(node.state)) return
 
   // Addresses normalize to strings accepted by editable text fields. Hash
   // defaults retain their stricter string expectation; numeric fields separately
@@ -986,7 +986,7 @@ function resolvedInputName(
   path: string,
   context: AbiContext,
 ): string | undefined {
-  if ((node.element !== "ChoiceField" && node.element !== "TextField" && node.element !== "NftMetadataField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") || !isRecordObject(node.state)) return undefined
+  if ((node.element !== "ChoiceField" && node.element !== "TextField" && node.element !== "UriField" && node.element !== "NftMetadataField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") || !isRecordObject(node.state)) return undefined
 
   const staticName = staticString(node.state.key)
   const name = staticName === undefined ? knownLiteralString(node.state.key, context) : staticName
@@ -1038,6 +1038,7 @@ function valueAtSegments(value: unknown, segments: readonly string[]): unknown |
 
 function propExpectation(element: UiPropElement, prop: string): ValueExpectation | undefined {
   if ((UI_PROP_SCHEMAS[element].address as readonly string[]).includes(prop)) return "address"
+  if (element === "UriField" && prop === "maxBytes") return "integer-or-string"
   if ((element === "DocumentHashField" && prop === "sourceURI") || (element === "Nft" && prop === "metadataURI") || (element === "Status" && prop === "zeroText")) return "string"
   if (element === "Nft" && prop === "tokenId") return "integer-or-string"
   if ((UI_PROP_SCHEMAS[element].string as readonly string[]).includes(prop)) return "string"

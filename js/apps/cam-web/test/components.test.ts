@@ -130,7 +130,7 @@ test("Escrow creation review explains the prepared parties, amount, durations an
     assert(review.element === "Screen")
     assert.equal(review.children[0]?.element, "Text")
     const facts = new Map(review.children.slice(1).map(node => {
-      assert(node.element === "Status" || node.element === "Address")
+      assert(node.element === "Status" || node.element === "Address" || node.element === "Uri")
       return [node.props.label, node] as const
     }))
     assert.equal(facts.get("Contractor")?.props.address, params.contractor)

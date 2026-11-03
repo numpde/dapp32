@@ -24,7 +24,7 @@ export function transactionPresentations({ call, declaration, cam, ui, context, 
     const phase = { ...context, outputs }
     const node = resolveUiNode(ui!, invocation.function, resolveArgs(invocation.args, phase), { ...phase, state: {} })
     forEachResolvedUiNode(node, child => {
-      if (["Screen", "Fragment", "Text", "Address", "Status"].includes(child.element)) return
+      if (["Screen", "Fragment", "Text", "Address", "Status", "Uri"].includes(child.element)) return
       if (navigation && child.element === "Button" && renderedActionKind(cam, child) === "navigate") return
       throw new Error(`Transaction presentation cannot contain ${child.element}; only facts and result navigation are supported.`)
     })

@@ -1,12 +1,14 @@
 import { readBoundedResponseBytes, requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
 import type { HttpURL } from "@cam/protocol"
 import { UserFacingError } from "./errors.ts"
+import { readDataURI } from "./data-uri.ts"
 
 export const DOCUMENT_HASH_MAX_BYTES = 8 * 1024 * 1024
 const DEADLINE_MS = 15_000
 const ALTERNATIVES = "Choose a local file or enter the digest manually."
 
 export async function calculateDocumentHashFromURL(uri: string, signal: AbortSignal, assertAllowed: (uri: string) => void, ipfsGatewayTemplate?: string): Promise<string> {
+  if (/^data:/i.test(uri)) return calculate(signal, async () => readDataURI(uri, DOCUMENT_HASH_MAX_BYTES).bytes)
   let url: HttpURL
   try {
     assertAllowed(uri)

@@ -1,8 +1,11 @@
 import {
   UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_VERSION,
+  UI_URI_VERSION,
+  isUiVersion,
   isRecordObject,
   parseJsonBytes,
+  uiElementSupported,
 } from "@cam/protocol"
 
 export type RawUiDocument = {
@@ -37,6 +40,12 @@ export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
     throw new RawUiDocumentError("UI resource must declare at least one node", "nodes")
   }
 
+  forEachUiNode(value.nodes, (node, path) => {
+    if (typeof value.ui === "string" && typeof node.element === "string" && !uiElementSupported(value.ui, node.element)) {
+      throw new RawUiDocumentError(`${node.element} is not available in UI ${value.ui}`, `${path}.element`)
+    }
+  })
+
   return {
     value,
     nodes: value.nodes,
@@ -44,12 +53,12 @@ export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
 }
 
 function validateUiVersion(version: unknown): void {
-  if (version === UI_VERSION) return
+  if (isUiVersion(version)) return
 
   throw new RawUiDocumentError(
     typeof version === "string" && version.length > 0
       ? `unsupported UI version: ${version}`
-      : `UI version must be ${UI_VERSION}`,
+      : `UI version must be ${UI_VERSION} or ${UI_URI_VERSION}`,
     "ui",
   )
 }
@@ -57,7 +66,7 @@ function validateUiVersion(version: unknown): void {
 function validateTopLevelFields(value: Record<string, unknown>): void {
   for (const key of Object.keys(value)) {
     if (UI_DOCUMENT_TOP_LEVEL_KEYS.has(key)) continue
-    throw new RawUiDocumentError(`field is not allowed in UI ${UI_VERSION}: ${key}`, key)
+    throw new RawUiDocumentError(`field is not allowed in UI ${value.ui}: ${key}`, key)
   }
 }
 

@@ -1,13 +1,14 @@
 import {
   createStringMap,
   isExpressionReferenceString,
+  isUiVersion,
   parseExpressionReference,
   UI_CALL_NAMESPACE_BY_ELEMENT,
   UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_NODE_ARGUMENT_KEYS,
   UI_PROP_SCHEMAS,
   UI_STATUS_FORMATS,
-  UI_VERSION,
+  uiElementSupported,
 } from "@cam/protocol"
 import { UiError } from "./errors.ts"
 import { parseAmountUnit } from "./amount.ts"
@@ -53,12 +54,18 @@ export function parseUi(input: unknown): UiDocument {
     throw new UiError("UI_INVALID_FIELD", "UI resource must declare at least one node", "")
   }
 
+  function checkVersion(node: UiNode, path: string): void {
+    if (!uiElementSupported(ui, node.element)) throw new UiError("UI_INVALID_FIELD", `${node.element} is not available in UI ${ui}`, `${path}.element`)
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach((child, index) => checkVersion(child, `${path}.children.${index}`))
+  }
+  for (const [name, node] of Object.entries(nodes)) checkVersion(node, `nodes.${name}`)
+
   return { ui, nodes }
 }
 
 function parseUiVersion(value: unknown): string {
   const version = requiredNonEmptyString(value, "ui")
-  if (version !== UI_VERSION) {
+  if (!isUiVersion(version)) {
     throw new UiError("UI_INVALID_FIELD", `unsupported UI version: ${version}`, "ui")
   }
 
@@ -107,6 +114,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Text),
       }
     case "TextField":
+    case "UriField":
     case "NftMetadataField":
     case "DurationField":
     case "NonNegativeIntegerField":
@@ -150,10 +158,11 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       }
     }
     case "Address":
+    case "Uri":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         element,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Address),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS[element]),
       }
     case "Status":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
@@ -401,5 +410,5 @@ function rejectUnknownUiFields(
   allowedKeys: ReadonlySet<string>,
   path: string,
 ): void {
-  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in UI ${UI_VERSION}: ${key}`)
+  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in this UI: ${key}`)
 }

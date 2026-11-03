@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
 
 import {
@@ -277,6 +278,13 @@ async function createAgreement(
   agreementRef: string,
   timeoutBeneficiary: "client" | "contractor",
 ): Promise<string> {
+  const embeddedTerms = agreementRef === "local-approve" ? "Fixture terms: local-approve" : undefined
+  const termsUri = embeddedTerms === undefined
+    ? `fixture://escrow/${agreementRef}/terms`
+    : `data:text/plain;charset=utf-8,${encodeURIComponent(embeddedTerms)}`
+  const termsDigest = embeddedTerms === undefined
+    ? TERMS_DIGEST
+    : `0x${createHash("sha256").update(embeddedTerms, "utf8").digest("hex")}`
   await setRole(fixture, "client")
   await fixture.session.navigate("createAgreementForm", inertRecord({}))
   fixture.session.updateState(inertRecord({
@@ -289,8 +297,8 @@ async function createAgreement(
     workDuration: PHASE_DURATION,
     reviewDuration: PHASE_DURATION,
     arbitrationDuration: PHASE_DURATION,
-    termsUri: `fixture://escrow/${agreementRef}/terms`,
-    termsDigest: TERMS_DIGEST,
+    termsUri,
+    termsDigest,
   }))
 
   const call = await preparedAction(fixture.session, "createAgreement")
@@ -301,11 +309,18 @@ async function createAgreement(
   )
   assert.equal(params.amount, AGREEMENT_AMOUNT)
   assert.equal(params.agreementRef, agreementRef)
+  const terms = requiredRecord(params.terms, "create terms")
+  assert.equal(terms.uri, termsUri)
+  assert.equal(terms.sha256Digest, termsDigest)
 
   await submitPreparedCall(fixture, "client", call)
   const snapshot = loadedSnapshot(fixture.session)
   assert.equal(snapshot.route, "lookupAgreement")
   assertProjectedState(fixture.session, "funded")
+  const agreement = requiredRecord(projectedView(snapshot).agreement, "projected agreement")
+  const recordedTerms = requiredRecord(agreement.terms, "recorded terms")
+  assert.equal(recordedTerms.uri, termsUri)
+  assert.equal(recordedTerms.sha256Digest, termsDigest)
   const agreementId = requiredString(
     requiredRecord(projectedView(snapshot).machine, "projected machine").instanceId,
     "agreement ID",
