@@ -96,16 +96,16 @@ function deploymentCard(deployment, viewer, catalog) {
   card.append(actions);
   card.append(element('h3', 'Contracts'));
   const contracts = element('dl', undefined, 'contracts');
-  function contractRow(name, address) {
+  function contractRow(name, address, source) {
     const row = element('div');
     const value = element('dd');
     value.append(address === null ? element('span', 'Not bound') : addressValue(address, name, network.explorer));
     const label = element('dt');
-    label.append(address === null ? name : link(explorerAddress(network.explorer, address), name));
+    label.append(source === undefined ? name : link(source, name));
     row.append(label, value);
     return row;
   }
-  contracts.append(contractRow('CAM root', deployment.host));
+  contracts.append(contractRow('CAM root', deployment.host, deployment.hostSource));
   const rpcControls = element('div', undefined, 'rpc-controls');
   const rpcSelect = element('select');
   rpcSelect.setAttribute('aria-label', 'RPC endpoint');
@@ -145,7 +145,7 @@ function deploymentCard(deployment, viewer, catalog) {
     bindingStatus.hidden = true;
     retryBindings.hidden = true;
     customRPC.removeAttribute('aria-invalid');
-    contracts.replaceChildren(contractRow('CAM root', deployment.host));
+    contracts.replaceChildren(contractRow('CAM root', deployment.host, deployment.hostSource));
   }
   async function loadBindings() {
     resetBindings();
@@ -162,11 +162,14 @@ function deploymentCard(deployment, viewer, catalog) {
       const chain = await rpc(endpoint, 'eth_chainId', [], signal);
       if (BigInt(chain) !== BigInt(network.chainId)) throw new Error('RPC returned a different chain.');
       const block = await rpc(endpoint, 'eth_blockNumber', [], signal);
-      const rows = await Promise.all(deployment.contracts.map(async name => {
+      const rows = await Promise.all(deployment.contracts.map(async contract => {
+        const { name, source } = contract;
         const result = await rpc(endpoint, 'eth_call', [{ to: deployment.host, data: bindingCall(name) }, block], signal);
         if (!/^0x0{24}[0-9a-fA-F]{40}$/.test(result)) throw new Error(`Invalid contract address returned for ${name}.`);
         const address = `0x${result.slice(-40)}`;
-        return contractRow(name, /^0x0{40}$/.test(address) ? null : address);
+        const bound = /^0x0{40}$/.test(address) ? null : address;
+        const sourceURL = bound !== null && bound.toLowerCase() === source.address.toLowerCase() ? source.url : undefined;
+        return contractRow(name, bound, sourceURL);
       }));
       if (attempt.signal.aborted) return;
       contracts.append(...rows);

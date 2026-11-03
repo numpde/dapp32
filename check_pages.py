@@ -400,9 +400,17 @@ def check_deployments(root: Path, repo_root: Path) -> None:
         assert guide.is_relative_to(root.resolve()) and guide.is_file()
         address = deployment["host"]
         assert re.fullmatch(r"0x[0-9a-fA-F]{40}", address) and int(address, 16) != 0
+        source_pattern = r"https://github\.com/numpde/dapp32/blob/[0-9a-f]{40}/dapps/[A-Za-z0-9_/-]+\.sol"
+        assert re.fullmatch(source_pattern, deployment["hostSource"])
         contracts = deployment["contracts"]
-        assert isinstance(contracts, list) and all(isinstance(name, str) and name for name in contracts)
-        assert len(set(contracts)) == len(contracts)
+        assert isinstance(contracts, list)
+        names = set()
+        for contract in contracts:
+            name, source = contract["name"], contract["source"]
+            assert isinstance(name, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) and name not in names
+            names.add(name)
+            assert re.fullmatch(r"0x[0-9a-fA-F]{40}", source["address"]) and int(source["address"], 16) != 0
+            assert re.fullmatch(source_pattern, source["url"])
         if "rpcUrl" in deployment:
             rpc = urlsplit(deployment["rpcUrl"])
             assert rpc.scheme in {"http", "https"} and rpc.hostname and not rpc.username and not rpc.password

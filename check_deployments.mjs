@@ -15,7 +15,11 @@ for (const [url, path, type] of [
 ]) files.set(url, { body: await readFile(`${site}/${path}`), type })
 const production = JSON.parse(files.get(page + 'deployments.json').body)
 const host = production.deployments[0].host
-const fixture = { viewer: production.viewer, deployments: [{ ...production.deployments[0], network: 'fixture', contracts: ['Registry', 'UI', 'Unbound'] }] }
+const fixture = { viewer: production.viewer, deployments: [{ ...production.deployments[0], network: 'fixture', contracts: [
+  { name: 'Registry', source: { address: '0x' + '1'.repeat(40), url: 'https://source.fixture.test/Registry.sol' } },
+  { name: 'UI', source: { address: '0x' + '3'.repeat(40), url: 'https://source.fixture.test/UI.sol' } },
+  { name: 'Unbound', source: { address: '0x' + '4'.repeat(40), url: 'https://source.fixture.test/Unbound.sol' } },
+] }] }
 const publicRPC = 'https://rpc.fixture.test/'
 const customRPC = 'https://custom.fixture.test/'
 const catalog = { fixture: { name: 'Fixture', chainId: 31337, services: { public: publicRPC, keyed: 'https://rpc.fixture.test/{API_KEY}' }, explorer: 'https://explorer.fixture.test' } }
@@ -66,7 +70,7 @@ async function intercept(request) {
     assert.equal(Number(bytes.readBigUInt64BE(28)), 32)
     const length = Number(bytes.readBigUInt64BE(60))
     const name = bytes.subarray(68, 68 + length).toString('utf8')
-    assert(fixture.deployments[0].contracts.includes(name))
+    assert(fixture.deployments[0].contracts.some(contract => contract.name === name))
     response.result = mode === 'malformed' ? '0x1234' : '0x' + (name === 'Registry' ? addresses[0] : name === 'UI' ? addresses[1] : '0x' + '0'.repeat(40)).slice(2).padStart(64, '0')
   }
   return fulfill(request, JSON.stringify(response))
@@ -105,7 +109,12 @@ try {
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
-  assert(await evaluate('[...document.querySelectorAll(".contracts > div")].every(row => (row.querySelector("dt a")?.href ?? null) === (row.querySelector("dd a")?.href ?? null))'), 'Contract names and addresses must link to the same explorer page; unbound names must not link')
+  const links = await evaluate(`[...document.querySelectorAll('.contracts > div')].map(row=>({name:row.querySelector('dt').textContent,source:row.querySelector('dt a')?.href,address:row.querySelector('dd a')?.href}))`)
+  assert.equal(links[0].source, fixture.deployments[0].hostSource, 'CAM root links to its source')
+  assert.equal(links[1].source, 'https://source.fixture.test/Registry.sol', 'a matching binding links to its source')
+  assert.equal(links[2].source, undefined, 'a changed binding must not link to an unrelated source')
+  assert.equal(links[3].source, undefined, 'an unbound name has no source claim')
+  for (const [index, address] of [host, ...addresses].entries()) assert.equal(links[index].address, `https://explorer.fixture.test/address/${address}`)
   assert.match(await evaluate('document.querySelector(".contracts").textContent'), /Not bound/)
   assert.equal(await evaluate('document.querySelector(".rpc-controls select").options.length'), 2, 'Key templates must not be selectable')
   assert.equal(await evaluate('document.querySelector(".rpc-controls select").selectedOptions[0].textContent'), 'rpc.fixture.test')
@@ -146,8 +155,20 @@ try {
   await evaluate(`document.querySelector('.rpc-controls input').value=${JSON.stringify(customRPC)};document.querySelector('.rpc-controls input').dispatchEvent(new Event('input'))`); await until(working)
   console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 320], mockCopy: true, nativeClipboardTested: false }))
   if (process.env.LIVE_RPC === '1') {
-    live = true; await navigate(); await until(working)
-    console.log(JSON.stringify({ liveReadOnlyRPC: true, contracts: await evaluate('document.querySelectorAll(".contracts > div").length'), addresses: await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)') }))
+    live = true; await navigate()
+    await until(`[...document.querySelectorAll('.deployment')].length===${production.deployments.length}&&[...document.querySelectorAll('.deployment')].every(card=>card.querySelector('.rpc-controls [role=status]')?.textContent==='✓')`)
+    for (const deployment of production.deployments) {
+      const rows = await evaluate(`[...document.querySelectorAll(${JSON.stringify('#'+deployment.id+' .contracts > div')})].map(row=>({name:row.querySelector('dt').textContent,source:row.querySelector('dt a')?.href,address:row.querySelector('dd code')?.title,explorer:row.querySelector('dd a')?.href}))`)
+      assert.equal(rows[0].source, deployment.hostSource, `${deployment.id} root source`)
+      assert.equal(rows[0].address.toLowerCase(), deployment.host.toLowerCase())
+      for (const [index, contract] of deployment.contracts.entries()) {
+        const row = rows[index + 1]
+        assert.equal(row.name, contract.name)
+        assert(row.address && row.explorer, `${deployment.id} ${contract.name} must be bound and link to its explorer`)
+        assert.equal(row.source, row.address.toLowerCase() === contract.source.address.toLowerCase() ? contract.source.url : undefined, `${deployment.id} ${contract.name} source follows its recorded binding`)
+      }
+    }
+    console.log(JSON.stringify({ liveReadOnlyRPC: true, deployments: production.deployments.length, sources: true, explorerLinks: true }))
   }
 } finally {
   if (targetId) await call('Target.closeTarget', { targetId }, undefined)
