@@ -6,6 +6,7 @@ import { failureReport, UserFacingError } from "./errors.ts"
 import { Feedback, FeedbackBox } from "./feedback.tsx"
 import { PropertyRow } from "./property-row.tsx"
 import { DownloadContext } from "./download-context.ts"
+import { UriValueView } from "./uri-field.tsx"
 import { editNftMetadataField, isRelativeNftImageURI, loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readJsonDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type SettledResource<T> = { readonly status: "idle" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown; readonly value?: T }
@@ -78,7 +79,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
         <button className="button-quiet resource-cancel" type="button" aria-label="Cancel loading" aria-hidden={preview.resource.status !== "pending"} disabled={preview.resource.status !== "pending"} onClick={event => cancelFromControl(event, preview.cancel)}>Cancel</button></div>
       : null}
       <div className="nft-identity">
-        {metadataURI !== undefined && metadataURI !== "" ? <PropertyRow label="Metadata URI" value={metadataURI} /> : null}
+        {metadataURI !== undefined && metadataURI !== "" ? <UriValueView key={metadataURI} label="Metadata URI" value={metadataURI} /> : null}
         {imageReference ? <PropertyRow label="Image reference in metadata" value={imageReference} /> : null}
         <PropertyRow label="NFT contract" value={contractAddress} />
         <PropertyRow label="Token ID" value={tokenId} />

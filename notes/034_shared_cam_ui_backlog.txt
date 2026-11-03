@@ -36,7 +36,10 @@ both paths and keep inside clicks and drags from dismissing the dialog.
    Design workshop and cross-app inventory: note 041.
    The first slice adds shared URI elements, embedded text/JSON and decoded
    document hashing for Escrow terms, submissions and disputes. NFT
-   integration remains to be assessed against its distinct workflow.
+   detail views now use the shared URI display for the supplied metadata URI,
+   with explicit document inspection separate from NFT preview loading. Bike
+   supplies the token URI returned by its component read; the mutable base and
+   submitted-suffix issue in note 042 remains unresolved for transaction review.
 
 2. Compact shared document-hash editor
 
