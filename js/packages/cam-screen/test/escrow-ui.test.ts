@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 
 import {
+  isRecordObject,
   parseJsonBytes,
   toInertValue,
 } from "@cam/protocol"
@@ -89,7 +90,7 @@ test("escrow tasks own their screen titles and place ID lookup after the task", 
     const { resolvedUi } = resolveInitialUiNode(ui, "app", args(view), CONTEXT)
     assert.equal(resolvedUi.element, "Screen")
     assert.equal(resolvedUi.props.title, "Escrow")
-    const body = resolvedUi.children[0]
+    const body = resolvedUi.children[1]
     assert(body)
     const tasks = body.element === "Fragment" ? body.children : [body]
     assert.deepEqual(tasks.map(task => {
@@ -100,17 +101,18 @@ test("escrow tasks own their screen titles and place ID lookup after the task", 
     forEachResolvedUiNode(resolvedUi, (node) => {
       if ("state" in node) fields.push(node.state.key)
     })
-    assert.ok(fields.indexOf(primaryField) < fields.indexOf("agreementId"), `${view.viewId} leads with its task`)
+    assert.ok(fields.includes(primaryField), `${view.viewId} exposes its task`)
+    assert.ok(!fields.includes("agreementId"), `${view.viewId} keeps lookup in Find`)
   }
 })
 
 test("creation separates shared account context, funding terms, lookup and credit navigation", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
   assert.equal(resolvedUi.element, "Screen")
-  const tasks = resolvedUi.children[0]
+  const tasks = resolvedUi.children[1]
   assert.equal(tasks?.element, "Fragment")
   assert.deepEqual(tasks.children.map(node => node.element === "Screen" ? node.props.title : node.element), [
-    "Account and agreement reference", "Create and fund an escrow agreement", "Find an existing agreement", "Account credit",
+    "Account and agreement reference", "Create and fund an escrow agreement", "Find an existing agreement",
   ])
   const fields: Record<string, string | undefined> = {}
   const actions: Record<string, string | undefined> = {}
@@ -127,13 +129,13 @@ test("creation separates shared account context, funding terms, lookup and credi
   for (const [field, group] of Object.entries({
     agreementRef: "Account and agreement reference", contractor: "Parties", arbitrator: "Parties", amount: "Funding",
     acceptanceDuration: "Deadlines", workDuration: "Deadlines", reviewDuration: "Deadlines", arbitrationDuration: "Deadlines",
-    arbitrationTimeoutBeneficiary: "Deadlines", termsUri: "Terms document", termsDigest: "Terms document", agreementId: "Find an existing agreement",
+    arbitrationTimeoutBeneficiary: "Deadlines", termsUri: "Terms document", termsDigest: "Terms document",
   })) assert.equal(fields[field], group, field)
   assert.equal(actions.createAgreementForm, undefined)
   assert.equal(actions.createAgreement, "Create and fund an escrow agreement")
   assert.equal(actions.lookupAgreement, "Find an existing agreement")
-  assert.equal(actions.agreement, "Find an existing agreement")
-  assert.equal(actions.accountCredit, "Account credit")
+  assert.equal(actions.accountCreditWithContext, "App navigation")
+  assert.equal(actions.findAgreementForm, "App navigation")
   assert.deepEqual(limits, {
     "Reference limit": "Account and agreement reference",
     "Maximum phase duration": "Deadlines",
@@ -153,7 +155,6 @@ test("creation distinguishes client-reference lookup from independent ID lookup 
   assert.ok(labels.includes("Proposed client (address being viewed)"))
   assert.match(String(requiredButton(resolvedUi, "lookupAgreement").props.label), /client and reference/i)
   assert.deepEqual(plain(requiredButton(resolvedUi, "lookupAgreement").call.args), { client: ACCOUNT, agreementRef: "" })
-  assert.match(String(requiredButton(resolvedUi, "agreement").props.label), /by ID/)
   assert.ok(texts.some((text) => text.includes("sending wallet becomes the client")))
 })
 
@@ -180,8 +181,6 @@ test("creation explains required party, reference and document inputs beside the
   assert.match(terms, /local file or a browser-readable URL/)
   assert.match(terms, /enter it manually/)
   assert.match(terms, /not uploaded or checked against the URI/)
-  assert.match(precedingHelp(resolvedUi, "agreementId"), /0x followed by 64 hexadecimal/)
-  assert.match(precedingHelp(resolvedUi, "agreementId"), /not the client’s own reference/)
 })
 
 test("each creation duration explains its start and timeout beneficiary beside the field", async () => {
@@ -248,7 +247,7 @@ test("document transaction review exposes the exact URI", async () => {
     title: "Review document",
     document: document("data:text/plain,Work%20evidence", "22"),
   }
-  const resolved = resolveUiNode(ui, "escrow.agreement.document.review", args(view), CONTEXT)
+  const resolved = resolveUiNode(ui, "escrow.agreement.document.review", { view: toInertValue(view) }, CONTEXT)
   const uris: string[] = []
   forEachResolvedUiNode(resolved, node => { if (node.element === "Uri") uris.push(String(node.props.value)) })
   assert.deepEqual(uris, [view.document.uri])
@@ -342,7 +341,6 @@ test("escrow creation screen resolves nested payable calldata from one form", as
 
   assert.deepEqual(resolvedUiInputNames(resolvedUi), [
     "acceptanceDuration",
-    "agreementId",
     "agreementRef",
     "amount",
     "arbitrationDuration",
@@ -355,10 +353,10 @@ test("escrow creation screen resolves nested payable calldata from one form", as
     "workDuration",
   ])
   assert.deepEqual(buttonFunctions(resolvedUi), [
+    "findAgreementForm",
+    "accountCreditWithContext",
     "createAgreement",
     "lookupAgreement",
-    "agreement",
-    "accountCredit",
   ])
 
   const create = requiredButton(resolvedUi, "createAgreement")
@@ -401,19 +399,23 @@ test("escrow creation screen resolves nested payable calldata from one form", as
   assert.equal(state.arbitrationTimeoutBeneficiary, "1")
 })
 
-test("known agreement ID opens the agreement route without create-form inputs", async () => {
+test("find navigation carries the current lookup drafts and accepts a different client", async () => {
   const ui = await escrowUi()
-  const { state } = resolveInitialUiNode(ui, "app", args(createView()), CONTEXT)
-  const resolvedUi = resolveUiNode(
-    ui,
-    "app",
-    args(createView()),
-    { ...CONTEXT, state: { ...state, agreementId: AGREEMENT_ID } },
-  )
-
-  const open = requiredButton(resolvedUi, "agreement")
-  assert.equal(open.call.namespace, "routes")
-  assert.deepEqual(plain(open.call.args), { agreementId: AGREEMENT_ID })
+  const initial = resolveInitialUiNode(ui, "app", args(createView()), CONTEXT)
+  const creation = resolveUiNode(ui, "app", args(createView()), {
+    ...CONTEXT, state: { ...initial.state, agreementRef: "invoice-42" },
+  })
+  assert.deepEqual(plain(requiredButton(creation, "findAgreementForm").call.args), {
+    client: ACCOUNT, agreementRef: "invoice-42", agreementId: "",
+  })
+  const findView = { viewId: "escrow.find", client: ACCOUNT, maxAgreementRefBytes: "128", agreementRef: "invoice-42", agreementId: AGREEMENT_ID }
+  const find = resolveInitialUiNode(ui, "app", args(findView), CONTEXT)
+  assert.equal(find.state.findClient, ACCOUNT)
+  assert.equal(find.state.agreementRef, "invoice-42")
+  assert.equal(find.state.agreementId, AGREEMENT_ID)
+  const edited = resolveUiNode(ui, "app", args(findView), { ...CONTEXT, state: { ...find.state, findClient: CONTRACTOR } })
+  assert.deepEqual(plain(requiredButton(edited, "lookupAgreement").call.args), { client: CONTRACTOR, agreementRef: "invoice-42" })
+  assert.deepEqual(plain(requiredButton(edited, "agreementWithContext").call.args), { client: CONTRACTOR, agreementRef: "invoice-42", agreementId: AGREEMENT_ID })
 })
 
 for (const viewId of [
@@ -424,55 +426,17 @@ for (const viewId of [
   test(`${viewId} starts lookup from the selected agreement without retargeting transitions`, async () => {
     const ui = await escrowUi()
     const view = agreementView({ viewId, stateId: "submitted", transitionIds: [] })
-    const initial = resolveInitialUiNode(ui, "app", args(view), CONTEXT)
-    assert.equal(initial.state.agreementId, AGREEMENT_ID)
-    assert.equal(requiredButton(initial.resolvedUi, "agreement").call.args.agreementId, AGREEMENT_ID)
-
-    const otherId = `0x${"cd".repeat(32)}`
-    const edited = resolveUiNode(ui, "app", args(view), {
-      ...CONTEXT, state: { ...initial.state, agreementId: otherId },
+    const lookup = { client: ACCOUNT, agreementRef: viewId === "escrow.agreement.absent" ? "missing-reference" : "screen-smoke", agreementId: AGREEMENT_ID }
+    const initial = resolveInitialUiNode(ui, "app", args(view, lookup), CONTEXT)
+    const edited = initial.resolvedUi
+    assert.deepEqual(plain(requiredButton(edited, "findAgreementForm").call.args), {
+      client: ACCOUNT, agreementRef: viewId === "escrow.agreement.absent" ? "missing-reference" : "screen-smoke", agreementId: AGREEMENT_ID,
     })
-    assert.equal(requiredButton(edited, "agreement").call.args.agreementId, otherId)
     for (const button of resolvedUiButtons(edited)) {
       if (AGREEMENT_ACTIONS.some((action) => action === button.call.function)) {
         assert.equal(button.call.args.agreementId, AGREEMENT_ID, `${button.call.function} retains the selected target`)
       }
     }
-  })
-}
-
-test("each selected agreement initializes its own lookup; restored drafts remain independent", async () => {
-  const ui = await escrowUi()
-  const firstView = agreementView({
-    viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [],
-  })
-  const first = resolveInitialUiNode(ui, "app", args(firstView), CONTEXT)
-  const draftId = `0x${"cd".repeat(32)}`
-  const draft = { ...first.state, agreementId: draftId }
-  const secondId = `0x${"ef".repeat(32)}`
-  const secondView = {
-    ...firstView,
-    machine: { ...firstView.machine, instanceId: secondId },
-    agreement: { ...firstView.agreement, agreementId: secondId },
-  }
-  const second = resolveInitialUiNode(ui, "app", args(secondView), CONTEXT)
-  assert.equal(first.state.agreementId, AGREEMENT_ID)
-  assert.equal(second.state.agreementId, secondId)
-  const restored = resolveUiNode(ui, "app", args(firstView), { ...CONTEXT, state: draft })
-  assert.equal(requiredButton(restored, "agreement").call.args.agreementId, draftId)
-  assert.equal(draft.agreementId, draftId)
-  assert.equal(second.state.agreementId, secondId)
-})
-
-for (const view of [
-  createView(),
-  { viewId: "escrow.credit.empty", account: ACCOUNT, amount: "0", actions: [] },
-  { viewId: "escrow.credit.available", account: ACCOUNT, amount: "1", actions: ["withdrawTo"] },
-]) {
-  test(`${view.viewId} starts with no selected agreement ID`, async () => {
-    const { state, resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(view), CONTEXT)
-    assert.equal(state.agreementId, "")
-    assert.equal(requiredButton(resolvedUi, "agreement").call.args.agreementId, "")
   })
 }
 
@@ -489,14 +453,13 @@ test("escrow active screen enables only projected transitions", async () => {
   )
 
   assert.deepEqual(availableButtonFunctions(resolvedUi), [
+    "createAgreementFormWithContext",
+    "findAgreementForm",
+    "accountCreditWithContext",
     "approveAgreement",
     "disputeAgreement",
-    "accountCredit",
-    "createAgreementForm",
-    "agreement",
   ])
   assert.deepEqual(resolvedUiInputNames(resolvedUi), [
-    "agreementId",
     "disputeDigest",
     "disputeUri",
     "submissionDigest",
@@ -528,12 +491,12 @@ test("escrow terminal screen resolves with no machine transition", async () => {
   )
 
   assert.deepEqual(availableButtonFunctions(resolvedUi), [
-    "accountCredit",
-    "createAgreementForm",
-    "agreement",
+    "createAgreementFormWithContext",
+    "findAgreementForm",
+    "accountCreditWithContext",
   ])
   assert.deepEqual(resolvedUiInputNames(resolvedUi), [
-    "agreementId", "disputeDigest", "disputeUri", "submissionDigest", "submissionUri",
+    "disputeDigest", "disputeUri", "submissionDigest", "submissionUri",
   ])
   for (const action of AGREEMENT_ACTIONS) {
     assert.equal(isDisabled(requiredButton(resolvedUi, action)), true, `${action} remains visible but unavailable`)
@@ -585,7 +548,7 @@ for (const projected of [
     )
 
     assert.deepEqual(resolvedUiInputNames(resolvedUi), [
-      "agreementId", "disputeDigest", "disputeUri", "submissionDigest", "submissionUri",
+      "disputeDigest", "disputeUri", "submissionDigest", "submissionUri",
     ])
     const buttons = resolvedUiButtons(resolvedUi)
     assert.deepEqual(
@@ -601,8 +564,7 @@ for (const projected of [
     for (const [name, action] of EVIDENCE_FIELDS) {
       assert.equal(isDisabled(requiredField(resolvedUi, name)), !projected.includes(action), `${name} editability`)
     }
-    assert.equal(isDisabled(requiredField(resolvedUi, "agreementId")), false)
-    for (const navigation of ["agreement", "accountCredit", "createAgreementForm"]) {
+    for (const navigation of ["findAgreementForm", "accountCreditWithContext", "createAgreementFormWithContext"]) {
       assert.equal(isDisabled(requiredButton(resolvedUi, navigation)), false, `${navigation} navigation`)
     }
   })
@@ -617,7 +579,6 @@ test("escrow availability changes preserve evidence drafts and the viewed agreem
   })), CONTEXT)
   const draft = {
     ...initial.state,
-    agreementId: `0x${"cd".repeat(32)}`,
     submissionUri: "ipfs://draft-submission",
     submissionDigest: `0x${"12".repeat(32)}`,
     disputeUri: "ipfs://draft-dispute",
@@ -641,7 +602,6 @@ test("escrow availability changes preserve evidence drafts and the viewed agreem
       agreementId: AGREEMENT_ID,
       dispute: { uri: draft.disputeUri, sha256Digest: draft.disputeDigest },
     })
-    assert.equal(requiredButton(resolvedUi, "agreement").call.args.agreementId, draft.agreementId)
     assert.deepEqual(plain(draft), before)
   }
 })
@@ -660,11 +620,11 @@ test("escrow available-credit screen binds withdrawal recipient to the account",
   )
 
   assert.deepEqual(buttonFunctions(resolvedUi), [
+    "createAgreementFormWithContext",
+    "findAgreementForm",
     "withdrawTo",
-    "createAgreementForm",
-    "agreement",
   ])
-  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["agreementId", "recipient"])
+  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["recipient"])
   assert.equal(state.recipient, ACCOUNT)
   assert.deepEqual(plain(requiredButton(resolvedUi, "withdrawTo").call.args), {
     recipient: ACCOUNT,
@@ -739,10 +699,27 @@ function document(uri: string, byte: string) {
   }
 }
 
-function args(view: unknown): InertRecord {
-  return {
-    view: toInertValue(view),
+function args(view: unknown, lookup?: { client: string; agreementRef: string; agreementId: string }): InertRecord {
+  const screen = toInertValue(view)
+  assert(isRecordObject(screen) && typeof screen.viewId === "string")
+  let navigation: string
+  let agreementLookup: { client: string; agreementRef: string; agreementId: string } | undefined
+  if (screen.viewId === "escrow.create") {
+    assert(typeof screen.client === "string")
+    navigation = "navigation.create"
+  } else if (screen.viewId === "escrow.find") {
+    assert(typeof screen.client === "string" && typeof screen.agreementRef === "string" && typeof screen.agreementId === "string")
+    navigation = "navigation.find"
+  } else if (screen.viewId.startsWith("escrow.credit.")) {
+    assert(typeof screen.account === "string")
+    navigation = "navigation.credit"
+  } else {
+    assert(typeof screen.actor === "string" && isRecordObject(screen.machine) && typeof screen.machine.instanceId === "string")
+    navigation = "navigation.agreement"
+    agreementLookup = { client: screen.actor, agreementRef: "", agreementId: screen.machine.instanceId }
   }
+  const selectedLookup = lookup === undefined ? agreementLookup : lookup
+  return { view: toInertValue({ screen, navigation, ...(selectedLookup === undefined ? {} : { agreementLookup: selectedLookup }) }) }
 }
 
 function buttonFunctions(resolvedUi: Parameters<typeof resolvedUiButtons>[0]): readonly string[] {

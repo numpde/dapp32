@@ -22,7 +22,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x21fe93bb0faff6f8d05653ff2e7d7ab952e3718bde2ac83bd8b54843a5f2e42b"
+      "integrity": "sha256:0xbf888cf45a49120e54f512e3a810f7f968d19a9cfa8d9584447ebe4a90367db4"
     }
   },
   "routes": {
@@ -40,7 +40,67 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "$outputs.0",
+            "navigation": "navigation.create"
+          }
+        }
+      }
+    },
+    "createAgreementFormWithContext": {
+      "kind": "read",
+      "inputs": [
+        "client",
+        "agreementRef",
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewCreateAgreement",
+        "args": {
+          "client": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "$outputs.0",
+            "navigation": "navigation.createContext",
+            "agreementLookup": "$inputs"
+          }
+        }
+      }
+    },
+    "findAgreementForm": {
+      "kind": "read",
+      "inputs": [
+        "client",
+        "agreementRef",
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewCreateAgreement",
+        "args": {
+          "client": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": {
+              "viewId": "escrow.find",
+              "client": "$inputs.client",
+              "maxAgreementRefBytes": "$outputs.0.maxAgreementRefBytes",
+              "agreementRef": "$inputs.agreementRef",
+              "agreementId": "$inputs.agreementId"
+            },
+            "navigation": "navigation.find"
+          }
         }
       }
     },
@@ -63,7 +123,15 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "$outputs.0",
+            "navigation": "navigation.agreement",
+            "agreementLookup": {
+              "client": "$inputs.client",
+              "agreementRef": "$inputs.agreementRef",
+              "agreementId": "$outputs.0.machine.instanceId"
+            }
+          }
         }
       }
     },
@@ -84,7 +152,42 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "$outputs.0",
+            "navigation": "navigation.agreement",
+            "agreementLookup": {
+              "client": "$outputs.0.actor",
+              "agreementRef": "",
+              "agreementId": "$inputs.agreementId"
+            }
+          }
+        }
+      }
+    },
+    "agreementWithContext": {
+      "kind": "read",
+      "inputs": [
+        "client",
+        "agreementRef",
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewAgreement",
+        "args": {
+          "agreementId": "$inputs.agreementId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "$outputs.0",
+            "navigation": "navigation.agreement",
+            "agreementLookup": "$inputs"
+          }
         }
       }
     },
@@ -102,7 +205,36 @@
         "namespace": "ui",
         "function": "app",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "screen": "$outputs.0",
+            "navigation": "navigation.credit"
+          }
+        }
+      }
+    },
+    "accountCreditWithContext": {
+      "kind": "read",
+      "inputs": [
+        "client",
+        "agreementRef",
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewAccountCredit",
+        "args": {
+          "account": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "$outputs.0",
+            "navigation": "navigation.creditContext",
+            "agreementLookup": "$inputs"
+          }
         }
       }
     },

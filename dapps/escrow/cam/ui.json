@@ -14,9 +14,17 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "$view.viewId",
+            "function": "$view.navigation",
+            "args": { "view": "$view" }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "$view.screen.viewId",
             "args": {
-              "view": "$view"
+              "view": "$view.screen"
             }
           }
         }
@@ -395,13 +403,7 @@
             {
               "element": "Text",
               "props": {
-                "text": "Find an agreement you want to inspect. You can look it up with the client’s exact reference or open it directly with its agreement ID."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Use the account and exact agreement reference above for reference lookup. Other creation fields are not used for lookup."
+                "text": "Find an agreement using the account and exact agreement reference above."
               }
             },
             {
@@ -409,42 +411,6 @@
               "call": {
                 "namespace": "ui",
                 "function": "lookupAgreement",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "lookupFragment",
-                "args": {
-                  "view": {
-                    "initialAgreementId": ""
-                  }
-                }
-              }
-            }
-          ]
-        },
-        {
-          "element": "Screen",
-          "props": {
-            "title": "Account credit"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "Account credit is where settled funds await withdrawal. Open it to check this account’s current credit and, if available, prepare its withdrawal."
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "openAccountCredit",
                 "args": {
                   "view": "$view"
                 }
@@ -465,45 +431,6 @@
           "props": {
             "text": "No matching agreement is stored here. Check the exact ID and whether this is the escrow contract and network where it was created."
           }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Agreement ID",
-            "value": "$view.machine.instanceId"
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openCreateAgreement",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openAccountCredit",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupFragment",
-            "args": {
-              "view": {
-                "initialAgreementId": "$view.machine.instanceId"
-              }
-            }
-          }
         }
       ],
       "props": {
@@ -516,19 +443,6 @@
       ],
       "element": "Fragment",
       "children": [
-        {
-          "element": "Status",
-          "props": {
-            "label": "Agreement ID",
-            "value": "$view.machine.instanceId"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Copy this ID to reopen the agreement in this escrow contract. It is derived from the client address and exact reference."
-          }
-        },
         {
           "element": "Status",
           "props": {
@@ -841,38 +755,6 @@
           "props": {
             "text": "Settlement adds the full escrow to the recipient’s account credit. Withdrawing that credit is a separate transaction."
           }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openAccountCredit",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openCreateAgreement",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupFragment",
-            "args": {
-              "view": {
-                "initialAgreementId": "$view.machine.instanceId"
-              }
-            }
-          }
         }
       ],
       "props": {
@@ -916,38 +798,6 @@
               "view": "$view"
             }
           }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openAccountCredit",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openCreateAgreement",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupFragment",
-            "args": {
-              "view": {
-                "initialAgreementId": "$view.machine.instanceId"
-              }
-            }
-          }
         }
       ],
       "props": {
@@ -960,39 +810,6 @@
       ],
       "element": "Screen",
       "children": [
-        {
-          "element": "Address",
-          "props": {
-            "label": "Account being viewed",
-            "address": "$view.account"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Total withdrawable credit for this account",
-            "value": "$view.amount",
-            "format": "amount",
-            "unit": {
-              "assetId": "native",
-              "baseLabel": "wei",
-              "displayLabel": "Native asset",
-              "decimals": 18
-            }
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Settling an agreement records credit rather than sending money straight to a wallet. Here you can check that account’s remaining credit and prepare its withdrawal when available."
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements."
-          }
-        },
         {
           "element": "Text",
           "props": {
@@ -1014,28 +831,6 @@
               "view": "$view"
             }
           }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openCreateAgreement",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupFragment",
-            "args": {
-              "view": {
-                "initialAgreementId": ""
-              }
-            }
-          }
         }
       ],
       "props": {
@@ -1049,39 +844,6 @@
       "element": "Screen",
       "children": [
         {
-          "element": "Address",
-          "props": {
-            "label": "Account being viewed",
-            "address": "$view.account"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Total withdrawable credit for this account",
-            "value": "$view.amount",
-            "format": "amount",
-            "unit": {
-              "assetId": "native",
-              "baseLabel": "wei",
-              "displayLabel": "Native asset",
-              "decimals": 18
-            }
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Settling an agreement records credit rather than sending money straight to a wallet. Here you can check that account’s remaining credit and prepare its withdrawal when available."
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements."
-          }
-        },
-        {
           "element": "Text",
           "props": {
             "text": "When credit is available, send the withdrawal transaction from the account shown. The withdrawal sends the full balance; partial withdrawals are unavailable."
@@ -1094,28 +856,6 @@
             "function": "credit.withdrawal",
             "args": {
               "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "openCreateAgreement",
-            "args": {
-              "view": "$view"
-            }
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "lookupFragment",
-            "args": {
-              "view": {
-                "initialAgreementId": ""
-              }
             }
           }
         }
@@ -1169,34 +909,6 @@
           "client": "$view.client",
           "agreementRef": "$state.agreementRef"
         }
-      }
-    },
-    "openAccountCredit": {
-      "requires": [
-        "view"
-      ],
-      "element": "Button",
-      "props": {
-        "label": "View account credit"
-      },
-      "call": {
-        "namespace": "routes",
-        "function": "accountCredit",
-        "args": {}
-      }
-    },
-    "openCreateAgreement": {
-      "requires": [
-        "view"
-      ],
-      "element": "Button",
-      "props": {
-        "label": "Create an agreement"
-      },
-      "call": {
-        "namespace": "routes",
-        "function": "createAgreementForm",
-        "args": {}
       }
     },
     "cancelAgreement": {
@@ -1651,7 +1363,392 @@
         }
       ]
     },
-    "lookupFragment": {
+    "navigation.create": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "App navigation"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.findDraft",
+            "args": {
+              "view": {
+                "client": "$view.screen.client",
+                "agreementRef": "$state.agreementRef",
+                "agreementId": ""
+              }
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCredit",
+            "args": {
+              "view": {
+                "client": "$view.screen.client",
+                "agreementRef": "$state.agreementRef",
+                "agreementId": ""
+              }
+            }
+          }
+        }
+      ]
+    },
+    "navigation.createContext": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "App navigation"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.findPrevious",
+            "args": {
+              "view": "$view.agreementLookup"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCredit",
+            "args": {
+              "view": "$view.agreementLookup"
+            }
+          }
+        }
+      ]
+    },
+    "navigation.agreement": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "App navigation"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Agreement ID",
+            "value": "$view.screen.machine.instanceId"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCreate",
+            "args": {
+              "view": "$view.agreementLookup"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.findPrevious",
+            "args": {
+              "view": "$view.agreementLookup"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCredit",
+            "args": {
+              "view": "$view.agreementLookup"
+            }
+          }
+        }
+      ]
+    },
+    "navigation.credit": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "App navigation"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.creditIdentity",
+            "args": {
+              "view": "$view.screen"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCreate",
+            "args": {
+              "view": {
+                "client": "$view.screen.account",
+                "agreementRef": "",
+                "agreementId": ""
+              }
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.findDraft",
+            "args": {
+              "view": {
+                "client": "$view.screen.account",
+                "agreementRef": "",
+                "agreementId": ""
+              }
+            }
+          }
+        }
+      ]
+    },
+    "navigation.creditContext": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "App navigation"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.creditIdentity",
+            "args": {
+              "view": "$view.screen"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCreate",
+            "args": {
+              "view": "$view.agreementLookup"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.findPrevious",
+            "args": {
+              "view": "$view.agreementLookup"
+            }
+          }
+        }
+      ]
+    },
+    "navigation.find": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "App navigation"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCreate",
+            "args": {
+              "view": {
+                "client": "$state.findClient",
+                "agreementRef": "$state.agreementRef",
+                "agreementId": "$state.agreementId"
+              }
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "navigation.openCredit",
+            "args": {
+              "view": {
+                "client": "$state.findClient",
+                "agreementRef": "$state.agreementRef",
+                "agreementId": "$state.agreementId"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "navigation.creditIdentity": {
+      "element": "Fragment",
+      "requires": [
+        "view"
+      ],
+      "children": [
+        {
+          "element": "Address",
+          "props": {
+            "label": "Account being viewed",
+            "address": "$view.account"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Total withdrawable credit for this account",
+            "value": "$view.amount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Settling an agreement records credit rather than sending money straight to a wallet. Here you can check that account’s remaining credit and prepare its withdrawal when available."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "This total combines credit from all ended agreements in this escrow for the account being viewed, less previous withdrawals. It excludes funds still locked in open agreements."
+          }
+        }
+      ]
+    },
+    "navigation.openCreate": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Create an agreement"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "createAgreementFormWithContext",
+        "args": {
+          "client": "$view.client",
+          "agreementRef": "$view.agreementRef",
+          "agreementId": "$view.agreementId"
+        }
+      }
+    },
+    "navigation.openCredit": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "View credit for viewed account"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "accountCreditWithContext",
+        "args": {
+          "client": "$view.client",
+          "agreementRef": "$view.agreementRef",
+          "agreementId": "$view.agreementId"
+        }
+      }
+    },
+    "navigation.findDraft": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Find an agreement"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "findAgreementForm",
+        "args": {
+          "client": "$view.client",
+          "agreementRef": "$view.agreementRef",
+          "agreementId": "$view.agreementId"
+        }
+      }
+    },
+    "navigation.findPrevious": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Find with earlier details"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "findAgreementForm",
+        "args": {
+          "client": "$view.client",
+          "agreementRef": "$view.agreementRef",
+          "agreementId": "$view.agreementId"
+        }
+      }
+    },
+    "escrow.find": {
+      "requires": ["view"],
+      "element": "Screen",
+      "props": { "title": "Find an agreement" },
+      "children": [
+        {
+          "element": "TextField",
+          "props": { "label": "Client address", "format": "address" },
+          "state": { "key": "findClient", "defaultValue": "$view.client" }
+        },
+        {
+          "element": "TextField",
+          "props": { "label": "Agreement reference", "minBytes": "1", "maxBytes": "$view.maxAgreementRefBytes" },
+          "state": { "key": "agreementRef", "defaultValue": "$view.agreementRef" }
+        },
+        {
+          "element": "Include",
+          "call": { "namespace": "ui", "function": "lookupAgreement", "args": { "view": { "client": "$state.findClient" } } }
+        },
+        {
+          "element": "Include",
+          "call": { "namespace": "ui", "function": "lookupFragment.context", "args": { "view": { "initialAgreementId": "$view.agreementId" } } }
+        }
+      ]
+    },
+    "lookupFragment.context": {
       "requires": [
         "view"
       ],
@@ -1688,8 +1785,10 @@
           },
           "call": {
             "namespace": "routes",
-            "function": "agreement",
+            "function": "agreementWithContext",
             "args": {
+              "client": "$state.findClient",
+              "agreementRef": "$state.agreementRef",
               "agreementId": "$state.agreementId"
             }
           }

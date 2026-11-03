@@ -323,6 +323,10 @@ async function freshForm() {
   await openViewer(viewer.href)
   await waitFor(async state => state.heading === 'Escrow' && state.route === 'createAgreementForm' && state.tasks.includes('Create and fund an escrow agreement') && (await field('agreementRef')) !== undefined, 'fresh create form', true)
 }
+async function openFind(label) {
+  await clickButton(label)
+  await waitFor(async state => state.route === 'findAgreementForm' && (await field('agreementId')) !== undefined, 'find agreement form')
+}
 async function openViewer(location) {
   await call('Page.navigate', { url: 'about:blank' }, sessionId)
   await waitFor(async () => (await evaluate('location.href')) === 'about:blank', 'blank reset')
@@ -374,11 +378,11 @@ try {
       assert(limits.compact, `contract limit rows consume excessive vertical space at ${width}px`)
     }
   })
-  await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View account credit'))?.click()`)
-  const creditView = await waitFor(state => state.route === 'accountCredit' && state.tasks.includes('Withdraw account credit') && state.text.includes('Total withdrawable credit for this account'), 'account credit view', false)
+  await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View credit for viewed account'))?.click()`)
+  const creditView = await waitFor(state => state.route === 'accountCreditWithContext' && state.tasks.includes('Withdraw account credit') && state.text.includes('Total withdrawable credit for this account'), 'account credit view', false)
   assert.equal(creditView.heading, 'Escrow')
   assert(creditView.tasks.includes('Withdraw account credit'))
-  assert(creditView.text.indexOf('Withdrawal recipient') < creditView.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'withdrawal task precedes ID navigation')
+  assert(creditView.text.includes('Withdrawal recipient'), 'credit view includes the withdrawal task')
   await browserCase('empty-credit controls share input boundaries and narrow reflow', async () => {
     for (const width of [1280, 320, 375]) {
       await assertNarrowUi('account credit', width)
@@ -391,6 +395,7 @@ try {
   await browserCase('known agreement ID without create inputs', async () => {
     await freshForm()
     const knownId = `0x${'ab'.repeat(32)}`
+    await openFind('Find an agreement')
     await enter('agreementId', knownId)
     await clickButton('Open agreement by ID')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'known ID lookup')
@@ -398,13 +403,14 @@ try {
     for (const width of [1280, 320, 375]) {
       await assertNarrowUi('agreement lookup', width)
       await assertWorkingSurface(`agreement lookup at ${width}px`)
-      assert.equal(await field('agreementId'), knownId, 'narrow layout changed the selected agreement ID')
+      assert((await evaluate('document.body.innerText')).includes(knownId), 'narrow layout changed the selected agreement ID')
     }
   })
 
   await browserCase('keyboard lookup, repeated lookup, and Back orient focus at the current view', async () => {
     await freshForm()
     const id = `0x${'ab'.repeat(32)}`
+    await openFind('Find an agreement')
     for (let lookup = 0; lookup < 2; lookup++) {
       await enter('agreementId', id)
       await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
@@ -415,13 +421,17 @@ try {
       await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId)
       assert.equal(await evaluate('window.__lookupKeyboardClick'), true, 'lookup received no trusted keyboard activation')
       await waitFor(async state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'lookup arrival focus')
-      assert.equal(await field('agreementId'), id, 'lookup lost the selected agreement')
+      assert((await evaluate('document.body.innerText')).includes(id), 'lookup lost the selected agreement')
+      if (lookup === 0) await openFind('Find with earlier details')
     }
+    await openFind('Find with earlier details')
     const selected = await evaluate('location.href')
     await evaluate('document.querySelector(\'input[name="agreementId"]\').focus()')
     assert.equal(await evaluate('location.href'), selected, 'ordinary input focus navigated')
     assert.equal(await evaluate('document.activeElement?.getAttribute("name")'), 'agreementId', 'ordinary focus was moved to the view')
-    await clickButton('View account credit')
+    await clickButton('Back')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'return to agreement')
+    await clickButton('View credit for viewed account')
     await waitFor(async state => state.text.includes('Total withdrawable credit for this account') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'contextual navigation arrival focus')
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
@@ -438,7 +448,7 @@ try {
     linked.hash = new URLSearchParams({ route: 'agreement', inputs: JSON.stringify({ agreementId: id }) }).toString()
     await openViewer(linked.href)
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'initial linked agreement', true)
-    assert.equal(await field('agreementId'), id, 'selected ID was not supplied to the lookup draft')
+    assert((await evaluate('document.body.innerText')).includes(id), 'selected ID is displayed')
     assert.equal(await field('agreementRef'), undefined, 'initial read link rendered a creation draft')
     assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === 'Back')?.disabled"), true, 'initial direct link created phantom history')
     const committed = await evaluate('location.href')
@@ -446,7 +456,7 @@ try {
     await call('Page.reload', {}, sessionId)
     await waitFor(async () => (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId !== loader, 'linked refresh document')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'linked agreement refresh', true)
-    assert.equal(await field('agreementId'), id)
+    assert((await evaluate('document.body.innerText')).includes(id))
     assert.equal(await evaluate('location.href'), committed)
     assert.equal(transactionRequests.length, 0, 'opening a read link requested a transaction')
   })
@@ -454,39 +464,42 @@ try {
   await browserCase('URL follows successful reads, not edited or rejected lookup drafts', async () => {
     await freshForm()
     const first = `0x${'ad'.repeat(32)}`
+    await openFind('Find an agreement')
     await enter('agreementId', first)
     await clickButton('Open agreement by ID')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup URL synchronization')
     const committed = new URL(await evaluate('location.href'))
     const fragment = new URLSearchParams(committed.hash.slice(1))
-    assert.equal(fragment.get('route'), 'agreement')
+    assert.equal(fragment.get('route'), 'agreementWithContext')
     assert.equal(fragment.get('agreementId'), first)
     assert.equal(fragment.has('inputs'), false, 'string inputs retained a JSON envelope')
+    await openFind('Find with earlier details')
+    const findURL = await evaluate('location.href')
     const second = `0x${'ae'.repeat(32)}`
     await enter('agreementId', second)
-    assert.equal(await evaluate('location.href'), committed.href, 'editing changed the selected agreement URL')
+    assert.equal(await evaluate('location.href'), findURL, 'editing changed the committed URL')
     await enter('agreementId', 'not-an-identifier')
     await clickButton('Open agreement by ID')
     await waitFor(async () => (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".ui-meta > button:last-of-type")?.disabled'), 'rejected lookup')
-    assert.equal(await evaluate('location.href'), committed.href, 'failed lookup changed the committed URL')
+    assert.equal(await evaluate('location.href'), findURL, 'failed lookup changed the committed URL')
     assert.equal(await field('agreementId'), 'not-an-identifier', 'failed lookup discarded correction input')
-    assert((await evaluate('document.body.innerText')).includes(first), 'failed lookup changed the loaded agreement')
   })
 
   await browserCase('native Back and Forward restore distinct same-URL drafts', async () => {
     await freshForm()
     await enter('agreementRef', 'native-first-draft')
     const firstURL = await evaluate('location.href')
+    await openFind('Find an agreement')
     await enter('agreementId', `0x${'ad'.repeat(32)}`)
     await clickButton('Open agreement by ID')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup between form visits')
     await clickButton('Create an agreement')
     await waitFor(async () => (await field('agreementRef')) === '', 'second form visit')
-    assert.equal(await evaluate('location.href'), firstURL, 'same-route action changed URL')
+    assert.notEqual(await evaluate('location.href'), firstURL, 'contextual create has its own route')
     await enter('agreementRef', 'native-second-draft')
-    await evaluate('history.go(-2)')
+    await evaluate('history.go(-3)')
     await waitFor(async () => (await field('agreementRef')) === 'native-first-draft', 'native Back restores first visit')
-    await evaluate('history.go(2)')
+    await evaluate('history.go(3)')
     await waitFor(async () => (await field('agreementRef')) === 'native-second-draft', 'native Forward restores second visit')
     await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
     await waitFor(state => state.text.includes('Total withdrawable credit for this account'), 'manual fragment before native Back')
@@ -497,6 +510,7 @@ try {
 
   await browserCase('viewer Back stays available on a branch created before the reload entry', async () => {
     await freshForm()
+    await openFind('Find an agreement')
     await enter('agreementId', `0x${'ac'.repeat(32)}`)
     await clickButton('Open agreement by ID')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before reload branch')
@@ -517,6 +531,7 @@ try {
   await browserCase('rapid native Back compensates to the pending visit before committing its read', async () => {
     await freshForm()
     await enter('agreementRef', 'rapid-native-draft')
+    await openFind('Find an agreement')
     await enter('agreementId', `0x${'ab'.repeat(32)}`)
     await clickButton('Open agreement by ID')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before rapid Back')
@@ -617,7 +632,7 @@ try {
     await evaluate("location.hash='route=missing-first-route';location.hash='route=missing-second-route'")
     await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".ui-meta > button:last-of-type")?.disabled'), 'batched rejected fragments restore committed view')
     assert.equal(await field('agreementRef'), 'batched-link-draft')
-    await clickButton('View account credit')
+    await clickButton('View credit for viewed account')
     await waitFor(state => state.text.includes('Total withdrawable credit for this account'), 'new history branch after batched rejection')
     await evaluate('history.back()')
     await waitFor(async () => (await field('agreementRef')) === 'batched-link-draft' && (await evaluate('location.href')) === committed, 'Back after batched rejection restores draft')
@@ -824,7 +839,7 @@ try {
     await fillDraft()
     await clickButton('Find agreement by client and reference')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'reference lookup')
-    await clickButton('View account credit')
+    await clickButton('View credit for viewed account')
     await waitFor(state => state.text.includes('Total withdrawable credit for this account'), 'credit from lookup')
     await clickButton('Back')
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'Back to lookup')
