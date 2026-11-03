@@ -198,7 +198,10 @@ export function App(): ReactElement {
     const target = feedbackArrival.target === "notice" ? noticeRef.current
       : feedbackArrival.target === "prepared" ? preparedRef.current
       : feedbackArrival.target === "transaction" ? transactionNoticeRef.current : viewRef.current
-    target?.focus()
+    if (target !== null) {
+      target.focus({ preventScroll: true })
+      target.scrollIntoView({ block: "start", inline: "nearest" })
+    }
   }, [feedbackArrival])
 
   useEffect(() => {
