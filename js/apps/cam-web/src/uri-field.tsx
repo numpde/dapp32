@@ -81,9 +81,9 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
     <dialog ref={dialog} aria-label={`Embed ${label}`} onCancel={event => { event.preventDefault(); setDraft(undefined); setError(undefined) }}>
       {draft === undefined ? null : <>
         <h2>Embed document</h2>
-        <label className="field"><span>Content type</span><select value={draft.type} onChange={event => setDraft({ ...draft, type: event.currentTarget.value as typeof draft.type })}><option value="text/plain">Plain text</option><option value="application/json">JSON</option></select></label>
+        <label className="field"><span className="visually-hidden">Content type</span><select value={draft.type} onChange={event => setDraft({ ...draft, type: event.currentTarget.value as typeof draft.type })}><option value="text/plain">Plain text</option><option value="application/json">JSON</option></select></label>
         <div className="field uri-document">
-          <label htmlFor={documentId}>Document</label>
+          <label className="visually-hidden" htmlFor={documentId}>Document</label>
           <div className="uri-document-control">
             <textarea id={documentId} aria-describedby={capacityId} value={draft.text} maxLength={DOCUMENT_LIMIT} onChange={event => { setDraft({ ...draft, text: event.currentTarget.value }); setError(undefined) }} />
             <output id={capacityId} htmlFor={documentId} aria-live="off" className="uri-capacity" data-over-limit={overLimit} aria-label={capacityLabel} title={capacityLabel}>{uriBytes === undefined ? "—" : uriBytes}{maxBytes === undefined ? " bytes" : ` / ${maxBytes}`}{overLimit ? " !" : null}</output>

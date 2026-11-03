@@ -311,7 +311,6 @@ select:disabled {
 .uri-field dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .uri-field dialog .field { margin-block: 12px; }
 .uri-field dialog textarea { min-height: 12em; resize: vertical; }
-.uri-document > label { color: var(--muted); font-size: 0.86rem; }
 .uri-document-control { position: relative; min-width: 0; }
 .uri-field dialog .uri-document-control textarea { display: block; width: 100%; padding-bottom: 2.5em; }
 .uri-capacity { position: absolute; inset-inline-end: 20px; inset-block-end: 6px; max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); background: var(--panel); font-size: 0.8rem; pointer-events: none; }
