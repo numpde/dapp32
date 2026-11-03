@@ -312,6 +312,73 @@
         }
       ]
     },
+    "serialLookupField": {
+      "requires": [
+        "view"
+      ],
+      "element": "TextField",
+      "props": {
+        "label": "Serial number to look up",
+        "minBytes": "1"
+      },
+      "state": {
+        "key": "serialNumber",
+        "defaultValue": "$view.serialNumber"
+      }
+    },
+    "findComponent": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Find a component"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Enter the component’s serial to find its record in this registry. Looking it up only reads the record; registration is a separate action."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Case and spaces matter; the contract does not trim or normalize the serial."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "serialLookupField",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openRegister",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
     "entry": {
       "requires": [
         "view"
@@ -319,55 +386,14 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Screen",
-          "props": {
-            "title": "Find a component"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "Enter the component’s serial to find its record in this registry. Looking it up only reads the record; registration is a separate action."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Case and spaces matter; the contract does not trim or normalize the serial."
-              }
-            },
-            {
-              "element": "TextField",
-              "props": {
-                "label": "Serial number to look up",
-                "minBytes": "1"
-              },
-              "state": {
-                "key": "serialNumber",
-                "defaultValue": "$view.serialNumber"
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "lookupComponent",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "openRegister",
-                "args": {
-                  "view": "$view"
-                }
-              }
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "findComponent",
+            "args": {
+              "view": "$view"
             }
-          ]
+          }
         },
         {
           "element": "Screen",
@@ -436,55 +462,14 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Screen",
-          "props": {
-            "title": "Find a component"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "Enter the component’s serial to find its record in this registry. Looking it up only reads the record; registration is a separate action."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Case and spaces matter; the contract does not trim or normalize the serial."
-              }
-            },
-            {
-              "element": "TextField",
-              "props": {
-                "label": "Serial number to look up",
-                "minBytes": "1"
-              },
-              "state": {
-                "key": "serialNumber",
-                "defaultValue": "$view.serialNumber"
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "lookupComponent",
-                "args": {
-                  "view": "$view"
-                }
-              }
-            },
-            {
-              "element": "Include",
-              "call": {
-                "namespace": "ui",
-                "function": "openRegister",
-                "args": {
-                  "view": "$view"
-                }
-              }
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "findComponent",
+            "args": {
+              "view": "$view"
             }
-          ]
+          }
         }
       ]
     },
@@ -513,14 +498,13 @@
               }
             },
             {
-              "element": "TextField",
-              "props": {
-                "label": "Serial number to look up",
-                "minBytes": "1"
-              },
-              "state": {
-                "key": "serialNumber",
-                "defaultValue": "$view.serialNumber"
+              "element": "Include",
+              "call": {
+                "namespace": "ui",
+                "function": "serialLookupField",
+                "args": {
+                  "view": "$view"
+                }
               }
             },
             {

@@ -647,17 +647,7 @@ for (const operation of ["Back", "Refresh"] as const) test(`${operation} preserv
   const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
   const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
   const nodes = mutableRecord(ui.nodes)
-  const pending = [...mutableRecord(nodes.entry).children as Record<string, unknown>[]]
-  let serialField: Record<string, unknown> | undefined
-  while (pending.length > 0) {
-    const child = pending.pop()!
-    if (child.element === "TextField" && mutableRecord(child.state).key === "serialNumber") {
-      serialField = child
-      break
-    }
-    if (Array.isArray(child.children)) pending.push(...child.children)
-  }
-  assert.ok(serialField)
+  const serialField = mutableRecord(nodes.serialLookupField)
   const membership = { member: "lookupComponent", in: "$view.actions" }
   serialField.enabledWhen = membership
   mutableRecord(nodes.lookupComponent).enabledWhen = membership
