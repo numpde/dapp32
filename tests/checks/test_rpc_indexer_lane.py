@@ -33,6 +33,7 @@ class RpcIndexerLaneTest(unittest.TestCase):
             'printf "%s\\n" "$*" >> "$COMPOSE_HISTORY"\n'
             'printf "project=%s\\nuid=%s\\ngid=%s\\ninput=%s\\nuri=%s\\norigin=%s\\nresource_origin=%s\\n" "$COMPOSE_PROJECT_NAME" "$LOCAL_UID" "$LOCAL_GID" "${RPC_URL_FILE-}" "${CAM_URI-}" "${BIKE_NFT_GUI_ORIGIN-}" "${CAM_VIEWER_RESOURCE_ORIGIN-}" >> "$COMPOSE_CALLS"\n'
             'if [[ ${TEST_FAIL_ABI_CHECK-} == 1 && ${*: -1} == forge-abi-check ]]; then exit 12; fi\n'
+            'if [[ ${TEST_FAIL_BROWSER_CHECK-} == 1 && ${*: -1} == browser-ui-check ]]; then exit 12; fi\n'
         )
 
     def make(self, target: str, upstream: Path | str | None = None, *, overrides: tuple[str, ...] | None = None, extra_environment: dict[str, str] | None = None, environment_override: bool | None = None) -> subprocess.CompletedProcess[str]:
@@ -162,6 +163,20 @@ class RpcIndexerLaneTest(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         commands = self.history.read_text().splitlines()
         self.assertTrue(any("--project-name rpc-lane-check-cam-abi-check-" in line and " down " in line and line.endswith("--rmi local") for line in commands), commands)
+
+    def test_browser_check_cleans_its_disposable_project(self) -> None:
+        (self.checkout / "js/node_modules").mkdir()
+        (self.checkout / "js/package-lock.json").touch()
+        for fail in (False, True):
+            with self.subTest(fail=fail):
+                self.history.unlink(missing_ok=True)
+                result = self.make("viewer/browser/check", extra_environment={"CDP_ORIGIN": "http://127.0.0.1:7777", "VIEWER_URL": "http://127.0.0.1:5174", "TEST_FAIL_BROWSER_CHECK": str(int(fail))})
+                self.assertEqual(not fail, result.returncode == 0, result.stderr)
+                commands = self.history.read_text().splitlines()
+                run = next(line.split() for line in commands if line.endswith("-T browser-ui-check"))
+                project = run[run.index("-p") + 1]
+                self.assertTrue(project.startswith("rpc-lane-check-browser-check-"), project)
+                self.assertTrue(any(f"--project-name {project} down" in line and line.endswith("--rmi local") for line in commands), commands)
 
     def test_missing_cam_output_cannot_bypass_preflight(self) -> None:
         self.prepare_cam_outputs()

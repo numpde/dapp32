@@ -1647,8 +1647,19 @@ viewer/status:
 .PHONY: viewer/browser/check
 viewer/browser/check:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
-	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
-	$(DOCKER_COMPOSE) -p "$(COMPOSE_PROJECT_NAME)-viewer-browser-check" -f $(COMPOSE_DIR)/browser-ui-check.yml run --build --rm --no-deps -T browser-ui-check
+	export CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}"; \
+	check_dir="$$(mktemp -d -t cam-browser-check-XXXXXXXX)"; \
+	trap 'rm -rf "$$check_dir"' EXIT; \
+	check_hash="$$(printf '%s' "$$check_dir" | sha256sum)"; \
+	check_project="$(COMPOSE_PROJECT_NAME)-browser-check-$${check_hash:0:24}"; \
+	cleanup() { \
+	  status="$$?"; \
+	  $(call cleanup_disposable_project,$$check_project,-f $(COMPOSE_DIR)/browser-ui-check.yml,$$status,--rmi local); \
+	  rm -rf "$$check_dir"; \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(DOCKER_COMPOSE) -p "$$check_project" -f $(COMPOSE_DIR)/browser-ui-check.yml run --build --rm --no-deps -T browser-ui-check
 
 # Deliver current helpers to older running images without recreating the viewer.
 # Interpret them with sh because /tmp is noexec. Vite watches env-file changes
