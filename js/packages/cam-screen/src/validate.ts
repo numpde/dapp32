@@ -403,5 +403,5 @@ function rejectUnknownUiFields(
   allowedKeys: ReadonlySet<string>,
   path: string,
 ): void {
-  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in this UI: ${key}`)
+  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in UI ${UI_VERSION}: ${key}`)
 }

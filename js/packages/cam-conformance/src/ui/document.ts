@@ -57,7 +57,7 @@ function validateUiVersion(version: unknown): void {
 function validateTopLevelFields(value: Record<string, unknown>): void {
   for (const key of Object.keys(value)) {
     if (UI_DOCUMENT_TOP_LEVEL_KEYS.has(key)) continue
-    throw new RawUiDocumentError(`field is not allowed in UI ${value.ui}: ${key}`, key)
+    throw new RawUiDocumentError(`field is not allowed in UI ${UI_VERSION}: ${key}`, key)
   }
 }
 
