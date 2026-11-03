@@ -24,13 +24,48 @@ export function parseNftMetadata(text: string): InertRecord {
   }
 }
 
-export function nftMetadataDataURI(metadata: InertRecord): string {
-  const json = JSON.stringify(metadata)
-  assertMetadataTextBounds(json)
-  const bytes = new TextEncoder().encode(json)
+export function nftMetadataDataURI(text: string): string {
+  assertMetadataTextBounds(text)
+  for (const character of text) {
+    const code = character.charCodeAt(0)
+    if (character.length === 1 && code >= 0xd800 && code <= 0xdfff) {
+      throw new UserFacingError("Cannot embed this JSON: it contains an invalid Unicode character. Correct it in the JSON editor.")
+    }
+  }
+  const bytes = new TextEncoder().encode(text)
   let binary = ""
   for (const byte of bytes) binary += String.fromCharCode(byte)
   return `data:application/json;base64,${btoa(binary)}`
+}
+
+export function editNftMetadataField(text: string, key: "name" | "description" | "image", value: string): string {
+  const metadata = parseNftMetadata(text)
+  // Prove that this editor's parse-and-serialize operation preserves every
+  // original JSON token before allowing it to change one field.
+  if (withoutJsonWhitespace(text) !== JSON.stringify(metadata)) {
+    throw new UserFacingError("Cannot confirm this edit preserves the rest of the metadata. Edit the JSON directly instead; the original metadata is unchanged.")
+  }
+  const edited = JSON.stringify({ ...metadata, [key]: value })
+  assertMetadataTextBounds(edited)
+  return edited
+}
+
+function withoutJsonWhitespace(text: string): string {
+  let result = ""
+  let quoted = false
+  let escaped = false
+  for (const character of text) {
+    if (quoted) {
+      result += character
+      if (escaped) escaped = false
+      else if (character === "\\") escaped = true
+      else if (character === '"') quoted = false
+    } else if (character === '"') {
+      quoted = true
+      result += character
+    } else if (character !== " " && character !== "\t" && character !== "\r" && character !== "\n") result += character
+  }
+  return result
 }
 
 export function readJsonDataURI(uri: string): string {

@@ -52,6 +52,18 @@ export async function checkNftMetadata({ call, evaluate, viewerURL }) {
     assert.equal(await evaluate('window.nftFixture.uri()'), 'https://nft.fixture.test/metadata.json')
     await edit('input[name="tokenURI"]', 'https://nft.fixture.test/current.json')
     assert.equal(await evaluate('window.nftFixture.uri()'), 'https://nft.fixture.test/current.json', 'the visible JSON URL is immediately the transaction URI')
+    const preciseJSON = '{"image":"https://nft.fixture.test/old.png","extension":{"serial":9007199254740993}}'
+    const preciseURI = `data:application/json,${encodeURIComponent(preciseJSON)}`
+    await evaluate(`window.nftFixture.seed(${JSON.stringify(preciseURI)})`)
+    await wait(`document.querySelector('input[name="tokenURI.metadata.image"]')?.value==='https://nft.fixture.test/old.png'`)
+    await edit('input[name="tokenURI.metadata.image"]', 'https://nft.fixture.test/new.png')
+    await wait(`[...document.querySelectorAll('.nft-editor [role="alert"]')].some(node=>node.textContent.includes('preserves the rest of the metadata'))`)
+    assert.equal(await evaluate('window.nftFixture.uri()'), preciseURI, 'a refused structured edit preserves the exact original transaction URI')
+    assert.equal(await evaluate(`document.querySelector('input[name="tokenURI.metadata.image"]').value`), 'https://nft.fixture.test/old.png', 'a refused structured edit leaves the original image field intact')
+    const preciseEditedJSON = preciseJSON.replace('old.png', 'new.png')
+    await edit(json, preciseEditedJSON)
+    const preciseEditedURI = await evaluate('window.nftFixture.uri()')
+    assert.equal(Buffer.from(preciseEditedURI.split(',')[1], 'base64').toString('utf8'), preciseEditedJSON, 'direct JSON editing preserves the exact large integer')
     const compactInline = `data:application/json,${encodeURIComponent(JSON.stringify({ name: 'Compact existing NFT', extension: Array(50000).fill(0) }))}`
     await evaluate(`window.nftFixture.seed(${JSON.stringify(compactInline)})`)
     await wait(`document.querySelector('input[name="tokenURI.metadata.name"]')?.value==='Compact existing NFT'`)

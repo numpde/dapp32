@@ -6,7 +6,7 @@ import { failureReport, UserFacingError } from "./errors.ts"
 import { Feedback, FeedbackBox } from "./feedback.tsx"
 import { PropertyRow } from "./property-row.tsx"
 import { DownloadContext } from "./download-context.ts"
-import { isRelativeNftImageURI, loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readJsonDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
+import { editNftMetadataField, isRelativeNftImageURI, loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readJsonDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
 
 type SettledResource<T> = { readonly status: "idle" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown; readonly value?: T }
 type Resource<T> = SettledResource<T> | { readonly status: "pending"; readonly previous: SettledResource<T> }
@@ -137,7 +137,7 @@ function NftImage({ uri, baseURI, alt, autoLoadFrom }: { readonly uri: string; r
 function metadataDraft(text: string) {
   try {
     const metadata = parseNftMetadata(text)
-    return { text, metadata, uri: nftMetadataDataURI(metadata) }
+    return { text, metadata, uri: nftMetadataDataURI(text) }
   } catch (error) { return { text, error } }
 }
 
@@ -172,6 +172,7 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   const [mode, setMode] = useState<"hosted" | "embedded">(embedded ? "embedded" : "hosted")
   const [hostedURI, setHostedURI] = useState(embedded || value === null ? "" : value)
   const [draft, setDraft] = useState(() => initialMetadataDraft(value))
+  const [editIssue, setEditIssue] = useState<UserFacingError>()
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
   const hosted = hostedMetadata(hostedURI)
   const relativeImage = !("error" in draft) && typeof draft.metadata.image === "string" && isRelativeNftImageURI(draft.metadata.image)
@@ -182,10 +183,12 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
   }, [disabled, value, canonical, onInput, name])
 
   function changeMode(next: "hosted" | "embedded"): void {
+    setEditIssue(undefined)
     setMode(next)
     onInput(name, next === "hosted" ? hosted.value : embeddedURI)
   }
   function editDraft(text: string): void {
+    setEditIssue(undefined)
     const next = metadataDraft(text)
     setDraft(next)
     const relative = !("error" in next) && typeof next.metadata.image === "string" && isRelativeNftImageURI(next.metadata.image)
@@ -215,8 +218,13 @@ export function NftMetadataFieldView({ label, name, value, disabled, onInput }: 
       <div id={`${id}-hosted-feedback`}><p className="field-hint">Use the URL of the JSON document describing this NFT.</p>{"error" in hosted ? <Feedback report={failureReport(hosted.error)} kind="error" /> : null}</div>
     </section> : <section id={`${id}-embedded-panel`} role="tabpanel" aria-labelledby={`${id}-embedded-tab`} tabIndex={0}>
       <p className="field-hint">Store this JSON on chain. Images at external URLs remain separate.</p>
-      {(["name", "description", "image"] as const).map(key => <label className="field" key={key}><span>{key === "image" ? "Image URL" : key === "name" ? "Name" : "Description"}</span><input name={`${name}.metadata.${key}`} maxLength={NFT_METADATA_MAX_BYTES} disabled={disabled || "error" in draft} value={"error" in draft || typeof draft.metadata[key] !== "string" ? "" : draft.metadata[key] as string} onChange={event => { if (!("error" in draft)) editDraft(JSON.stringify({ ...draft.metadata, [key]: event.currentTarget.value })) }} /></label>)}
+      {(["name", "description", "image"] as const).map(key => <label className="field" key={key}><span>{key === "image" ? "Image URL" : key === "name" ? "Name" : "Description"}</span><input name={`${name}.metadata.${key}`} maxLength={NFT_METADATA_MAX_BYTES} disabled={disabled || "error" in draft} value={"error" in draft || typeof draft.metadata[key] !== "string" ? "" : draft.metadata[key] as string} onChange={event => {
+        if ("error" in draft) return
+        try { editDraft(editNftMetadataField(draft.text, key, event.currentTarget.value)) }
+        catch (error) { if (!(error instanceof UserFacingError)) throw error; setEditIssue(error) }
+      }} /></label>)}
       <details><summary>Advanced JSON</summary><label className="field"><span>Metadata JSON</span><textarea disabled={disabled} name={`${name}.metadata.json`} maxLength={NFT_METADATA_MAX_BYTES} value={draft.text} aria-invalid={"error" in draft} onChange={event => editDraft(event.currentTarget.value)} /></label></details>
+      {editIssue === undefined ? null : <Feedback report={failureReport(editIssue)} kind="error" />}
       {"error" in draft ? <Feedback report={failureReport(draft.error)} kind="error" /> : relativeImage ? <Feedback report={{ message: "Enter an absolute image URL before embedding this JSON." }} kind="error" /> : <NftMetadataPreview metadata={draft.metadata} baseURI={undefined} loadImage={false} />}
     </section>}
   </fieldset>

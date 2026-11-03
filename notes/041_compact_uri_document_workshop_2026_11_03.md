@@ -300,7 +300,8 @@ are viewer bounds, not a proven limit on deployed contracts.
 
 Two existing boundaries block a claim that nested edits are safe:
 
-1. `parseNftMetadata` uses `JSON.parse`, and a structured edit serializes the
+1. At the time of this workshop, `parseNftMetadata` used `JSON.parse`, and a
+   structured edit serialized the
    entire parsed object. For example, an untouched extension value
    `9007199254740993` can become `9007199254740992` when only `image` is
    changed. Existing extension-field tests do not prove arbitrary number or
@@ -311,6 +312,12 @@ Two existing boundaries block a claim that nested edits are safe:
    alteration acceptable. Avoid inventing a general JSON editing framework
    before comparing the smallest viable alternatives. No-op and cancel must
    preserve the original URI exactly.
+   Follow-up: the NFT editor now refuses structured edits unless its current
+   parse-and-serialize path can prove that the original JSON tokens are
+   unchanged; direct JSON editing encodes the entered text without
+   reserialization. This deliberately rejects some safe-to-edit documents
+   with different number or escape spellings. The mutable base issue below
+   remains separate.
 2. Bike's `BicycleComponents` uses OpenZeppelin `ERC721URIStorage`, whose
    `tokenURI` concatenates any nonempty collection base with the stored URI
    suffix. `baseURI()` is configurable and mutable. Consequently a submitted

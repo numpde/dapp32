@@ -5,6 +5,7 @@ import { assertDownloadAllowed } from "@cam/protocol"
 import {
   NFT_IMAGE_MAX_BYTES,
   NFT_METADATA_MAX_BYTES,
+  editNftMetadataField,
   isRelativeNftImageURI,
   loadNftImage,
   loadNftMetadata,
@@ -51,10 +52,38 @@ test("metadata preserves extension fields and primitive traits through edits, JS
   const changed = { ...original, description: "Corrected" }
   const json = JSON.stringify(changed)
   assert.deepEqual(plain(parseNftMetadata(json)), plain(changed))
-  assert.deepEqual(plain(await loadNftMetadata(nftMetadataDataURI(changed), signal(), allowDownload)), plain(changed))
+  assert.deepEqual(plain(await loadNftMetadata(nftMetadataDataURI(json), signal(), allowDownload)), plain(changed))
   assert.deepEqual(plain(await loadNftMetadata(`data:application/json;charset=utf-8,${encodeURIComponent(json)}`, signal(), allowDownload)), plain(changed))
   assert.equal(original.description, "Original")
   assert.equal(fetch.mock.callCount(), 0)
+})
+
+test("editing an NFT image refuses to alter an unrelated large integer", () => {
+  const original = '{"image":"https://example.test/old.png","extension":{"serial":9007199254740993}}'
+  assert.throws(() => editNftMetadataField(original, "image", "https://example.test/new.png"), /Cannot confirm.*preserves the rest/)
+  const uri = nftMetadataDataURI(original)
+  assert.equal(Buffer.from(uri.split(",")[1]!, "base64").toString("utf8"), original)
+})
+
+test("structured NFT edits refuse any unproven serialization, including nested and noncanonical values", () => {
+  for (const text of [
+    '{"extra":{"value":9007199254740993}}',
+    '{"extra":[1e-324]}',
+    '{"extra":-0}',
+    '{"extra":1.0}',
+    '{"extra":"\\u0061"}',
+  ]) for (const key of ["name", "description", "image"] as const) {
+    assert.throws(() => editNftMetadataField(text, key, "updated"), /Cannot confirm.*preserves the rest/, `${key}: ${text}`)
+  }
+  const source = '{ "name" : "Before", "extra" : { "serial": 42, "list": [true, null] } }'
+  assert.equal(editNftMetadataField(source, "name", "After"), '{"name":"After","extra":{"serial":42,"list":[true,null]}}')
+})
+
+test("embedding preserves the exact entered JSON text and refuses unpaired Unicode surrogates", () => {
+  const source = '{\n "serial":9007199254740993, "name":"Bicycle"\n}'
+  const uri = nftMetadataDataURI(source)
+  assert.equal(Buffer.from(uri.split(",")[1]!, "base64").toString("utf8"), source)
+  assert.throws(() => nftMetadataDataURI('{"name":"\ud800"}'), /invalid Unicode/)
 })
 
 test("metadata requires a JSON object, unique keys, finite values and bounded nesting", () => {
