@@ -436,20 +436,11 @@ summary:focus-visible {
 .address-option > code { flex: 0 0 auto; white-space: nowrap; }
 .address-option[data-highlighted] { outline: 2px solid var(--accent); outline-offset: -2px; background: #eef6f4; }
 
-.resources { display: grid; gap: 8px; margin-block: 16px; }
+ .resources { display: grid; gap: 8px; margin-block: 16px; }
 .resources h2 { margin: 0; font-size: 1rem; }
-.resource-row { min-width: 0; }
-.resource-row > .key-value { padding: 0; }
-.resource-row > .key-value > dt { flex-basis: 140px; }
-.resource-row > .key-value > dd { min-width: 0; }
-.resource-value { display: grid; grid-template-columns: minmax(0, 32rem) 28px 9rem; align-items: center; gap: 4px 8px; min-width: 0; }
-.resource-link { display: flex; min-width: 0; overflow: hidden; white-space: nowrap; color: var(--accent); text-underline-offset: 0.15em; }
-.resource-origin { flex: 1 1 0; min-width: 0; overflow: hidden; }
-.resource-link .hex-middle { flex: none; }
-.resource-filename { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.resource-status-ok, .resource-status-warning { font-size: 0.8125rem; white-space: nowrap; }
+.resource-value { display: grid; grid-template-columns: 7rem 28px minmax(0, 1fr); align-items: center; gap: 8px; }
+.resource-link { color: var(--accent); text-underline-offset: 0.15em; overflow-wrap: anywhere; }
+.resource-status-ok, .resource-status-warning { font-size: 0.8125rem; }
 .resource-status-ok { color: var(--muted); }
-.resource-status-warning { color: var(--danger); font-weight: 600; }
-.resource-details { margin: 2px 0 0 148px; }
-.resource-details summary { width: fit-content; color: var(--accent); font-size: 0.8125rem; cursor: pointer; }
-@media (max-width: 600px) { .resource-value { grid-template-columns: minmax(0, 1fr) 28px auto; } .resource-row > .key-value > dt { flex-basis: 100%; } .resource-details { margin-left: 0; } }
+button.resource-status-warning { justify-self: start; padding: 4px 0; min-height: 28px; color: var(--danger); text-decoration: underline dotted; text-underline-offset: 0.2em; }
+.resource-value .copy-recovery { grid-column: 1 / -1; }

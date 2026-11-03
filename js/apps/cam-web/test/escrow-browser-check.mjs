@@ -237,7 +237,7 @@ async function waitFor(predicate, label, failOnViewerError) {
 }
 async function assertNarrowUi(label, width) {
   await call('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: width < 500 }, sessionId)
-  const layout = await evaluate(`(() => { const meta = document.querySelector('.connection-facts'); const uri = document.querySelector('.resources .resource-row:nth-of-type(2) .resource-link'); return { page: document.documentElement.scrollWidth, viewport: innerWidth, meta: meta?.scrollWidth, metaClient: meta?.clientWidth, uri: uri?.scrollWidth, uriClient: uri?.clientWidth, uriText: uri?.textContent, uriRight: uri?.getBoundingClientRect().right, uiRight: document.querySelector('.resources')?.getBoundingClientRect().right } })()`)
+  const layout = await evaluate(`(() => { const meta = document.querySelector('.connection-facts'); const uri = document.querySelector('.resources .resource-row:nth-of-type(2) .resource-link'); return { page: document.documentElement.scrollWidth, viewport: innerWidth, meta: meta?.scrollWidth, metaClient: meta?.clientWidth, uri: uri?.scrollWidth, uriClient: uri?.clientWidth, uriText: uri?.getAttribute('title'), uriRight: uri?.getBoundingClientRect().right, uiRight: document.querySelector('.resources')?.getBoundingClientRect().right } })()`)
   assert.equal(layout.uriText, new URL('./ui.json', cam).href, `${label}: UI URI is missing`)
   assert(layout.page <= layout.viewport, `${label}: document overflows at ${width}px`)
   assert(layout.meta <= layout.metaClient && layout.uri <= layout.uriClient && layout.uriRight <= layout.uiRight, `${label}: UI URI is clipped at ${width}px`)

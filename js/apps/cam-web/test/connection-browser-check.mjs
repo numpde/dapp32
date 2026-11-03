@@ -213,7 +213,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
       assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `connection facts reflow at ${width}px`)
     }
-    const warning = `document.querySelector('[aria-label="UI integrity warnings"]')`
+    const warning = `document.querySelector('.resources .resource-status-warning')`
     await open('no-wallet')
     await wait(`!!document.querySelector('.ui')`)
     assert(await evaluate(`document.querySelector('.wallet-value').textContent.trim()==='Wallet not detected'&&document.querySelector('.wallet-button').disabled&&!document.querySelector('.wallet-value code')`), 'a missing provider is explained by the unavailable control without a separate status label')
@@ -236,15 +236,15 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await open('unverified-held')
     await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
     assert(await evaluate(`!document.querySelector('.ui')&&document.querySelector('.panel')?.textContent.includes('Loading app')`), 'the root warning appears while later resources are still loading')
-    await evaluate('connectionFixture.releaseProtocol()')
+    await evaluate(`window.earlyResource=document.querySelector('.resource-row');document.querySelector('.resource-status-warning').click();window.earlyDialog=document.querySelector('.resources dialog');connectionFixture.releaseProtocol()`)
     await wait(`!!document.querySelector('.ui')`)
-    assert.equal(await evaluate(`document.querySelectorAll('.resources [data-kind="warning"]').length`), 1, 'ready replaces progress without duplicating warnings')
+    assert(await evaluate(`document.querySelector('.resource-row')===window.earlyResource&&document.querySelector('.resources dialog')===window.earlyDialog&&window.earlyDialog.open&&document.querySelectorAll('.resource-status-warning').length===1`), 'loading completion preserves the resource row and open verification dialog')
 
     await open('unverified-held')
     await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
-    await evaluate('connectionFixture.state.failHeldProtocol=true;connectionFixture.releaseProtocol()')
+    await evaluate(`window.failedResource=document.querySelector('.resource-row');document.querySelector('.resource-status-warning').click();connectionFixture.state.failHeldProtocol=true;connectionFixture.releaseProtocol()`)
     await wait(`!!document.querySelector('.panel.error')`)
-    assert(await evaluate(`!!${warning}&&${warning}.textContent.includes('hash stored in the contract is zero')`), 'a later download failure preserves already known warnings')
+    assert(await evaluate(`!!${warning}&&document.querySelector('.resource-row')===window.failedResource&&document.querySelector('.resources dialog').open&&document.querySelector('.resources').textContent.includes('hash stored in the contract is zero')`), 'a later download failure preserves already known warnings')
     await evaluate(`connectionFixture.state.unverifiedRoot=false;[...document.querySelectorAll('button')].find(button=>button.textContent==='Retry loading').click()`)
     await wait(`!!document.querySelector('.ui')`)
     assert(await evaluate(`!${warning}`), 'retry clears prior-attempt warnings')
@@ -261,7 +261,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
 
     await open('unverified')
     await wait(`!!document.querySelector('.ui')`)
-    await evaluate(`document.querySelector('.resource-details summary').click()`)
+    await evaluate(`document.querySelector('.resource-status-warning').click()`)
     assert(await evaluate(`!!document.querySelector('.resources [role="status"][data-kind="warning"]')`), 'a zero verification hash produces a warning while the UI remains available')
     assert(await evaluate(`document.querySelector('.resources').textContent.includes('hash stored in the contract is zero')`), 'the unverified condition is stated explicitly')
     assert(await evaluate(`(()=>{const warning=document.querySelector('.resources [role="status"]');const normal=document.createElement('div');normal.className='error-feedback';normal.dataset.kind='status';document.body.append(normal);const distinct=getComputedStyle(warning).backgroundColor!==getComputedStyle(normal).backgroundColor;normal.remove();return distinct})()`), 'unverified resources do not use the normal status treatment')

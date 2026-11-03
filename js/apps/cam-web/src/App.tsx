@@ -49,7 +49,7 @@ import { createInjectedWalletBinding } from "./wallet-binding.ts"
 import { actionFailure, failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback, TransactionFeedback } from "./feedback.tsx"
-import { IntegrityWarnings, Resources } from "./integrity-warnings.tsx"
+import { Resources } from "./integrity-warnings.tsx"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
   assertHostHasCode,
@@ -969,7 +969,7 @@ export function App(): ReactElement {
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
       ) : <div className="connection connection-facts">{resourcePolicy}{gatewayControl}</div>}
 
-      {loadState.status === "ready" ? <Resources key={JSON.stringify([loadRequest?.chainId, loadRequest?.host, loadState.runtime.rpc.active.url])} snapshot={loadState.snapshot} onRefresh={refreshIntegrity} /> : loadState.status === "setup" ? null : <IntegrityWarnings warnings={loadState.integrityWarnings} onRefresh={refreshIntegrity} />}
+      {loadState.status === "setup" ? null : <Resources key={JSON.stringify([loadRequest?.chainId, loadRequest?.host, loadRequest?.rpcUrl])} snapshot={loadState.status === "ready" ? loadState.snapshot : loadState} onRefresh={refreshIntegrity} />}
       {notice === undefined ? null : (
         <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}
