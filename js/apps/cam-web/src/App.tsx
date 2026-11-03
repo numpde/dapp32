@@ -480,7 +480,7 @@ export function App(): ReactElement {
     browserHistory.back()
   }
 
-  async function refreshIntegrity(warning: CamIntegrityWarning, signal: AbortSignal): Promise<CamIntegrityCheck> {
+  async function refreshIntegrity(resource: Pick<CamIntegrityWarning, "uri" | "hashSource">, signal: AbortSignal): Promise<CamIntegrityCheck> {
     const current = readyRef.current
     const startup = current.status === "ready" ? current.runtime.startup : current.status === "setup" ? undefined : current.startup
     if (startup === undefined) throw new UserFacingError("Cannot refresh these hashes without the app's connection settings.")
@@ -489,7 +489,7 @@ export function App(): ReactElement {
       publicClient,
       host: { chainId: startup.chainId, address: startup.host },
       loadResource: createViewerResourceLoader(assertCurrentDownloadAllowed, gatewayRef.current, signal),
-      resource: warning,
+      resource,
     })
   }
 

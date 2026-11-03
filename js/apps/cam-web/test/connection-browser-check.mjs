@@ -261,6 +261,10 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
 
     await open('unverified')
     await wait(`!!document.querySelector('.ui')`)
+    await evaluate(`window.matchedView=document.querySelector('.ui');document.querySelector('.resource-status-ok').click()`)
+    await wait(`document.querySelector('.resources dialog[open]')?.textContent.includes('latest download matches')`)
+    assert(await evaluate(`(()=>{const dialog=document.querySelector('.resources dialog[open]');return dialog.textContent.includes('Expected hash')&&dialog.textContent.includes('Downloaded hash')&&dialog.textContent.includes('fresh download')&&document.querySelector('.ui')===window.matchedView&&connectionFixture.state.sends===0})()`), 'matched resources expose fresh hash details without replacing the app or sending transactions')
+    await evaluate(`[...document.querySelectorAll('.resources dialog[open] button')].find(button=>button.textContent==='Close').click()`)
     await evaluate(`document.querySelector('.resource-status-warning').click()`)
     assert(await evaluate(`!!document.querySelector('.resources [role="status"][data-kind="warning"]')`), 'a zero verification hash produces a warning while the UI remains available')
     assert(await evaluate(`document.querySelector('.resources').textContent.includes('hash stored in the contract is zero')`), 'the unverified condition is stated explicitly')
