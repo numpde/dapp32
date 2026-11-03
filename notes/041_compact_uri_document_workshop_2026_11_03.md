@@ -54,8 +54,8 @@ it, leaving prose reviews as text.
 Initial proposal: a single-line URI field with an **Embed** action, opening a
 text/JSON editor in a dialog. Rejected: an ordinary single-line editable input
 is poor at displaying a long encoded document, and simply opening a `data:` URI
-in a browser tab is unreliable. Also, an icon-only action does not explain what
-it does.
+in a browser tab is unreliable. An icon-only action needs an accessible name
+and tooltip to explain what it does.
 
 Revised candidate:
 
@@ -67,7 +67,9 @@ Terms URI
   [Embed document]
 ```
 
-The action may be placed inline with the field if there is enough width, and
+The implemented action uses a document icon within the field, following the
+existing joined address control; its accessible name and tooltip identify the
+embed or edit action. The action may be placed inline with the field, and
 wrap without overlap at narrow widths. It is a secondary action with a clear
 name, not a second primary button. For an embedded URI, offer **Edit document**
 and retain an inspect/copy affordance for the exact URI; a compact summary is

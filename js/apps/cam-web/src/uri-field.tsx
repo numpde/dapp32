@@ -23,6 +23,8 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
   readonly onInput: (name: string, value: string | null) => void
 }): ReactElement {
   const inputId = useId()
+  const embedded = /^data:/i.test(value)
+  const actionLabel = `${embedded ? "Edit embedded document for" : "Embed document for"} ${label}`
   const dialog = useRef<HTMLDialogElement>(null)
   const [draft, setDraft] = useState<{ original: string; scope: string; initial: string; initialType: "text/plain" | "application/json" | undefined; text: string; type: "text/plain" | "application/json" }>()
   const [error, setError] = useState<unknown>()
@@ -61,7 +63,12 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
     <label htmlFor={inputId}>{displayText(label)}</label>
     <div className="uri-control">
       <input id={inputId} name={name} value={value} disabled={disabled} onChange={event => onInput(name, event.currentTarget.value)} />
-      <button type="button" aria-haspopup="dialog" aria-label={`${/^data:/i.test(value) ? "Edit embedded document for" : "Embed document for"} ${label}`} disabled={disabled} onClick={open}>{/^data:/i.test(value) ? "Edit" : "Embed"}</button>
+      <button type="button" aria-haspopup="dialog" aria-label={actionLabel} title={actionLabel} disabled={disabled} onClick={open}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7M13 3l5 5h-5z" />
+          {embedded ? <path d="m15 18 5-5 2 2-5 5-3 1z" /> : <path d="M18 13v8m-4-4h8" />}
+        </svg>
+      </button>
     </div>
     {draft === undefined && error !== undefined ? <Feedback report={failureReport(error)} kind="error" /> : null}
     <dialog ref={dialog} aria-label={`Embed ${label}`} onCancel={event => { event.preventDefault(); setDraft(undefined); setError(undefined) }}>

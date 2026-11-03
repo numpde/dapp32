@@ -303,7 +303,8 @@ select:disabled {
 .uri-control:has(:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .uri-control > input:focus-visible { outline: none; }
 .uri-control > input { flex: 1; min-width: 0; height: var(--control-height); align-self: center; border: 0; background: transparent; }
-.uri-control > button { flex: 0 0 auto; align-self: center; height: var(--control-height); min-height: 0; padding: 0 var(--control-padding-inline); border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent; color: var(--accent); }
+.uri-control > button { display: grid; place-items: center; flex: 0 0 40px; align-self: center; height: var(--control-height); min-height: 0; padding: 0; border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent; color: var(--muted); }
+.uri-control > button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .uri-control > button:disabled { color: var(--muted); }
 .uri-control > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 .uri-field dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); border-radius: 8px; padding: 20px; color: var(--ink); background: var(--panel); }

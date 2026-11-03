@@ -19,11 +19,11 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
         const input = group.querySelector('input').getBoundingClientRect();
         const button = group.querySelector('button').getBoundingClientRect();
         const bounds = group.getBoundingClientRect();
-        return { label: group.querySelector('button').getAttribute('aria-label'), text: group.querySelector('button').textContent,
+        return { label: group.querySelector('button').getAttribute('aria-label'), title: group.querySelector('button').title, icon: !!group.querySelector('button svg[aria-hidden="true"]'),
           joined: Math.abs(input.right - button.left) < 1, aligned: Math.abs(input.top - button.top) < 1 && Math.abs(input.bottom - button.bottom) < 1,
           contained: bounds.width <= innerWidth && button.right <= innerWidth && input.width > 0 };
       })()`)
-      assert.deepEqual(control, { label: 'Embed document for Terms URI', text: 'Embed', joined: true, aligned: true, contained: true }, `URI input and action share one usable control at ${width}px`)
+      assert.deepEqual(control, { label: 'Embed document for Terms URI', title: 'Embed document for Terms URI', icon: true, joined: true, aligned: true, contained: true }, `URI input and action share one usable control at ${width}px`)
     }
     await call('Emulation.clearDeviceMetricsOverride')
     await evaluate(`document.querySelector('.uri-control > button').click()`)
@@ -40,6 +40,8 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await wait(`!document.querySelector('.uri-field dialog').open`)
     assert.equal(await evaluate(`fetch(${uri}.value).then(response=>response.text())`), documentText, 'embedded JSON preserves the entered text')
     const embeddedURI = await evaluate(`${uri}.value`)
+    assert.equal(await evaluate(`document.querySelector('.uri-control > button').getAttribute('aria-label')`), 'Edit embedded document for Terms URI')
+    assert.equal(await evaluate(`document.querySelector('.uri-control > button').title`), 'Edit embedded document for Terms URI')
     await evaluate(`[...document.querySelectorAll('.uri-value button')].find(button=>button.textContent==='View').click()`)
     await wait(`!!document.querySelector('.uri-value .json-view pre')`)
     assert.equal(await evaluate(`document.querySelector('.uri-value .json-view pre').textContent`), documentText, 'read-only URI inspection shows the decoded document')
