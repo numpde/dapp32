@@ -60,6 +60,15 @@ both paths and keep inside clicks and drags from dismissing the dialog.
    fields; required numeric input and malformed address feedback are already
    implemented. Agreement reference/ID and document inputs remain to review.
 
+   The first-party TextField review check requires every plain occurrence to
+   have an explicit decision. Known validation debt remains: Bike serials and
+   lifecycle reports need nonempty checks; Escrow references need their UTF-8
+   byte limit and IDs need bytes32 feedback; Pay-to-Play invoice hashes and
+   signatures need their respective byte-format feedback. Bike profile text
+   is deliberately unrestricted and empty clears it. The check prevents new
+   unreviewed occurrences; it does not claim these existing gaps are fixed or
+   prove that a declared format matches a contract.
+
 4. Complete navigation and visible app details
 
    Status: queued. Owners: app-authored navigation across all apps; shared
