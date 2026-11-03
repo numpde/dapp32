@@ -539,6 +539,8 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
 
   const snapshot = await session.load()
 
+  assert.equal(snapshot.camURI, camURI)
+  assert.equal(snapshot.uiURI, BIKE_UI_URI)
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.resolvedUi.element, "Screen")
   assert.equal(resolvedStatusValue(snapshot.resolvedUi, "Registry paused"), false)

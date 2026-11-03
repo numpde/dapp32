@@ -47,7 +47,6 @@ export function ConnectionSummary({
   wallet,
   walletAction,
   route,
-  uiURI,
   children,
 }: {
   readonly chainId: string
@@ -56,7 +55,6 @@ export function ConnectionSummary({
   readonly wallet: string | undefined
   readonly walletAction: ReactElement
   readonly route: string | undefined
-  readonly uiURI: string | undefined
   readonly children?: ReactNode
 }): ReactElement {
   return (
@@ -67,7 +65,6 @@ export function ConnectionSummary({
         <PropertyRow label="Chain" value={<ChainLabel key={chainId} chainId={chainId} />} />
         <PropertyRow label="CAM contract" value={host} />
         {route === undefined ? null : <PropertyRow label="Read route" value={route} />}
-        {uiURI === undefined ? null : <PropertyRow label="UI resource" value={uiURI} />}
         {children}
       </div>
     </section>

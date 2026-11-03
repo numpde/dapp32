@@ -49,7 +49,7 @@ import { createInjectedWalletBinding } from "./wallet-binding.ts"
 import { actionFailure, failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback, TransactionFeedback } from "./feedback.tsx"
-import { IntegrityWarnings } from "./integrity-warnings.tsx"
+import { IntegrityWarnings, Resources } from "./integrity-warnings.tsx"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
   assertHostHasCode,
@@ -961,7 +961,6 @@ export function App(): ReactElement {
           account={loadState.status === "ready" ? currentViewerAccount(loadState) : displayedConnection.account}
           wallet={wallet.status === "connected" ? wallet.address : undefined}
           route={loadState.status === "ready" ? loadState.snapshot.route : undefined}
-          uiURI={loadState.status === "ready" ? loadState.snapshot.uiURI : undefined}
           walletAction={(
             <button className="wallet-button" type="button" aria-busy={walletRefreshing} disabled={wallet.status === "unavailable" || connection === undefined || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
               {walletRefreshing ? "Updating account…" : wallet.status === "unavailable" ? "Wallet not detected" : wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
@@ -970,7 +969,7 @@ export function App(): ReactElement {
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
       ) : <div className="connection connection-facts">{resourcePolicy}{gatewayControl}</div>}
 
-      {loadState.status === "setup" ? null : <IntegrityWarnings key={JSON.stringify([loadRequest?.chainId, loadRequest?.host, loadState.status === "ready" ? loadState.runtime.rpc.active.url : loadRequest?.rpcUrl])} warnings={loadState.status === "ready" ? loadState.snapshot.integrityWarnings : loadState.integrityWarnings} onRefresh={refreshIntegrity} />}
+      {loadState.status === "ready" ? <Resources key={JSON.stringify([loadRequest?.chainId, loadRequest?.host, loadState.runtime.rpc.active.url])} snapshot={loadState.snapshot} onRefresh={refreshIntegrity} /> : loadState.status === "setup" ? null : <IntegrityWarnings warnings={loadState.integrityWarnings} onRefresh={refreshIntegrity} />}
       {notice === undefined ? null : (
         <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}

@@ -7,7 +7,7 @@ import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
 import { Feedback, TransactionFeedback } from "../src/feedback.tsx"
-import { IntegrityWarnings } from "../src/integrity-warnings.tsx"
+import { IntegrityWarnings, Resources } from "../src/integrity-warnings.tsx"
 import { BuildFooter } from "../src/build-footer.tsx"
 import type { SubmittedTransactionReference, TransactionStage } from "../src/transactions.ts"
 import "../src/styles.css"
@@ -44,8 +44,8 @@ let documentURI = "https://example.test/terms"
 let documentDigest = ""
 let viewingAccount = "0x1111111111111111111111111111111111111111"
 let connectionChainId = "eip155:31337"
+let appResource: string | undefined = "https://example.test/ui.json"
 let appRoute: string | undefined = "fixture"
-let appResource: string | undefined = "fixture"
 let hashPhase: "idle" | "pending" | "succeeded" = "pending"
 let transactionReport: { transaction: SubmittedTransactionReference | undefined } | undefined
 function monetaryFact(label: string, value: string) {
@@ -69,7 +69,7 @@ function render(): void {
   const integer = projectIntegerDraft(integerDraft, { min: "0", max: "100" })
   const duration = projectDurationDraft(durationDraft, { min: "0", max: "100" })
   const amount = projectAmountDraft(amountDraft)
-  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, bytes32Draft, signatureDraft, boundedDraft, documentURI, document: documentDigest, metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, bytes32Draft, signatureDraft, boundedDraft, documentURI, document: documentDigest, metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], camURI: "https://example.test/main.json", uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Screen", props: { title: "Overview" }, children: [
       { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
     ] },
@@ -114,10 +114,11 @@ function render(): void {
     createElement(ConnectionSummary, {
       chainId: connectionChainId, host: "0x3333333333333333333333333333333333333333",
       account: viewingAccount,
-      route: appRoute, uiURI: appResource,
+      route: appRoute,
       wallet: "0x2222222222222222222222222222222222222222",
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
+    appResource === undefined ? null : createElement(Resources, { snapshot: { ...snapshot, uiURI: appResource, integrityWarnings: [] } }),
     createElement(UiView, props),
     createElement(Feedback, { report: { message: "Ready to continue." }, kind: "status", className: "notice" }),
     createElement(IntegrityWarnings, { warnings: [{ hashSource: "contract", status: "unverified", uri: "https://example.test/manifest.json", expectedHash: `0x${"00".repeat(32)}`, actualHash: fixtureDigest }, { hashSource: "manifest", status: "mismatch", uri: "https://example.test/ui.json", expectedHash: `sha256:${fixtureDigest}`, actualHash: `0x${"cd".repeat(32)}` }] }),
