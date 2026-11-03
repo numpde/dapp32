@@ -216,7 +216,7 @@ discovered manifest and protocol output is owned and writable by that mapped
 identity. Engine-info failure or an empty result is not a rootless fallback.
 The service remains offline, capability-free, and under no-new-privileges.
 
-This does not fix the earlier rootless ABI export plan or ABI output phase.
+The ABI export plan and output phase required the separate change below.
 
 Further audit tightened the exception: a rootless refresh rejects requested
 UID/GID values different from the invoking user and group. The host checks
@@ -275,3 +275,23 @@ write failure. Planning retains changed output bytes for all apps, so it does
 not establish a bounded aggregate-memory guarantee. It cannot guarantee
 crash-atomic multi-file changes or prevent a non-cooperating same-user process
 from racing a preflight.
+
+## ABI export: verification and limits
+
+Both offline ABI stages now select the engine identity before running. The
+private 0700 plan directory must be accessible to that identity; nondefault
+requested IDs are rejected explicitly. On rootless engines, host ownership and
+container ownership and writability are checked before any ABI output is
+cleared. All planned output directories must be admitted by the existing
+explicit writable mounts. The identity choice is shared with integrity refresh.
+
+On the selected rootless engine, an isolated checkout exported all three apps
+and refreshed a deliberately stale manifest; generated ABI files remained
+caller-owned. Adding a fourth app caused the output preflight to fail, with
+all eight approved ABI files unchanged. Fake-engine tests cover identity
+selection and failure paths; an actual rootful engine was not exercised.
+These preflights do not prevent concurrent path replacement. ABI application
+still clears and replaces outputs sequentially, so interruption or a write
+failure can leave a partial export. The isolated export also produced Bike NFT
+ABIs substantially different from the checked-in files; that pre-existing
+generated-resource discrepancy requires separate investigation.

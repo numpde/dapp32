@@ -5,7 +5,7 @@ endef
 override COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME VIEWER_COMPOSE_PROJECT_NAME RELEASE_VIEWER_COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
 $(foreach name,LOCAL_UID LOCAL_GID ALLOW_UPDATE $(COMPOSE_PROJECT_NAME_VARS) ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN CAM_URI CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS VIEWER_TERMINAL_MOCK,$(call reject_external_make_expression,$(name)))
 
-$(foreach name,DEPS_COMPOSE_ENV PACKAGE_DEPS_COMPOSE_ENV ABI_EXPORT_COMPOSE_ENV RPC_COMPOSE_ENV RPC_INDEXER_COMPOSE_ENV ANVIL_COMPOSE_ENV LIVE_CHECK_COMPOSE_ENV BIKE_NFT_COMPOSE_ENV BIKE_NFT_LOCAL_COMPOSE_ENV BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV BIKE_NFT_VIEWER_GUI_COMPOSE_ENV BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV ESCROW_COMPOSE_ENV ESCROW_LOCAL_SCENARIO_COMPOSE_ENV ESCROW_VIEWER_TERMINAL_COMPOSE_ENV ESCROW_VIEWER_GUI_COMPOSE_ENV ESCROW_RELEASE_CHECK_COMPOSE_ENV TEST_INTEGRATION_FUZZ_ENV TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV VIEWER_TERMINAL_COMPOSE_ENV ANVIL_INTERNAL_COMPOSE_ENV ANVIL_HOST_COMPOSE_ENV ANVIL_ALL_COMPOSE_ENV PAY_TO_PLAY_COMPOSE_ENV PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV COMPOSE_ENV COMPOSE_DIR CAM_COMPOSE_FILES COMPOSE_PROJECT_NAME_VARS cam_integrity_refresh cleanup_disposable_project disposable_cleanup_command LANE_GUARD NON_ROOT_GUARD COMPOSE_PROJECT_NAME_GUARD REPO_SHAPE_GUARD FIRST_PARTY_ROOTS ACTUAL_UID ACTUAL_GID DEPS_COMPOSE_PROJECT_NAME PACKAGE_DEPS_COMPOSE_PROJECT_NAME ABI_EXPORT_COMPOSE_PROJECT_NAME ALLOW_UPDATE_GUARD CAM_RESOURCE_OUTPUT_GUARD ANVIL_HOST_PORT_GUARD BIKE_NFT_GUI_BIND_GUARD ESCROW_GUI_BIND_GUARD PAY_TO_PLAY_GUI_BIND_GUARD CAM_URI_GUARD CAM_INTEGRATION_INPUT_GUARD VIEWER_TERMINAL_MOCK_GUARD,$(call reject_external_make_expression,$(name)))
+$(foreach name,DEPS_COMPOSE_ENV PACKAGE_DEPS_COMPOSE_ENV ABI_EXPORT_COMPOSE_ENV RPC_COMPOSE_ENV RPC_INDEXER_COMPOSE_ENV ANVIL_COMPOSE_ENV LIVE_CHECK_COMPOSE_ENV BIKE_NFT_COMPOSE_ENV BIKE_NFT_LOCAL_COMPOSE_ENV BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV BIKE_NFT_VIEWER_GUI_COMPOSE_ENV BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV ESCROW_COMPOSE_ENV ESCROW_LOCAL_SCENARIO_COMPOSE_ENV ESCROW_VIEWER_TERMINAL_COMPOSE_ENV ESCROW_VIEWER_GUI_COMPOSE_ENV ESCROW_RELEASE_CHECK_COMPOSE_ENV TEST_INTEGRATION_FUZZ_ENV TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV VIEWER_TERMINAL_COMPOSE_ENV ANVIL_INTERNAL_COMPOSE_ENV ANVIL_HOST_COMPOSE_ENV ANVIL_ALL_COMPOSE_ENV PAY_TO_PLAY_COMPOSE_ENV PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV COMPOSE_ENV COMPOSE_DIR CAM_COMPOSE_FILES FORGE_ABI_COMPOSE_FILES COMPOSE_PROJECT_NAME_VARS select_cam_output_identity cam_integrity_refresh cleanup_disposable_project disposable_cleanup_command LANE_GUARD NON_ROOT_GUARD COMPOSE_PROJECT_NAME_GUARD REPO_SHAPE_GUARD FIRST_PARTY_ROOTS ACTUAL_UID ACTUAL_GID DEPS_COMPOSE_PROJECT_NAME PACKAGE_DEPS_COMPOSE_PROJECT_NAME ABI_EXPORT_COMPOSE_PROJECT_NAME ALLOW_UPDATE_GUARD CAM_RESOURCE_OUTPUT_GUARD ANVIL_HOST_PORT_GUARD BIKE_NFT_GUI_BIND_GUARD ESCROW_GUI_BIND_GUARD PAY_TO_PLAY_GUI_BIND_GUARD CAM_URI_GUARD CAM_INTEGRATION_INPUT_GUARD VIEWER_TERMINAL_MOCK_GUARD,$(call reject_external_make_expression,$(name)))
 
 # Parse-time probes use a noninteractive POSIX shell, which does not load
 # Bash's ambient startup file. Recipes use Bash after these probes are set up.
@@ -224,7 +224,7 @@ override ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
 LIVE_DEPS_EGRESS_COMPOSE_FILES := -f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml
 override CAM_COMPOSE_FILES := -f $(COMPOSE_DIR)/cam.yml
 CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES := -f $(COMPOSE_DIR)/cam-publication.yml
-FORGE_ABI_COMPOSE_FILES := -f $(COMPOSE_DIR)/forge-abi.yml
+override FORGE_ABI_COMPOSE_FILES := -f $(COMPOSE_DIR)/forge-abi.yml
 BIKE_NFT_LOCAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml
 BIKE_NFT_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-gui.yml
@@ -1547,9 +1547,9 @@ dapps/build: dapps/deps/verify
 dapps/scripts/build: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-script-build)
 
-# Rootless Docker maps namespace UID 0 to the engine owner; check every output
-# inside the generator before it writes. Rootful engines use the configured IDs.
-override define cam_integrity_refresh
+# Rootless Docker maps namespace UID 0 to the engine owner. Callers must
+# verify their writable outputs before using that identity.
+override define select_cam_output_identity
 cam_user="$$LOCAL_UID:$$LOCAL_GID"; \
 if ! security_options="$$( \
   security_options_file="$$(mktemp)" || exit 2; \
@@ -1562,7 +1562,14 @@ if ! security_options="$$( \
 )"; then printf '%s\n' 'Cannot inspect the selected Docker engine security posture.' >&2; exit 2; fi; \
 while IFS= read -r security_option; do if [[ ! "$$security_option" =~ ^name=[[:graph:]]+$$ ]]; then printf '%s\n' 'Docker engine returned malformed security options.' >&2; exit 2; fi; done <<< "$$security_options"; \
 if grep -Fxq 'name=rootless' <<< "$$security_options"; then \
-  if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then printf '%s\n' 'Rootless CAM refresh requires the invoking user and group IDs.' >&2; exit 2; fi; \
+  if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then printf '%s\n' 'Rootless CAM output requires the invoking user and group IDs.' >&2; exit 2; fi; \
+  cam_user=0:0; \
+fi
+endef
+
+override define cam_integrity_refresh
+$(select_cam_output_identity); \
+if [[ "$$cam_user" == 0:0 ]]; then \
   for cam_output in dapps/bike-nft/cam/{main.json,protocol.html} dapps/escrow/cam/{main.json,protocol.html} dapps/pay-to-play/cam/{main.json,protocol.html}; do \
     if [[ "$$(stat -c %u -- "$$cam_output")" != "$(ACTUAL_UID)" ]]; then printf 'Rootless CAM output must be owned by the invoking user: %s\n' "$$cam_output" >&2; exit 2; fi; \
   done; \
@@ -1576,6 +1583,14 @@ endef
 cam/abi/export: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(CAM_RESOURCE_OUTPUT_GUARD); \
+	$(select_cam_output_identity); \
+	if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then printf '%s\n' 'ABI export requires the invoking user and group IDs for its private plan.' >&2; exit 2; fi; \
+	if [[ "$$cam_user" == 0:0 ]]; then \
+	  for abi_output in dapps/bike-nft/cam/abi dapps/escrow/cam/abi dapps/pay-to-play/cam/abi; do \
+	    if [[ -L "$$abi_output" || ! -d "$$abi_output" || "$$(stat -c %u -- "$$abi_output")" != "$(ACTUAL_UID)" ]]; then printf 'Rootless ABI output must be an existing directory owned by the invoking user: %s\n' "$$abi_output" >&2; exit 2; fi; \
+	  done; \
+	  printf '%s\n' 'Rootless ABI export verifies its namespace UID 0 mapping before writing.' >&2; \
+	fi; \
 	abi_plan_dir="$$(mktemp -d)"; \
 	chmod 0700 "$$abi_plan_dir"; \
 	cleanup() { \
@@ -1585,8 +1600,8 @@ cam/abi/export: dapps/deps/verify
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
-	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi-plan; \
-	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi; \
+	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm --user "$$cam_user" forge-abi-plan; \
+	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm --user "$$cam_user" forge-abi; \
 	$(call cam_integrity_refresh,$(ABI_EXPORT_COMPOSE_ENV))
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status

@@ -20,15 +20,17 @@ class RpcIndexerLaneTest(unittest.TestCase):
         shutil.copyfile(repo_path("Makefile"), self.checkout / "Makefile")
         for name in ("compose", "containers", "dapps", "docs", "js", "tests", "tools"):
             (self.checkout / name).mkdir()
-        for name in ("release_process.sh", "release-config.sh", "docker_context.sh"):
+        for name in ("release_process.sh", "release-config.sh", "docker_context.sh", "compose_cleanup.sh"):
             shutil.copyfile(repo_path(f"tools/{name}"), self.checkout / "tools" / name)
         self.upstream = self.directory / "rpc-url"
         self.upstream.write_text("https://example.com/private?token=fixture-secret\n")
         self.upstream.chmod(0o600)
         self.calls = self.directory / "compose-calls"
+        self.history = self.directory / "compose-history"
         self.stub = self.directory / "compose-stub.sh"
         self.stub.write_text(
             'printf "%s\\n" "$@" > "$COMPOSE_CALLS"\n'
+            'printf "%s\\n" "$*" >> "$COMPOSE_HISTORY"\n'
             'printf "project=%s\\nuid=%s\\ngid=%s\\ninput=%s\\nuri=%s\\norigin=%s\\nresource_origin=%s\\n" "$COMPOSE_PROJECT_NAME" "$LOCAL_UID" "$LOCAL_GID" "${RPC_URL_FILE-}" "${CAM_URI-}" "${BIKE_NFT_GUI_ORIGIN-}" "${CAM_VIEWER_RESOURCE_ORIGIN-}" >> "$COMPOSE_CALLS"\n'
         )
 
@@ -43,6 +45,7 @@ class RpcIndexerLaneTest(unittest.TestCase):
             "COMPOSE_PROJECT_NAME": "rpc-lane-check",
             "RPC_INDEXER_COMPOSE_PROJECT_NAME": "rpc-base-sepolia",
             "COMPOSE_CALLS": str(self.calls),
+            "COMPOSE_HISTORY": str(self.history),
             "PATH": f"{repo_path('tests/fixtures/docker-context')}:{os.environ['PATH']}",
             "TRACE": os.devnull, "ENDPOINT": "unix:///tmp/context-fixture.sock", "FAKE_MODE": "",
             "DOCKER_DELEGATE": str(self.stub),
@@ -111,6 +114,34 @@ class RpcIndexerLaneTest(unittest.TestCase):
         self.assertIn("Cannot inspect the selected Docker engine security posture", result.stderr)
         self.assertFalse(self.calls.exists())
         self.assertEqual([], list(temporary.iterdir()))
+
+    def test_abi_export_uses_matching_engine_identity_for_both_stages(self) -> None:
+        self.prepare_cam_outputs()
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            (self.checkout / "dapps" / app / "cam/abi").mkdir()
+        events = self.directory / "engine-events"
+        for engine in ("rootful", "rootless", "unavailable"):
+            with self.subTest(engine=engine):
+                self.history.unlink(missing_ok=True)
+                result = self.make("cam/abi/export", overrides=("-o", "dapps/deps/verify"), extra_environment={"TEST_ENGINE": engine, "TEST_EVENTS": str(events)})
+                if engine == "unavailable":
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertFalse(self.history.exists())
+                    continue
+                self.assertEqual(0, result.returncode, result.stderr)
+                commands = self.history.read_text().splitlines()
+                identity = "0:0" if engine == "rootless" else f"{os.getuid()}:{os.getgid()}"
+                for service in ("forge-abi-plan", "forge-abi"):
+                    matches = [line for line in commands if line.endswith(f"--user {identity} {service}")]
+                    self.assertEqual(1, len(matches), commands)
+                self.assertTrue(any("--project-name rpc-lane-check-abi-export down" in line for line in commands))
+
+    def test_abi_export_rejects_ids_that_cannot_access_the_private_plan(self) -> None:
+        self.prepare_cam_outputs()
+        result = self.make("cam/abi/export", overrides=("-o", "dapps/deps/verify", f"LOCAL_UID={os.getuid() + 1}"), extra_environment={"TEST_ENGINE": "rootful", "TEST_EVENTS": str(self.directory / "events")})
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("requires the invoking user and group IDs", result.stderr)
+        self.assertFalse(self.history.exists())
 
     def test_missing_cam_output_cannot_bypass_preflight(self) -> None:
         self.prepare_cam_outputs()
