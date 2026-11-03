@@ -1,8 +1,8 @@
 """Review first-party plain text fields without changing CAM conformance.
 
 A declared format is checked by the UI parser. Plain fields must be recorded
-here as intentional unrestricted input or as validation work still owed. This
-is an authoring inventory, not proof that a format matches a route or contract.
+here as intentional unrestricted input. This is an authoring check, not proof
+that a format matches a route or contract.
 """
 
 from __future__ import annotations
@@ -16,23 +16,11 @@ from .common import ROOT
 from tools.cam_resource_integrity import local_resource_path
 
 
-# Entries identify one authored occurrence. Remove a debt entry when the field
-# gets a real constraint; the count check prevents silently extending a waiver.
-# The agreement ID entry also covers the current in-progress bytes32 change.
+# Entries identify one occurrence whose contract deliberately accepts arbitrary
+# text. The count check prevents silently extending an exception.
 PLAIN_FIELDS: dict[tuple[str, str, str, str], str] = {
-    ("bike-nft", "entry", "serialNumber", "Serial number to look up"): "debt: require a nonempty serial without normalizing it",
-    ("bike-nft", "component.empty", "serialNumber", "Serial number to look up"): "debt: require a nonempty serial without normalizing it",
-    ("bike-nft", "component.notFound", "serialNumber", "Serial number to look up"): "debt: require a nonempty serial without normalizing it",
-    ("bike-nft", "register.form", "serialNumber", "Serial number"): "debt: require a nonempty serial without normalizing it",
     ("bike-nft", "entry", "accountInfo", "Public profile text or link"): "intentional: arbitrary text is accepted and empty clears the profile",
-    ("bike-nft", "component.found", "reportURI", "Missing report text or link"): "debt: require nonempty text or link without restricting its syntax",
-    ("bike-nft", "component.found", "resolutionURI", "Resolution text or link"): "debt: require nonempty text or link without restricting its syntax",
-    ("escrow", "escrow.create", "agreementRef", "Agreement reference"): "debt: enforce nonempty and contract-owned UTF-8 byte limit",
-    ("escrow", "lookupFragment", "agreementId", "Agreement ID"): "debt: provide exact bytes32 feedback; remove when the current draft is complete",
-    ("pay-to-play", "positionFields", "invoiceHash", "Invoice hash (bytes32)"): "debt: provide exact bytes32 feedback",
-    ("pay-to-play", "positionFields", "signature", "Registered key’s voucher signature"): "debt: provide 65-byte signature feedback without claiming cryptographic validity",
 }
-IN_PROGRESS_ID = ("escrow", "lookupFragment", "agreementId", "Agreement ID")
 
 
 def text_fields(value: object):
@@ -67,11 +55,11 @@ def review_ui(app: str, document: dict[str, object], reviewed: dict[tuple[str, s
             if "format" in props:
                 if props["format"] not in ("address", "bytes32"):
                     failures.append(f"{app}:{node_name}:{key}: unknown TextField format")
-                elif identity in reviewed and identity != IN_PROGRESS_ID:
+                elif identity in reviewed:
                     failures.append(f"{app}:{node_name}:{key}: remove the plain-field decision after adding a format")
             else:
                 reason = reviewed.get(identity)
-                if not isinstance(reason, str) or not (reason.startswith("intentional: ") or reason.startswith("debt: ")) or len(reason.split()) < 3:
+                if not isinstance(reason, str) or not reason.startswith("intentional: ") or len(reason.split()) < 3:
                     failures.append(f"{app}:{node_name}:{key}: plain TextField requires a documented validation or free-text decision")
     return failures, seen
 
@@ -90,6 +78,7 @@ class CamTextFieldReviewTest(unittest.TestCase):
         self.assertEqual([], review_ui("sample", field({"label": "Value"}), decision)[0])
         self.assertTrue(review_ui("sample", field({"label": "Changed"}), decision)[0])
         self.assertTrue(review_ui("sample", field({"label": "Value"}), {("sample", "edit", "value", "Value"): "unreviewed"})[0])
+        self.assertTrue(review_ui("sample", field({"label": "Value"}), {("sample", "edit", "value", "Value"): "debt: validation not implemented"})[0])
         self.assertTrue(review_ui("sample", field({"label": "Value", "format": "address"}), decision)[0])
 
     def test_nested_fields_and_duplicate_decisions_are_accounted_for(self) -> None:
@@ -120,4 +109,5 @@ class CamTextFieldReviewTest(unittest.TestCase):
         for identity, reason in PLAIN_FIELDS.items():
             if seen[identity] != 1:
                 failures.append(f"{identity}: reviewed field occurs {seen[identity]} times ({reason})")
-        self.assertEqual([], failures)
+        if failures:
+            self.fail("\n".join(failures))
