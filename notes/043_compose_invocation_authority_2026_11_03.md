@@ -295,3 +295,13 @@ still clears and replaces outputs sequentially, so interruption or a write
 failure can leave a partial export. The isolated export also produced Bike NFT
 ABIs substantially different from the checked-in files; that pre-existing
 generated-resource discrepancy requires separate investigation.
+
+The ABI export project now removes its locally built service images during its
+existing teardown, including the integrity service. A disposable rootless run
+verified all three project image tags were removed. Nearby `nmrnet-repro`
+and `nmrpeak-repro` likewise retire owned image references deliberately; they
+do not justify pruning the engine's shared build cache. Like the existing
+teardown, image removal assumes exclusive ownership of the project name. The
+separate dependency-verification project is outside this teardown; its images
+are reusable by other lanes. Compose's success does not independently prove
+that every matching dangling image was removed.

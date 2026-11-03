@@ -134,7 +134,10 @@ class RpcIndexerLaneTest(unittest.TestCase):
                 for service in ("forge-abi-plan", "forge-abi"):
                     matches = [line for line in commands if line.endswith(f"--user {identity} {service}")]
                     self.assertEqual(1, len(matches), commands)
-                self.assertTrue(any("--project-name rpc-lane-check-abi-export down" in line for line in commands))
+                cleanup = [line for line in commands if "--project-name rpc-lane-check-abi-export down" in line]
+                self.assertEqual(1, len(cleanup), commands)
+                self.assertIn("-f compose/forge-abi.yml -f compose/cam.yml", cleanup[0])
+                self.assertTrue(cleanup[0].endswith("--rmi local"), cleanup[0])
 
     def test_abi_export_rejects_ids_that_cannot_access_the_private_plan(self) -> None:
         self.prepare_cam_outputs()

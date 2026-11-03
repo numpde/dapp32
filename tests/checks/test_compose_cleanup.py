@@ -147,12 +147,14 @@ class ComposeCleanupTest(unittest.TestCase):
                 makefile = f'''include {ROOT / "Makefile"}
 .PHONY: fixture/cleanup
 fixture/cleanup:
-\t@cleanup() {{ status="$$?"; $(call cleanup_disposable_project,{PROJECT},-f {root / "fixture.yml"},$$status); touch {root / "inputs-released"}; exit "$$status"; }}; trap cleanup EXIT; exit {primary}
+\t@cleanup() {{ status="$$?"; $(call cleanup_disposable_project,{PROJECT},-f {root / "fixture.yml"},$$status,--rmi local); touch {root / "inputs-released"}; exit "$$status"; }}; trap cleanup EXIT; exit {primary}
 '''
                 expanded = subprocess.run(["make", "--no-print-directory", "-n", "-f", "-", "fixture/cleanup", "DOCKER_CONTEXT=fixture"], input=makefile, cwd=ROOT, env=env, text=True, capture_output=True, timeout=10)
                 self.assertEqual(0, expanded.returncode, expanded.stderr)
                 result = subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", expanded.stdout], cwd=ROOT, env=env, capture_output=True, text=True, timeout=10)
                 self.assertEqual(expected, result.returncode, result.stderr)
+                calls = [json.loads(line) for line in (root / "calls").read_text().splitlines()]
+                self.assertEqual(["--rmi", "local"], calls[0][-2:])
                 self.assertEqual(mode == "native", (root / "inputs-released").exists())
                 if mode == "down-failure":
                     self.assertIn("fixture teardown denied", result.stderr)

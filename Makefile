@@ -269,11 +269,11 @@ override CAM_INTEGRATION_INPUT_GUARD := seed="$${CAM_INTEGRATION_SEED:?missing_C
 override VIEWER_TERMINAL_MOCK_GUARD := if [[ ! "$${VIEWER_TERMINAL_MOCK:?missing_VIEWER_TERMINAL_MOCK}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then printf '%s\n' 'VIEWER_TERMINAL_MOCK must be a mock name, not a path or shell expression.' >&2; exit 2; fi
 # Preserve a lane's primary error and retain mounted inputs if teardown fails.
 override define disposable_cleanup_command
-timeout -k 15s 60s bash tools/compose_cleanup.sh "$(1)" -- $(DOCKER_COMPOSE) $(2)
+timeout -k 15s 60s bash tools/compose_cleanup.sh "$(1)" $(3) -- $(DOCKER_COMPOSE) $(2)
 endef
 
 override define cleanup_disposable_project
-$(call disposable_cleanup_command,$(1),$(2)) || { cleanup_status="$$?"; if [[ "$(3)" != "0" ]]; then exit "$(3)"; fi; exit "$$cleanup_status"; }
+$(call disposable_cleanup_command,$(1),$(2),$(4)) || { cleanup_status="$$?"; if [[ "$(3)" != "0" ]]; then exit "$(3)"; fi; exit "$$cleanup_status"; }
 endef
 
 define release_require_clean_source
@@ -1595,7 +1595,7 @@ cam/abi/export: dapps/deps/verify
 	chmod 0700 "$$abi_plan_dir"; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(call cleanup_disposable_project,$(ABI_EXPORT_COMPOSE_PROJECT_NAME),$(FORGE_ABI_COMPOSE_FILES),$$status); \
+	  $(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(call cleanup_disposable_project,$(ABI_EXPORT_COMPOSE_PROJECT_NAME),$(FORGE_ABI_COMPOSE_FILES) $(CAM_COMPOSE_FILES),$$status,--rmi local); \
 	  rm -rf "$$abi_plan_dir"; \
 	  exit "$$status"; \
 	}; \
