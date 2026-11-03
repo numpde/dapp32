@@ -502,8 +502,10 @@ test("parseCam enforces canonical namespace names and route kinds", () => {
       routes: {
         ...mainJson.routes,
         registerComponent: {
-          ...mainJson.routes.registerComponent,
           kind: "read",
+          inputs: mainJson.routes.registerComponent.inputs,
+          call: mainJson.routes.registerComponent.call,
+          then: mainJson.routes.registerComponent.then,
         },
       },
     }),
