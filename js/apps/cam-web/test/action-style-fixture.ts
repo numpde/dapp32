@@ -7,7 +7,7 @@ import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
 import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
 import { Feedback, FeedbackBox, TransactionFeedback } from "../src/feedback.tsx"
-import { Resources } from "../src/integrity-warnings.tsx"
+import { Resources } from "../src/resources.tsx"
 import { BuildFooter } from "../src/build-footer.tsx"
 import type { SubmittedTransactionReference, TransactionStage } from "../src/transactions.ts"
 import "../src/styles.css"
@@ -118,7 +118,7 @@ function render(): void {
       wallet: "0x2222222222222222222222222222222222222222",
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
-    appResource === undefined ? null : createElement(Resources, { snapshot: { ...snapshot, uiURI: appResource, integrityWarnings: [] } }),
+    appResource === undefined ? null : createElement(Resources, { onRefresh: async resource => ({ ...resource, status: "verified", expectedHash: fixtureDigest, actualHash: fixtureDigest }), snapshot: { ...snapshot, uiURI: appResource, integrityWarnings: [] } }),
     createElement(UiView, props),
     createElement(Feedback, { report: { message: "Ready to continue." }, kind: "status", className: "notice" }),
     createElement(FeedbackBox, { kind: "warning", message: "The resource could not be verified." }),

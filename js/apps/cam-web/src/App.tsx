@@ -49,7 +49,7 @@ import { createInjectedWalletBinding } from "./wallet-binding.ts"
 import { actionFailure, failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback, TransactionFeedback } from "./feedback.tsx"
-import { Resources } from "./integrity-warnings.tsx"
+import { Resources } from "./resources.tsx"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
   assertHostHasCode,

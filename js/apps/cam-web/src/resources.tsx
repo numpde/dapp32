@@ -16,7 +16,7 @@ type RefreshIntegrity = (resource: Pick<CamIntegrityCheck, "uri" | "hashSource">
 
 export function Resources({ snapshot, onRefresh }: {
   readonly snapshot: { readonly camURI?: string; readonly uiURI?: string; readonly integrityWarnings: readonly CamIntegrityWarning[] }
-  readonly onRefresh?: RefreshIntegrity
+  readonly onRefresh: RefreshIntegrity
 }): ReactElement | null {
   const rows = new Map<string, { label: string; uri: string; warning: CamIntegrityWarning | undefined; hashSource: CamIntegrityCheck["hashSource"] }>()
   if (snapshot.camURI !== undefined) rows.set(`contract:${snapshot.camURI}`, { label: "Manifest", uri: snapshot.camURI, warning: undefined, hashSource: "contract" })
@@ -35,7 +35,7 @@ export function Resources({ snapshot, onRefresh }: {
 
 function ResourceRow({ label, uri, warning, hashSource, onRefresh }: {
   readonly label: string; readonly uri: string; readonly warning: CamIntegrityWarning | undefined
-  readonly hashSource: CamIntegrityCheck["hashSource"]; readonly onRefresh: RefreshIntegrity | undefined
+  readonly hashSource: CamIntegrityCheck["hashSource"]; readonly onRefresh: RefreshIntegrity
 }): ReactElement {
   const statusLabel = warning === undefined ? hashSource === "contract" ? "Matches contract" : "Matches manifest"
     : warning.status === "mismatch" ? "Hash mismatch" : "Not verified"
@@ -60,7 +60,7 @@ function ResourceRow({ label, uri, warning, hashSource, onRefresh }: {
   </div>
 }
 
-function IntegrityDetails({ resource, initial, onRefresh }: { readonly resource: Pick<CamIntegrityCheck, "uri" | "hashSource">; readonly initial: CamIntegrityCheck | undefined; readonly onRefresh: RefreshIntegrity | undefined }): ReactElement {
+function IntegrityDetails({ resource, initial, onRefresh }: { readonly resource: Pick<CamIntegrityCheck, "uri" | "hashSource">; readonly initial: CamIntegrityCheck | undefined; readonly onRefresh: RefreshIntegrity }): ReactElement {
   const [latest, setLatest] = useState<CamIntegrityCheck | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<FailureReport | undefined>(undefined)
@@ -75,7 +75,7 @@ function IntegrityDetails({ resource, initial, onRefresh }: { readonly resource:
     : `This file could not be verified. The verification hash ${hashLocation} is zero.`
 
   async function refresh(): Promise<void> {
-    if (onRefresh === undefined || pending.current !== undefined) return
+    if (pending.current !== undefined) return
     const controller = new AbortController()
     pending.current = controller
     setBusy(true)
@@ -95,15 +95,12 @@ function IntegrityDetails({ resource, initial, onRefresh }: { readonly resource:
     if (initial === undefined) void refresh()
   }, [])
 
-  if (checked === undefined && onRefresh === undefined) return <p>Hash checking is unavailable for this resource.</p>
   if (checked === undefined) return failure === undefined ? <p role="status" aria-busy={busy}>Checking current resource hashes…</p> : <><Feedback kind="error" report={failure} /><button type="button" className="button-quiet" onClick={() => { void refresh() }}>Retry checking hashes</button></>
 
   return <FeedbackBox kind={checked.status === "mismatch" ? "error" : checked.status === "verified" && !changed ? "status" : "warning"} message={message}>
-    <div className="integrity-resource">
-      {onRefresh === undefined ? null : <button className="button-quiet integrity-refresh" type="button" aria-label="Refresh hashes" title="Refresh hashes" aria-busy={busy} disabled={busy} onClick={() => { void refresh() }}>
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7" /></svg>
-      </button>}
-    </div>
+    <button className="button-quiet integrity-refresh" type="button" aria-label="Refresh hashes" title="Refresh hashes" aria-busy={busy} disabled={busy} onClick={() => { void refresh() }}>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7" /></svg>
+    </button>
     <PropertyRow label="Expected hash" value={checked.expectedHash} />
     <PropertyRow label="Downloaded hash" value={checked.actualHash} />
     {initial === undefined ? <p>These hashes describe a fresh download. The loaded app has not been reloaded.</p> : null}
