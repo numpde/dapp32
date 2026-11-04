@@ -1771,32 +1771,6 @@
         }
       ]
     },
-    "payment.review.channel": {
-      "requires": [
-        "view"
-      ],
-      "element": "Screen",
-      "props": {
-        "title": "$view.title"
-      },
-      "children": [
-        {
-          "element": "Status",
-          "props": {
-            "label": "Channel ID",
-            "value": "$view.channelId"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Channel claim period",
-            "value": "$view.claimPeriod",
-            "format": "durationSeconds"
-          }
-        }
-      ]
-    },
     "payment.review.address": {
       "requires": [
         "view"
