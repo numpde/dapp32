@@ -297,8 +297,8 @@ select:disabled {
 .uri-control > button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .uri-control > button:disabled { color: var(--muted); }
 .uri-control > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
-.uri-field dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); border-radius: 8px; padding: 20px; color: var(--ink); background: var(--panel); }
-.uri-field dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.dismissible-dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); border-radius: 8px; padding: 20px; color: var(--ink); background: var(--panel); overflow: auto; }
+.dismissible-dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .uri-field dialog .field { margin-block: 12px; }
 .uri-field dialog textarea { min-height: 12em; resize: vertical; }
 .uri-document-control { position: relative; min-width: 0; }
@@ -444,3 +444,14 @@ button.resource-status-ok, button.resource-status-warning { justify-self: start;
 
 button.resource-status-warning { color: var(--danger); }
 button.resource-status-ok { color: var(--muted); }
+
+.dismissible-dialog > h2 { margin: 0 0 16px; font-size: 1.25rem; }
+.resource-row .dismissible-dialog > .button-quiet { margin-top: 16px; }
+.verification-summary { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.verification-summary > .error-feedback { flex: 1; margin: 0; }
+.verification-summary > .integrity-refresh { flex: none; }
+.verification-summary .feedback-message { font-weight: 400; }
+.verification-facts > .key-value > dt { flex-basis: 150px; }
+.verification-facts > .key-value > dd { min-width: 0; }
+.verification-note { margin-top: 12px; color: var(--muted); font-size: 0.8125rem; }
+@media (max-width: 600px) { .verification-facts > .key-value > dt { flex-basis: 100%; } }

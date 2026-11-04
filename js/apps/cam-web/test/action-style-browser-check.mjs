@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { assertHiddenEditorLayoutWitnesses, assertNoHiddenEditorLayout } from './layout-stability.mjs'
+import { assertDialogLayout, assertHiddenEditorLayoutWitnesses, assertNoHiddenEditorLayout } from './layout-stability.mjs'
 import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition } from './escrow-browser-fixture.mjs'
 import { assertBuildFooter, assertDisplayedValues, assertDisplayFailureWitnesses, assertNativeIdentifierCopy, assertManualCopyRecovery, assertNumericValidationPresentation } from './display-contracts.mjs'
 
@@ -101,6 +101,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     await call('Emulation.clearDeviceMetricsOverride')
     await evaluate(`(()=>{const button=document.querySelector('.uri-control > button');button.focus();button.click()})()`)
     await wait(`document.querySelector('.uri-field dialog')?.open`)
+    await assertDialogLayout({ call, evaluate })
     await assertActionOrder({ call, evaluate, selector: '.uri-dialog-actions', labels: ['Use document', 'Cancel'] })
     const nativeLightDismiss = await evaluate(`'closedBy' in HTMLDialogElement.prototype`)
     for (const fallback of nativeLightDismiss ? [false, true] : [true]) {

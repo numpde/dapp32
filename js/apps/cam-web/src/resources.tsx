@@ -97,14 +97,17 @@ function IntegrityDetails({ resource, initial, onRefresh }: { readonly resource:
 
   if (checked === undefined) return failure === undefined ? <p role="status" aria-busy={busy}>Checking current resource hashes…</p> : <><Feedback kind="error" report={failure} /><button type="button" className="button-quiet" onClick={() => { void refresh() }}>Retry checking hashes</button></>
 
-  return <FeedbackBox kind={checked.status === "mismatch" ? "error" : checked.status === "verified" && !changed ? "status" : "warning"} message={message}>
-    <button className="button-quiet integrity-refresh" type="button" aria-label="Refresh hashes" title="Refresh hashes" aria-busy={busy} disabled={busy} onClick={() => { void refresh() }}>
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7" /></svg>
-    </button>
+  return <div className="verification-facts">
+    <div className="verification-summary">
+      <FeedbackBox kind={checked.status === "mismatch" ? "error" : checked.status === "verified" && !changed ? "status" : "warning"} message={message} />
+      <button className="button-quiet integrity-refresh" type="button" aria-label="Refresh hashes" title="Refresh hashes" aria-busy={busy} disabled={busy} onClick={() => { void refresh() }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7" /></svg>
+      </button>
+    </div>
     <PropertyRow label="Expected hash" value={checked.expectedHash} />
     <PropertyRow label="Downloaded hash" value={checked.actualHash} />
-    {initial === undefined ? <p>These hashes describe a fresh download. The loaded app has not been reloaded.</p> : null}
-    {changed ? <p>The file has changed since it was loaded. Refreshing hashes does not reload the app.</p> : null}
+    {initial === undefined ? <p className="verification-note">These hashes describe a fresh download. The loaded app has not been reloaded.</p> : null}
+    {changed ? <p className="verification-note">The file has changed since it was loaded. Refreshing hashes does not reload the app.</p> : null}
     {failure === undefined ? null : <Feedback kind="error" report={failure} />}
-  </FeedbackBox>
+  </div>
 }

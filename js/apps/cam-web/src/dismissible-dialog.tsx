@@ -22,7 +22,7 @@ export function DismissibleDialog({ open, label, onDismiss, children }: {
   }
 
   // Older browsers need both pointer positions so a drag out of the dialog does not discard a draft.
-  return <dialog ref={dialog} aria-label={label} closedby="any"
+  return <dialog className="dismissible-dialog" ref={dialog} aria-label={label} closedby="any"
     onCancel={event => { event.preventDefault(); onDismiss() }}
     onPointerDown={event => {
       if (!("closedBy" in HTMLDialogElement.prototype)) outsidePointer.current = event.button === 0 && outside(event) ? event.pointerId : undefined

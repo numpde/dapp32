@@ -88,3 +88,18 @@ async function measure(evaluate, anchors, context) {
   }
   return result
 }
+
+export async function assertDialogLayout({ call, evaluate }) {
+  const viewport = await evaluate('({width:innerWidth,height:innerHeight})')
+  try {
+    for (const width of [1280, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      const shown = await evaluate(`(()=>{const dialog=document.querySelector('dialog[open]');if(!dialog)return null;const box=dialog.getBoundingClientRect(),style=getComputedStyle(dialog);return {shared:dialog.classList.contains('dismissible-dialog'),left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width,overflow:dialog.scrollWidth>dialog.clientWidth,thinBorder:parseFloat(style.borderTopWidth)<=1.5,rounded:parseFloat(style.borderTopLeftRadius)>0,focusInside:dialog.contains(document.activeElement)}})()`)
+      assert(shown?.shared && shown.thinBorder && shown.rounded, 'dialogs use the same styled shell rather than browser defaults')
+      assert(shown.left >= 0 && shown.right <= width && shown.top >= 0 && shown.bottom <= 900 && shown.width <= 641 && !shown.overflow, `dialog fits at ${width}px without horizontal scrolling`)
+      assert(shown.focusInside, 'opening a modal moves focus inside it')
+    }
+  } finally {
+    await call('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false })
+  }
+}
