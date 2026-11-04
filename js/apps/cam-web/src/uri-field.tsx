@@ -1,6 +1,7 @@
 import { useContext, useId, useMemo, useState } from "react"
 import type { ReactElement } from "react"
 import { requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
+import { Icon } from "./icon.tsx"
 import { useClipboardCopy } from "./clipboard.ts"
 import { CopyButton, CopyRecovery } from "./copy-button.tsx"
 import { readTextDataURI, textDataURI } from "./data-uri.ts"
@@ -68,10 +69,7 @@ export function UriFieldView({ label, name, value, scope, maxBytes, disabled, on
     <div className="uri-control">
       <input id={inputId} name={name} value={value} disabled={disabled} onChange={event => onInput(name, event.currentTarget.value)} />
       <button type="button" aria-haspopup="dialog" aria-label={actionLabel} title={actionLabel} disabled={disabled} onClick={open}>
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7M13 3l5 5h-5z" />
-          {embedded ? <path d="m15 18 5-5 2 2-5 5-3 1z" /> : <path d="M18 13v8m-4-4h8" />}
-        </svg>
+        <Icon name={embedded ? "document-edit" : "document-add"} size={18} />
       </button>
     </div>
     {draft === undefined && error !== undefined ? <Feedback report={failureReport(error)} kind="error" /> : null}

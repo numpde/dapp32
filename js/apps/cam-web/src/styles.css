@@ -94,8 +94,8 @@ button:not(.timestamp-options):not(:disabled):active {
 .hex-value-controls code { display: block; font-size: inherit; line-height: 1; white-space: nowrap; }
 .hex-middle { display: inline-block; inline-size: 3ch; overflow: hidden; position: relative; text-indent: -9999px; vertical-align: bottom; }
 .hex-ellipsis::after { content: "..."; position: absolute; inset-inline-start: 0; text-indent: 0; }
+.icon { display: block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .copy-button { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; padding: 4px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); }
-.copy-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .copy-button:hover, .copy-button:focus-visible { background: var(--line); color: var(--ink); }
 .copy-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .copy-recovery { color: var(--danger); white-space: normal; overflow-wrap: anywhere; }
@@ -296,7 +296,6 @@ select:disabled {
 .uri-control > input:focus-visible { outline: none; }
 .uri-control > input { flex: 1; min-width: 0; height: var(--control-height); align-self: center; border: 0; background: transparent; }
 .uri-control > button { display: grid; place-items: center; flex: 0 0 40px; align-self: center; height: var(--control-height); min-height: 0; padding: 0; border: 0; border-inline-start: 1px solid var(--control-border); border-radius: 0 6px 6px 0; background: transparent; color: var(--muted); }
-.uri-control > button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .uri-control > button:disabled { color: var(--muted); }
 .uri-control > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 .dismissible-dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); border-radius: 8px; padding: 20px; color: var(--ink); background: var(--panel); overflow: auto; }
@@ -449,7 +448,6 @@ button.resource-status { font-size: 0.8125rem; color: var(--feedback-color); jus
 button.resource-info { display: grid; place-items: center; flex: none; width: 28px; height: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 50%; color: var(--muted); background: transparent; }
 button.resource-info:hover { color: var(--accent); background: var(--bg); }
 button.resource-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.resource-info svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; }
 .resource-info-portal { display: contents; }
 .resource-info-positioner { z-index: 1; }
 .resource-info-popup { max-width: min(20rem, var(--available-width)); padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--ink); box-shadow: 0 4px 16px #18223020; font-size: 0.875rem; line-height: 1.5; overflow-wrap: anywhere; }

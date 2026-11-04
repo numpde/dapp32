@@ -5,6 +5,7 @@ import { requireHttpURL } from "@cam/protocol"
 import { failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
+import { Icon } from "./icon.tsx"
 import { ControlRow } from "./property-row.tsx"
 
 type RpcDraft = { readonly choice: string; readonly customURL: string }
@@ -110,7 +111,7 @@ export function RpcControls({ chainId, suppliedURLs, activeURL, busy, mode, onAp
   catch { displayedURL = undefined }
   const currentAttempt = attempt?.draft === draft ? attempt : undefined
   const checked = mode === "connection" && displayedURL !== undefined && displayedURL === activeURL && currentAttempt?.status !== "checking" && currentAttempt?.status !== "failed"
-  const check = checked ? <span role="img" aria-label="RPC connection checked" title="RPC connection checked">✓</span> : null
+  const check = checked ? <span role="img" aria-label="RPC connection checked" title="RPC connection checked"><Icon name="check" /></span> : null
 
   return <ControlRow className="rpc-connection" label="RPC service" controlId="rpc-endpoint-choice">
     <form id="rpc-connection-form" className="connection-form" noValidate aria-busy={currentAttempt?.status === "checking"} onSubmit={event => { event.preventDefault(); clearTimeout(timer.current); timer.current = undefined; enqueue(draft) }}>

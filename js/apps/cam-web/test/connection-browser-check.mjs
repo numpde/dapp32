@@ -329,6 +329,10 @@ async function checkResourceHelp({ call, evaluate, wait, label }) {
         return {x:(box.left+box.right)/2,y:(box.top+box.bottom)/2,aligned:Math.abs((title.top+title.bottom-box.top-box.bottom)/2)<1,gap:box.left-title.right,target:box.width>=28&&box.height>=28,centered:Math.abs((svg.left+svg.right-box.left-box.right)/2)<1&&Math.abs((svg.top+svg.bottom-box.top-box.bottom)/2)<1};
       })()`)
       assert(icon.aligned && icon.centered && icon.target && icon.gap >= 7 && icon.gap <= 9, `the information icon aligns with the heading and has a comfortable target at ${width}px`)
+      assert(await evaluate(`Array.from(document.querySelectorAll('svg')).every(icon => {
+        const style=getComputedStyle(icon),size=Number(icon.getAttribute('width'));
+        return icon.getAttribute('aria-hidden')==='true'&&icon.getAttribute('focusable')==='false'&&icon.tabIndex<0&&[16,18].includes(size)&&Number(icon.getAttribute('height'))===size&&style.fill==='none'&&style.strokeWidth==='1.8px';
+      })`), 'decorative icons have explicit dimensions, consistent strokes and no separate accessible or focus target')
       await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: icon.x, y: icon.y })
       await wait(visible)
       const help = await evaluate(`(()=>{

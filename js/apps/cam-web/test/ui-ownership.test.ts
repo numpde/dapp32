@@ -230,6 +230,7 @@ function ownershipFailures(sources: readonly Source[]): string[] {
       const path = reference(node, scope, new Set())
       if (["navigator.clipboard", "window.navigator.clipboard", "globalThis.navigator.clipboard"].some(base => path === base || path?.startsWith(`${base}.`))) clipboardOwners.add(owner)
       const tag = node.type === "JSXElement" ? undefined : nativeTag(node, scope)
+      if (tag === "svg" && name !== "icon.tsx") failures.push(`${owner}: SVG icons must use the shared Icon owner`)
       if (tag === "dialog") {
         if (name !== "dismissible-dialog.tsx") failures.push(`${owner}: native dialogs must use the shared dismissible dialog owner`)
         if (elementProperty(node, "closedby", scope) !== "any" || elementValue(node, "onCancel", scope) === undefined) {
@@ -334,7 +335,11 @@ test("production UI source has one native fact markup owner and one browser clip
 test("source ownership accepts consumers and rejects independent JSX, aliased API and computed-property bypasses", () => {
   assert.deepEqual(ownershipFailures([rowOwner, copyOwner, { name: "consumer.tsx", text: "import {Row as Fact} from './rows'; export const display=<Fact/>" }]), [])
   assert.deepEqual(ownershipFailures([rowOwner, copyOwner, { name: "locals.tsx", text: "import {createElement as h} from 'react'; function unrelated(){const n={clipboard:1};return n.clipboard} function shadowed(h:Function,navigator:{clipboard:number}){return [h('dd'),navigator.clipboard]} function dynamic(clipboard:string){return navigator[clipboard]} function caught(){try{}catch(navigator){return navigator.clipboard}} function hoisted(){for(var navigator of []){}return navigator.clipboard}" }]), [], "unrelated local bindings and dynamic keys are not mistaken for native capabilities")
+  assert.deepEqual(ownershipFailures([rowOwner, copyOwner, { name: "icon.tsx", text: "export const icon=<svg aria-hidden='true' focusable='false'/>" }, { name: "consumer.tsx", text: "import {Icon} from './icon';export const control=<button aria-label='Copy'><Icon name='copy'/></button>" }]), [])
   for (const text of [
+    "export const icon=<svg><path d='M0 0'/></svg>",
+    "import {createElement as h} from 'react'; const tag='svg';export const icon=h(tag,{})",
+    "import * as R from 'react';export const icon=R['createElement']('svg',{})",
     "export const blocked=<fieldset disabled><button>Copy</button></fieldset>",
     "import {createElement as h} from 'react'; export const blocked=h('fieldset',{disabled:true})",
     "import * as R from 'react'; const key='disabled';export const blocked=R['createElement']('fieldset',{[key]:true})",
