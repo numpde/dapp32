@@ -187,6 +187,7 @@ dt {
 .error-feedback > .feedback-message { margin: 0; color: var(--ink); font-weight: 600; }
 .feedback-diagnostic { display: block; margin-block-start: 8px; color: var(--muted); font-size: 0.875em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .transaction-feedback a { color: var(--accent); }
+.transaction-feedback-actions { margin-block-end: 16px; }
 .nft-identity, .nft-attributes { margin-block: 8px; }
 .nft-preview { display: grid; gap: 12px; margin-block: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 6px; overflow-wrap: anywhere; }
 .nft-preview-summary { display: grid; align-content: start; gap: 12px; min-width: 0; }
