@@ -44,6 +44,7 @@ export type LoadCamFromHostOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
+  readonly onIntegrityCheck?: (check: CamIntegrityCheck) => void
   readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
 }
 

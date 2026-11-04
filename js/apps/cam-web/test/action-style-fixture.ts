@@ -69,7 +69,7 @@ function render(): void {
   const integer = projectIntegerDraft(integerDraft, { min: "0", max: "100" })
   const duration = projectDurationDraft(durationDraft, { min: "0", max: "100" })
   const amount = projectAmountDraft(amountDraft)
-  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, bytes32Draft, signatureDraft, boundedDraft, documentURI, document: documentDigest, metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], camURI: "https://example.test/main.json", uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
+  const snapshot: CamViewerLoadedSnapshot = { contractAddresses: {}, visitId: 1, integrityChecks: [], integrityWarnings: [], canGoBack: true, route: "fixture", inputs: {}, state: { draft, bytes32Draft, signatureDraft, boundedDraft, documentURI, document: documentDigest, metadata, numericCount: integer.canonical, numericWait: duration.canonical, numericAmount: amount.canonical }, values: [], camURI: "https://example.test/main.json", uiURI: "fixture", documentHashes: hashPhase === "idle" ? {} : { document: { status: hashPhase, source: "url" } }, resolvedUi: { element: "Fragment", props: {}, children: [
     { element: "Screen", props: { title: "Overview" }, children: [
       { element: "Status", props: { label: "Availability", value: "Ready" }, children: [] },
     ] },
@@ -118,7 +118,7 @@ function render(): void {
       wallet: "0x2222222222222222222222222222222222222222",
       walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
     }),
-    appResource === undefined ? null : createElement(Resources, { onRefresh: async resource => ({ ...resource, status: "verified", expectedHash: fixtureDigest, actualHash: fixtureDigest }), snapshot: { ...snapshot, uiURI: appResource, integrityWarnings: [] } }),
+    appResource === undefined ? null : createElement(Resources, { snapshot: { ...snapshot, uiURI: appResource, integrityChecks: [{ uri: snapshot.camURI, hashSource: "contract", status: "verified", expectedHash: fixtureDigest, actualHash: fixtureDigest }, { uri: appResource, hashSource: "manifest", status: "verified", expectedHash: fixtureDigest, actualHash: fixtureDigest }] } }),
     createElement(UiView, props),
     createElement(Feedback, { report: { message: "Ready to continue." }, kind: "status", className: "notice" }),
     createElement(FeedbackBox, { kind: "warning", message: "The resource could not be verified." }),

@@ -68,6 +68,71 @@ const BIKE_ACCOUNT_INFO_URI = "fixture://bike-nft/accounts/session-owner.json"
 const BIKE_REGISTRATION_TOKEN_URI = "fixture://bike-nft/tokens/session-registration.json"
 const NO_RESOURCE_OVERRIDES = {}
 
+test("verification snapshots retain hashes of the exact parsed bytes despite source, metadata and observer mutations", async t => {
+  for (const status of ["verified", "mismatch", "unverified"] as const) {
+    await t.test(status, async () => {
+      const resources: Record<string, Uint8Array> = Object.fromEntries(Object.entries(bikeResourceBytes({})).map(([uri, bytes]) => [uri, new Uint8Array(bytes)]))
+      const uiExpectedHash = fixtureDigest(resources[BIKE_UI_URI])
+      // Whitespace changes the bytes while preserving the rendered document.
+      resources[BIKE_UI_URI] = new TextEncoder().encode(` \n${new TextDecoder().decode(resources[BIKE_UI_URI])}\n`)
+      const cam = JSON.parse(new TextDecoder().decode(resources[camURI]))
+      cam.namespaces.ui.integrity = `sha256:${status === "verified" ? fixtureDigest(resources[BIKE_UI_URI]) : status === "unverified" ? BIKE_ZERO_BYTES32 : uiExpectedHash}`
+      resources[camURI] = new TextEncoder().encode(` \n${JSON.stringify(cam, null, 2)}\n`)
+      const originalRootHash = fixtureDigest(resources[camURI])
+      const rootExpectedHash = status === "verified" ? originalRootHash : status === "unverified" ? BIKE_ZERO_BYTES32 : fixtureDigest(encodeJson(cam))
+      const expected = Object.entries(resources).map(([uri, bytes]) => ({
+        uri, hashSource: uri === camURI ? "contract" : "manifest",
+        status: uri === camURI || uri === BIKE_UI_URI ? status : "verified",
+        expectedHash: uri === camURI ? rootExpectedHash : uri === BIKE_UI_URI ? cam.namespaces.ui.integrity.slice(7) : fixtureDigest(bytes),
+        actualHash: fixtureDigest(bytes),
+      })).sort((a, b) => a.uri.localeCompare(b.uri))
+      const client = createPublicClient(publicClientFixtureOptions({ camHash: rootExpectedHash }))
+      let forbidIO = false
+      const requests: string[] = []
+      const publicClient = {
+        getChainId: async () => { requests.push("chainId"); assert.ok(!forbidIO); return client.getChainId() },
+        readContract: async (request: Parameters<typeof client.readContract>[0]) => {
+          requests.push(request.functionName)
+          assert.ok(!forbidIO, "inspecting a snapshot must not reread contract metadata")
+          return client.readContract(request)
+        },
+      }
+      const session = createCamViewerSession({
+        publicClient, host, account: { address: userAddress }, inputs: {},
+        onIntegrityCheck: check => { mutableRecord(check).actualHash = BIKE_ZERO_BYTES32 },
+        onIntegrityWarning: warning => { mutableRecord(warning).expectedHash = BIKE_ZERO_BYTES32 },
+        loadResource: async uri => {
+          requests.push(uri)
+          assert.ok(!forbidIO, "inspecting a snapshot must not download resources")
+          return resources[uri]
+        },
+      })
+      const loaded = await session.load()
+      const checks = loaded.integrityChecks.map(check => ({ ...check })).sort((a, b) => a.uri.localeCompare(b.uri))
+      assert.deepEqual(checks, expected)
+      assert.equal(checks.find(check => check.uri === BIKE_UI_URI)?.actualHash, fixtureDigest(resources[BIKE_UI_URI]))
+      assert.notEqual(checks.find(check => check.uri === BIKE_UI_URI)?.actualHash, uiExpectedHash)
+      for (const uri of Object.keys(resources)) assert.equal(requests.filter(request => request === uri).length, 1)
+      const requestsAfterLoad = [...requests]
+      // The original arrays, future downloads and future contract reads now disagree with the page.
+      for (const bytes of Object.values(resources)) bytes.fill(0)
+      resources[camURI] = encodeJson({ ...cam, namespaces: {} })
+      resources[BIKE_UI_URI] = encodeJson({ ui: UI_VERSION, nodes: {} })
+      t.mock.method(client, "readContract", async () => { throw new Error("Contract reference changed after load") })
+      for (const check of loaded.integrityChecks) mutableRecord(check).actualHash = BIKE_ZERO_BYTES32
+      forbidIO = true
+      for (let visit = 0; visit < 3; visit++) {
+        const snapshot = session.snapshot()
+        assert.deepEqual(snapshot.integrityChecks!.map(check => ({ ...check })).sort((a, b) => a.uri.localeCompare(b.uri)), expected)
+        assert.deepEqual(snapshot.resolvedUi, loaded.resolvedUi)
+        assert.equal(snapshot.route, loaded.route)
+        assert.deepEqual(requests, requestsAfterLoad)
+        for (const check of snapshot.integrityChecks!) mutableRecord(check).expectedHash = "modified snapshot"
+      }
+    })
+  }
+})
+
 test("viewer renders changed or unpinned CAM resources and retains their integrity warnings", async () => {
   for (const uri of [camURI, BIKE_PROTOCOL_URI, BIKE_UI_URI, BIKE_MANAGER_ABI_URI]) {
     const resources = bikeResourceBytes({})

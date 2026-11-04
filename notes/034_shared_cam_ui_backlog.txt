@@ -13,6 +13,18 @@ discard behavior as Cancel. The owner uses native light dismissal where
 available and a pointer-position fallback elsewhere; browser checks exercise
 both paths and keep inside clicks and drags from dismissing the dialog.
 
+Dialog refinement (69ca2f9d), references consulted 2026-11-04:
+- W3C modal dialog pattern: focus containment, Escape dismissal, a visible
+  close control, and focus restoration to the opener.
+  https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/
+- MDN dialog reference: native showModal behavior and explicit dialog and
+  backdrop styling.
+  https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog
+The shared width, border, padding and backdrop reuse the existing URI editor's
+visual language. Keeping verification color on the message, moving hashes to
+a neutral surface, and aligning refresh beside the message are local layout
+choices; those sources do not prescribe these dimensions or arrangements.
+
 1. Shared URI input and display components
 
    Requested: 2026-10-29. Status: in progress.

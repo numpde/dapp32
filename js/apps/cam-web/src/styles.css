@@ -75,8 +75,6 @@ button:not(.timestamp-options):not(:disabled):active {
 .build-footer a { color: inherit; text-underline-offset: 0.2em; }
 .build-footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.integrity-refresh { display: grid; place-items: center; width: 28px; min-height: 28px; padding: 4px; border: 0; background: transparent; color: var(--muted); }
-.integrity-refresh svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .json-view { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 8px; min-width: 0; max-width: 100%; }
 .json-view pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.875rem; line-height: 1.5; }
 .json-copy-error { grid-column: 1 / -1; color: var(--danger); }
@@ -449,9 +447,7 @@ button.resource-status-ok { color: var(--muted); }
 .resource-row .dismissible-dialog > .button-quiet { margin-top: 16px; }
 .verification-summary { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .verification-summary > .error-feedback { flex: 1; margin: 0; }
-.verification-summary > .integrity-refresh { flex: none; }
 .verification-summary .feedback-message { font-weight: 400; }
 .verification-facts > .key-value > dt { flex-basis: 150px; }
 .verification-facts > .key-value > dd { min-width: 0; }
-.verification-note { margin-top: 12px; color: var(--muted); font-size: 0.8125rem; }
 @media (max-width: 600px) { .verification-facts > .key-value > dt { flex-basis: 100%; } }
