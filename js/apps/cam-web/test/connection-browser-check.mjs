@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { finishDisplayFixture, navigateBrowserDocument, waitForBrowserCondition, withBrowserFocus } from './escrow-browser-fixture.mjs'
-import { assertStableLayout, assertSingleLineControlSizing } from './layout-stability.mjs'
+import { assertDialogLayout, assertStableLayout, assertSingleLineControlSizing } from './layout-stability.mjs'
 
 export async function checkViewerConnection({ call, evaluate, viewerURL }) {
   const wait = expression => waitForBrowserCondition(() => evaluate(expression), `connection fixture: ${expression}`, Date.now() + 15000)
@@ -263,6 +263,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await wait(`!!document.querySelector('.ui')`)
     await evaluate(`window.matchedView=document.querySelector('.ui');document.querySelector('.resource-status-ok').click()`)
     await wait(`document.querySelector('.resources dialog[open]')?.textContent.includes('latest download matches')`)
+    await assertDialogLayout({ call, evaluate })
     assert(await evaluate(`(()=>{const dialog=document.querySelector('.resources dialog[open]');return dialog.textContent.includes('Expected hash')&&dialog.textContent.includes('Downloaded hash')&&dialog.textContent.includes('fresh download')&&document.querySelector('.ui')===window.matchedView&&connectionFixture.state.sends===0})()`), 'matched resources expose fresh hash details without replacing the app or sending transactions')
     await evaluate(`[...document.querySelectorAll('.resources dialog[open] button')].find(button=>button.textContent==='Close').click()`)
     await evaluate(`document.querySelector('.resource-status-warning').click()`)
