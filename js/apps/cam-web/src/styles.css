@@ -11,6 +11,7 @@
   --control-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%235e6c80' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --accent: #176b5f;
   --danger: #9a342e;
+  --warning: #8a6500;
 }
 
 * {
@@ -177,9 +178,12 @@ dt {
 .nft-tabs [aria-selected="true"] { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
 .nft-editor [role="tabpanel"] > .field-hint { margin-block: 12px; }
 .nft-identity dd { overflow-wrap: anywhere; word-break: break-word; }
-.error-feedback { min-width: 0; overflow-wrap: anywhere; margin-block: 12px; padding: 12px 16px; border-inline-start: 3px solid var(--accent); border-radius: 4px; background: #eef6f4; }
-.error-feedback[data-kind="error"] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--panel)); }
-.error-feedback[data-kind="warning"] { border-color: #a17600; background: #fff8e1; }
+.error-feedback, .resource-status { --feedback-color: var(--accent); }
+:is(.error-feedback, .resource-status)[data-kind="error"] { --feedback-color: var(--danger); }
+:is(.error-feedback, .resource-status)[data-kind="warning"] { --feedback-color: var(--warning); }
+.error-feedback { min-width: 0; overflow-wrap: anywhere; margin-block: 12px; padding: 12px 16px; border-inline-start: 3px solid var(--feedback-color); border-radius: 4px; background: #eef6f4; }
+.error-feedback[data-kind="error"] { background: color-mix(in srgb, var(--danger) 5%, var(--panel)); }
+.error-feedback[data-kind="warning"] { background: #fff8e1; }
 .error-feedback > .feedback-message { margin: 0; color: var(--ink); font-weight: 600; }
 .feedback-diagnostic { display: block; margin-block-start: 8px; color: var(--muted); font-size: 0.875em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .transaction-feedback a { color: var(--accent); }
@@ -436,12 +440,8 @@ summary:focus-visible {
 .resources h2 { margin: 0; font-size: 1rem; }
 .resource-value { display: grid; grid-template-columns: 7rem 28px minmax(0, 1fr); align-items: center; gap: 8px; }
 .resource-link { color: var(--accent); text-underline-offset: 0.15em; overflow-wrap: anywhere; }
-.resource-status-ok, .resource-status-warning { font-size: 0.8125rem; }
-button.resource-status-ok, button.resource-status-warning { justify-self: start; padding: 4px 0; min-height: 28px; text-decoration: underline dotted; text-underline-offset: 0.2em; }
+button.resource-status { font-size: 0.8125rem; color: var(--feedback-color); justify-self: start; padding: 4px 0; min-height: 28px; text-decoration: underline dotted; text-underline-offset: 0.2em; }
 .resource-value .copy-recovery { grid-column: 1 / -1; }
-
-button.resource-status-warning { color: var(--danger); }
-button.resource-status-ok { color: var(--muted); }
 
 .dismissible-dialog > h2 { margin: 0 0 16px; font-size: 1.25rem; }
 .resource-row .dismissible-dialog > .button-quiet { margin-top: 16px; }

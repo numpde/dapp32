@@ -505,8 +505,8 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: camURI.href, requestStage: 'Request' }] })
   await call('Page.navigate', { url: viewer.href })
   await wait(state => state.readRoute === cam.entry && state.text.includes('Hash mismatch') && state.buttons.some(button => button.name === 'Create a channel'), 'tampered manifest warning with rendered home')
-  await evaluate(`document.querySelector('.resource-status-warning').click()`)
-  await wait(state => state.text.includes('This file does not match the verification hash stored in the contract.'), 'inspect manifest mismatch details')
+  await evaluate(`document.querySelector('.resource-status[data-kind="error"]').click()`)
+  await wait(state => state.text.includes('The loaded file does not match the verification hash stored in the contract.'), 'inspect manifest mismatch details')
   await evaluate(`[...document.querySelectorAll('.resources dialog[open] button')].find(button=>button.textContent==='Close').click()`)
   assert.equal(sent, beforeTamper, 'displaying an integrity warning must never submit a transaction')
 

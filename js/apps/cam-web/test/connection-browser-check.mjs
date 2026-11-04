@@ -213,7 +213,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
       assert(await evaluate('document.documentElement.scrollWidth<=innerWidth'), `connection facts reflow at ${width}px`)
     }
-    const warning = `document.querySelector('.resources .resource-status-warning')`
+    const warning = `document.querySelector('.resources .resource-status:not([data-kind="status"])')`
     await open('no-wallet')
     await wait(`!!document.querySelector('.ui')`)
     assert(await evaluate(`document.querySelector('.wallet-value').textContent.trim()==='Wallet not detected'&&document.querySelector('.wallet-button').disabled&&!document.querySelector('.wallet-value code')`), 'a missing provider is explained by the unavailable control without a separate status label')
@@ -236,13 +236,13 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await open('unverified-held')
     await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
     assert(await evaluate(`!document.querySelector('.ui')&&document.querySelector('.panel')?.textContent.includes('Loading app')`), 'the root warning appears while later resources are still loading')
-    await evaluate(`window.earlyResource=document.querySelector('.resource-row');document.querySelector('.resource-status-warning').click();window.earlyDialog=document.querySelector('.resources dialog');connectionFixture.releaseProtocol()`)
+    await evaluate(`window.earlyResource=document.querySelector('.resource-row');document.querySelector('.resource-status[data-kind="warning"]').click();window.earlyDialog=document.querySelector('.resources dialog');connectionFixture.releaseProtocol()`)
     await wait(`!!document.querySelector('.ui')`)
-    assert(await evaluate(`document.querySelector('.resource-row')===window.earlyResource&&document.querySelector('.resources dialog')===window.earlyDialog&&window.earlyDialog.open&&document.querySelectorAll('.resource-status-warning').length===1`), 'loading completion preserves the resource row and open verification dialog')
+    assert(await evaluate(`document.querySelector('.resource-row')===window.earlyResource&&document.querySelector('.resources dialog')===window.earlyDialog&&window.earlyDialog.open&&document.querySelectorAll('.resource-status[data-kind="warning"]').length===1`), 'loading completion preserves the resource row and open verification dialog')
 
     await open('unverified-held')
     await wait(`connectionFixture.state.protocolStarted===1&&!!${warning}`)
-    await evaluate(`window.failedResource=document.querySelector('.resource-row');document.querySelector('.resource-status-warning').click();connectionFixture.state.failHeldProtocol=true;connectionFixture.releaseProtocol()`)
+    await evaluate(`window.failedResource=document.querySelector('.resource-row');document.querySelector('.resource-status[data-kind="warning"]').click();connectionFixture.state.failHeldProtocol=true;connectionFixture.releaseProtocol()`)
     await wait(`!!document.querySelector('.panel.error')`)
     assert(await evaluate(`!!${warning}&&document.querySelector('.resource-row')===window.failedResource&&document.querySelector('.resources dialog').open&&document.querySelector('.resources').textContent.includes('hash stored in the contract is zero')`), 'a later download failure preserves already known warnings')
     await evaluate(`connectionFixture.state.unverifiedRoot=false;[...document.querySelectorAll('button')].find(button=>button.textContent==='Retry loading').click()`)
@@ -282,8 +282,16 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
           if (repetition === 0 && label === 'UI') await assertDialogLayout({ call, evaluate })
           const facts = await evaluate(`(()=>{
             const dialog=document.querySelector('.resources dialog[open]');
-            return {hashes:[...dialog.querySelectorAll('code')].map(code=>code.title),text:dialog.textContent};
+            const verdict=dialog.closest('.resource-row').querySelector('.resource-status');
+            const feedback=dialog.querySelector('.error-feedback');
+            return {hashes:[...dialog.querySelectorAll('code')].map(code=>code.title),text:dialog.textContent,
+              kind:verdict.dataset.kind,dialogKind:feedback.dataset.kind,
+              color:getComputedStyle(verdict).color,dialogColor:getComputedStyle(feedback).borderInlineStartColor};
           })()`)
+          const expectedKind = scenario === 'mismatch' ? 'error' : scenario === 'unverified' && label === 'Manifest' ? 'warning' : 'status'
+          assert.equal(facts.kind, expectedKind, `${scenario} ${label}: verdict conveys the captured result`)
+          assert.equal(facts.dialogKind, expectedKind, 'dialog and verdict use the same result classification')
+          assert.equal(facts.color, facts.dialogColor, 'verdict text matches the dialog feedback color in every verification state')
           assert.deepEqual(facts.hashes, [expectedHash, actualHash], `${scenario} ${label}: inspection shows the exact original bytes and original declaration`)
           assert(facts.text.includes('Loaded hash') && !facts.text.includes('fresh download'), 'verification describes the document used on the page')
           assert.equal(await evaluate(`document.querySelector('button[aria-label="Refresh hashes"]')===null`), true, 'inspection offers no separate download action')

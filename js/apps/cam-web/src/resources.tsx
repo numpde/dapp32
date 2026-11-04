@@ -43,7 +43,7 @@ function ResourceRow({ label, check }: {
     <div className="resource-value">
       {href === undefined ? <span className="resource-link" title={uri}>{label}</span> : <a className="resource-link" href={href} target="_blank" rel="noopener noreferrer" title={uri}>{label} <span aria-hidden="true">↗</span><span className="visually-hidden"> (opens in new tab)</span></a>}
       <CopyButton label={`${label} URI`} result={result} onCopy={copy} />
-      <button className={`${check.status === "verified" ? "resource-status-ok" : "resource-status-warning"} button-quiet`} type="button" aria-haspopup="dialog" aria-label={`${label} verification: ${statusLabel}`} onClick={() => setShowDetails(true)}>{statusLabel}</button>
+      <button className="resource-status button-quiet" data-kind={integrityKind(check.status)} type="button" aria-haspopup="dialog" aria-label={`${label} verification: ${statusLabel}`} onClick={() => setShowDetails(true)}>{statusLabel}</button>
       <CopyRecovery failure={failure} label={`${label} URI`} value={uri} />
     </div>
     <DismissibleDialog open={showDetails} label={`${label} verification`} onDismiss={() => setShowDetails(false)}>
@@ -59,9 +59,13 @@ function IntegrityDetails({ check }: { readonly check: CamIntegrityCheck }): Rea
     : `The loaded file could not be verified. The verification hash ${hashLocation} is zero.`
   return <div className="verification-facts">
     <div className="verification-summary">
-      <FeedbackBox kind={check.status === "mismatch" ? "error" : check.status === "verified" ? "status" : "warning"} message={message} />
+      <FeedbackBox kind={integrityKind(check.status)} message={message} />
     </div>
     <PropertyRow label="Expected hash" value={check.expectedHash} />
     <PropertyRow label="Loaded hash" value={check.actualHash} />
   </div>
+}
+
+function integrityKind(status: CamIntegrityCheck["status"]): "status" | "warning" | "error" {
+  return status === "verified" ? "status" : status === "mismatch" ? "error" : "warning"
 }
