@@ -259,27 +259,44 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     await withBrowserFocus(call, () => evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))'))
     assert(await evaluate(`!!document.querySelector('.ui')&&!${warning}`), 'late warnings from the cancelled load cannot replace the new view')
 
-    await open('unverified')
-    await wait(`!!document.querySelector('.ui')`)
-    await evaluate(`window.matchedView=document.querySelector('.ui');document.querySelector('.resource-status-ok').click()`)
-    await wait(`document.querySelector('.resources dialog[open]')?.textContent.includes('latest download matches')`)
-    await assertDialogLayout({ call, evaluate })
-    assert(await evaluate(`(()=>{const dialog=document.querySelector('.resources dialog[open]');return dialog.textContent.includes('Expected hash')&&dialog.textContent.includes('Downloaded hash')&&dialog.textContent.includes('fresh download')&&document.querySelector('.ui')===window.matchedView&&connectionFixture.state.sends===0})()`), 'matched resources expose fresh hash details without replacing the app or sending transactions')
-    await evaluate(`[...document.querySelectorAll('.resources dialog[open] button')].find(button=>button.textContent==='Close').click()`)
-    await evaluate(`document.querySelector('.resource-status-warning').click()`)
-    assert(await evaluate(`!!document.querySelector('.resources [role="status"][data-kind="warning"]')`), 'a zero verification hash produces a warning while the UI remains available')
-    assert(await evaluate(`document.querySelector('.resources').textContent.includes('hash stored in the contract is zero')`), 'the unverified condition is stated explicitly')
-    assert(await evaluate(`(()=>{const warning=document.querySelector('.resources [role="status"][data-kind="warning"]');const normal=document.createElement('div');normal.className='error-feedback';normal.dataset.kind='status';document.body.append(normal);const distinct=getComputedStyle(warning).backgroundColor!==getComputedStyle(normal).backgroundColor;normal.remove();return distinct})()`), 'unverified resources do not use the normal status treatment')
-    await evaluate(`(()=>{window.savedIntegrityView=document.querySelector('.ui');window.savedIntegrityURL=location.href;window.savedIntegrityReads=connectionFixture.state.subjects.length;window.savedIntegrityDownloads=connectionFixture.state.rootDownloads;const input=document.querySelector('input[name="draft"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Keep this draft');input.dispatchEvent(new Event('input',{bubbles:true}));connectionFixture.replaceRoot(' ');connectionFixture.state.unverifiedRoot=false;connectionFixture.state.holdRoot=true;document.querySelector('button[aria-label="Refresh hashes"]').click()})()`)
-    await wait(`connectionFixture.state.rootDownloads===window.savedIntegrityDownloads+1&&document.querySelector('button[aria-label="Refresh hashes"]').disabled`)
-    assert(await evaluate(`document.querySelector('.ui')===window.savedIntegrityView&&document.querySelector('input[name="draft"]').value==='Keep this draft'`), 'hash checking keeps the current view and draft while the download is pending')
-    await evaluate('connectionFixture.releaseRoot()')
-    await wait(`document.querySelector('.resources').textContent.includes('latest download matches')`)
-    assert(await evaluate(`(()=>{const box=document.querySelector('.resources');const hashes=[...box.querySelectorAll('code')].map(code=>code.title);return hashes.length===2&&hashes.every(hash=>hash===connectionFixture.state.rootHash)&&box.textContent.includes('does not reload the app')&&box.querySelector('[data-kind="warning"]')!==null&&document.querySelector('.ui')===window.savedIntegrityView&&location.href===window.savedIntegrityURL&&document.querySelector('input[name="draft"]').value==='Keep this draft'&&connectionFixture.state.subjects.length===window.savedIntegrityReads})()`), 'both hashes refresh without replacing the loaded app, its draft, URL or route reads; a changed download is not presented as the displayed app')
-    await evaluate(`connectionFixture.state.failRoot=true;document.querySelector('button[aria-label="Refresh hashes"]').click()`)
-    await wait(`!!document.querySelector('.resources [role="alert"]')`)
-    assert(await evaluate(`(()=>{const box=document.querySelector('.resources');return [...box.querySelectorAll('dl code')].every(code=>code.title===connectionFixture.state.rootHash)&&document.querySelector('.ui')===window.savedIntegrityView&&!box.textContent.includes('Reload page')&&connectionFixture.state.sends===0})()`), 'a failed hash refresh retains the previous facts and never reloads or sends a transaction')
-    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, hashRefreshPreservesApp: true, sends: 0 }
+    for (const scenario of ['public', 'unverified', 'mismatch']) {
+      await open(scenario)
+      await wait(`!!document.querySelector('.ui')&&!!document.querySelector('[aria-label="RPC connection checked"]')`)
+      const originalHashes = await evaluate('connectionFixture.loadedHashes')
+      await evaluate(`(()=>{
+        window.savedIntegrityView=document.querySelector('.ui');window.savedIntegrityURL=location.href;
+        const input=document.querySelector('input[name="draft"]');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Keep this draft');
+        input.dispatchEvent(new Event('input',{bubbles:true}));
+        connectionFixture.replaceDocuments();connectionFixture.state.forbidRequests=true;
+      })()`)
+      const baselineRequests = await evaluate('connectionFixture.state.requests')
+      assert.notEqual(await evaluate('connectionFixture.state.rootHash'), originalHashes.manifest, 'upstream bytes and the contract digest changed after loading')
+      for (let repetition = 0; repetition < 2; repetition++) {
+        for (const [label, expectedHash, actualHash] of [
+          ['Manifest', originalHashes.expectedManifest, originalHashes.manifest],
+          ['UI', originalHashes.expectedUI, originalHashes.ui],
+        ]) {
+          await evaluate(`document.querySelector('button[aria-label^="${label} verification:"]').click()`)
+          await wait(`!!document.querySelector('.resources dialog[open] .verification-facts')`)
+          if (repetition === 0 && label === 'UI') await assertDialogLayout({ call, evaluate })
+          const facts = await evaluate(`(()=>{
+            const dialog=document.querySelector('.resources dialog[open]');
+            return {hashes:[...dialog.querySelectorAll('code')].map(code=>code.title),text:dialog.textContent};
+          })()`)
+          assert.deepEqual(facts.hashes, [expectedHash, actualHash], `${scenario} ${label}: inspection shows the exact original bytes and original declaration`)
+          assert(facts.text.includes('Loaded hash') && !facts.text.includes('fresh download'), 'verification describes the document used on the page')
+          assert.equal(await evaluate(`document.querySelector('button[aria-label="Refresh hashes"]')===null`), true, 'inspection offers no separate download action')
+          if (scenario === 'mismatch') assert(facts.text.includes('does not match'), 'new matching upstream hashes cannot erase a loaded mismatch')
+          if (scenario === 'unverified' && label === 'Manifest') assert(facts.text.includes('hash stored in the contract is zero'), 'a changed contract digest cannot erase the loaded document warning')
+          await evaluate(`[...document.querySelectorAll('.resources dialog[open] button')].find(button=>button.textContent==='Close').click()`)
+          await wait(`!document.querySelector('.resources dialog[open]')`)
+          assert.deepEqual(await evaluate('connectionFixture.state.requests'), baselineRequests, 'opening, closing and reopening either dialog makes no HTTP or RPC requests, even when the network would fail')
+          assert(await evaluate(`document.querySelector('.ui')===window.savedIntegrityView&&location.href===window.savedIntegrityURL&&document.querySelector('input[name="draft"]').value==='Keep this draft'&&connectionFixture.state.sends===0`), 'inspection preserves the displayed document, route, draft and wallet state')
+        }
+      }
+    }
+    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, loadedByteVerification: true, sends: 0 }
   } catch (error) { failures.push(error) }
   finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
 }

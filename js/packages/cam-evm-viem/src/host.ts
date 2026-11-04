@@ -7,7 +7,7 @@ import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamHash, verifyCamResourceIntegrity } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
-import type { CamIntegrityCheck, CamIntegrityWarning, LoadedCam, LoadCamFromHostOptions } from "./types.ts"
+import type { LoadedCam, LoadCamFromHostOptions } from "./types.ts"
 
 async function readManifestResource({
   publicClient,
@@ -48,13 +48,14 @@ async function readManifestResource({
 }
 
 export async function loadCamFromHost(options: LoadCamFromHostOptions): Promise<LoadedCam> {
-  const { loadResource, onIntegrityWarning } = options
+  const { loadResource, onIntegrityWarning, onIntegrityCheck } = options
   const { camURI, camHash, camBytes } = await readManifestResource(options)
-  verifyCamHash({
+  const rootCheck = verifyCamHash({
     bytes: camBytes,
     expectedHash: camHash,
     ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning: warning => onIntegrityWarning({ ...warning, uri: camURI }) }),
   })
+  onIntegrityCheck?.({ ...rootCheck, uri: camURI })
 
   const cam = parseManifest(camBytes, camURI)
   const protocolURI = resolveCamResourceURI(camURI, cam.protocol.uri)
@@ -63,36 +64,10 @@ export async function loadCamFromHost(options: LoadCamFromHostOptions): Promise<
     protocolURI,
     `failed to load CAM protocol resource: ${protocolURI}`,
   )
-  verifyCamResourceIntegrity({ bytes: protocolBytes, integrity: cam.protocol.integrity, uri: protocolURI, ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning }) })
+  const protocolCheck = verifyCamResourceIntegrity({ bytes: protocolBytes, integrity: cam.protocol.integrity, uri: protocolURI, ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning }) })
+  onIntegrityCheck?.(protocolCheck)
 
   return { camURI, cam }
-}
-
-export async function checkCamResourceIntegrity(options: Omit<LoadCamFromHostOptions, "onIntegrityWarning"> & {
-  readonly resource: Pick<CamIntegrityWarning, "hashSource" | "uri">
-}): Promise<CamIntegrityCheck> {
-  const { camURI, camHash, camBytes } = await readManifestResource(options)
-  let warning: CamIntegrityWarning | undefined
-  if (options.resource.hashSource === "contract") {
-    verifyCamHash({ bytes: camBytes, expectedHash: camHash, onIntegrityWarning: result => { warning = { ...result, uri: camURI } } })
-    // silent-defaults: allow-default -- The verifier reports a warning only when the hashes differ.
-    return warning ?? { hashSource: "contract", status: "verified", uri: camURI, expectedHash: camHash, actualHash: camHash.toLowerCase() }
-  }
-
-  // A secondary check compares fresh declarations; it does not authenticate their manifest.
-  const cam = parseManifest(camBytes, camURI)
-  const declarations = [cam.protocol, ...Object.values(cam.namespaces).flatMap(namespace =>
-    namespace.type === "contract" ? [{ uri: namespace.abiURI, integrity: namespace.integrity }]
-      : namespace.type === "ui" ? [{ uri: namespace.uri, integrity: namespace.integrity }] : [])]
-  const declaration = declarations.find(resource => resolveCamResourceURI(camURI, resource.uri) === options.resource.uri)
-  if (declaration === undefined) {
-    throw new CamEvmError("CAM_DOCUMENT_INVALID", `Cannot refresh these hashes: the current app manifest no longer declares this resource: ${options.resource.uri}`)
-  }
-  const bytes = await loadResourceBytes(options.loadResource, options.resource.uri, `failed to load CAM resource: ${options.resource.uri}`)
-  verifyCamResourceIntegrity({ bytes, integrity: declaration.integrity, uri: options.resource.uri, onIntegrityWarning: result => { warning = result } })
-  const expectedHash = declaration.integrity.slice("sha256:".length)
-  // silent-defaults: allow-default -- The verifier reports a warning only when the hashes differ.
-  return warning ?? { hashSource: "manifest", status: "verified", uri: options.resource.uri, expectedHash, actualHash: expectedHash.toLowerCase() }
 }
 
 function parseManifest(bytes: Uint8Array, uri: string) {

@@ -29,7 +29,7 @@ import {
   editDurationDraft,
   projectDurationDraft,
 } from "@cam/screen"
-import type { CamHost, CamIntegrityWarning, ResolvedCamContract } from "@cam/evm-viem"
+import type { CamHost, CamIntegrityCheck, CamIntegrityWarning, ResolvedCamContract } from "@cam/evm-viem"
 import type {
   NumericDraft,
   DurationPart,
@@ -65,7 +65,7 @@ import type {
 } from "./types.ts"
 
 type CamViewerLoadedState = {
-  readonly integrityWarnings: readonly CamIntegrityWarning[]
+  readonly integrityChecks: readonly CamIntegrityCheck[]
   readonly cam: CamDocument
   readonly camURI: string
   readonly contracts: Record<string, ResolvedCamContract>
@@ -82,6 +82,7 @@ export function createCamViewerSession({
   host,
   loadResource,
   onIntegrityWarning: reportIntegrityWarning,
+  onIntegrityCheck: reportIntegrityCheck,
   account: initialAccount,
   inputs: initialInputs,
   route: initialRoute,
@@ -120,7 +121,8 @@ export function createCamViewerSession({
     return {
       ...sessionSnapshot(view.inputs),
       visitId: visits[visitCursor]!.visitId,
-      integrityWarnings: cloneViewerData(current.integrityWarnings, "integrityWarnings"),
+      integrityChecks: cloneViewerData(current.integrityChecks, "integrityChecks"),
+      integrityWarnings: cloneViewerData(current.integrityChecks.filter((check): check is CamIntegrityWarning => check.status !== "verified"), "integrityWarnings"),
       documentHashes: cloneViewerData(documentHashes, "documentHashes"),
       route: view.route,
       state: cloneViewerData<InertRecord>(view.state, "state"),
@@ -134,9 +136,12 @@ export function createCamViewerSession({
 
   async function load(): Promise<CamViewerLoadedSnapshot> {
     writePreparationRevision += 1
-    const integrityWarnings: CamIntegrityWarning[] = []
+    const integrityChecks: CamIntegrityCheck[] = []
+    const onIntegrityCheck = (check: CamIntegrityCheck): void => {
+      integrityChecks.push(cloneViewerData(check, "integrityCheck"))
+      reportIntegrityCheck?.(cloneViewerData(check, "integrityCheck"))
+    }
     const onIntegrityWarning = (warning: CamIntegrityWarning): void => {
-      integrityWarnings.push(warning)
       reportIntegrityWarning?.(cloneViewerData(warning, "integrityWarning"))
     }
     const loadedCam = await loadCamFromHost({
@@ -144,6 +149,7 @@ export function createCamViewerSession({
       host: sessionHost,
       loadResource,
       onIntegrityWarning,
+      onIntegrityCheck,
     })
 
     const contracts = await resolveCamContracts({
@@ -153,13 +159,14 @@ export function createCamViewerSession({
       cam: loadedCam.cam,
       loadResource,
       onIntegrityWarning,
+      onIntegrityCheck,
     })
 
     const uiResource = uiResourceDeclaration(loadedCam.cam, loadedCam.camURI)
-    const ui = await loadUi(uiResource.uri, uiResource.integrity, onIntegrityWarning)
+    const ui = await loadUi(uiResource.uri, uiResource.integrity, onIntegrityWarning, onIntegrityCheck)
 
     const nextLoadedState = {
-      integrityWarnings,
+      integrityChecks,
       cam: loadedCam.cam,
       camURI: loadedCam.camURI,
       contracts,
@@ -494,7 +501,7 @@ export function createCamViewerSession({
     return { ...view, numericDrafts }
   }
 
-  async function loadUi(uri: string, integrity: string, onIntegrityWarning: (warning: CamIntegrityWarning) => void): Promise<UiDocument> {
+  async function loadUi(uri: string, integrity: string, onIntegrityWarning: (warning: CamIntegrityWarning) => void, onIntegrityCheck: (check: CamIntegrityCheck) => void): Promise<UiDocument> {
     let bytes: Uint8Array
     try {
       bytes = await loadResource(uri)
@@ -503,7 +510,7 @@ export function createCamViewerSession({
       throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", `failed to load CAM UI resource: ${uri}`, cause)
     }
     try {
-      verifyCamResourceIntegrity({ bytes, integrity, uri, onIntegrityWarning })
+      onIntegrityCheck(verifyCamResourceIntegrity({ bytes, integrity, uri, onIntegrityWarning }))
     } catch (cause) {
       throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", `failed to verify CAM UI resource: ${uri}`, cause)
     }

@@ -39,12 +39,12 @@ const cam = encode({ cam: "1.4.0", protocol: { uri: "./protocol.html", integrity
   routes: { home: read("home"), detail: read("detail"), anotherUpdate: { kind: "write", inputs: [], call: { namespace: "contracts.App", function: "update", args: { amount: "42" } }, then: { namespace: "routes", function: "detail", args: {} } }, update: { kind: "write", inputs: [], resolve: { namespace: "contracts.App", function: "review", args: {} }, call: { namespace: "contracts.App", target: "$outputs.0", function: "update", args: { amount: "9007199254740993" } }, then: { namespace: "routes", function: "detail", args: {} } }, metadata: { kind: "write", inputs: ["uri"], call: { namespace: "contracts.App", function: "updateMetadata", args: { tokenURI: "$inputs.uri" } }, then: { namespace: "routes", function: "detail", args: {} } } },
 })
 const resources = new Map([["main.json", cam], ["protocol.html", protocol], ["abi.json", abiBytes], ["ui.json", ui]])
-const state = { holdRoot: false, failRoot: false, rootDownloads: 0, rootHash: sha256(cam), holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
+if (scenario === "mismatch") resources.set("ui.json", new TextEncoder().encode(`${new TextDecoder().decode(ui)}\n`))
+const state = { requests: [] as string[], forbidRequests: false, rootHash: scenario === "mismatch" ? sha256(ui) : sha256(cam), holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
 const transactionHash = `0x${"ab".repeat(32)}`
 const transactionBlockHash = `0x${"cd".repeat(32)}`
 let holdReceipt = scenario === "transaction-label"
 const receiptReads: (() => void)[] = []
-const rootReads: (() => void)[] = []
 let holdWallet = false
 let rejectWallet: ((error: unknown) => void) | undefined
 let holdConnection = false
@@ -54,14 +54,11 @@ const publicReads: (() => void)[] = []
 const candidateReads: (() => void)[] = []
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url)
+  state.requests.push(url.href)
+  if (state.forbidRequests) throw new Error("Verification inspection attempted a network request")
   if (url.origin === resourceBase.origin && url.pathname.startsWith(resourceBase.pathname)) {
     const bytes = resources.get(url.pathname.split("/").at(-1)!)
     if (bytes === undefined) throw new Error(`Unexpected fixture resource: ${url.href}`)
-    if (url.pathname.endsWith("/main.json")) {
-      state.rootDownloads++
-      if (state.holdRoot) await new Promise<void>(resolve => rootReads.push(resolve))
-      if (state.failRoot) throw new Error("Fixture manifest download failed")
-    }
     if (url.pathname.endsWith("/protocol.html")) {
       state.protocolStarted++
       const held = state.holdProtocol
@@ -137,13 +134,22 @@ const provider = {
   removeListener(event: string, listener: (value: unknown) => void) { listeners.get(event)?.delete(listener) },
 }
 Object.assign(window, { ethereum: scenario === "no-wallet" ? undefined : provider, connectionFixture: { state, wallet, listeners,
+  loadedHashes: { manifest: sha256(cam), ui: sha256(resources.get("ui.json")!), expectedManifest: state.unverifiedRoot ? zeroHash : state.rootHash, expectedUI: sha256(ui) },
+  replaceDocuments() {
+    const nextUI = encode({ ui: "1.1.0", nodes: { home: screen("Replacement document") } })
+    const nextCam = JSON.parse(new TextDecoder().decode(cam))
+    nextCam.namespaces.ui.integrity = `sha256:${sha256(nextUI)}`
+    const nextRoot = encode(nextCam)
+    resources.set("ui.json", nextUI)
+    resources.set("main.json", nextRoot)
+    state.rootHash = sha256(nextRoot)
+    state.unverifiedRoot = false
+  },
   releaseReceipt() { holdReceipt = false; receiptReads.splice(0).forEach(release => release()) },
   holdConnection() { holdConnection = true },
   releaseConnection() { holdConnection = false; releaseConnection?.(); releaseConnection = undefined },
   holdWallet() { holdWallet = true },
   rejectWallet() { holdWallet = false; rejectWallet?.(Object.assign(new Error("Fixture wallet rejected the request"), { code: 4001 })); rejectWallet = undefined },
-  replaceRoot(suffix: string) { const bytes = new Uint8Array([...cam, ...new TextEncoder().encode(suffix)]); resources.set("main.json", bytes); state.rootHash = sha256(bytes) },
-  releaseRoot() { state.holdRoot = false; rootReads.splice(0).forEach(release => release()) },
   releaseProtocol() { state.holdProtocol = false; protocolReads.splice(0).forEach(release => release()) },
   releasePublicReads() { state.holdPublicRead = false; publicReads.splice(0).forEach(release => release()) },
   releaseCandidate() { state.holdCandidate = false; candidateReads.splice(0).forEach(release => release()) },

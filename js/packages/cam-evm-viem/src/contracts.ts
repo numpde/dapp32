@@ -12,7 +12,7 @@ import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamResourceIntegrity } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
-import type { CamHost, CamIntegrityWarning, CamPublicClient, ResolvedCamContract, ResourceLoader } from "./types.ts"
+import type { CamHost, CamIntegrityCheck, CamIntegrityWarning, CamPublicClient, ResolvedCamContract, ResourceLoader } from "./types.ts"
 
 export async function resolveCamContracts({
   publicClient,
@@ -21,6 +21,7 @@ export async function resolveCamContracts({
   cam,
   loadResource,
   onIntegrityWarning,
+  onIntegrityCheck,
 }: ResolveCamContractsOptions): Promise<Record<string, ResolvedCamContract>> {
   await assertClientChain(publicClient, host)
 
@@ -35,6 +36,7 @@ export async function resolveCamContracts({
         abiURI: contract.abiURI,
         integrity: contract.integrity,
         loadResource,
+        ...(onIntegrityCheck === undefined ? {} : { onIntegrityCheck }),
         ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning }),
       }),
     ] as const),
@@ -72,6 +74,7 @@ async function resolveContract({
   integrity,
   loadResource,
   onIntegrityWarning,
+  onIntegrityCheck,
 }: {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
@@ -80,6 +83,7 @@ async function resolveContract({
   readonly abiURI: string
   readonly integrity: string
   readonly loadResource: ResourceLoader
+  readonly onIntegrityCheck?: (check: CamIntegrityCheck) => void
   readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
 }): Promise<ResolvedCamContract> {
   let address: unknown
@@ -110,12 +114,13 @@ async function resolveContract({
     abiURI,
     `failed to load CAM ABI resource: ${abiURI}`,
   )
-  verifyCamResourceIntegrity({
+  const check = verifyCamResourceIntegrity({
     bytes: abiBytes,
     integrity,
     uri: abiURI,
     ...(onIntegrityWarning === undefined ? {} : { onIntegrityWarning }),
   })
+  onIntegrityCheck?.(check)
 
   return {
     address,
@@ -129,5 +134,6 @@ type ResolveCamContractsOptions = {
   readonly camURI: string
   readonly cam: CamDocument
   readonly loadResource: ResourceLoader
+  readonly onIntegrityCheck?: (check: CamIntegrityCheck) => void
   readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
 }

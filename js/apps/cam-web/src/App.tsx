@@ -13,9 +13,7 @@ import type { DownloadScope } from "@cam/protocol"
 import {
   sendCamContractCall,
   simulateCamContractCall,
-  checkCamResourceIntegrity,
 } from "@cam/evm-viem"
-import type { CamIntegrityWarning, CamIntegrityCheck } from "@cam/evm-viem"
 import type {
   ResolvedButtonNode,
   ResolvedUiNode,
@@ -84,9 +82,9 @@ import {
 
 type LoadState =
   | { readonly status: "setup" }
-  | { readonly status: "loading"; readonly startup?: ConnectionOptions; readonly integrityWarnings: CamViewerLoadedSnapshot["integrityWarnings"] }
+  | { readonly status: "loading"; readonly startup?: ConnectionOptions; readonly integrityChecks: CamViewerLoadedSnapshot["integrityChecks"] }
   | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerLoadedSnapshot }
-  | { readonly status: "failed"; readonly failure: FailureReport; readonly startup?: ConnectionOptions; readonly integrityWarnings: CamViewerLoadedSnapshot["integrityWarnings"] }
+  | { readonly status: "failed"; readonly failure: FailureReport; readonly startup?: ConnectionOptions; readonly integrityChecks: CamViewerLoadedSnapshot["integrityChecks"] }
 
 type AppRuntime = {
   viewingMode: "public" | "account"
@@ -155,7 +153,7 @@ export function App(): ReactElement {
   const gatewayRef = useRef(defaultIpfsGateway.template)
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
   const [loadRequest, setLoadRequest] = useState<ConnectionOptions | undefined>(undefined)
-  const [loadState, setLoadState] = useState<LoadState>(() => "failure" in viewerLink ? { status: "failed", failure: viewerLink.failure, integrityWarnings: [] } : { status: "setup" })
+  const [loadState, setLoadState] = useState<LoadState>(() => "failure" in viewerLink ? { status: "failed", failure: viewerLink.failure, integrityChecks: [] } : { status: "setup" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
   const [walletChainMatches, setWalletChainMatches] = useState(true)
   const [walletRefreshing, setWalletRefreshing] = useState(false)
@@ -211,14 +209,14 @@ export function App(): ReactElement {
     const controller = new AbortController()
     resourceLoadAbortRef.current = controller
     let loadedSession: CamViewerSession | undefined
-    const integrityWarnings: CamViewerLoadedSnapshot["integrityWarnings"][number][] = []
+    const integrityChecks: CamViewerLoadedSnapshot["integrityChecks"][number][] = []
 
     async function load(): Promise<void> {
       try {
         const startup: StartupOptions = { ...requestedConnection, ...parseViewFragment(new URL(window.location.href).hash) }
         currentDownloadScope()
         const options = startup
-        readyRef.current = { status: "loading", startup, integrityWarnings: [] }
+        readyRef.current = { status: "loading", startup, integrityChecks: [] }
         setLoadState(readyRef.current)
         const publicClient = createPublicClient({
           transport: http(startup.rpcUrl),
@@ -238,12 +236,12 @@ export function App(): ReactElement {
           },
           inputs: options.inputs,
           ...(options.route === undefined ? {} : { route: options.route }),
-          onIntegrityWarning: warning => {
+          onIntegrityCheck: check => {
             if (cancelled || controller.signal.aborted) return
-            integrityWarnings.push(warning)
+            integrityChecks.push(check)
             setLoadState(current => {
               if (cancelled || controller.signal.aborted || (current.status !== "loading" && current.status !== "failed")) return current
-              return { ...current, integrityWarnings: [...integrityWarnings] }
+              return { ...current, integrityChecks: [...integrityChecks] }
             })
           },
           loadResource: uri => createViewerResourceLoader(assertCurrentDownloadAllowed, gatewayRef.current, controller.signal)(uri),
@@ -270,7 +268,7 @@ export function App(): ReactElement {
             status: "failed",
             failure: failureReport(error, "The app could not be loaded. Check the connection settings and technical details below."),
             startup: requestedConnection,
-            integrityWarnings: [...integrityWarnings],
+            integrityChecks: [...integrityChecks],
           })
         }
       }
@@ -478,19 +476,6 @@ export function App(): ReactElement {
     if (sendingRef.current || viewInteractionBlocked() || !browserHistory.canGoBack()) return
     invalidatePreparedInteraction()
     browserHistory.back()
-  }
-
-  async function refreshIntegrity(resource: Pick<CamIntegrityWarning, "uri" | "hashSource">, signal: AbortSignal): Promise<CamIntegrityCheck> {
-    const current = readyRef.current
-    const startup = current.status === "ready" ? current.runtime.startup : current.status === "setup" ? undefined : current.startup
-    if (startup === undefined) throw new UserFacingError("Cannot refresh these hashes without the app's connection settings.")
-    const publicClient = current.status === "ready" ? current.runtime.rpc.client : createPublicClient({ transport: http(startup.rpcUrl) })
-    return checkCamResourceIntegrity({
-      publicClient,
-      host: { chainId: startup.chainId, address: startup.host },
-      loadResource: createViewerResourceLoader(assertCurrentDownloadAllowed, gatewayRef.current, signal),
-      resource,
-    })
   }
 
   async function refreshView(): Promise<void> {
@@ -851,7 +836,7 @@ export function App(): ReactElement {
     if (startup === undefined) return
     resourceLoadAbortRef.current?.abort()
     const request = { ...startup }
-    readyRef.current = { status: "loading", startup: request, integrityWarnings: [] }
+    readyRef.current = { status: "loading", startup: request, integrityChecks: [] }
     setLoadState(readyRef.current)
     setLoadRequest(request)
   }
@@ -969,7 +954,7 @@ export function App(): ReactElement {
         >{rpcControl}{resourcePolicy}{gatewayControl}</ConnectionSummary>
       ) : <div className="connection connection-facts">{resourcePolicy}{gatewayControl}</div>}
 
-      {loadState.status === "setup" ? null : <Resources key={JSON.stringify([loadRequest?.chainId, loadRequest?.host, loadRequest?.rpcUrl])} snapshot={loadState.status === "ready" ? loadState.snapshot : loadState} onRefresh={refreshIntegrity} />}
+      {loadState.status === "setup" ? null : <Resources key={JSON.stringify([loadRequest?.chainId, loadRequest?.host, loadRequest?.rpcUrl])} snapshot={loadState.status === "ready" ? loadState.snapshot : loadState} />}
       {notice === undefined ? null : (
         <Feedback report={notice} kind={notice.kind} className="notice" messageRef={noticeRef} />
       )}

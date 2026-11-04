@@ -7,6 +7,7 @@ import type {
   CamMinedTransaction,
   CamHost,
   CamIntegrityWarning,
+  CamIntegrityCheck,
   CamPublicClient,
   ResourceLoader,
 } from "@cam/evm-viem"
@@ -23,6 +24,7 @@ export type CreateCamViewerSessionOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
+  readonly onIntegrityCheck?: (check: CamIntegrityCheck) => void
   /** Reports resource warnings when checked; does not commit a loaded view. */
   readonly onIntegrityWarning?: (warning: CamIntegrityWarning) => void
   readonly account?: CamViewerAccount
@@ -33,6 +35,7 @@ export type CreateCamViewerSessionOptions = {
 
 export type CamViewerSnapshot = {
   readonly visitId?: number
+  readonly integrityChecks?: readonly CamIntegrityCheck[]
   readonly integrityWarnings?: readonly CamIntegrityWarning[]
   readonly canGoBack: boolean
   readonly route?: string
@@ -48,8 +51,9 @@ export type CamViewerSnapshot = {
 }
 
 export type CamViewerLoadedSnapshot =
-  Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values" | "documentHashes" | "integrityWarnings"> & {
+  Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values" | "documentHashes" | "integrityWarnings" | "integrityChecks"> & {
     readonly visitId: number
+    readonly integrityChecks: readonly CamIntegrityCheck[]
     readonly integrityWarnings: readonly CamIntegrityWarning[]
     readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
     readonly route: string
