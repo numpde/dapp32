@@ -284,15 +284,23 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
             const dialog=document.querySelector('.resources dialog[open]');
             const verdict=dialog.closest('.resource-row').querySelector('.resource-status');
             const feedback=dialog.querySelector('.error-feedback');
+            const intro=dialog.querySelector('.verification-facts > p').getBoundingClientRect(),bounds=dialog.getBoundingClientRect();
             return {hashes:[...dialog.querySelectorAll('code')].map(code=>code.title),text:dialog.textContent,
-              kind:verdict.dataset.kind,dialogKind:feedback.dataset.kind,
+              definitionVisible:intro.top>=bounds.top&&intro.bottom<=bounds.bottom,kind:verdict.dataset.kind,dialogKind:feedback.dataset.kind,
               color:getComputedStyle(verdict).color,dialogColor:getComputedStyle(feedback).borderInlineStartColor};
           })()`)
+          assert(facts.definitionVisible, 'opening the modal keeps the file definition visible in the dialog')
           const expectedKind = scenario === 'mismatch' ? 'error' : scenario === 'unverified' && label === 'Manifest' ? 'warning' : 'status'
           assert.equal(facts.kind, expectedKind, `${scenario} ${label}: verdict conveys the captured result`)
           assert.equal(facts.dialogKind, expectedKind, 'dialog and verdict use the same result classification')
           assert.equal(facts.color, facts.dialogColor, 'verdict text matches the dialog feedback color in every verification state')
           assert.deepEqual(facts.hashes, [expectedHash, actualHash], `${scenario} ${label}: inspection shows the exact original bytes and original declaration`)
+          assert(facts.text.includes('A hash is a fingerprint of a file’s contents.') && facts.text.includes('checked during app loading'), 'hash explanations describe the saved loading check, including incomplete loads')
+          if (label === 'Manifest') {
+            assert(facts.text.includes('manifest is the app’s setup document') && facts.text.includes('contract calls') && facts.text.includes('selected contract supplies its location and expected hash'), 'the manifest modal defines the file and its verification source')
+          } else {
+            assert(facts.text.includes('UI (user interface) file') && facts.text.includes('screens, fields, and buttons') && facts.text.includes('manifest itself'), 'the UI modal defines its role and keeps the manifest verification independent')
+          }
           assert(facts.text.includes('Loaded hash') && !facts.text.includes('fresh download'), 'verification describes the document used on the page')
           assert.equal(await evaluate(`document.querySelector('button[aria-label="Refresh hashes"]')===null`), true, 'inspection offers no separate download action')
           if (scenario === 'mismatch') assert(facts.text.includes('does not match'), 'new matching upstream hashes cannot erase a loaded mismatch')
