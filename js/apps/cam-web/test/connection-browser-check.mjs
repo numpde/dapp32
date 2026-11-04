@@ -277,6 +277,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
           ['Manifest', originalHashes.expectedManifest, originalHashes.manifest],
           ['UI', originalHashes.expectedUI, originalHashes.ui],
         ]) {
+          await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 })
           await evaluate(`document.querySelector('button[aria-label^="${label} verification:"]').click()`)
           await wait(`!!document.querySelector('.resources dialog[open] .verification-facts')`)
           if (repetition === 0 && label === 'UI') await assertDialogLayout({ call, evaluate })
@@ -284,23 +285,17 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
             const dialog=document.querySelector('.resources dialog[open]');
             const verdict=dialog.closest('.resource-row').querySelector('.resource-status');
             const feedback=dialog.querySelector('.error-feedback');
-            const intro=dialog.querySelector('.verification-facts > p').getBoundingClientRect(),bounds=dialog.getBoundingClientRect();
             return {hashes:[...dialog.querySelectorAll('code')].map(code=>code.title),text:dialog.textContent,
-              definitionVisible:intro.top>=bounds.top&&intro.bottom<=bounds.bottom,kind:verdict.dataset.kind,dialogKind:feedback.dataset.kind,
+              kind:verdict.dataset.kind,dialogKind:feedback.dataset.kind,
               color:getComputedStyle(verdict).color,dialogColor:getComputedStyle(feedback).borderInlineStartColor};
           })()`)
-          assert(facts.definitionVisible, 'opening the modal keeps the file definition visible in the dialog')
           const expectedKind = scenario === 'mismatch' ? 'error' : scenario === 'unverified' && label === 'Manifest' ? 'warning' : 'status'
           assert.equal(facts.kind, expectedKind, `${scenario} ${label}: verdict conveys the captured result`)
           assert.equal(facts.dialogKind, expectedKind, 'dialog and verdict use the same result classification')
           assert.equal(facts.color, facts.dialogColor, 'verdict text matches the dialog feedback color in every verification state')
           assert.deepEqual(facts.hashes, [expectedHash, actualHash], `${scenario} ${label}: inspection shows the exact original bytes and original declaration`)
-          assert(facts.text.includes('A hash is a fingerprint of a file’s contents.') && facts.text.includes('checked during app loading'), 'hash explanations describe the saved loading check, including incomplete loads')
-          if (label === 'Manifest') {
-            assert(facts.text.includes('manifest is the app’s setup document') && facts.text.includes('contract calls') && facts.text.includes('selected contract supplies its location and expected hash'), 'the manifest modal defines the file and its verification source')
-          } else {
-            assert(facts.text.includes('UI (user interface) file') && facts.text.includes('screens, fields, and buttons') && facts.text.includes('manifest itself'), 'the UI modal defines its role and keeps the manifest verification independent')
-          }
+          assert(!facts.text.includes('fingerprint') && !facts.text.includes('setup document'), 'modal body stays compact without definitions or a hash tutorial')
+          if (scenario === 'public' && repetition === 0) await withBrowserFocus(call, () => checkResourceHelp({ call, evaluate, wait, label }))
           assert(facts.text.includes('Loaded hash') && !facts.text.includes('fresh download'), 'verification describes the document used on the page')
           assert.equal(await evaluate(`document.querySelector('button[aria-label="Refresh hashes"]')===null`), true, 'inspection offers no separate download action')
           if (scenario === 'mismatch') assert(facts.text.includes('does not match'), 'new matching upstream hashes cannot erase a loaded mismatch')
@@ -315,4 +310,57 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, loadedByteVerification: true, sends: 0 }
   } catch (error) { failures.push(error) }
   finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
+}
+
+async function checkResourceHelp({ call, evaluate, wait, label }) {
+  const viewport = await evaluate('({width:innerWidth,height:innerHeight})')
+  const visible = `!!document.querySelector('.resource-info-popup')?.checkVisibility()`
+  async function closeHelp() {
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 })
+    await wait(`!(${visible})`)
+    assert(await evaluate(`!!document.querySelector('.resources dialog[open]')`), 'Escape dismisses the help without closing its modal')
+  }
+  try {
+    for (const width of [1280, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      const icon = await evaluate(`(()=>{
+        const heading=document.querySelector('.resources dialog[open] .verification-heading'),title=heading.querySelector('h2').getBoundingClientRect(),button=heading.querySelector('.resource-info'),box=button.getBoundingClientRect(),svg=button.querySelector('svg').getBoundingClientRect();
+        return {x:(box.left+box.right)/2,y:(box.top+box.bottom)/2,aligned:Math.abs((title.top+title.bottom-box.top-box.bottom)/2)<1,gap:box.left-title.right,target:box.width>=28&&box.height>=28,centered:Math.abs((svg.left+svg.right-box.left-box.right)/2)<1&&Math.abs((svg.top+svg.bottom-box.top-box.bottom)/2)<1};
+      })()`)
+      assert(icon.aligned && icon.centered && icon.target && icon.gap >= 7 && icon.gap <= 9, `the information icon aligns with the heading and has a comfortable target at ${width}px`)
+      await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: icon.x, y: icon.y })
+      await wait(visible)
+      const help = await evaluate(`(()=>{
+        const popup=document.querySelector('.resource-info-popup'),box=popup.getBoundingClientRect(),dialog=document.querySelector('.resources dialog[open]'),bounds=dialog.getBoundingClientRect(),hit=document.elementFromPoint((box.left+box.right)/2,(box.top+box.bottom)/2);
+        return {text:popup.textContent,inside:dialog.contains(popup),fits:box.left>=bounds.left&&box.right<=bounds.right&&box.top>=bounds.top&&box.bottom<=bounds.bottom,visible:popup===hit||popup.contains(hit),x:(box.left+box.right)/2,y:(box.top+box.bottom)/2};
+      })()`)
+      assert(help.inside && help.fits && help.visible, `help stays visible inside the native modal at ${width}px`)
+      assert(!/hash|fingerprint/i.test(help.text), 'the help defines the file without explaining hashes')
+      if (label === 'Manifest') assert(help.text.includes('manifest is the app’s setup document') && help.text.includes('contract calls'))
+      else assert(help.text.includes('UI (user interface) file') && help.text.includes('screens, fields, and buttons'))
+      await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: help.x, y: help.y })
+      assert(await evaluate(visible), 'moving from the icon onto its help keeps the text readable')
+      await closeHelp()
+      await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 })
+      await evaluate(`document.querySelector('.resources dialog[open] .resource-info').focus()`)
+      await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
+      await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+      await wait(visible)
+      await closeHelp()
+      assert(await evaluate(`document.activeElement===document.querySelector('.resources dialog[open] .resource-info')`), 'keyboard dismissal keeps focus on the information control')
+      await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
+      await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: icon.x, y: icon.y }] })
+      await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await wait(visible)
+      await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+      await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: icon.x, y: icon.y }] })
+      await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await wait(`!(${visible})`)
+      await call('Emulation.setTouchEmulationEnabled', { enabled: false })
+    }
+  } finally {
+    await call('Emulation.setTouchEmulationEnabled', { enabled: false })
+    await call('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false })
+  }
 }

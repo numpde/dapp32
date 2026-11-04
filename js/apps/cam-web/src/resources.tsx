@@ -1,5 +1,6 @@
 import { useContext, useState } from "react"
 import type { ReactElement } from "react"
+import { Popover } from "@base-ui/react/popover"
 import type { CamIntegrityCheck } from "@cam/evm-viem"
 import { requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
 import { DownloadContext } from "./download-context.ts"
@@ -12,15 +13,15 @@ import { PropertyRow } from "./property-row.tsx"
 const resourceDescriptions = {
   manifest: {
     label: "Manifest",
-    description: "The manifest is the app’s setup document: it lists contract calls and links to supporting files, including the UI (user interface) file. The selected contract supplies its location and expected hash.",
+    description: "The manifest is the app’s setup document. It lists contract calls and links to supporting files, including the UI (user interface) file.",
   },
   ui: {
     label: "UI",
-    description: "The UI (user interface) file defines the app’s screens, fields, and buttons. The manifest, the app’s setup document, points to this file and supplies its expected hash.",
+    description: "The UI (user interface) file defines the app’s screens, fields, and buttons. It is linked from the manifest, the app’s setup document.",
   },
   resource: {
     label: "Resource",
-    description: "This is a supporting file linked by the manifest, the app’s setup document. The manifest supplies its location and expected hash.",
+    description: "This is a supporting file linked by the manifest, the app’s setup document.",
   },
 }
 
@@ -62,23 +63,39 @@ function ResourceRow({ label, description, check }: {
       <CopyRecovery failure={failure} label={`${label} URI`} value={uri} />
     </div>
     <DismissibleDialog open={showDetails} label={`${label} verification`} onDismiss={() => setShowDetails(false)}>
-      {!showDetails ? null : <><h2>{label} verification</h2><IntegrityDetails check={check} description={description} /><button type="button" className="button-quiet" onClick={() => setShowDetails(false)}>Close</button></>}
+      {!showDetails ? null : <><ResourceHeading label={label} description={description} /><IntegrityDetails check={check} /><button type="button" className="button-quiet" onClick={() => setShowDetails(false)}>Close</button></>}
     </DismissibleDialog>
   </div>
 }
 
-function IntegrityDetails({ check, description }: { readonly check: CamIntegrityCheck; readonly description: string }): ReactElement {
+function ResourceHeading({ label, description }: { readonly label: string; readonly description: string }): ReactElement {
+  const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  return <div className="verification-heading" ref={setContainer}>
+    <h2>{label} verification</h2>
+    <Popover.Root>
+      <Popover.Trigger className="resource-info" aria-label={`About ${label}`} openOnHover>
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></svg>
+      </Popover.Trigger>
+      <Popover.Portal container={container} className="resource-info-portal">
+        <Popover.Positioner positionMethod="fixed" collisionBoundary={container?.closest("dialog") ?? "clipping-ancestors"} side="bottom" align="start" sideOffset={8} collisionPadding={8} className="resource-info-positioner">
+          <Popover.Popup className="resource-info-popup" aria-label={`About ${label}`} initialFocus={false}>
+            <Popover.Description>{description}</Popover.Description>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  </div>
+}
+
+function IntegrityDetails({ check }: { readonly check: CamIntegrityCheck }): ReactElement {
   const hashLocation = check.hashSource === "contract" ? "stored in the contract" : "specified in the app manifest"
   const message = check.status === "verified" ? `The loaded file matches the verification hash ${hashLocation}.`
     : check.status === "mismatch" ? `The loaded file does not match the verification hash ${hashLocation}.`
     : `The loaded file could not be verified. The verification hash ${hashLocation} is zero.`
   return <div className="verification-facts">
-    <p>{description}</p>
-    <p>A hash is a fingerprint of a file’s contents. The loaded hash describes the file checked during app loading.</p>
     <div className="verification-summary">
       <FeedbackBox kind={integrityKind(check.status)} message={message} />
     </div>
-    {check.hashSource === "manifest" ? <p>Matching this file does not verify the manifest itself.</p> : null}
     <PropertyRow label="Expected hash" value={check.expectedHash} />
     <PropertyRow label="Loaded hash" value={check.actualHash} />
   </div>
