@@ -14,7 +14,7 @@ import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from '../../.
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
 
 function showsExactWei(value, wei) {
-  return typeof value === 'string' && value.endsWith(`(${BigInt(wei).toLocaleString('en-US')} Wei (smallest unit))`)
+  return typeof value === 'string' && (BigInt(wei) === 0n ? value === '0' : value.endsWith(`(${BigInt(wei).toLocaleString('en-US')} Wei (smallest unit))`))
 }
 
 function localURL(value, label) {
@@ -454,7 +454,7 @@ try {
   await fill('maxAmount', '30')
   await fill('invoiceHash', invoiceHash)
   await fill('signature', signature)
-  await send('Collect voucher payment', review => assert.equal(review.reviewValues['Estimated payment (may change before confirmation)'], '0 Native coins (0 Wei (smallest unit))'))
+  await send('Collect voucher payment', review => assert.equal(review.reviewValues['Estimated payment (may change before confirmation)'], '0'))
   const zeroPayment = await wait(state => showsExactWei(state.resultValues['Paid'], '0') && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), 'successful zero collection')
   assert(zeroPayment.transaction.includes('No payment collected'))
   assert.equal(zeroPayment.resultValues['Paid to'], undefined, 'zero result cannot retain an earlier payment recipient')

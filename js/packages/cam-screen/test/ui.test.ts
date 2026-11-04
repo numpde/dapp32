@@ -1408,10 +1408,13 @@ test("ChoiceField rejects unusable options and defaults instead of making an imp
   assert.throws(() => resolveInitialUiNode(ui, "input", {}, { ...context, state: {} }), /state must match a declared option/)
 })
 
-test("amount Status preserves raw base values and displays both exact declared units", () => {
+test("amount Status preserves raw values, compacts zero and displays exact nonzero units", () => {
   const unit = { assetId: "native", baseLabel: "wei", displayLabel: "Native asset", decimals: 18 }
   for (const [value, decimals, expected] of [
-    ["0", 18, "0 Native asset (0 wei)"],
+    ["0", 18, "0"],
+    [0, 0, "0"],
+    ["000", 0, "0"],
+    ["000", 255, "0"],
     ["1", 18, "0.000000000000000001 Native asset (1 wei)"],
     ["1000000000000000", 18, "0.001 Native asset (1,000,000,000,000,000 wei)"],
     ["9007199254740993", 2, "90071992547409.93 Native asset (9,007,199,254,740,993 wei)"],
@@ -1422,14 +1425,15 @@ test("amount Status preserves raw base values and displays both exact declared u
     const resolved = resolveUiNode(ui, "fact", {}, context)
     if (resolved.element !== "Status") assert.fail("Expected amount Status")
     assert.equal(resolved.props.value, value)
+    assert.deepEqual(resolved.props.unit, { ...unit, decimals })
     assert.equal(resolved.formattedValue, expected)
   }
   const literalUnit = { ...unit, displayLabel: "$view.currency" }
-  const literal = parseUi({ ui: UI_VERSION, nodes: { fact: { requires: [], element: "Status", props: { label: "Balance", value: "0", format: "amount", unit: literalUnit } } } })
+  const literal = parseUi({ ui: UI_VERSION, nodes: { fact: { requires: [], element: "Status", props: { label: "Balance", value: "1", format: "amount", unit: literalUnit } } } })
   const resolved = resolveUiNode(literal, "fact", {}, context)
   if (resolved.element !== "Status") assert.fail("Expected amount Status")
   assert.deepEqual(resolved.props.unit, literalUnit)
-  assert.equal(resolved.formattedValue, "0 $view.currency (0 wei)")
+  assert.equal(resolved.formattedValue, "0.000000000000000001 $view.currency (1 wei)")
 })
 
 test("amount Status requires explicit literal unit metadata and rejects unusable numeric facts", () => {
