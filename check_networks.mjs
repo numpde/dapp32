@@ -4,7 +4,15 @@ import { readFile } from 'node:fs/promises'
 const cdp = new URL(process.env.CDP_ORIGIN)
 assert(cdp.protocol === 'http:' && !cdp.username && !cdp.password, 'Use an HTTP browser debugging origin')
 const pageURL = 'https://numpde.github.io/dapp32/deployment/networks/'
-const html = process.env.PAGE_HTML ? await readFile(process.env.PAGE_HTML) : undefined
+const site = process.env.SITE_ROOT
+const files = new Map()
+if (site) {
+  for (const [url, path, type] of [
+    [pageURL, 'deployment/networks/index.html', 'text/html; charset=utf-8'],
+    ['https://numpde.github.io/dapp32/site.css', 'site.css', 'text/css'],
+    ['https://numpde.github.io/dapp32/theme.js', 'theme.js', 'text/javascript'],
+  ]) files.set(url, { body: await readFile(`${site}/${path}`), type })
+}
 const version = await (await fetch(new URL('/json/version', cdp), { signal: AbortSignal.timeout(5000) })).json()
 assert.equal(new URL(version.webSocketDebuggerUrl).host, cdp.host)
 const socket = new WebSocket(version.webSocketDebuggerUrl)
@@ -30,8 +38,9 @@ socket.addEventListener('message', event => {
     else request.resolve(message.result)
   } else if (message.method === 'Fetch.requestPaused') {
     const request = message.params
-    const response = request.resourceType === 'Document' && html !== undefined
-      ? { requestId: request.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: 'text/html; charset=utf-8' }], body: html.toString('base64') }
+    const file = files.get(request.request.url.split('?')[0])
+    const response = file !== undefined
+      ? { requestId: request.requestId, responseCode: 200, responseHeaders: [{ name: 'Content-Type', value: file.type }], body: file.body.toString('base64') }
       : { requestId: request.requestId, responseCode: 503, responseHeaders: [{ name: 'Access-Control-Allow-Origin', value: '*' }], body: '' }
     void call('Fetch.fulfillRequest', response).catch(error => { interceptionError = error })
   }
@@ -58,7 +67,7 @@ try {
   await call('Network.setCacheDisabled', { cacheDisabled: true })
   for (failCatalog of [false, true]) {
     const patterns = []
-    if (html !== undefined) patterns.push({ urlPattern: `${pageURL}*`, resourceType: 'Document' })
+    for (const url of files.keys()) patterns.push({ urlPattern: url + '*' })
     if (failCatalog) patterns.push({ urlPattern: 'https://raw.githubusercontent.com/*rpc-catalog.json*' })
     if (patterns.length) await call('Fetch.enable', { patterns })
     else await call('Fetch.disable')

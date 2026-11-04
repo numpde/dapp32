@@ -11,6 +11,7 @@ for (const [url, path, type] of [
   [page, 'deployments/index.html', 'text/html'],
   [page + 'deployments.js', 'deployments/deployments.js', 'text/javascript'],
   [page + 'deployments.json', 'deployments/deployments.json', 'application/json'],
+  ['https://numpde.github.io/dapp32/theme.js', 'theme.js', 'text/javascript'],
   ['https://numpde.github.io/dapp32/site.css', 'site.css', 'text/css'],
 ]) files.set(url, { body: await readFile(`${site}/${path}`), type })
 const production = JSON.parse(files.get(page + 'deployments.json').body)
@@ -105,7 +106,7 @@ try {
   ;({ sessionId } = await call('Target.attachToTarget', { targetId, flatten: true }, undefined))
   await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable')
   await call('Network.setCacheDisabled', { cacheDisabled: true })
-  await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
+  await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)

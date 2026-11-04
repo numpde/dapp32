@@ -8,12 +8,12 @@ PYTHON_IMAGE := docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875
 
 .PHONY: help pages/check pages/navigation/update pages/navigation/check
 help:
-	@printf '%s\n' 'make pages/navigation/update' '  Regenerate static primary navigation from its single source.' 'make pages/navigation/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Compare rendered navigation across pages, viewport sizes and themes.' 'make pages/check SOURCE_REPO=/path/to/dapp32' '  Check this site’s local links, fragments and examples against the source repository’s committed HEAD.' '  Uses an offline, read-only Python container; requires Docker and a local source checkout.' 'make pages/networks/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Open an owned browser tab to check automatic catalog loading and failure feedback.' '  Requires a running CDP browser; fetches the public catalog without visiting RPC endpoints.' 'make pages/deployments/check [LIVE_RPC=1]' '  Check deployment reads, RPC selection and recovery in an owned background browser tab.' '  Uses fixture RPC by default; LIVE_RPC=1 additionally reads the listed public deployment.'
+	@printf '%s\n' 'make pages/navigation/update' '  Regenerate the shared header, skip link and theme asset references.' '  Every target acquires its pinned runtime automatically when absent; check containers keep their declared network scope.' 'make pages/navigation/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Check shared headers, theme changes and navigation across every site page.' 'make pages/check SOURCE_REPO=/path/to/dapp32' '  Check this site’s local links, fragments and examples against the source repository’s committed HEAD.' '  Fetches its digest-pinned runtime automatically if missing; runs checks offline with read-only inputs.' 'make pages/networks/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Open an owned browser tab to check automatic catalog loading and failure feedback.' '  Requires a running CDP browser; fetches the public catalog without visiting RPC endpoints.' 'make pages/deployments/check [LIVE_RPC=1]' '  Check deployment reads, RPC selection and recovery in an owned background browser tab.' '  Uses fixture RPC by default; LIVE_RPC=1 additionally reads the listed public deployment.'
 
 pages/navigation/update:
 	@archive="$$(mktemp -t dapp32-pages-navigation.XXXXXXXX)"; \
 	trap 'rm -f -- "$$archive"' EXIT; \
-	docker run --rm --pull never --network none --read-only --user 65532:65532 \
+	docker run --rm --pull missing --network none --read-only --user 65532:65532 \
 	  --cap-drop ALL --security-opt no-new-privileges --memory 256m --pids-limit 64 \
 	  --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m \
 	  --mount "type=bind,src=$$PWD,dst=/site,readonly" \
@@ -26,7 +26,7 @@ pages/check:
 	trap 'rm -rf -- "$$archive"' EXIT; \
 	git -C "$$SOURCE_REPO" archive HEAD | tar -x -C "$$archive"; \
 	chmod 755 "$$archive"; \
-	docker run --rm --pull never --network none --read-only --user 65532:65532 \
+	docker run --rm --pull missing --network none --read-only --user 65532:65532 \
 	  --cap-drop ALL --security-opt no-new-privileges --memory 256m --pids-limit 64 \
 	  --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m \
 	  --mount "type=bind,src=$$PWD,dst=/site,readonly" \
@@ -38,16 +38,15 @@ CDP_ORIGIN ?= http://127.0.0.1:9222
 
 .PHONY: pages/networks/check
 pages/networks/check:
-	docker run --rm --pull never --network host --read-only --user 65532:65532 \
+	docker run --rm --pull missing --network host --read-only --user 65532:65532 \
 	  --cap-drop ALL --security-opt no-new-privileges --memory 256m --pids-limit 64 \
-	  --env CDP_ORIGIN="$(CDP_ORIGIN)" --env PAGE_HTML=/page.html \
-	  --mount "type=bind,src=$$PWD/check_networks.mjs,dst=/check.mjs,readonly" \
-	  --mount "type=bind,src=$$PWD/deployment/networks/index.html,dst=/page.html,readonly" \
-	  "$(NODE_IMAGE)" node /check.mjs
+	  --env CDP_ORIGIN="$(CDP_ORIGIN)" --env SITE_ROOT=/site \
+	  --mount "type=bind,src=$$PWD,dst=/site,readonly" \
+	  "$(NODE_IMAGE)" node /site/check_networks.mjs
 
 .PHONY: pages/navigation/check
 pages/navigation/check:
-	docker run --rm --pull never --network host --read-only --user 65532:65532 \
+	docker run --rm --pull missing --network host --read-only --user 65532:65532 \
 	  --cap-drop ALL --security-opt no-new-privileges --memory 256m --pids-limit 64 \
 	  --env CDP_ORIGIN="$(CDP_ORIGIN)" --env SITE_ROOT=/site \
 	  --mount "type=bind,src=$$PWD,dst=/site,readonly" \
@@ -56,7 +55,7 @@ pages/navigation/check:
 LIVE_RPC ?= 0
 .PHONY: pages/deployments/check
 pages/deployments/check:
-	docker run --rm --pull never --network host --read-only --user 65532:65532 \
+	docker run --rm --pull missing --network host --read-only --user 65532:65532 \
 	  --cap-drop ALL --security-opt no-new-privileges --memory 256m --pids-limit 64 \
 	  --env CDP_ORIGIN="$(CDP_ORIGIN)" --env SITE_ROOT=/site --env LIVE_RPC="$(LIVE_RPC)" \
 	  --mount "type=bind,src=$$PWD,dst=/site,readonly" \

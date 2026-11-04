@@ -1,19 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choose a deployment RPC · dapp32</title><meta name="description" content="Select the execution RPC for a target chain; RPC service access and chain gas funds are separate."><link rel="stylesheet" href="../../site.css"><script>
-    (function () {
-      try {
-        var storedTheme = localStorage.getItem("dapp32-theme")
-        if (storedTheme === "light" || storedTheme === "dark") {
-          document.documentElement.dataset.theme = storedTheme
-        }
-      } catch (error) {
-        document.documentElement.removeAttribute("data-theme")
-      }
-    })()
-  </script></head><body><a class="skip-link" href="#main">Skip to content</a><div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployments/">Deployments</a><a href="../../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
-        <span class="theme-sun" aria-hidden="true">☀</span>
-        <span class="theme-moon" aria-hidden="true">☾</span>
-      </button></div></div><header class="shell document-header"><h1>Choose a deployment RPC</h1><p class="lede">Select the execution RPC for a target chain; RPC service access and chain gas funds are separate.</p></header><main id="main" class="shell document"><p><a href="../">Deployment guide</a> · <a href="../networks/">Network catalog</a></p><p>The guided <code>release/setup CONFIG=...</code> flow stores a concrete RPC URL in the protected configuration. The catalog settings below apply to the direct environment-variable interface, which is an alternative to that saved configuration.</p><article class="narrow deployment-guide"><p>The deploy and verify commands for Bike NFT, Escrow and Pay-to-Play can select an endpoint from the repository's <a href="https://github.com/numpde/dapp32/blob/main/js/packages/cam-viewer/src/rpc-catalog.json">RPC catalog</a>. List the exact network names, chain IDs and service URL templates with:</p>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choose a deployment RPC · dapp32</title><meta name="description" content="Select the execution RPC for a target chain; RPC service access and chain gas funds are separate."><script src="../../theme.js"></script>
+<link rel="stylesheet" href="../../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployments/">Deployments</a><a href="../../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div><header class="shell document-header"><h1>Choose a deployment RPC</h1><p class="lede">Select the execution RPC for a target chain; RPC service access and chain gas funds are separate.</p></header><main id="main" class="shell document"><p><a href="../">Deployment guide</a> · <a href="../networks/">Network catalog</a></p><p>The guided <code>release/setup CONFIG=...</code> flow stores a concrete RPC URL in the protected configuration. The catalog settings below apply to the direct environment-variable interface, which is an alternative to that saved configuration.</p><article class="narrow deployment-guide"><p>The deploy and verify commands for Bike NFT, Escrow and Pay-to-Play can select an endpoint from the repository's <a href="https://github.com/numpde/dapp32/blob/main/js/packages/cam-viewer/src/rpc-catalog.json">RPC catalog</a>. List the exact network names, chain IDs and service URL templates with:</p>
 <pre><code>make release/rpc/list</code></pre>
 <p>The <a href="https://numpde.github.io/dapp32/deployment/networks/">network reference table</a> shows mainnets and their application testnets with fixed indexes, chain IDs, gas tokens, explorers, RPC services, and authoritative references. Switch between mainnets and testnets without changing row indexes or links. It reads the same catalog as the release commands; it does not maintain another network list.</p>
 <p>The table loads the catalog automatically from the source repository. It does not contact any RPC service.</p>
@@ -103,52 +92,4 @@ networks:
 <li><a href="https://docs.base.org/get-started/connect-to-base">Base network information</a> supplies Base's network IDs.</li>
 <li><a href="https://www.alchemy.com/docs/reference/node-supported-chains">Alchemy's supported networks</a> supplies the authenticated URL templates.</li>
 <li><a href="https://www.quicknode.com/docs/platform/supported-chains-node-types">Quicknode's network and retention guide</a> covers account-specific endpoints usable through <code>RPC_URL_FILE</code>.</li>
-</ul></article></main><script>
-    (function () {
-      var key = "dapp32-theme"
-      var button = document.getElementById("theme-toggle")
-      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      if (!button) return
-
-      function storedTheme() {
-        try {
-          var value = localStorage.getItem(key)
-          return value === "light" || value === "dark" ? value : null
-        } catch (error) {
-          return null
-        }
-      }
-
-      function applyTheme(value) {
-        document.documentElement.dataset.theme = value
-        try {
-          localStorage.setItem(key, value)
-        } catch (error) {
-          return
-        }
-      }
-
-      function effectiveTheme() {
-        return storedTheme() || (systemTheme.matches ? "dark" : "light")
-      }
-
-      function updateButton() {
-        var currentTheme = effectiveTheme()
-        var nextTheme = currentTheme === "dark" ? "light" : "dark"
-        button.dataset.themeState = currentTheme
-        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
-        button.setAttribute("title", "Switch to " + nextTheme + " mode")
-      }
-
-      button.addEventListener("click", function () {
-        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
-        updateButton()
-      })
-
-      systemTheme.addEventListener("change", function () {
-        if (!storedTheme()) updateButton()
-      })
-
-      updateButton()
-    })()
-  </script></body></html>
+</ul></article></main></body></html>

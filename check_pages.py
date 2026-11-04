@@ -29,7 +29,7 @@ def navigation_pages(root: Path):
         yield page
 
 
-def navigation_html(root: Path, page: Path) -> str:
+def shell_html(root: Path, page: Path) -> str:
     prefix = os.path.relpath(root, page.parent)
     links = []
     for destination, label in PRIMARY_NAVIGATION:
@@ -37,28 +37,88 @@ def navigation_html(root: Path, page: Path) -> str:
         href = "./" if current else f"{prefix}/{destination}"
         attribute = ' aria-current="page"' if current else ""
         links.append(f'<a href="{href}"{attribute}>{label}</a>')
-    return '<nav aria-label="Primary">' + "".join(links) + '</nav>'
+    return (
+        '<a class="skip-link" href="#main">Skip to content</a>\n'
+        '<div class="topbar"><div class="shell">'
+        f'<a class="brand" href="{prefix}/">dapp32</a>'
+        '<nav aria-label="Primary">' + "".join(links) + '</nav>'
+        '<button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme">'
+        '<span class="theme-sun" aria-hidden="true">☀</span>'
+        '<span class="theme-moon" aria-hidden="true">☾</span>'
+        '</button></div></div>'
+    )
 
 
-def navigation_updates(root: Path):
+def theme_script(root: Path, page: Path) -> str:
+    return f'<script src="{os.path.relpath(root, page.parent)}/theme.js"></script>'
+
+
+def shell_updates(root: Path):
     import re
 
-    pattern = re.compile(r'<nav aria-label="Primary"(?:\s[^>]*)?>.*?</nav>', re.DOTALL)
+    pattern = re.compile(r'(<body[^>]*>)\s*(?:<a class="skip-link".*?</a>\s*)?<div class="topbar">.*?</div>\s*</div>', re.DOTALL)
     for page in navigation_pages(root):
         text = page.read_text(encoding="utf-8")
         matches = list(pattern.finditer(text))
         if len(matches) != 1:
-            raise AssertionError(f"expected one primary navigation: {page}")
+            raise AssertionError(f"expected one shared site header: {page}")
         match = matches[0]
-        expected = navigation_html(root, page)
-        if match.group() != expected:
-            yield page, text[:match.start()] + expected + text[match.end():]
+        expected = match[1] + "\n" + shell_html(root, page)
+        updated = text[:match.start()] + expected + text[match.end():]
+        updated = re.sub(r'<script src="[^"]*theme\.js"></script>\s*', '', updated)
+        styles = list(re.finditer(r'<link rel="stylesheet" href="[^"]*site\.css">', updated))
+        if len(styles) != 1:
+            raise AssertionError(f"expected one shared stylesheet: {page}")
+        style = styles[0]
+        resources = theme_script(root, page) + f'\n<link rel="stylesheet" href="{os.path.relpath(root, page.parent)}/site.css">'
+        updated = updated[:style.start()] + resources + updated[style.end():]
+        if updated != text:
+            yield page, updated
 
 
 def check_navigation(root: Path) -> None:
-    stale = [str(page.relative_to(root)) for page, _ in navigation_updates(root)]
+    import re
+
+    stale = [str(page.relative_to(root)) for page, _ in shell_updates(root)]
     if stale:
-        raise AssertionError(f"primary navigation differs; run make pages/navigation/update: {', '.join(stale)}")
+        raise AssertionError(f"site header differs; run make pages/navigation/update: {', '.join(stale)}")
+    for page in navigation_pages(root):
+        text = page.read_text(encoding="utf-8")
+        scripts = re.findall(r'<script\b[^>]*>.*?</script>', text, re.DOTALL)
+        expected = theme_script(root, page)
+        if scripts.count(expected) != 1 or text.index(expected) > text.index('rel="stylesheet"'):
+            raise AssertionError(f"expected one blocking shared theme script before styles: {page}")
+        if any('dapp32-theme' in script for script in scripts):
+            raise AssertionError(f"inline theme implementation duplicates theme.js: {page}")
+        for style in re.findall(r'<style\b[^>]*>(.*?)</style>', text, re.DOTALL):
+            if re.search(r'\.topbar\b|\.theme-toggle\b|:root\b|(?:^|[{}])\s*(?:body|a|nav)\s*[:{,]', style):
+                raise AssertionError(f"shared site styles must be owned by site.css: {page}")
+
+
+def check_shell_witnesses() -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        page = root / "index.html"
+        canonical = '<head>' + theme_script(root, page) + '\n<link rel="stylesheet" href="./site.css"></head><body>\n' + shell_html(root, page) + '<main id="main"></main></body>'
+        page.write_text(canonical, encoding="utf-8")
+        check_navigation(root)
+        for broken in (
+            canonical.replace('id="theme-toggle"', 'id="missing-toggle"'),
+            canonical.replace('Skip to content', 'Skip somewhere else'),
+            canonical.replace(theme_script(root, page), ''),
+            canonical.replace('</head>', theme_script(root, page) + '</head>'),
+            canonical.replace('</head>', '<style>.topbar { color: red }</style></head>'),
+            canonical.replace('</body>', '<script>localStorage.getItem("dapp32-theme")</script></body>'),
+        ):
+            page.write_text(broken, encoding="utf-8")
+            try:
+                check_navigation(root)
+            except AssertionError:
+                pass
+            else:
+                raise AssertionError("a divergent header or duplicated theme owner passed the site check")
 
 
 def navigation_archive(root: Path) -> None:
@@ -67,7 +127,7 @@ def navigation_archive(root: Path) -> None:
     import sys
     import tarfile
 
-    updates = list(navigation_updates(root))
+    updates = list(shell_updates(root))
     with tarfile.open(fileobj=sys.stdout.buffer, mode="w|") as archive:
         for page, text in updates:
             data = text.encode("utf-8")
@@ -427,6 +487,7 @@ if __name__ == "__main__":
     if arguments.navigation_archive:
         navigation_archive(site_root)
         raise SystemExit(0)
+    check_shell_witnesses()
     check_navigation(site_root)
     if arguments.source_archive:
         if (arguments.source_archive / ".git").exists():

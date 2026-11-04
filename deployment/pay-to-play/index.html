@@ -1,19 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy Pay-to-Play · dapp32</title><meta name="description" content="Instance settings, contract authority and acceptance checks for the Pay-to-Play example app."><link rel="stylesheet" href="../../site.css"><script>
-    (function () {
-      try {
-        var storedTheme = localStorage.getItem("dapp32-theme")
-        if (storedTheme === "light" || storedTheme === "dark") {
-          document.documentElement.dataset.theme = storedTheme
-        }
-      } catch (error) {
-        document.documentElement.removeAttribute("data-theme")
-      }
-    })()
-  </script></head><body><a class="skip-link" href="#main">Skip to content</a><div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployments/">Deployments</a><a href="../../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
-        <span class="theme-sun" aria-hidden="true">☀</span>
-        <span class="theme-moon" aria-hidden="true">☾</span>
-      </button></div></div><header class="shell document-header"><h1>Deploy Pay-to-Play</h1><p class="lede">Instance settings, contract authority and acceptance checks for the Pay-to-Play example app.</p></header><main id="main" class="shell document"><p><a href="../../pay-to-play/">Example app guide</a> · <a href="../#deploy-to-the-selected-chain">Shared setup, deployment and verification</a></p><p>This page defines the app-specific inputs and checks. Use the shared guide for source snapshots, protected configuration, approval, records and cleanup. Example addresses and paths below are placeholders; your saved configuration selects the actual instance.</p><p>The <a href="../#independent-components">shared component workflow</a> provides <code>pay-to-play/release/contracts/deploy</code>, <code>pay-to-play/release/ui/deploy</code> and keyless <code>pay-to-play/release/cam/bundle</code>. Business deployment, UI contract deployment and CAM root configuration have separate records and may use different actors and source commits. A UI replacement can reuse the verified business artifact without redeploying its contracts.</p><article class="narrow deployment-guide"><h2 id="deploy-a-release">Deploy a release</h2>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy Pay-to-Play · dapp32</title><meta name="description" content="Instance settings, contract authority and acceptance checks for the Pay-to-Play example app."><script src="../../theme.js"></script>
+<link rel="stylesheet" href="../../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployments/">Deployments</a><a href="../../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div><header class="shell document-header"><h1>Deploy Pay-to-Play</h1><p class="lede">Instance settings, contract authority and acceptance checks for the Pay-to-Play example app.</p></header><main id="main" class="shell document"><p><a href="../../pay-to-play/">Example app guide</a> · <a href="../#deploy-to-the-selected-chain">Shared setup, deployment and verification</a></p><p>This page defines the app-specific inputs and checks. Use the shared guide for source snapshots, protected configuration, approval, records and cleanup. Example addresses and paths below are placeholders; your saved configuration selects the actual instance.</p><p>The <a href="../#independent-components">shared component workflow</a> provides <code>pay-to-play/release/contracts/deploy</code>, <code>pay-to-play/release/ui/deploy</code> and keyless <code>pay-to-play/release/cam/bundle</code>. Business deployment, UI contract deployment and CAM root configuration have separate records and may use different actors and source commits. A UI replacement can reuse the verified business artifact without redeploying its contracts.</p><article class="narrow deployment-guide"><h2 id="deploy-a-release">Deploy a release</h2>
 <p>The business operation deploys the native-asset <code>PayToPlay</code> contract with reserved channel 0. The payment administrator creates service channels later. A separate read-only <code>PayToPlayUI</code> supplies signing details, and CAM publication binds both contracts in the root.</p>
 <pre><code>make pay-to-play/release/setup INSTANCE=/absolute/private/002-avalanche-fuji
 make pay-to-play/release/deploy INSTANCE=/absolute/private/002-avalanche-fuji</code></pre>
@@ -28,52 +17,4 @@ make pay-to-play/release/deploy INSTANCE=/absolute/private/002-avalanche-fuji</c
 <pre><code>make pay-to-play/release/verify INSTANCE=/absolute/private/002-avalanche-fuji</code></pre>
 <p>Choose the saved operation using its recorded configuration references; see the <a href="../#complete-deployment-records">keyless verification requirements</a>. Verification sends no transaction, uses each saved plan's original source and preserves existing final records. Recorded pending handoffs are valid historical evidence. Verification does not prove today's owners, balances or channel readiness; inspect current app state separately.</p>
 <p>Keep failed records and the prepared bundle. Keyless completion can finish evidence after execution; a confirmed partial CAM attempt requires <a href="../#complete-deployment-records">fresh approval for remaining original intent</a>. Use <a href="../#update-an-existing-ui">UI update</a> to deploy a read-only UI contract or select a saved one, then make the app use it while reusing compatible business contracts. This prepares matching CAM files locally; upload or pin them yourself before approving CAM root changes. Offline tool tests run with <code>make pay-to-play/release/check</code>. Explorer source publication is separate.</p>
-</article></main><script>
-    (function () {
-      var key = "dapp32-theme"
-      var button = document.getElementById("theme-toggle")
-      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      if (!button) return
-
-      function storedTheme() {
-        try {
-          var value = localStorage.getItem(key)
-          return value === "light" || value === "dark" ? value : null
-        } catch (error) {
-          return null
-        }
-      }
-
-      function applyTheme(value) {
-        document.documentElement.dataset.theme = value
-        try {
-          localStorage.setItem(key, value)
-        } catch (error) {
-          return
-        }
-      }
-
-      function effectiveTheme() {
-        return storedTheme() || (systemTheme.matches ? "dark" : "light")
-      }
-
-      function updateButton() {
-        var currentTheme = effectiveTheme()
-        var nextTheme = currentTheme === "dark" ? "light" : "dark"
-        button.dataset.themeState = currentTheme
-        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
-        button.setAttribute("title", "Switch to " + nextTheme + " mode")
-      }
-
-      button.addEventListener("click", function () {
-        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
-        updateButton()
-      })
-
-      systemTheme.addEventListener("change", function () {
-        if (!storedTheme()) updateButton()
-      })
-
-      updateButton()
-    })()
-  </script></body></html>
+</article></main></body></html>

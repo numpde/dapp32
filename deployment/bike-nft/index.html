@@ -1,19 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy Bike NFT · dapp32</title><meta name="description" content="Instance settings, contract authority and acceptance checks for the Bike NFT example app."><link rel="stylesheet" href="../../site.css"><script>
-    (function () {
-      try {
-        var storedTheme = localStorage.getItem("dapp32-theme")
-        if (storedTheme === "light" || storedTheme === "dark") {
-          document.documentElement.dataset.theme = storedTheme
-        }
-      } catch (error) {
-        document.documentElement.removeAttribute("data-theme")
-      }
-    })()
-  </script></head><body><a class="skip-link" href="#main">Skip to content</a><div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployments/">Deployments</a><a href="../../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
-        <span class="theme-sun" aria-hidden="true">☀</span>
-        <span class="theme-moon" aria-hidden="true">☾</span>
-      </button></div></div><header class="shell document-header"><h1>Deploy Bike NFT</h1><p class="lede">Instance settings, contract authority and acceptance checks for the Bike NFT example app.</p></header><main id="main" class="shell document"><p><a href="../../bike-nft/">Example app guide</a> · <a href="../#deploy-to-the-selected-chain">Shared setup, deployment and verification</a></p><p>This page defines the app-specific inputs and checks. Use the shared guide for source snapshots, protected configuration, approval, records and cleanup. Example addresses and paths below are placeholders; your saved configuration selects the actual instance.</p><p>The <a href="../#independent-components">shared component workflow</a> provides <code>bike-nft/release/contracts/deploy</code>, <code>bike-nft/release/ui/deploy</code> and keyless <code>bike-nft/release/cam/bundle</code>. Business deployment, UI contract deployment and CAM root configuration have separate records and may use different actors and source commits. A UI replacement can reuse the verified business artifact without redeploying its contracts.</p><article class="narrow deployment-guide"><h2 id="release-policy">Release policy</h2>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy Bike NFT · dapp32</title><meta name="description" content="Instance settings, contract authority and acceptance checks for the Bike NFT example app."><script src="../../theme.js"></script>
+<link rel="stylesheet" href="../../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="../../reference/cam/">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployments/">Deployments</a><a href="../../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div><header class="shell document-header"><h1>Deploy Bike NFT</h1><p class="lede">Instance settings, contract authority and acceptance checks for the Bike NFT example app.</p></header><main id="main" class="shell document"><p><a href="../../bike-nft/">Example app guide</a> · <a href="../#deploy-to-the-selected-chain">Shared setup, deployment and verification</a></p><p>This page defines the app-specific inputs and checks. Use the shared guide for source snapshots, protected configuration, approval, records and cleanup. Example addresses and paths below are placeholders; your saved configuration selects the actual instance.</p><p>The <a href="../#independent-components">shared component workflow</a> provides <code>bike-nft/release/contracts/deploy</code>, <code>bike-nft/release/ui/deploy</code> and keyless <code>bike-nft/release/cam/bundle</code>. Business deployment, UI contract deployment and CAM root configuration have separate records and may use different actors and source commits. A UI replacement can reuse the verified business artifact without redeploying its contracts.</p><article class="narrow deployment-guide"><h2 id="release-policy">Release policy</h2>
 <p>A complete Bike release needs four distinct kinds of input. Select them for the operations that own them:</p>
 <ul>
 <li>publication: exact CAM URI and bytes;</li>
@@ -65,52 +54,4 @@ cam/artifact/cam-publication.json</code></pre>
 <li>The repository does not choose the actual Safe/EOA addresses, the final nonzero delay, RPC provider, CAM host, browser host, block explorer, or operator finality threshold.</li>
 <li>The release artifact records operator intent and immutable deployment provenance, not a mutable snapshot of every later handoff state. Current contract reads and the handover screen establish whether ownership and administration have since been accepted.</li>
 </ul>
-<p>No upgrade, recovery, hidden registrar, generic CAM machine resource, or production monitoring authority is introduced by this lane.</p></article></main><script>
-    (function () {
-      var key = "dapp32-theme"
-      var button = document.getElementById("theme-toggle")
-      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      if (!button) return
-
-      function storedTheme() {
-        try {
-          var value = localStorage.getItem(key)
-          return value === "light" || value === "dark" ? value : null
-        } catch (error) {
-          return null
-        }
-      }
-
-      function applyTheme(value) {
-        document.documentElement.dataset.theme = value
-        try {
-          localStorage.setItem(key, value)
-        } catch (error) {
-          return
-        }
-      }
-
-      function effectiveTheme() {
-        return storedTheme() || (systemTheme.matches ? "dark" : "light")
-      }
-
-      function updateButton() {
-        var currentTheme = effectiveTheme()
-        var nextTheme = currentTheme === "dark" ? "light" : "dark"
-        button.dataset.themeState = currentTheme
-        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
-        button.setAttribute("title", "Switch to " + nextTheme + " mode")
-      }
-
-      button.addEventListener("click", function () {
-        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
-        updateButton()
-      })
-
-      systemTheme.addEventListener("change", function () {
-        if (!storedTheme()) updateButton()
-      })
-
-      updateButton()
-    })()
-  </script></body></html>
+<p>No upgrade, recovery, hidden registrar, generic CAM machine resource, or production monitoring authority is introduced by this lane.</p></article></main></body></html>

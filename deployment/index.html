@@ -1,19 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy an app instance · dapp32</title><meta name="description" content="Choose and record the chain, contracts, CAM root settings and authorities for one deployment."><link rel="stylesheet" href="../site.css"><script>
-    (function () {
-      try {
-        var storedTheme = localStorage.getItem("dapp32-theme")
-        if (storedTheme === "light" || storedTheme === "dark") {
-          document.documentElement.dataset.theme = storedTheme
-        }
-      } catch (error) {
-        document.documentElement.removeAttribute("data-theme")
-      }
-    })()
-  </script></head><body><a class="skip-link" href="#main">Skip to content</a><div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="./" aria-current="page">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
-        <span class="theme-sun" aria-hidden="true">☀</span>
-        <span class="theme-moon" aria-hidden="true">☾</span>
-      </button></div></div><header class="shell document-header"><h1>Deploy an app instance</h1><p class="lede">Choose and record the chain, contracts, CAM root settings and authorities for one deployment.</p></header><main id="main" class="shell document"><section class="narrow"><h2 id="scope">Framework, example app, deployment</h2><p><a href="../">dapp32</a> supplies CAM interpretation, reusable packages and a generic viewer. The <a href="../examples/">example apps</a> supply their own contracts and CAM workflows. A deployment is one instance of an app: contracts on a selected chain, CAM root references to hosted files, owners and role holders, and saved deployment records.</p><p>This GitHub Pages site hosts documentation, including the protocol reference. It provides no running viewer or app deployment. These guides describe how to create and verify your instance. They do not identify an existing public deployment. Contract deployment does not host the viewer: browser hosting, a public read RPC and wallet access must be arranged separately.</p><h2 id="prepare">Before deploying to a public testnet</h2><ol><li>Choose the target chain and HTTPS RPC. Fund a deployer with that chain’s test gas tokens.</li><li>Select a clean source commit and install its locked Solidity and JavaScript dependencies.</li><li>Plan where to host the prepared CAM bundle; check its exact served bytes and browser CORS before approving CAM root transactions.</li><li>Choose the app’s owners, roles and contract settings using its deployment guide.</li><li>Setup prepares the approval tool automatically: this container asks you to approve deployment transactions. The build’s tool source need not match the app source. Setup saves the exact prepared image and other inputs; deployment requests transaction approval; verification records the executed operations; nominees accept their authorities separately.</li></ol><div class="grid"><article class="card"><h3><a href="bike-nft/">Deploy Bike NFT</a></h3><p>Collection settings, roles and authority handoffs.</p></article><article class="card"><h3><a href="escrow/">Deploy Escrow</a></h3><p>Immutable escrow contracts and a separately owned CAM host.</p></article><article class="card"><h3><a href="pay-to-play/">Deploy Pay-to-Play</a></h3><p>Payment administration, reserved channel and CAM ownership.</p></article></div><p><a href="rpc/">RPC selection</a> · <a href="networks/">Networks and testnets</a></p></section><article class="narrow deployment-guide"><h2 id="independent-components">One instance folder, independent operations</h2>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy an app instance · dapp32</title><meta name="description" content="Choose and record the chain, contracts, CAM root settings and authorities for one deployment."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="./" aria-current="page">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div><header class="shell document-header"><h1>Deploy an app instance</h1><p class="lede">Choose and record the chain, contracts, CAM root settings and authorities for one deployment.</p></header><main id="main" class="shell document"><section class="narrow"><h2 id="scope">Framework, example app, deployment</h2><p><a href="../">dapp32</a> supplies CAM interpretation, reusable packages and a generic viewer. The <a href="../examples/">example apps</a> supply their own contracts and CAM workflows. A deployment is one instance of an app: contracts on a selected chain, CAM root references to hosted files, owners and role holders, and saved deployment records.</p><p>This GitHub Pages site hosts documentation, including the protocol reference. It provides no running viewer or app deployment. These guides describe how to create and verify your instance. They do not identify an existing public deployment. Contract deployment does not host the viewer: browser hosting, a public read RPC and wallet access must be arranged separately.</p><h2 id="prepare">Before deploying to a public testnet</h2><ol><li>Choose the target chain and HTTPS RPC. Fund a deployer with that chain’s test gas tokens.</li><li>Select a clean source commit and install its locked Solidity and JavaScript dependencies.</li><li>Plan where to host the prepared CAM bundle; check its exact served bytes and browser CORS before approving CAM root transactions.</li><li>Choose the app’s owners, roles and contract settings using its deployment guide.</li><li>Setup prepares the approval tool automatically: this container asks you to approve deployment transactions. The build’s tool source need not match the app source. Setup saves the exact prepared image and other inputs; deployment requests transaction approval; verification records the executed operations; nominees accept their authorities separately.</li></ol><div class="grid"><article class="card"><h3><a href="bike-nft/">Deploy Bike NFT</a></h3><p>Collection settings, roles and authority handoffs.</p></article><article class="card"><h3><a href="escrow/">Deploy Escrow</a></h3><p>Immutable escrow contracts and a separately owned CAM host.</p></article><article class="card"><h3><a href="pay-to-play/">Deploy Pay-to-Play</a></h3><p>Payment administration, reserved channel and CAM ownership.</p></article></div><p><a href="rpc/">RPC selection</a> · <a href="networks/">Networks and testnets</a></p></section><article class="narrow deployment-guide"><h2 id="independent-components">One instance folder, independent operations</h2>
 <p>Keep one private instance folder outside the checkout, owned by you with mode <code>0700</code>. Point each app release command at that folder. Setup creates it when needed; commands allocate their own record directories. Do not choose or pre-create empty output directories.</p>
 <pre><code>002-avalanche-fuji/
 ├── config.json
@@ -190,52 +179,4 @@ make tests/checks</code></pre>
 <p>Approval startup belongs to the release launcher. Ending the attached approval session cancels the release, including before <code>start</code> has opened the socket. Cleanup stops the signer and approval service and reaps the terminal client before removing the remaining services. A background helper cannot start a new signer during teardown.</p>
 <p>Cleanup removes containers (including temporary <code>compose run</code> containers), project networks and volumes, and temporary inputs after successful teardown. The rehearsal retains its records directory and deployment audit; an operator approval-image build retains its image and provenance file, while a rehearsal removes only its own fixture image after container teardown. An existing shared network created with <code>network/local/up</code> has its separate lifecycle described above; a release attached to it owns only its private ceremony projects.</p>
 <p>The offline <code>make tests/checks</code> suite includes signal and shutdown regressions using substitute child processes and Docker command boundaries. These checks require no Docker daemon inside the checks container.</p>
-<p>SIGKILL and a stopped or unreachable Docker daemon cannot be handled by shell cleanup. If teardown cannot complete, the command reports failure and retains mounted inputs and diagnostics rather than claiming the run was removed.</p></article></main><script>
-    (function () {
-      var key = "dapp32-theme"
-      var button = document.getElementById("theme-toggle")
-      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      if (!button) return
-
-      function storedTheme() {
-        try {
-          var value = localStorage.getItem(key)
-          return value === "light" || value === "dark" ? value : null
-        } catch (error) {
-          return null
-        }
-      }
-
-      function applyTheme(value) {
-        document.documentElement.dataset.theme = value
-        try {
-          localStorage.setItem(key, value)
-        } catch (error) {
-          return
-        }
-      }
-
-      function effectiveTheme() {
-        return storedTheme() || (systemTheme.matches ? "dark" : "light")
-      }
-
-      function updateButton() {
-        var currentTheme = effectiveTheme()
-        var nextTheme = currentTheme === "dark" ? "light" : "dark"
-        button.dataset.themeState = currentTheme
-        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
-        button.setAttribute("title", "Switch to " + nextTheme + " mode")
-      }
-
-      button.addEventListener("click", function () {
-        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
-        updateButton()
-      })
-
-      systemTheme.addEventListener("change", function () {
-        if (!storedTheme()) updateButton()
-      })
-
-      updateButton()
-    })()
-  </script></body></html>
+<p>SIGKILL and a stopped or unreachable Docker daemon cannot be handled by shell cleanup. If teardown cannot complete, the command reports failure and retains mounted inputs and diagnostics rather than claiming the run was removed.</p></article></main></body></html>

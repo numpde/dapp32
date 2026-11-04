@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Deployments · dapp32</title>
   <meta name="description" content="Open deployed dapp32 apps and inspect their contract addresses on a block explorer.">
-  <link rel="stylesheet" href="../site.css">
+  <script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css">
   <style>
     .deployment-list { display: grid; gap: 28px; margin-block: 24px 40px; }
     .deployment { scroll-margin-top: 100px; }
@@ -33,32 +34,14 @@
     .copy-recovery input { display: block; box-sizing: border-box; width: 100%; font: .85rem monospace; padding: 8px; }
     .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     :focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
-    [hidden] { display: none !important; }
     @media (max-width: 600px) { .contracts > div { grid-template-columns: minmax(0, 1fr); gap: 4px; } .deployment { padding: 20px 16px; } }
     @media (pointer: coarse) { .copy-address { width: 44px; height: 44px; } }
   </style>
-<script>
-    (function () {
-      try {
-        var storedTheme = localStorage.getItem("dapp32-theme")
-        if (storedTheme === "light" || storedTheme === "dark") {
-          document.documentElement.dataset.theme = storedTheme
-        }
-      } catch (error) {
-        document.documentElement.removeAttribute("data-theme")
-      }
-    })()
-  </script>
+
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <div class="topbar"><div class="shell">
-    <a class="brand" href="../">dapp32</a>
-    <nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="./" aria-current="page">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
-        <span class="theme-sun" aria-hidden="true">☀</span>
-        <span class="theme-moon" aria-hidden="true">☾</span>
-      </button>
-  </div></div>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="./" aria-current="page">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
   <header class="shell document-header">
     <h1>Deployments</h1>
   </header>
@@ -71,54 +54,6 @@
     <p class="sources">Sources: <a href="deployments.json">deployment data</a> · <a href="../deployment/networks/">RPC network catalog</a>.</p>
   </main>
   <script type="module" src="deployments.js"></script>
-<script>
-    (function () {
-      var key = "dapp32-theme"
-      var button = document.getElementById("theme-toggle")
-      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      if (!button) return
 
-      function storedTheme() {
-        try {
-          var value = localStorage.getItem(key)
-          return value === "light" || value === "dark" ? value : null
-        } catch (error) {
-          return null
-        }
-      }
-
-      function applyTheme(value) {
-        document.documentElement.dataset.theme = value
-        try {
-          localStorage.setItem(key, value)
-        } catch (error) {
-          return
-        }
-      }
-
-      function effectiveTheme() {
-        return storedTheme() || (systemTheme.matches ? "dark" : "light")
-      }
-
-      function updateButton() {
-        var currentTheme = effectiveTheme()
-        var nextTheme = currentTheme === "dark" ? "light" : "dark"
-        button.dataset.themeState = currentTheme
-        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
-        button.setAttribute("title", "Switch to " + nextTheme + " mode")
-      }
-
-      button.addEventListener("click", function () {
-        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
-        updateButton()
-      })
-
-      systemTheme.addEventListener("change", function () {
-        if (!storedTheme()) updateButton()
-      })
-
-      updateButton()
-    })()
-  </script>
 </body>
 </html>

@@ -1,67 +1,23 @@
-
-    :root {
-      color-scheme: light dark;
-      --ink: #1b2430;
-      --muted: #647386;
-      --soft: #f5f7fa;
-      --panel: #ffffff;
-      --chrome: #fbfcfe;
-      --line: #d8e0ea;
-      --green: #116b5f;
-      --blue: #244f86;
-      --rust: #a44631;
-      --code: #edf2f7;
-      --callout: #fffaf7;
-      --callout-ink: #55342d;
-      --code-block: #16202c;
-      --code-block-ink: #e9f0f7;
-      --shadow: 0 16px 34px rgba(23, 32, 43, 0.08);
-    }
-
-    :root[data-theme="light"] {
-      color-scheme: light;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        color-scheme: dark;
-        --ink: #e8eef6;
-        --muted: #a7b4c5;
-        --soft: #0f141b;
-        --panel: #151c25;
-        --chrome: #111820;
-        --line: #2a3442;
-        --green: #5cc1aa;
-        --blue: #8bb7f0;
-        --rust: #e18a72;
-        --code: #202a36;
-        --callout: #281b18;
-        --callout-ink: #f0c1b4;
-        --code-block: #070b10;
-        --code-block-ink: #e5edf6;
-        --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
-      }
-    }
-
-    :root[data-theme="dark"] {
-      color-scheme: dark;
-      --ink: #e8eef6;
-      --muted: #a7b4c5;
-      --soft: #0f141b;
-      --panel: #151c25;
-      --chrome: #111820;
-      --line: #2a3442;
-      --green: #5cc1aa;
-      --blue: #8bb7f0;
-      --rust: #e18a72;
-      --code: #202a36;
-      --callout: #281b18;
-      --callout-ink: #f0c1b4;
-      --code-block: #070b10;
-      --code-block-ink: #e5edf6;
-      --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
-    }
-
+:root {
+  color-scheme: light dark;
+  --ink: light-dark(#1b2430, #e8eef6);
+  --muted: light-dark(#647386, #a7b4c5);
+  --soft: light-dark(#f5f7fa, #0f141b);
+  --panel: light-dark(#ffffff, #151c25);
+  --chrome: light-dark(#fbfcfe, #111820);
+  --line: light-dark(#d8e0ea, #2a3442);
+  --green: light-dark(#116b5f, #5cc1aa);
+  --blue: light-dark(#244f86, #8bb7f0);
+  --rust: light-dark(#a44631, #e18a72);
+  --code: light-dark(#edf2f7, #202a36);
+  --callout: light-dark(#fffaf7, #281b18);
+  --callout-ink: light-dark(#55342d, #f0c1b4);
+  --code-block: light-dark(#16202c, #070b10);
+  --code-block-ink: light-dark(#e9f0f7, #e5edf6);
+  --shadow: 0 16px 34px light-dark(rgba(23, 32, 43, 0.08), rgba(0, 0, 0, 0.35));
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
     * {
       box-sizing: border-box;
     }
@@ -103,9 +59,9 @@
     }
 
     .topbar .shell {
-      display: flex;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
-      justify-content: space-between;
       gap: 18px;
       min-height: 66px;
     }
@@ -116,17 +72,24 @@
       text-decoration: none;
     }
 
-    nav {
+    .topbar nav {
+      justify-self: end;
+      align-items: center;
       display: flex;
       flex-wrap: wrap;
       gap: 14px;
       font-size: 0.94rem;
     }
 
-    nav a {
+    .topbar nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
       color: var(--muted);
       text-decoration: none;
     }
+
+    [hidden] { display: none !important; }
 
     .theme-toggle {
       position: relative;
@@ -395,9 +358,8 @@
       }
 
       .topbar .shell {
-        align-items: flex-start;
-        flex-direction: column;
-        justify-content: center;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 12px 18px;
         padding: 14px 0;
       }
 
@@ -416,12 +378,7 @@ a:focus-visible {outline:3px solid var(--green);outline-offset:3px}.skip-link {p
 /* Long protocol names wrap in prose; code examples retain horizontal scrolling. */
 code {overflow-wrap:anywhere}pre code {overflow-wrap:normal}
 
-/* Homepage navigation separates site destinations from the app guide collection. */
-.topbar .shell {display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
-.topbar nav {justify-self:end;align-items:center}
-.topbar nav a {display:inline-flex;align-items:center;min-height:32px}
 @media(max-width:860px){
-  .topbar .shell {grid-template-columns:minmax(0,1fr) auto;gap:12px 18px}
   .topbar nav {grid-column:1/-1;grid-row:2;justify-self:start}
   .topbar .theme-toggle {grid-column:2;grid-row:1}
 }

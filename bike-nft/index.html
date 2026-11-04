@@ -5,32 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bike NFT - dapp32</title>
   <meta name="description" content="Bike NFT is a dapp32 contract-defined bicycle component registry with ERC-721 component tokens, manager-owned permissions, and CAM routes a generic viewer can render.">
-  <link rel="stylesheet" href="../site.css">
-  <script>
-    (function () {
-      try {
-        var storedTheme = localStorage.getItem("dapp32-theme")
-        if (storedTheme === "light" || storedTheme === "dark") {
-          document.documentElement.dataset.theme = storedTheme
-        }
-      } catch (error) {
-        document.documentElement.removeAttribute("data-theme")
-      }
-    })()
-  </script>
+  <script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css">
+
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
-  <div class="topbar">
-    <div class="shell">
-      <a class="brand" href="../">dapp32</a>
-      <nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
-          <span class="theme-sun" aria-hidden="true">☀</span>
-          <span class="theme-moon" aria-hidden="true">☾</span>
-        </button>
-    </div>
-  </div>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
 
   <header>
     <div class="shell hero">
@@ -297,54 +278,6 @@ make bike-nft/local/demo/gui/up</code></pre>
     </section>
   <section id="deployment" class="narrow"><h2>Deploy your own instance</h2><p>This is an example app guide. Use the <a href="../deployment/bike-nft/">app deployment guide</a> for its contract settings, authority handoffs and verification, and the <a href="../deployment/">shared deployment guide</a> for the release workflow. Deployment selects your chain and publication; this page supplies no running public instance.</p></section></main>
 
-  <script>
-    (function () {
-      var key = "dapp32-theme"
-      var button = document.getElementById("theme-toggle")
-      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-      if (!button) return
 
-      function storedTheme() {
-        try {
-          var value = localStorage.getItem(key)
-          return value === "light" || value === "dark" ? value : null
-        } catch (error) {
-          return null
-        }
-      }
-
-      function applyTheme(value) {
-        document.documentElement.dataset.theme = value
-        try {
-          localStorage.setItem(key, value)
-        } catch (error) {
-          return
-        }
-      }
-
-      function effectiveTheme() {
-        return storedTheme() || (systemTheme.matches ? "dark" : "light")
-      }
-
-      function updateButton() {
-        var currentTheme = effectiveTheme()
-        var nextTheme = currentTheme === "dark" ? "light" : "dark"
-        button.dataset.themeState = currentTheme
-        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
-        button.setAttribute("title", "Switch to " + nextTheme + " mode")
-      }
-
-      button.addEventListener("click", function () {
-        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
-        updateButton()
-      })
-
-      systemTheme.addEventListener("change", function () {
-        if (!storedTheme()) updateButton()
-      })
-
-      updateButton()
-    })()
-  </script>
 </body>
 </html>
