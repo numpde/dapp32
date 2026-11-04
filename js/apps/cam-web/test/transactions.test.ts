@@ -642,7 +642,7 @@ async function boundWalletForSubmission() {
   let currentInteraction = true
   const binding = createInjectedWalletBinding({
     chainId: "eip155:31337", connect: async () => walletAddress,
-    isViewBusy: () => false, setAccount: async address => address,
+    currentAccount: () => undefined, isViewBusy: () => false, setAccount: async address => address,
     commitAccount: () => {}, invalidate: () => { currentInteraction = false },
     onState: () => {}, onError: error => { throw error },
   })

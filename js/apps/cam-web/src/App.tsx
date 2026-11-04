@@ -308,6 +308,7 @@ export function App(): ReactElement {
       chainId: connection.chainId,
       connect: () => connectInjectedWallet(connectionOptions(readyRef.current)!),
       isViewBusy: () => changingViewRef.current,
+      currentAccount: () => readyRef.current.status === "ready" ? currentViewerAccount(readyRef.current) : undefined,
       setAccount: async address => {
         const current = readyRef.current
         if (current.status !== "ready") return { type: "startup" as const, address }
@@ -452,7 +453,7 @@ export function App(): ReactElement {
         ? `Simulation passed on viewer chain ${ready.runtime.startup.chainId}, but the wallet is on another network. Change the network in your wallet, use Reconnect wallet, then review the transaction again.`
         : wallet.status === "connected"
           ? "Simulation passed. Review the transaction, then send it with your wallet."
-          : "Simulation passed. Connect a wallet, then review the transaction again before sending.", false)
+          : "Simulation passed for the viewing account. Sending requires its connected wallet.", false)
       arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return

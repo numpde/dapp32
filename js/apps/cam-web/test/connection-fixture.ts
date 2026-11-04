@@ -8,7 +8,7 @@ const scenario = new URL(location.href).searchParams.get("scenario")
 const resourceBase = new URL("/connection-fixture-resources/", location.href)
 const host = "0x0000000000000000000000000000000000000001"
 const target = "0x0000000000000000000000000000000000000002"
-const wallet = "0x0000000000000000000000000000000000000003"
+const wallet = scenario === "selected-wallet" ? "0xa55aA83C7090D87b7Aa151346862455D6209D789" : "0x0000000000000000000000000000000000000003"
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 const abi = parseAbi(["function read(address subject) view returns (uint256)", "function review() view returns (address)", "function update(uint256 amount)", "function updateMetadata(string tokenURI)"])
 const rootAbi = parseAbi(["function camManifest() view returns ((string uri, bytes32 sha256Digest))"])
@@ -168,5 +168,7 @@ if (scenario === "invalid-rpc") url.searchParams.set("rpcUrl", "not a URL")
 if (scenario === "bare") url.search = ""
 if (scenario === "partial") url.search = new URLSearchParams({ chainId: "eip155:31337", host: "needs correction", rpcUrl: "https://rpc.fixture.test" }).toString()
 if (scenario === "explicit-zero") url.searchParams.set("account", zeroAddress)
+if (scenario === "selected-wallet") url.searchParams.set("account", wallet.toLowerCase())
+if (scenario === "selected-other") url.searchParams.set("account", "0x1111111111111111111111111111111111111111")
 history.replaceState(null, "", url)
 createRoot(document.getElementById("root")!).render(createElement(App))
