@@ -166,11 +166,11 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
 
     def test_jsx_markup_and_comparisons_are_not_typed_default_parameters(self) -> None:
         for source in (
-            'const glyphs = { copy: <><rect x="8" y="8" width="11" /></> }',
-            'const glyphs = { check: <path d="m5 12 4 4" /> }',
-            'return { target: box.width>=28 && box.height>=28 }',
-            'const value = `return { target: box.width>=28 }`',
-            'return { target: box.width<=28 }',
+            'const glyphs = {\n  copy: <><rect x="8" y="8" width="11" /></>,\n}',
+            'const glyphs = {\n  check: <path d="m5 12 4 4" />,\n}',
+            'const bounds = {x:1,target:box.width>=28&&box.height>=28}',
+            'const bounds = {x:1,target:box.width<=28}',
+            'const value = `return {x:1,target:box.width>=28}`',
         ):
             with self.subTest(source=source):
                 self.assertEqual([], js_default_findings_for_source(source, "fixture"))
