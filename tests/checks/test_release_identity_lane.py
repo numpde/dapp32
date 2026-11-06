@@ -58,7 +58,11 @@ class IdentityLaneTests(unittest.TestCase):
                      "release_tool_images.sh", "compose_cleanup.sh"):
             shutil.copyfile(ROOT / "tools" / name, self.checkout / "tools" / name)
         (self.checkout / "tools/docker_context.sh").write_text(
-            '[[ "$*" == "command line fixture undefined  0" ]] || exit 2\n'
+            'printf "%s\\n" "$*" >> "$CASE_ROOT/selector-calls"\n'
+            'case "$*" in\n'
+            '  "command line fixture undefined  0"|"undefined  command line unix:///tmp/identity-lane-fixture.sock 1") ;;\n'
+            '  *) exit 2 ;;\n'
+            'esac\n'
             'printf "%s\\n" unix:///tmp/identity-lane-fixture.sock\n'
         )
         (self.case / "docker.py").write_text(DOCKER)
@@ -102,10 +106,17 @@ export -f docker python3 timeout setsid
 exec bash tools/release_identity_check.sh fixture
 '''
 
-    def run_lane(self, mode):
-        result = subprocess.run(["bash", "-c", self.wrapper], cwd=self.checkout,
-            env={**self.environment, "CASE_MODE": mode}, capture_output=True,
-            text=True, timeout=12)
+    def run_lane(self, mode, *, selected=False):
+        command = self.wrapper
+        environment = {**self.environment, "CASE_MODE": mode}
+        if selected:
+            command = command.replace(
+                "exec bash tools/release_identity_check.sh fixture",
+                "exec bash tools/release_identity_check.sh --selected",
+            )
+            environment["CAM_DOCKER_ENDPOINT"] = "unix:///tmp/identity-lane-fixture.sock"
+        result = subprocess.run(["bash", "-c", command], cwd=self.checkout,
+            env=environment, capture_output=True, text=True, timeout=12)
         marker = self.case / "workspace"
         self.assertTrue(marker.is_file(), result.stdout + result.stderr)
         directory = Path(marker.read_text())
@@ -114,7 +125,8 @@ exec bash tools/release_identity_check.sh fixture
 
     def test_ci_calls_the_same_lane_without_reimplementing_the_round_trip(self):
         workflow = (ROOT / ".github/workflows/identity-integration.yml").read_text()
-        self.assertIn("run: bash tools/release_identity_check.sh default", workflow)
+        self.assertIn("run: make tests/live/release-identity DOCKER_CONTEXT=default", workflow)
+        self.assertNotIn("run: bash tools/release_identity_check.sh", workflow)
         self.assertNotIn("docker --host", workflow)
         self.assertNotIn("python3 -I -B -c", workflow)
 
@@ -128,6 +140,79 @@ exec bash tools/release_identity_check.sh fixture
         self.assertTrue(any("run" in call for call in calls))
         self.assertTrue(any("down" in call for call in calls))
         self.assertEqual(["container", "network", "volume"], [call[0] for call in calls[-3:]])
+
+    def test_make_target_selects_the_local_endpoint_once_and_reuses_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("compose", "containers", "dapps", "docs", "js", "tests", "tools"):
+                (root / name).mkdir()
+            (root / "Makefile").write_bytes((ROOT / "Makefile").read_bytes())
+            (root / "tools/docker_context.sh").write_bytes(
+                (ROOT / "tools/docker_context.sh").read_bytes()
+            )
+            (root / "tools/release_identity_check.sh").write_text(
+                'printf "%s|%s|%s\\n" "$1" "$CAM_DOCKER_ENDPOINT" "$DOCKER_HOST" > "$LANE_LOG"\n'
+            )
+            trace, called = root / "selector", root / "delegated"
+            fixture = ROOT / "tests/fixtures/docker-context"
+            environment = {key: value for key, value in os.environ.items()
+                           if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS", "MAKELEVEL")}
+            environment.update({"PATH": f"{fixture}:{os.environ['PATH']}",
+                                "TRACE": str(trace), "LANE_LOG": str(called),
+                                "ENDPOINT": "unix:///tmp/selected.sock",
+                                "DOCKER_HOST": "tcp://ambient.invalid:2375",
+                                "DOCKER_CONTEXT": "ambient"})
+            command = ["make", "--no-print-directory", "-C", str(root),
+                       "tests/live/release-identity", "DOCKER_CONTEXT=chosen"]
+            result = subprocess.run(command, env=environment, capture_output=True,
+                                    text=True, timeout=10, start_new_session=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(
+                "--selected|unix:///tmp/selected.sock|unix:///tmp/selected.sock\n",
+                called.read_text(),
+            )
+            self.assertEqual(["unset|unset|unset|unset|unset"],
+                             trace.read_text().splitlines(),
+                             "Make and its delegated runner must inspect context only once")
+
+            called.unlink()
+            trace.unlink()
+            environment["ENDPOINT"] = "tcp://remote.invalid:2375"
+            rejected = subprocess.run(command, env=environment, capture_output=True,
+                                      text=True, timeout=10, start_new_session=True)
+            self.assertNotEqual(0, rejected.returncode)
+            self.assertFalse(called.exists(), "Remote context reached the real-engine lane")
+
+            trace.unlink(missing_ok=True)
+            environment.pop("DOCKER_CONTEXT")
+            no_context = subprocess.run(command[:-1], env=environment,
+                                        stdin=subprocess.DEVNULL, capture_output=True,
+                                        text=True, timeout=10, start_new_session=True)
+            self.assertNotEqual(0, no_context.returncode)
+            self.assertFalse(called.exists(), "Missing context launched the lane")
+
+    def test_make_handoff_uses_preselected_endpoint_without_reinspection(self):
+        result, directory = self.run_lane("success", selected=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("PASS", result.stdout)
+        self.assertFalse(directory.exists())
+        self.assertEqual(
+            ["undefined  command line unix:///tmp/identity-lane-fixture.sock 1"],
+            (self.case / "selector-calls").read_text().splitlines(),
+        )
+
+    def test_make_handoff_rejects_untrusted_remote_endpoint_before_execution(self):
+        script = self.wrapper.replace(
+            "exec bash tools/release_identity_check.sh fixture",
+            "exec bash tools/release_identity_check.sh --selected",
+        )
+        env = {**self.environment, "CAM_DOCKER_ENDPOINT": "tcp://remote.invalid:2375"}
+        result = subprocess.run(["bash", "-c", script], cwd=self.checkout,
+                                env=env, capture_output=True, text=True, timeout=12)
+        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertNotIn("PASS", result.stdout)
+        self.assertFalse((self.case / "workspace").exists())
+        self.assertFalse((self.case / "calls").exists())
 
     def test_worker_failure_is_not_reported_as_success_and_still_cleans_up(self):
         result, directory = self.run_lane("worker-failure")

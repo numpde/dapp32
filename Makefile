@@ -80,9 +80,28 @@ export UI_RECORDS
 endif
 
 
+# Non-executing Make queries must never inspect Docker or open /dev/tty.
+# The first MAKEFLAGS word contains normalized short flags (n/q for dry-run
+# and question, including completion's -qp). Hyphen-prefixed long options
+# such as --no-print-directory are not themselves n/q: they still execute.
+# Refuse command-line replacement of MAKEFLAGS; it can forge flag letters
+# without changing Make's actual execution mode.
+ifneq ($(origin MAKEFLAGS),file)
+ifeq ($(origin MAKEFLAGS),command line)
+$(error MAKEFLAGS is reserved; pass Make options as flags rather than MAKEFLAGS=...)
+endif
+endif
+override MAKE_PRIMARY_FLAGS := $(firstword $(MAKEFLAGS))
+override MAKE_INTROSPECTION_ONLY := no
+ifeq ($(filter -%,$(MAKE_PRIMARY_FLAGS)),)
+ifneq ($(findstring n,$(MAKE_PRIMARY_FLAGS))$(findstring q,$(MAKE_PRIMARY_FLAGS)),)
+override MAKE_INTROSPECTION_ONLY := yes
+endif
+endif
+
 override COMPOSE_DIR := compose
-# Resolve the local engine once; historical release snapshots also inherit the
-# endpoint through DOCKER_HOST because they may invoke Docker directly.
+# Resolve the local engine once for real operations. Historical release
+# snapshots inherit that endpoint through DOCKER_HOST for direct Docker calls.
 override DOCKER_CONTEXT_INPUT := $(value DOCKER_CONTEXT)
 override DOCKER_CONTEXT_ORIGIN := $(origin DOCKER_CONTEXT)
 docker_shell_quote = '$(subst ','"'"',$(1))'
@@ -97,6 +116,7 @@ ifneq ($(filter-out help release/rpc/list,$(MAKECMDGOALS)),)
 ifneq ($(filter command line,$(origin DOCKER_HOST) $(origin DOCKER_TLS) $(origin DOCKER_TLS_VERIFY) $(origin DOCKER_CERT_PATH) $(origin DOCKER_COMPOSE) $(origin BUILDX_BUILDER) $(origin BUILDX_CONFIG) $(origin COMPOSE_BAKE)),)
 $(error Select the Docker engine with DOCKER_CONTEXT=<local-context>, not Docker endpoint or command overrides)
 endif
+ifneq ($(MAKE_INTROSPECTION_ONLY),yes)
 override CAM_DOCKER_ENDPOINT := $(shell command env -u BASH_ENV -u ENV -u 'BASH_FUNC_timeout%%' -u 'BASH_FUNC_env%%' bash tools/docker_context.sh \
   $(call docker_shell_quote,$(value DOCKER_CONTEXT_ORIGIN)) \
   $(call docker_shell_quote,$(value DOCKER_CONTEXT_INPUT)) \
@@ -109,6 +129,14 @@ endif
 override DOCKER_HOST := $(CAM_DOCKER_ENDPOINT)
 override BUILDX_BUILDER := default
 export DOCKER_HOST CAM_DOCKER_ENDPOINT BUILDX_BUILDER
+else
+# GNU Make may still execute a recipe containing $(MAKE) in -n mode.
+# A deliberately unusable local character device blocks default-engine
+# fallback if an incidental Docker call occurs in such a recursive line.
+override CAM_DOCKER_ENDPOINT := unix:///dev/null
+override DOCKER_HOST := unix:///dev/null
+export DOCKER_HOST CAM_DOCKER_ENDPOINT
+endif
 endif
 override DOCKER_COMPOSE = docker --host "$${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose
 override DOCKER_FORWARD = DOCKER_CONTEXT= CAM_DOCKER_ENDPOINT=$(call docker_shell_quote,$(CAM_DOCKER_ENDPOINT))
@@ -820,8 +848,9 @@ help:
 	  '  make ci                         Run offline Solidity formatting/build/tests and JS CI checks.' \
 	  '  make tests/checks               Check repository rules, source files and rendered Compose settings.' \
 	  '  make tests/checks/anvil-compose  Check only the Anvil container configuration.' \
-	  '  make tests/live                 Run checks that contact external services; no operator deployment needed.' \
+	  '  make tests/live                 Qualify local-engine identity and external dependency egress; no deployment.' \
 	  '  make tests/live/dependency-egress  Test which download destinations dependency containers can reach.' \
+	  '  make tests/live/release-identity  Check private host-file access on the selected Docker engine.' \
 	  '  make dapps/tests                Run Solidity unit/scenario tests, random-input tests and state invariants.' \
 	  '  make dapps/tests/unit-scenario   Run Solidity unit/scenario tests plus repository checks.' \
 	  '  make dapps/tests/fuzz            Exercise Solidity functions with generated inputs.' \
@@ -1474,7 +1503,14 @@ viewer/terminal/mock/down:
 tests/checks:
 	$(call compose_run,checks.yml,checks)
 
-tests/live: tests/live/dependency-egress
+tests/live: tests/live/dependency-egress tests/live/release-identity
+
+.PHONY: tests/live/release-identity
+# The runner owns the confined worker and cleanup; Make owns the one
+# operator-selected local endpoint and the common lane guards.
+tests/live/release-identity:
+	@$(LANE_GUARD); \
+	  bash tools/release_identity_check.sh --selected
 
 tests/live/dependency-egress:
 	@$(LANE_GUARD); \

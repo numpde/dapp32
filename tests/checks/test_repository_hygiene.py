@@ -399,6 +399,38 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("external network", help_recipe)
         self.assertIn("disposable fixture", help_recipe)
 
+    def test_live_checks_are_make_owned_and_exposed_in_the_aggregate(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+        self.assertEqual(
+            ("tests/live/dependency-egress", "tests/live/release-identity"),
+            self.make_target_prereqs(makefile, "tests/live"),
+        )
+        recipe = self.make_target_recipe(makefile, "tests/live/release-identity")
+        self.assertIn("$(LANE_GUARD)", recipe)
+        self.assertEqual(1, recipe.count("bash tools/release_identity_check.sh"))
+        self.assertIn("--selected", recipe)
+        self.assertNotIn("docker context inspect", recipe)
+        self.assertIn("make tests/live/release-identity", self.make_help_recipe(makefile))
+
+    def test_ci_uses_make_not_private_tool_scripts_for_host_checks(self) -> None:
+        # Workflows invoke the same public entry points offered to operators.
+        direct_runner = re.compile(
+            r"(?m)^\s*(?:run:\s*(?:bash\s+)?|bash\s+|\./)tools/[A-Za-z0-9_/-]+_(?:check|test)\.sh(?:\s|$)"
+        )
+        for invocation in (
+            "run: bash tools/release_identity_check.sh default",
+            "run: tools/release_identity_check.sh default",
+            "          bash tools/release_identity_check.sh default",
+            "          ./tools/release_identity_check.sh default",
+            "run: bash tools/example_test.sh fixture",
+        ):
+            self.assertIsNotNone(direct_runner.search(invocation))
+        # A workflow path filter is input discovery, not invocation.
+        self.assertIsNone(direct_runner.search("      - tools/release_identity_check.sh"))
+        for workflow in sorted(repo_path(".github/workflows").glob("*.yml")):
+            with self.subTest(workflow=workflow.name):
+                self.assertNotRegex(read_text(workflow), direct_runner)
+
     def test_repository_has_one_make_entrypoint(self) -> None:
         make_entrypoints = [
             name for name in ["GNUmakefile", "makefile", "Makefile"] if repo_path(name).exists()

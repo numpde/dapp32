@@ -79,11 +79,12 @@ Qualify private-file access on a selected engine with the maintained host-side
 integration lane (replace `your-local-context` with the context to test):
 
 ```sh
-bash tools/release_identity_check.sh your-local-context
+make tests/live/release-identity DOCKER_CONTEXT=your-local-context
 ```
 
-CI invokes this same lane with its selected context. It uses the production
-identity selector and pinned image, then checks a synthetic `0700` directory
+CI invokes this same Make target. The `tests/live` aggregate and the full
+`tests` aggregate also include it. The lane uses the production identity
+selector and pinned image, then checks a synthetic `0700` directory
 and `0600` files: reading, creating, atomically replacing and deleting records,
 plus host-side UID/GID and permissions. It does not mount an actual deployment
 instance, use signing credentials or publish sources. A successful check removes
