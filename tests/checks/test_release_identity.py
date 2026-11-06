@@ -41,6 +41,17 @@ class IdentityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "checksum"):
                 release_identity.ensure_wheel(root, download=lambda _: self.fail("must not download"))
 
+    def test_checked_download_is_cached_without_repeating_network(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            payload = b"deterministic wheel bytes"
+            with patch.object(release_identity, "WHEEL_SHA256", hashlib.sha256(payload).hexdigest()):
+                path = release_identity.ensure_wheel(Path(directory), download=lambda url: payload)
+                self.assertEqual(payload, path.read_bytes())
+                again = release_identity.ensure_wheel(Path(directory),
+                    download=lambda url: self.fail("cache unexpectedly downloaded again"))
+                self.assertEqual(path, again)
+
     def test_probe_only_maps_after_success(self):
         observed = SimpleNamespace(
             uid_map=SimpleNamespace(translate_inverse=lambda value: 0 if value == 1000 else -1),

@@ -27,6 +27,7 @@ if a[:2] == ["image", "ls"]:
 elif a[:2] == ["image", "inspect"]:
     print("sha256:" + "b" * 64, "b" * 40)
 elif "source-prepare" in a:
+    assert os.environ["LOCAL_UID"] == "0" and os.environ["LOCAL_GID"] == "0", "source preparation did not use the mapped owner"
     # Compose may consume an attached regular-file stdin even for a noninteractive child.
     if stat.S_ISREG(os.fstat(0).st_mode):
         sys.stdin.buffer.read()
@@ -57,6 +58,7 @@ elif "source-prepare" in a:
         for role in [mode, *roles]:
             (out / (role + ".json")).write_text(json.dumps({"role": role, "origin": os.environ["SOURCE_ARTIFACT"]}))
 elif "source-submit" in a:
+    assert os.environ["LOCAL_UID"] == "0" and os.environ["LOCAL_GID"] == "0", "source submission did not use the mapped owner"
     if a[-1] == "menu":
         assert sys.stdin.readline().strip() == "1", "preparation consumed the operator's choice"
         (pathlib.Path(os.environ["SOURCE_PUBLICATION_STATE"]) / "selected-keys").write_bytes(b"all\0")
@@ -130,6 +132,13 @@ class SourceLauncherTest(unittest.TestCase):
             script = r'''
 reject_release_path_symlinks() { :; }
 docker() { python3 "$FAKE_DOCKER" "$@"; }
+python3() {
+  if [[ ${1-} == -I && ${2-} == -S && ${3-} == -B && ${4-} == tools/release_identity.py ]]; then
+    printf '0:0\\n'
+  else
+    command python3 "$@"
+  fi
+}
 git() { python3 "$FAKE_GIT" "$@"; }
 cp() { python3 "$FAKE_CP" "$@"; }
 realpath() { python3 -c 'import os,sys; print(os.path.normpath(sys.argv[-1]))' "$@"; }
@@ -137,7 +146,7 @@ setsid() {
   if [[ "$1" == docker ]]; then shift; exec "$REAL_SETSID" python3 "$FAKE_DOCKER" "$@"
   else exec "$REAL_SETSID" "$@"; fi
 }
-export -f reject_release_path_symlinks docker git cp realpath setsid
+export -f reject_release_path_symlinks docker python3 git cp realpath setsid
 exec bash tools/release_source.sh bike-nft
 '''
             completed = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT, env=env,
