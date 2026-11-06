@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { keccak256, toHex, zeroAddress } from "viem"
-import { readSourceVerificationInput } from "../release-compiled-contract.ts"
+import { readPublicationMetadata, readSourceVerificationInput } from "../release-compiled-contract.ts"
 import { sourcePublicationContracts, sourcePublicationCatalog } from "../source-publication.ts"
 import type { ReleaseApp } from "./reference-read.ts"
 
@@ -86,6 +86,35 @@ test("source publication exports original settings and hash-checked content, nev
     await writeFile(join(sources, relative), "wrong current source")
     await assert.rejects(readSourceVerificationInput({ source: relative, contract: "CamEscrow" }, artifacts, sources), /source hash mismatch/)
   } finally { await rm(directory, { recursive: true, force: true }) }
+})
+
+test("the retained artifact binds original solc metadata to the Forge metadata saved with the request", async () => {
+  const root = await mkdtemp(join(tmpdir(), "source-metadata-"))
+  try {
+    const location = { contract: "CamRoot", source: "cam/src/CamRoot.sol" }
+    const directory = join(root, "CamRoot.sol")
+    await mkdir(directory)
+    const metadata = {
+      compiler: { version: "0.8.35+commit.47b9dedd" }, language: "Solidity", version: 1,
+      settings: { compilationTarget: { [location.source]: location.contract } },
+      output: { abi: [], userdoc: { notice: "Original contract notice" } },
+      sources: { [location.source]: { keccak256: hash } },
+    }
+    // The affected Forge version omits the contract-level notice in its typed projection.
+    const projection = { ...metadata, output: { abi: [], userdoc: {} } }
+    const write = (rawMetadata: unknown) => writeFile(join(directory, "CamRoot.json"), JSON.stringify({ metadata: projection, rawMetadata }))
+    await write(JSON.stringify(metadata))
+    assert.deepEqual(await readPublicationMetadata(location, root), { forgeMetadata: projection, solcMetadata: metadata })
+    for (const invalid of [undefined, "{", {}, "{}", JSON.stringify({ ...metadata, compiler: { version: "" } }),
+      JSON.stringify({ ...metadata, settings: { compilationTarget: { "other.sol": location.contract } } })]) {
+      await write(invalid)
+      await assert.rejects(readPublicationMetadata(location, root))
+    }
+    for (const invalid of [undefined, [], {}, { ...projection, settings: {} }]) {
+      await writeFile(join(directory, "CamRoot.json"), JSON.stringify({ rawMetadata: JSON.stringify(metadata), metadata: invalid }))
+      await assert.rejects(readPublicationMetadata(location, root))
+    }
+  } finally { await rm(root, { recursive: true, force: true }) }
 })
 
 test("an app cannot publish another app's deployment", () => {

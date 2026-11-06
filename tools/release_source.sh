@@ -77,7 +77,7 @@ source_prepare() {
 }
 
 prepare_source_artifact() {
-  local artifact="$1" role commit cache artifact_lock
+  local artifact="$1" role key commit cache artifact_lock
   shift
   local -a missing
   source_artifact_output "$artifact"
@@ -114,6 +114,12 @@ prepare_source_artifact() {
   fi
   copy_public_source_file "$SOURCE_REQUESTS/contracts.json" "$cache/contracts.json"
   while IFS= read -r -d '' role && IFS= read -r -d '' key; do
+    if [[ -v SOURCE_CATALOG ]]; then
+      copy_public_source_file "$cache/$role.json" "$stage/catalog/$key.json"
+      copy_public_source_file "$SOURCE_REQUESTS/$role.metadata.json" "$stage/catalog/$key.metadata.json"
+    else
+      copy_public_source_file "$cache/$role.json" "$SOURCE_REQUESTS/$role.json"
+    fi
     reject_release_path_symlinks "$source_artifact_cache/state/$role.json" 'Legacy source verification record'
     reject_release_path_symlinks "$job_root/state/$key.json" 'Source verification record'
     if [[ ! -e "$job_root/state/$key.json" && -f "$source_artifact_cache/state/$role.json" ]]; then
@@ -121,7 +127,6 @@ prepare_source_artifact() {
       copy_public_source_file "$source_artifact_cache/state/$role.json" "$stage/import/$key.state.json"
     fi
   done < "$SOURCE_REQUESTS/source-state-keys"
-  source_artifact_cache="$(dirname -- "$cache")"
   if [[ -v SOURCE_CATALOG ]]; then exec {artifact_lock}>&-; fi
 }
 
@@ -139,14 +144,9 @@ if [[ -v SOURCE_CATALOG ]]; then
     read -r -a requested_roles <<< "$roles"
     prepare_source_artifact "$RELEASE_INSTANCE_ROOT/$relative" "${requested_roles[@]}"
   done < "$stage/catalog/source-records"
-  while IFS= read -r -d '' relative && IFS= read -r -d '' role && IFS= read -r -d '' key; do
-    source_artifact_output "$RELEASE_INSTANCE_ROOT/$relative"
-    copy_public_source_file "$source_artifact_cache/requests/$role.json" "$stage/catalog/$key.json"
-  done < "$stage/catalog/request-links"
   SOURCE_REQUESTS="$stage/catalog"
 else
   prepare_source_artifact "$SOURCE_ARTIFACT"
-  SOURCE_REQUESTS="$source_artifact_cache/requests"
 fi
 SOURCE_PUBLICATION_STATE="$job_root/state"
 publication_requests="$SOURCE_REQUESTS"

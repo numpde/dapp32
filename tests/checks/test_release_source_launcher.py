@@ -41,14 +41,17 @@ elif "source-prepare" in a:
                      ("original/artifact/deployment.json", "components", "components"),
                      ("original/artifact/deployment.json", "camRoot", "root"),
                      ("replacement/ui/artifact/ui-deployment.json", "ui", "new-ui")]
-        (out / "request-links").write_bytes(b"".join((path + "\0" + role + "\0" + key + "\0").encode() for path, role, key in contracts))
         (out / "contracts.json").write_text(json.dumps([{"role": role, "key": key} for _, role, key in contracts]))
     elif mode == "select":
+        if not roles:
+            roles = ["manager", "components", "camRoot"]
+        for role in roles:
+            (out / (role + ".metadata.json")).write_text(json.dumps({"role": role, "origin": os.environ["SOURCE_ARTIFACT"]}))
         with (root / "prepared").open("a") as f:
             f.write(os.environ["SOURCE_ARTIFACT"] + "\n")
         (out / "source-roles").write_bytes(b"".join((role + "\0").encode() for role in roles))
         (out / "source-commits").write_text("a" * 40 + "\n")
-        (out / "source-state-keys").write_bytes(b"".join((role + "\0" + role + "\0").encode() for role in roles))
+        (out / "source-state-keys").write_bytes(b"".join((role + "\0" + {"camRoot": "root", "ui": "new-ui"}.get(role, role) + "\0").encode() for role in roles))
         (out / "contracts.json").write_text(json.dumps([{"role": role} for role in roles]))
     else:
         for role in [mode, *roles]:
@@ -60,9 +63,11 @@ elif "source-submit" in a:
     else:
         requests = pathlib.Path(os.environ["SOURCE_REQUESTS"])
         contracts = json.loads((requests / "contracts.json").read_text())
-        bodies = [json.loads((requests / (c["key"] + ".json")).read_text()) for c in contracts]
-        assert len(bodies) == 4
-        assert "replacement/ui/" in bodies[-1]["origin"]
+        entries = [c.get("key", c["role"]) for c in contracts]
+        bodies = [json.loads((requests / (entry + ".json")).read_text()) for entry in entries]
+        metadata = [json.loads((requests / (entry + ".metadata.json")).read_text()) for entry in entries]
+        assert metadata == [{"role": body["role"], "origin": body["origin"]} for body in bodies]
+        assert bodies[0]["frozen"] == "legacy request"
         (root / "submitted.json").write_text(json.dumps(bodies))
 elif "source-state-import" in a:
     assert os.environ["SOURCE_PUBLICATION_STATE"] == str(root / "instance/source-publication/state")
@@ -73,9 +78,10 @@ else:
 '''
 
 GIT = r'''#!/usr/bin/env python3
-import sys, tarfile
+import os, sys, tarfile
 a = sys.argv[1:]
 if "archive" in a:
+    assert "REQUIRE_CACHED" not in os.environ, "fully cached requests must not re-export sources"
     target = next(value.split("=", 1)[1] for value in a if value.startswith("--output="))
     with tarfile.open(target, "w") as archive:
         entry = tarfile.TarInfo("dapps")
@@ -114,7 +120,7 @@ class SourceLauncherTest(unittest.TestCase):
             cache = original.parent.parent / "source-publication" / hashlib.sha256(original.read_bytes()).hexdigest() / "requests"
             cache.mkdir(parents=True)
             for role in ("manager", "components", "ui"):
-                (cache / f"{role}.json").write_text(json.dumps({"role": role, "origin": str(original)}))
+                (cache / f"{role}.json").write_text(json.dumps({"role": role, "origin": str(original), "frozen": "legacy request"}))
             catalog = root / "catalog.json"
             catalog.write_text("{}")
             env = {name: value for name, value in os.environ.items() if name not in ("SOURCE_ARTIFACT", "SOURCE_CATALOG")}
@@ -141,3 +147,11 @@ exec bash tools/release_source.sh bike-nft
             submitted = json.loads((root / "submitted.json").read_text())
             self.assertEqual(["manager", "components", "camRoot", "ui"], [body["role"] for body in submitted])
             self.assertEqual(str(replacement), submitted[-1]["origin"])
+            # Automatic publication later resumes the same cached requests using role names.
+            del env["SOURCE_CATALOG"]
+            env.update(SOURCE_ARTIFACT=str(original), REQUIRE_CACHED="1")
+            completed = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT, env=env,
+                                       text=True, capture_output=True, timeout=15)
+            self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+            submitted = json.loads((root / "submitted.json").read_text())
+            self.assertEqual(["manager", "components", "camRoot"], [body["role"] for body in submitted])

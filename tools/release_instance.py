@@ -35,9 +35,13 @@ SKIP_DIRECTORIES = {"approval-artifacts", "sources", "compiler", "node_modules",
 
 
 def read_json(path):
+    return read_bounded_json(path, 1024 * 1024)
+
+
+def read_bounded_json(path, maximum_bytes):
     with path.open("rb") as stream:
-        content = stream.read(1024 * 1024 + 1)
-    if len(content) > 1024 * 1024:
+        content = stream.read(maximum_bytes + 1)
+    if len(content) > maximum_bytes:
         raise ValueError(f"Instance metadata is too large: {path}")
     value = json.loads(content, object_pairs_hook=unique_fields)
     if not isinstance(value, dict):

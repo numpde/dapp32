@@ -79,9 +79,9 @@ contracts in the deployment selected by `instance.json`; individual or
 comma-separated numbers can select other contracts, including an original UI
 that was replaced. Deployment membership comes from the saved CAM record, not a
 fresh on-chain binding lookup. The command never deploys or changes bindings.
-The Sourcify status reports that provider's source verification; the recorded
-Git revision is deployment provenance. Existing published source is checked
-against the recorded compiler metadata when selected for publication.
+The menu shows Sourcify's bytecode matches for each address. After selection the
+publisher compares existing public verifications with the original solc metadata
+from each deployment's retained Forge artifact (`rawMetadata`).
 
 Public verification uses the selected deployment's retained compiler artifacts
 and original Git revision, not today's source. Installed dependency source must
@@ -96,10 +96,13 @@ publication share per-chain/address jobs under `source-publication/state/`.
 Existing per-operation jobs are imported against their retained requests,
 preserving their job IDs and history. A retry resumes
 pending jobs and keeps failed attempts. Output distinguishes exact matches from matches
-with differing compiler metadata. An already-verified response is accepted only
-when both bytecodes match exactly and the stored metadata equals our original
-compiler metadata. Previously successful jobs are checked against Sourcify again
-before being reported as published. Original deployment artifacts remain unchanged.
+with differing compiler metadata. When Sourcify reports that another verification already exists (HTTP 409),
+a retry looks it up by address. The publisher requires exact creation and
+runtime bytecode matches and the original solc metadata. For its own successful
+jobs, each bytecode match must be at least as strong as the saved job receipt.
+Each public recheck writes the latest lookup to
+`state/<chain>-<address>.public-check.json`. A mismatch records the reason,
+the original metadata and the response alongside the historical job receipt.
 
 `release/verify` checks our deployment evidence against the chain; it does not
 submit sources externally. Public source verification does not guarantee wallet

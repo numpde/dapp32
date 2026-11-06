@@ -1,8 +1,9 @@
 import { lstat, realpath } from "node:fs/promises"
 import { resolve, sep } from "node:path"
 import { keccak256, toHex, type Abi, type Hex } from "viem"
+import { parseJsonBytes, parseJsonText } from "../packages/cam-protocol/dist/index.js"
 import { readBoundedRegularFile } from "./release-files.ts"
-import { readAbi, record, sha256 } from "./release-approval/reference-read.ts"
+import { readAbi, record, sha256, type ContractLocation } from "./release-approval/reference-read.ts"
 
 export type CompiledContractSource = {
   readonly name: string
@@ -48,19 +49,7 @@ async function checkedArtifactBytes(artifactsRoot: string, contract: string): Pr
   return readBoundedRegularFile(path, `${contract} compiler artifact`, MAX_ARTIFACT_BYTES)
 }
 
-async function readCompilation(location: { readonly source: string; readonly contract: string },
-  artifactsRoot: string, sourcesRoot: string) {
-  const artifactBytes = await checkedArtifactBytes(artifactsRoot, location.contract)
-  const artifact = record(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(artifactBytes)), `${location.contract} compiler artifact`)
-  const bytecode = record(artifact.bytecode, `${location.contract} bytecode`)
-  const links = record(bytecode.linkReferences, `${location.contract} link references`)
-  if (Object.keys(links).length !== 0) throw new Error(`${location.contract} creation bytecode has unresolved link references`)
-  if (typeof bytecode.object !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(bytecode.object) || bytecode.object.length > 2 + 2 * 128 * 1024) {
-    throw new Error(`${location.contract} creation bytecode must be bounded, linked hex bytes`)
-  }
-
-  const abi = readAbi(artifact.abi, location.contract)
-  const metadata = record(artifact.metadata, `${location.contract} metadata`)
+function compilerFields(metadata: Record<string, unknown>, location: ContractLocation) {
   const compiler = record(metadata.compiler, `${location.contract} compiler`)
   if (typeof compiler.version !== "string" || compiler.version.length === 0 || compiler.version.length > 128) {
     throw new Error(`${location.contract} compiler metadata has no bounded compiler version`)
@@ -70,6 +59,37 @@ async function readCompilation(location: { readonly source: string; readonly con
   if (Object.keys(target).length !== 1 || target[location.source] !== location.contract) throw new Error(`${location.contract} compilation target mismatch`)
   const sources = record(metadata.sources, `${location.contract} compiler sources`)
   if (Object.keys(sources).length === 0 || Object.keys(sources).length > 200 || !(location.source in sources)) throw new Error(`${location.contract} compiler sources are incomplete or excessive`)
+  return { compilerVersion: compiler.version, settings, sources }
+}
+
+/** Pair the solc output Sourcify serves with the Forge projection frozen in the source request. */
+export async function readPublicationMetadata(location: ContractLocation, artifactsRoot: string) {
+  const bytes = await checkedArtifactBytes(artifactsRoot, location.contract)
+  const artifact = record(parseJsonBytes(bytes), `${location.contract} compiler artifact`)
+  if (typeof artifact.rawMetadata !== "string" || artifact.rawMetadata.length === 0) {
+    throw new Error(`${location.contract} compiler artifact is missing solc rawMetadata`)
+  }
+  const forgeMetadata = record(artifact.metadata, `${location.contract} Forge metadata`)
+  const solcMetadata = record(parseJsonText(artifact.rawMetadata), `${location.contract} original compiler metadata`)
+  compilerFields(forgeMetadata, location)
+  compilerFields(solcMetadata, location)
+  return { forgeMetadata, solcMetadata }
+}
+
+async function readCompilation(location: ContractLocation,
+  artifactsRoot: string, sourcesRoot: string) {
+  const artifactBytes = await checkedArtifactBytes(artifactsRoot, location.contract)
+  const artifact = record(parseJsonBytes(artifactBytes), `${location.contract} compiler artifact`)
+  const bytecode = record(artifact.bytecode, `${location.contract} bytecode`)
+  const links = record(bytecode.linkReferences, `${location.contract} link references`)
+  if (Object.keys(links).length !== 0) throw new Error(`${location.contract} creation bytecode has unresolved link references`)
+  if (typeof bytecode.object !== "string" || !/^0x(?:[0-9a-fA-F]{2})+$/.test(bytecode.object) || bytecode.object.length > 2 + 2 * 128 * 1024) {
+    throw new Error(`${location.contract} creation bytecode must be bounded, linked hex bytes`)
+  }
+
+  const abi = readAbi(artifact.abi, location.contract)
+  const metadata = record(artifact.metadata, `${location.contract} metadata`)
+  const { compilerVersion, settings, sources } = compilerFields(metadata, location)
   const sourceContents: Record<string, { content: string }> = {}
   for (const [relative, entry] of Object.entries(sources)) {
     const hash = record(entry, `${location.contract} compiler source ${relative}`).keccak256
@@ -81,7 +101,7 @@ async function readCompilation(location: { readonly source: string; readonly con
   }
 
   const compiled: CompiledContractSource = {
-    name: location.contract, source: location.source, compilerVersion: compiler.version, compilerSettings: settings,
+    name: location.contract, source: location.source, compilerVersion, compilerSettings: settings,
     compilerMetadataSha256: sha256(JSON.stringify(metadata)),
     artifactSha256: sha256(artifactBytes),
     creationBytecode: bytecode.object as Hex,
@@ -90,13 +110,13 @@ async function readCompilation(location: { readonly source: string; readonly con
   return { compiled, metadata, sourceContents }
 }
 
-export async function readCompiledContractSource(location: { readonly source: string; readonly contract: string },
+export async function readCompiledContractSource(location: ContractLocation,
   artifactsRoot: string, sourcesRoot: string): Promise<CompiledContractSource> {
   return (await readCompilation(location, artifactsRoot, sourcesRoot)).compiled
 }
 
 /** Export only metadata-named, hash-checked sources; never send an entire archive to a verifier. */
-export async function readSourceVerificationInput(location: { readonly source: string; readonly contract: string },
+export async function readSourceVerificationInput(location: ContractLocation,
   artifactsRoot: string, sourcesRoot: string) {
   const { compiled, metadata, sourceContents } = await readCompilation(location, artifactsRoot, sourcesRoot)
   // compilationTarget describes a compiler output; it is not a valid solc input setting.
