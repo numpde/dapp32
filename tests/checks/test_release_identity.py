@@ -11,6 +11,20 @@ from tools import release_identity
 
 
 class IdentityTests(unittest.TestCase):
+    def test_release_pin_matches_published_linux_idmap_v031(self):
+        # GitHub's published release asset digest (2026-11-06); update this
+        # reviewed contract alongside the pinned wheel, never from a guess.
+        self.assertEqual("linux_idmap-0.3.1-py3-none-any.whl", release_identity.WHEEL_NAME)
+        self.assertEqual(
+            "2833b26881903f8cb1b12ed16f442db8e1f487283a550eccd3fc10ee7bacd9c8",
+            release_identity.WHEEL_SHA256,
+        )
+        self.assertEqual(
+            "https://github.com/numpde/container-tools/releases/download/v0.3.1/"
+            + release_identity.WHEEL_NAME,
+            release_identity.WHEEL_URL,
+        )
+
     def test_map_matches_host_user_in_rootless_and_rootful_namespaces(self):
         cases = [
             (((0, 1000, 1), (1, 100000, 65536)), ((0, 100, 1), (1, 200000, 65536)), (0, 0)),
