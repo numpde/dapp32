@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import os
 import fcntl
+import pty
+import select
+import signal
+import time
 from pathlib import Path
 import subprocess
 import tempfile
@@ -184,6 +188,72 @@ context-child:
                                 env=environment, capture_output=True, text=True, timeout=5, start_new_session=True)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("MAKECMDGOALS is reserved", result.stderr)
+
+    def test_make_query_and_dry_run_are_passive_across_goal_families(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "docker-inspections"
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS",
+                                  "MAKELEVEL", "DOCKER_CONTEXT_INPUT", "CAM_DOCKER_ENDPOINT")}
+            env.update({"PATH": f"{FAKE_DOCKER}:{os.environ['PATH']}",
+                        "TRACE": str(trace), "ENDPOINT": "unix:///tmp/selected.sock"})
+            for options in (
+                ("-qp", "tests/live/release-identity"),
+                ("--dry-run", "tests/live/release-identity"),
+                ("--question", "tests/live/release-identity"),
+                ("-qp", "tests/live"),
+                ("--dry-run", "tests/checks"),
+                ("-qp", "pay-to-play/release/source/publish"),
+                ("-rR", "-qp", "help"),
+            ):
+                with self.subTest(options=options):
+                    trace.unlink(missing_ok=True)
+                    result = subprocess.run(
+                        ["make", "--no-print-directory", *options],
+                        cwd=ROOT, env=env, stdin=subprocess.DEVNULL, start_new_session=True,
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    self.assertIn(result.returncode, (0, 1), result.stderr)
+                    self.assertNotIn("Docker context selection failed", result.stderr)
+                    self.assertFalse(trace.exists(), "Make inspection contacted Docker")
+
+    def test_make_completion_with_a_terminal_does_not_open_context_menu(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "docker-inspections"
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS",
+                                  "MAKELEVEL", "DOCKER_CONTEXT_INPUT", "CAM_DOCKER_ENDPOINT")}
+            env.update({"PATH": f"{FAKE_DOCKER}:{os.environ['PATH']}",
+                        "TRACE": str(trace), "ENDPOINT": "unix:///tmp/selected.sock"})
+            pid, terminal = pty.fork()
+            if pid == 0:
+                os.chdir(ROOT)
+                os.execvpe("make", ["make", "--no-print-directory", "-qp",
+                                    "tests/live/release-identity"], env)
+            observed = bytearray()
+            status = None
+            deadline = time.monotonic() + 6
+            try:
+                while time.monotonic() < deadline:
+                    if select.select([terminal], [], [], 0.1)[0]:
+                        try:
+                            observed.extend(os.read(terminal, 65536))
+                        except OSError:
+                            pass
+                    finished, value = os.waitpid(pid, os.WNOHANG)
+                    if finished:
+                        status = value
+                        break
+                if status is None:
+                    os.killpg(pid, signal.SIGKILL)
+                    os.waitpid(pid, 0)
+            finally:
+                os.close(terminal)
+            self.assertIsNotNone(status, "Completion query blocked waiting for Docker context input")
+            self.assertTrue(os.WIFEXITED(status), observed[-1024:].decode(errors="replace"))
+            self.assertNotIn(b"Select a local Docker context (no default)", observed)
+            self.assertNotIn(b"Choice [", observed)
+            self.assertFalse(trace.exists(), "Completion query inspected Docker")
 
     def test_empty_private_docker_config_resolves_default_to_the_fixture_engine(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -15,6 +15,7 @@ on:
       - tests/live/check_release_identity.py
       - tests/live/release_identity.yml
       - tests/checks/test_release_identity_lane.py
+      - tests/checks/test_docker_context.py
   pull_request:
     paths:
       - .github/workflows/identity-integration.yml
@@ -29,6 +30,7 @@ on:
       - tests/live/check_release_identity.py
       - tests/live/release_identity.yml
       - tests/checks/test_release_identity_lane.py
+      - tests/checks/test_docker_context.py
 
 permissions:
   contents: read
@@ -51,6 +53,8 @@ jobs:
           python3 -B -m unittest -v
           tests.checks.test_release_identity_lane
           tests.checks.test_release_identity
+          tests.checks.test_docker_context.DockerContextSelectionTest.test_make_query_and_dry_run_are_passive_across_goal_families
+          tests.checks.test_docker_context.DockerContextSelectionTest.test_make_completion_with_a_terminal_does_not_open_context_menu
           tests.checks.test_repository_hygiene.RepositoryHygieneTest.test_live_checks_are_make_owned_and_exposed_in_the_aggregate
           tests.checks.test_repository_hygiene.RepositoryHygieneTest.test_ci_uses_make_not_private_tool_scripts_for_host_checks
       - name: Qualify the selected engine through the maintained lane
