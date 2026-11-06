@@ -69,6 +69,8 @@ def docker_context_violations(source: str, *, python: bool = False, workflow: bo
         if python and reason == "implicit engine selection":
             continue  # Python diagnostic strings are not shell commands.
         for match in pattern.finditer(code):
+            if reason == "hardcoded Docker socket" and match.group() == "unix:///dev/null":
+                continue  # This character device is a fail-closed Make inspection endpoint, not a socket.
             before = code[code.rfind("\n", 0, match.start()) + 1:match.start()]
             if reason in {"implicit engine selection", "unselected Docker endpoint"} and re.search(r"\bprintf\s+'[^']*$", before):
                 continue  # Single-quoted printf text is not executed by the shell.
@@ -168,6 +170,14 @@ class DockerContextPostureTest(unittest.TestCase):
         self.assertEqual([], docker_context_violations('run: make tests/checks DOCKER_CONTEXT=default', workflow=True))
         self.assertEqual([], docker_context_violations('docker context ls --format "{{.Name}}"', metadata_owner=True))
         self.assertEqual([], docker_context_violations('docker context inspect "$selected_context"', metadata_owner=True))
+
+    def test_inspection_dead_endpoint_is_not_a_docker_socket(self) -> None:
+        # An intentionally unusable character device fails closed during Make -n.
+        self.assertEqual([], docker_context_violations("override DOCKER_HOST := unix:///dev/null"))
+        for source in ("override DOCKER_HOST := unix:///var/run/docker.sock",
+                       "override DOCKER_HOST := unix:///tmp/engine.sock"):
+            with self.subTest(source=source):
+                self.assertIn((1, "hardcoded Docker socket"), docker_context_violations(source))
 
     def test_python_argv_requires_the_selected_endpoint_without_flagging_diagnostics(self) -> None:
         for source in ('subprocess.run(["docker", "ps"])', 'subprocess.run("docker ps", shell=True)',

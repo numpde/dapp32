@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import errno
 import fcntl
 import pty
 import select
@@ -232,14 +233,19 @@ context-child:
                                     "tests/live/release-identity"], env)
             observed = bytearray()
             status = None
+            terminal_closed = False
             deadline = time.monotonic() + 6
             try:
                 while time.monotonic() < deadline:
-                    if select.select([terminal], [], [], 0.1)[0]:
+                    if not terminal_closed and select.select([terminal], [], [], 0.1)[0]:
                         try:
                             observed.extend(os.read(terminal, 65536))
-                        except OSError:
-                            pass
+                        except OSError as error:
+                            if error.errno != errno.EIO:
+                                raise
+                            # Linux PTY EOF is EIO. Keep reaping the child without
+                            # polling this closed master again.
+                            terminal_closed = True
                     finished, value = os.waitpid(pid, os.WNOHANG)
                     if finished:
                         status = value

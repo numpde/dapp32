@@ -52,7 +52,7 @@ JS_DEFAULT_PARAMETER_RE = re.compile(
     r"\b[A-Za-z_][A-Za-z0-9_]*\s*(?<![=!<>])=(?!=|>)\s*(?:[\"'`{\[]|\d|true|false|null|undefined)"
 )
 JS_TYPED_PARAMETER_DEFAULT_RE = re.compile(
-    r"(?:^|[(,])\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*[^=;\n,)]+\s*=\s*"
+    r"(?:^|[(,])\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*[^=;\n,)]+\s*(?<![!<>=])=(?!=|>)\s*"
     r"(?:[\"'`{\[]|\d|true|false|null|undefined)"
 )
 JS_EXCEPTION_FALLBACK_RE = re.compile(
@@ -164,6 +164,19 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
                 self.assertEqual([], js_default_findings_for_source(source, "fixture"))
         self.assertTrue(js_default_findings_for_source("return port || ['8080']", "fixture"))
 
+    def test_jsx_markup_and_comparisons_are_not_typed_default_parameters(self) -> None:
+        for source in (
+            'const glyphs = {\n  copy: <><rect x="8" y="8" width="11" /></>,\n}',
+            'const glyphs = {\n  check: <path d="m5 12 4 4" />,\n}',
+            'const bounds = {x:1,target:box.width>=28&&box.height>=28}',
+            'const bounds = {x:1,target:box.width<=28}',
+            'const value = `return {x:1,target:box.width>=28}`',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual([], js_default_findings_for_source(source, "fixture"))
+        # Actual typed defaults must still be detected.
+        self.assertTrue(js_default_findings_for_source('function run(port: number = 28) {}', "fixture"))
+
     def test_js_ts_files_do_not_hide_runtime_fallbacks(self) -> None:
         findings = []
         for path in js_ts_files():
@@ -203,6 +216,8 @@ def js_default_findings_for_source(source: str, label: str) -> list[str]:
         for pattern, rule in patterns:
             for match in pattern.finditer(line):
                 if pattern is JS_TYPED_PARAMETER_DEFAULT_RE:
+                    if re.search(r":\s*<", match.group()):
+                        continue  # JSX element initializers are not typed declarations.
                     equals = match.start() + match.group().rfind("=")
                     if any(string.start() <= equals < string.end() for string in JS_STRING_RE.finditer(line)):
                         continue

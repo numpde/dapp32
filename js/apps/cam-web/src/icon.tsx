@@ -12,6 +12,7 @@ const glyphs = {
 }
 
 // Controls own accessible names and interaction; their icons are decorative.
+// silent-defaults: allow-default -- The 16-pixel default is a visual icon size, not an operator or environment input.
 export function Icon({ name, size = 16 }: {
   readonly name: keyof typeof glyphs
   readonly size?: 16 | 18

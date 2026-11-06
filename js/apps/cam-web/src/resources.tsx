@@ -71,6 +71,8 @@ function ResourceRow({ label, description, check }: {
 
 function ResourceHeading({ label, description }: { readonly label: string; readonly description: string }): ReactElement {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
+  // silent-defaults: allow-default -- The ref is absent on first render; clip the help popover to its ancestors until attached.
+  const collisionBoundary = container?.closest("dialog") ?? "clipping-ancestors"
   return <div className="verification-heading" ref={setContainer}>
     <h2>{label} verification</h2>
     <Popover.Root>
@@ -78,7 +80,7 @@ function ResourceHeading({ label, description }: { readonly label: string; reado
         <Icon name="info" size={18} />
       </Popover.Trigger>
       <Popover.Portal container={container} className="resource-info-portal">
-        <Popover.Positioner positionMethod="fixed" collisionBoundary={container?.closest("dialog") ?? "clipping-ancestors"} side="bottom" align="start" sideOffset={8} collisionPadding={8} className="resource-info-positioner">
+        <Popover.Positioner positionMethod="fixed" collisionBoundary={collisionBoundary} side="bottom" align="start" sideOffset={8} collisionPadding={8} className="resource-info-positioner">
           <Popover.Popup className="resource-info-popup" aria-label={`About ${label}`} initialFocus={false}>
             <Popover.Description>{description}</Popover.Description>
           </Popover.Popup>

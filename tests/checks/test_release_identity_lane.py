@@ -106,7 +106,7 @@ export -f docker python3 timeout setsid
 exec bash tools/release_identity_check.sh fixture
 '''
 
-    def run_lane(self, mode, *, selected=False):
+    def run_lane(self, mode, *, selected: bool):
         command = self.wrapper
         environment = {**self.environment, "CASE_MODE": mode}
         if selected:
@@ -131,7 +131,7 @@ exec bash tools/release_identity_check.sh fixture
         self.assertNotIn("python3 -I -B -c", workflow)
 
     def test_success_requires_private_round_trip_and_confirmed_retirement(self):
-        result, directory = self.run_lane("success")
+        result, directory = self.run_lane("success", selected=False)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertIn("PASS", result.stdout)
         self.assertIsNotNone(directory)
@@ -215,19 +215,19 @@ exec bash tools/release_identity_check.sh fixture
         self.assertFalse((self.case / "calls").exists())
 
     def test_worker_failure_is_not_reported_as_success_and_still_cleans_up(self):
-        result, directory = self.run_lane("worker-failure")
+        result, directory = self.run_lane("worker-failure", selected=False)
         self.assertEqual(19, result.returncode, result.stdout + result.stderr)
         self.assertNotIn("PASS", result.stdout)
         self.assertFalse(directory.exists())
 
     def test_host_checks_reject_incorrect_output_permissions(self):
-        result, directory = self.run_lane("wrong-mode")
+        result, directory = self.run_lane("wrong-mode", selected=False)
         self.assertNotEqual(0, result.returncode)
         self.assertNotIn("PASS", result.stdout)
         self.assertFalse(directory.exists())
 
     def test_unconfirmed_cleanup_retains_its_inputs_and_diagnostics(self):
-        result, directory = self.run_lane("cleanup-failure")
+        result, directory = self.run_lane("cleanup-failure", selected=False)
         self.assertEqual(2, result.returncode, result.stdout + result.stderr)
         self.assertNotIn("PASS", result.stdout)
         self.assertIn(str(directory), result.stderr)
