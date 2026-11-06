@@ -164,6 +164,19 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
                 self.assertEqual([], js_default_findings_for_source(source, "fixture"))
         self.assertTrue(js_default_findings_for_source("return port || ['8080']", "fixture"))
 
+    def test_jsx_markup_and_comparisons_are_not_typed_default_parameters(self) -> None:
+        for source in (
+            'const glyphs = { copy: <><rect x="8" y="8" width="11" /></> }',
+            'const glyphs = { check: <path d="m5 12 4 4" /> }',
+            'return { target: box.width>=28 && box.height>=28 }',
+            'const value = `return { target: box.width>=28 }`',
+            'return { target: box.width<=28 }',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual([], js_default_findings_for_source(source, "fixture"))
+        # Actual typed defaults must still be detected.
+        self.assertTrue(js_default_findings_for_source('function run(port: number = 28) {}', "fixture"))
+
     def test_js_ts_files_do_not_hide_runtime_fallbacks(self) -> None:
         findings = []
         for path in js_ts_files():
