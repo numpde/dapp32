@@ -193,7 +193,8 @@ const snapshot = `(()=>{
     tasks:[...document.querySelectorAll('.elements .ui-section > h2')].map(node=>node.textContent),
     fields:[...document.querySelectorAll('.elements input')].map(node=>node.name),
     timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),
-    text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),
+    text:document.body === null ? '' : document.body.innerText,prepared:!!document.querySelector('.prepared-call'),
+    uiReady:document.querySelector('.elements') !== null,
     notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),
     transaction:document.querySelector('.transaction-feedback')?.innerText,
     transactionHash:document.querySelector('.transaction-feedback .hex-value code')?.title,
@@ -308,7 +309,10 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await call('Page.navigate', { url: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
+  // Page.navigate resolves before the first application render; wait for its
+  // route and UI container rather than only the early page heading.
+  await wait(state => state.text.includes('Pay-to-Play') && state.uiReady
+    && state.readRoute === 'home' && state.buttons.some(button => button.name === 'Create a channel'), 'cold entry')
   await assertHierarchy('home', ['App navigation', 'View a balance'], [])
   await click('Create a channel')
   await wait(state => state.readRoute === 'createChannelForm', 'open channel creation from home')
