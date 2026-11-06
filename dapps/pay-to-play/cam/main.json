@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x51580a6dbef16e8f9090bc5871dc8b89866af93534370c87f36e7e134c5400ad"
+      "integrity": "sha256:0xcd7064126dd0f13e813ac5ec32c14fde999e062d0f402b5b88ae1368217c286a"
     },
     "contracts.PayToPlayUI": {
       "type": "contract",
@@ -50,7 +50,8 @@
               "channelId": "0",
               "channelCount": "$outputs.0.channelCount",
               "actions": "$outputs.0.actions"
-            }
+            },
+            "taskNavigation": "taskNavigation.none"
           }
         }
       }
@@ -79,7 +80,8 @@
               "channelId": "0",
               "channelCount": "$outputs.0.channelCount",
               "actions": "$outputs.0.actions"
-            }
+            },
+            "taskNavigation": "taskNavigation.none"
           }
         }
       }
@@ -105,8 +107,121 @@
         "args": {
           "view": {
             "screen": "position",
-            "balanceSection": "balanceSection.position",
-            "task": "$outputs.0"
+            "balanceSection": "balanceSection.selected",
+            "task": "$outputs.0",
+            "taskNavigation": "taskNavigation.balance"
+          }
+        }
+      }
+    },
+    "depositForm": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "depositForm",
+            "balanceSection": "balanceSection.selected",
+            "task": "$outputs.0",
+            "taskNavigation": "taskNavigation.deposit"
+          }
+        }
+      }
+    },
+    "withdrawalForm": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "withdrawalForm",
+            "balanceSection": "balanceSection.selected",
+            "task": "$outputs.0",
+            "taskNavigation": "taskNavigation.withdrawal"
+          }
+        }
+      }
+    },
+    "voucherPaymentsForm": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "voucherPaymentsForm",
+            "balanceSection": "balanceSection.selected",
+            "task": "$outputs.0",
+            "taskNavigation": "taskNavigation.vouchers"
+          }
+        }
+      }
+    },
+    "channelSettingsForm": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": {
+            "screen": "channelSettingsForm",
+            "balanceSection": "balanceSection.selected",
+            "task": "$outputs.0",
+            "taskNavigation": "taskNavigation.channelSettings"
           }
         }
       }
@@ -610,7 +725,8 @@
               "domainVersion": "$outputs.0.domainVersion",
               "verifyingContract": "$outputs.0.verifyingContract",
               "voucherKey": "$outputs.0.voucherKey"
-            }
+            },
+            "taskNavigation": "taskNavigation.vouchers"
           }
         }
       }
@@ -639,7 +755,8 @@
               "channelId": "",
               "channelCount": "$outputs.0.channelCount",
               "actions": "$outputs.0.actions"
-            }
+            },
+            "taskNavigation": "taskNavigation.none"
           }
         }
       }
@@ -671,7 +788,8 @@
               "channelId": "$inputs.channelId",
               "channelCount": "$outputs.0.channelCount",
               "actions": "$outputs.0.actions"
-            }
+            },
+            "taskNavigation": "taskNavigation.none"
           }
         }
       }
@@ -697,8 +815,9 @@
         "args": {
           "view": {
             "screen": "recovery",
-            "balanceSection": "balanceSection.recovery",
-            "task": "$outputs.0"
+            "balanceSection": "balanceSection.selected",
+            "task": "$outputs.0",
+            "taskNavigation": "taskNavigation.recovery"
           }
         }
       }
