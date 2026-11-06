@@ -49,6 +49,11 @@ release_instance() {
   trap cleanup_instance EXIT
   source tools/release_tool_images.sh
   release_acquire_compose_images "${compose[@]}"
+  source tools/release_identity.sh
+  release_select_container_identity
+  compose=(env "LOCAL_UID=$RELEASE_CONTAINER_UID" "LOCAL_GID=$RELEASE_CONTAINER_GID"
+    docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null
+    -p "$project" -f compose/release/config.yml)
   terminal=(-T)
   if [[ -t 0 && -t 1 ]]; then terminal=(-it); fi
   release_run_owned "$release_command_grace" "${compose[@]}" run --pull never --rm --no-deps "${terminal[@]}" release-instance prepare "$app" "$operation" "$instance" || exit "$?"
