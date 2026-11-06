@@ -30,10 +30,12 @@ release_instance() {
   project="cam-instance-$(basename "$stage" | tr -cd 'a-zA-Z0-9' | tr '[:upper:]' '[:lower:]')"
   export RELEASE_INSTANCE_ROOT="$instance" RELEASE_INSTANCE_OPERATION="$operation"
   export RELEASE_INSTANCE_DIR="$instance" RELEASE_CONFIG_FILE="$instance/config.json" RELEASE_CREDENTIAL_CONFIG="$instance/config.json" RELEASE_CONFIG_STAGE_DIR="$stage"
-  local -a compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null -p "$project" -f compose/release/config.yml)
+  # The EXIT trap can run after this function's locals have unwound.
+  # Keep the Compose command owned by this one operation until teardown completes.
+  declare -ga release_instance_compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null -p "$project" -f compose/release/config.yml)
   retire_instance_selection() {
     if [[ ! -d "$stage" ]]; then return 0; fi
-    if ! timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" -- "${compose[@]}" >>"$stage/cleanup.log" 2>&1; then
+    if ! timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" -- "${release_instance_compose[@]}" >>"$stage/cleanup.log" 2>&1; then
       printf 'Instance command cleanup is incomplete; retained %s\n' "$stage" >&2
       return 2
     fi
@@ -50,14 +52,14 @@ release_instance() {
   # function and release its locals. Preserve the original failure status.
   trap "cleanup_instance $(printf '%q' "$stage") $(printf '%q' "$project")" EXIT
   source tools/release_tool_images.sh
-  release_acquire_compose_images "${compose[@]}"
+  release_acquire_compose_images "${release_instance_compose[@]}"
   source tools/release_identity.sh
   release_select_container_identity
   # Keep the Compose argv rooted at docker; compose_cleanup.sh verifies this exact authority.
   export LOCAL_UID="$RELEASE_CONTAINER_UID" LOCAL_GID="$RELEASE_CONTAINER_GID"
   terminal=(-T)
   if [[ -t 0 && -t 1 ]]; then terminal=(-it); fi
-  release_run_owned "$release_command_grace" "${compose[@]}" run --pull never --rm --no-deps "${terminal[@]}" release-instance prepare "$app" "$operation" "$instance" || exit "$?"
+  release_run_owned "$release_command_grace" "${release_instance_compose[@]}" run --pull never --rm --no-deps "${terminal[@]}" release-instance prepare "$app" "$operation" "$instance" || exit "$?"
   mapfile -d '' -t arguments < "$stage/arguments"
   read -r RELEASE_INSTANCE_OPERATION < "$stage/operation"
   export RELEASE_INSTANCE_OPERATION
@@ -78,7 +80,7 @@ release_instance() {
     exit "$status"
   fi
   if [[ "$operation" == viewer/* ]]; then exit 0; fi
-  release_run_owned "$release_command_grace" "${compose[@]}" run --pull never --rm --no-deps -T release-instance finish "$app" "$operation" "$instance"
+  release_run_owned "$release_command_grace" "${release_instance_compose[@]}" run --pull never --rm --no-deps -T release-instance finish "$app" "$operation" "$instance"
   # Deployment is complete and its child services are gone before public submission.
   # External service failure must not turn a successful paid operation back into pending work.
   if [[ ( ! -v RELEASE_REHEARSAL || "$RELEASE_REHEARSAL" != 1 ) && -f "$stage/source-artifacts" ]]; then
