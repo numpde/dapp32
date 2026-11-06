@@ -175,8 +175,8 @@ The implementation preserves meaningful test-first commits documenting each
 ownership choice. The branch's navigation CI runs CAM conformance, JavaScript
 tests, real-contract disposable local scenarios, and a separate Chrome/CDP
 browser journey on a fresh local GUI fixture. The browser reported 13 local
-transactions, tested at 1280px and 320px, and returned a successful E2E result:
-https://github.com/numpde/dapp32/actions/runs/42308551898
+transactions, tested at 1280px and 320px, and returned a successful E2E
+result in GitHub Actions run 42308551898.
 The host-owned rootless Docker and public Fuji deployment paths are not exercised
 by this navigation CI.
 
