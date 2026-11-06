@@ -61,9 +61,9 @@ source tools/release_identity.sh
 docker() { [[ "$*" == *'image inspect'* ]]; }
 python3() {
   if [[ "${1-}" == -I && "${2-}" == -S && "${3-}" == -B ]]; then
-    printf '%s\\n' "$CAM_DOCKER_ENDPOINT" >> "$CALLS"
+    printf '%s\n' "$CAM_DOCKER_ENDPOINT" >> "$CALLS"
     case "$CAM_DOCKER_ENDPOINT" in
-      *one.sock) printf '0:0\\n' ;;
+      *one.sock) printf '0:0\n' ;;
       *two.sock) return 3 ;;
       *) return 2 ;;
     esac
