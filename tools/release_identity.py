@@ -10,9 +10,9 @@ import tempfile
 import urllib.request
 
 
-WHEEL_NAME = "linux_idmap-0.3.0-py3-none-any.whl"
-WHEEL_SHA256 = "2fd5ff0b0bae1ce97d23fb2e8f24adcac156cafa4afdb3a2fbf089e91790d428"
-WHEEL_URL = "https://github.com/numpde/container-tools/releases/download/v0.3.0/" + WHEEL_NAME
+WHEEL_NAME = "linux_idmap-0.3.1-py3-none-any.whl"
+WHEEL_SHA256 = "2833b26881903f8cb1b12ed16f442db8e1f487283a550eccd3fc10ee7bacd9c8"
+WHEEL_URL = "https://github.com/numpde/container-tools/releases/download/v0.3.1/" + WHEEL_NAME
 
 
 def download_wheel(url):
@@ -34,7 +34,7 @@ def ensure_wheel(cache, *, download=download_wheel):
         raise ValueError("linux-idmap cache must be a private caller-owned directory")
     wheel = cache / WHEEL_NAME
     if not wheel.exists() and not wheel.is_symlink():
-        print("Acquiring checksum-pinned linux-idmap 0.3.0 wheel for host identity mapping.", file=sys.stderr)
+        print("Acquiring checksum-pinned linux-idmap 0.3.1 wheel for host identity mapping.", file=sys.stderr)
         content = download(WHEEL_URL)
         if hashlib.sha256(content).hexdigest() != WHEEL_SHA256:
             raise ValueError("Downloaded linux-idmap wheel checksum differs from the pinned release")
