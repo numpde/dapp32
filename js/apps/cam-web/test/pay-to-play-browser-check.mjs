@@ -437,9 +437,12 @@ try {
   const signature = await voucherSigner.signTypedData(typed)
   await inspect(accounts.customer.address, id)
   await role('relayer')
+  await openTask('Deposit', 'depositForm')
   state = await wait(state => state.buttons.some(button => button.name === 'Deposit' && button.disabled), 'relayer cannot fund inspected customer')
-  disabled(state, 'Request withdrawal')
-  disabled(state, 'Replace withdrawal request')
+  await openTask('Withdraw or move', 'withdrawalForm')
+  disabled(await evaluate(snapshot), 'Request withdrawal')
+  disabled(await evaluate(snapshot), 'Replace withdrawal request')
+  await openTask('Vouchers', 'voucherPaymentsForm')
   await fill('cumulativeTotal', '60')
   await fill('maxAmount', '30')
   await fill('invoiceHash', invoiceHash)
@@ -447,19 +450,21 @@ try {
   phase = 'voucher signing details'
   await click('View signing details')
   const details = await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
-  await assertHierarchy('voucherDigest', ['App navigation', 'Selected balance', 'Account and channel', 'Voucher signing details'], [['Signing domain', 'Voucher signing details'], ['Signing key', 'Voucher signing details'], ['Voucher message', 'Voucher signing details']])
+  await assertHierarchy('voucherDigest', ['App navigation', 'Selected balance', 'Balance tasks', 'Account and channel', 'Voucher signing details'], [['Signing domain', 'Voucher signing details'], ['Signing key', 'Voucher signing details'], ['Voucher message', 'Voucher signing details']])
   assert.equal(details.values['Invoice hash (bytes32)'], invoiceHash)
   assert.equal(details.values['Signing hash (EIP-712 digest)'], hashTypedData(typed))
   phase = 'voucher draft return'
   await click('Back')
-  await wait(state => state.values['Read route'] === 'position'
+  await wait(state => state.values['Read route'] === 'voucherPaymentsForm'
     && state.values['Balance owner']?.toLowerCase() === accounts.customer.address.toLowerCase()
     && state.values['Channel ID'] === id
     && state.buttons.some(button => button.name === 'Collect voucher payment' && !button.disabled), 'draft return')
-  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]')!==null&&document.querySelector('input[name="invoiceHash"]')!==null&&document.querySelector('input[name="signature"]')!==null`), 'returned position must expose the voucher fields')
+  await assertTaskMenu('Vouchers')
+  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]')!==null&&document.querySelector('input[name="invoiceHash"]')!==null&&document.querySelector('input[name="signature"]')!==null`), 'returned voucher task must restore the input fields')
   assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]').value === "60" && document.querySelector('input[name="invoiceHash"]').value === ${JSON.stringify(invoiceHash)} && document.querySelector('input[name="signature"]').value === ${JSON.stringify(signature)}`), 'Back restores the complete invoice voucher')
   const paymentReceipts = []
   for (const paidTotal of [30n, 60n]) {
+    if ((await evaluate(snapshot)).readRoute === 'position') await openTask('Vouchers', 'voucherPaymentsForm')
     await fill('cumulativeTotal', '60')
     await fill('maxAmount', '30')
     await fill('invoiceHash', invoiceHash)
@@ -487,6 +492,7 @@ try {
     assert.equal(collected.payee.toLowerCase(), accounts.recipient.address.toLowerCase())
     paymentReceipts.push({ hash: collectionReceipt.transactionHash, paid: String(collected.amount), payee: collected.payee })
   }
+  await openTask('Vouchers', 'voucherPaymentsForm')
   await fill('cumulativeTotal', '60')
   await fill('maxAmount', '30')
   await fill('invoiceHash', invoiceHash)
@@ -517,12 +523,13 @@ try {
   const recoveryId = String(decodeEventLog({ abi, eventName: 'ChannelCreated', ...recoveryLog }).args.channelId)
   await inspect(accounts.customer.address, recoveryId)
   await role('customer')
+  await openTask('Deposit', 'depositForm')
   await wait(state => state.buttons.some(button => button.name === 'Deposit' && !button.disabled), 'recovery customer')
   await fill('fundAmount', '40')
   await send('Deposit')
-  await click('Manage recovery and channel closure')
+  await openTask('Recovery', 'recovery')
   await wait(state => state.buttons.some(button => button.name === 'Set refund recipient' && !button.disabled), 'recovery controls')
-  await assertHierarchy('recovery', ['App navigation', 'Selected balance', 'Account and channel', 'Position status', 'Balance recovery', 'Retire this channel'], [['Renew funding period', 'Balance recovery'], ['Choose refund recipient', 'Balance recovery'], ['Start wind-down', 'Balance recovery'], ['Refund balance', 'Balance recovery']])
+  await assertHierarchy('recovery', ['App navigation', 'Selected balance', 'Balance tasks', 'Account and channel', 'Position status', 'Balance recovery', 'Retire this channel'], [['Renew funding period', 'Balance recovery'], ['Choose refund recipient', 'Balance recovery'], ['Start wind-down', 'Balance recovery'], ['Refund balance', 'Balance recovery']])
   await fill('newRefundRecipient', accounts.recipient.address)
   await send('Set refund recipient')
   await send('Start position wind-down')
