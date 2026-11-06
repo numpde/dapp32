@@ -221,10 +221,10 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             observed = publish_contract(CONTRACT, state, request=request)
             self.assertEqual("match", observed["runtimeMatch"])
             self.assertEqual(CONTRACT["body"], calls[0][2])
-            self.assertEqual(["POST", "GET"], [call[0] for call in calls])
+            self.assertEqual(["POST", "GET", "GET"], [call[0] for call in calls])
             refreshed = publish_contract(CONTRACT, state, request=request)
             self.assertEqual(observed["runtimeMatch"], refreshed["runtimeMatch"])
-            self.assertEqual(["POST", "GET", "GET"], [call[0] for call in calls])
+            self.assertEqual(["POST", "GET", "GET", "GET"], [call[0] for call in calls])
             with self.assertRaisesRegex(ValueError, "request changed"):
                 publish_contract({**CONTRACT, "body": {}}, state, request=request)
 
@@ -285,7 +285,7 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                     self.assertFalse(check["accepted"])
                     self.assertEqual([attempt], json.loads(state.read_text())["attempts"])
 
-    def test_saved_job_is_resubmitted_only_after_public_lookup_reports_absence(self):
+    def test_missing_public_record_never_automatically_resubmits_a_successful_job(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "saved.json"
             attempt = {"verificationId": JOB, "verified": True, "result": result()}
@@ -301,8 +301,9 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 if path.startswith("/v2/contract/"):
                     raise urllib.error.HTTPError(path, 404, "missing", {}, None)
                 return {"verificationId": JOB} if method == "POST" else result()
-            publish_contract(CONTRACT, state, request=missing)
-            self.assertEqual(["GET", "POST", "GET"], calls)
+            with self.assertRaisesRegex(ValueError, "public index"):
+                publish_contract(CONTRACT, state, request=missing)
+            self.assertEqual(["GET"], calls)
             self.assertEqual(attempt, json.loads(state.read_text())["attempts"][0])
 
     def test_pending_job_survives_interruption_and_next_command_only_polls(self):
@@ -317,9 +318,11 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             calls = []
             def resumed(method, path, body=None):
                 calls.append(method)
+                if path.startswith("/v2/contract/"):
+                    return {**result()["contract"], "metadata": CONTRACT["metadata"]}
                 return result()
             publish_contract(CONTRACT, state, request=resumed)
-            self.assertEqual(["GET"], calls)
+            self.assertEqual(["GET", "GET"], calls)
             self.assertEqual(1, len(json.loads(state.read_text())["attempts"]))
 
     def test_interruption_after_saving_a_completed_job_resumes_without_posting(self):
@@ -346,7 +349,11 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 return {"verificationId": JOB} if method == "POST" else {**result(runtimeMatch=None), "error": {"message": "mismatch"}}
             with self.assertRaisesRegex(ValueError, "did not match"):
                 publish_contract(CONTRACT, state, request=failed)
-            publish_contract(CONTRACT, state, request=lambda method, *_: {"verificationId": JOB} if method == "POST" else result())
+            def recovered(method, path, body=None):
+                if method == "POST":
+                    return {"verificationId": JOB}
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]} if path.startswith("/v2/contract/") else result()
+            publish_contract(CONTRACT, state, request=recovered)
             attempts = json.loads(state.read_text())["attempts"]
             self.assertEqual(2, len(attempts))
             self.assertIn("error", attempts[0]["result"])

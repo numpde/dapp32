@@ -181,6 +181,17 @@ def recheck_publication(contract, compiler_metadata, state, state_path, request)
     return observed
 
 
+def completed_matching_receipt(contract, attempt):
+    result = attempt.get("result")
+    if not isinstance(result, dict) or result.get("isJobCompleted") is not True or result.get("error"):
+        return False
+    try:
+        observed = verification_contract(result, contract)
+    except ValueError:
+        return False
+    return all(observed.get(field) in MATCH_LABELS for field in ("creationMatch", "runtimeMatch"))
+
+
 def publish_contract(contract, state_path, *, compiler_metadata, request, pause, clock):
     if state_path.exists():
         state = read_publication_state(contract, state_path)
@@ -189,11 +200,12 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
         state = {"requestSha256": source_request_hash(contract), "attempts": []}
     attempts = state["attempts"]
     last = attempts[-1] if attempts else {}
-    if last.get("verified") is True or last.get("alreadyVerified") is True:
+    if last.get("verified") is True or last.get("alreadyVerified") is True or completed_matching_receipt(contract, last):
         observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
         if observed is not None:
             return observed
-    if not attempts or last.get("alreadyVerified") is True or ("result" in last and last["result"]["isJobCompleted"] is True):
+        raise ValueError("The completed verification is not yet in Sourcify's public index. Retry to check it; no sources were resubmitted.")
+    if not attempts or (isinstance(last.get("result"), dict) and last["result"].get("isJobCompleted") is True):
         try:
             ticket = request("POST", f"/v2/verify/{contract['chainId']}/{contract['identity']['address']}", contract["body"])
         # silent-defaults: allow-exception-fallback -- Sourcify 409 is a documented already-verified outcome; test_already_verified_requires_original_metadata_and_both_exact_matches proves its separate admission.
@@ -205,7 +217,7 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
             write_json(state_path, state)
             observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
             if observed is None:
-                raise ValueError("Sourcify reported existing source but its lookup is missing. Retry later.")
+                raise ValueError("Sourcify reported existing source, but its public record is not yet visible. Retry the lookup; no sources will be resubmitted.")
             return observed
         identifier = ticket.get("verificationId")
         if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", identifier):
@@ -221,17 +233,15 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
         if result.get("verificationId") != attempt["verificationId"] or type(result.get("isJobCompleted")) is not bool:
             raise ValueError("Public verifier returned an inconsistent job status; no success was recorded.")
         attempt["result"] = result
+        write_json(state_path, state)
         if not result["isJobCompleted"]:
-            write_json(state_path, state)
             pause(3)
             continue
-        try:
-            observed = verification_contract(result, contract)
-            if result.get("error") or observed.get("runtimeMatch") not in ("match", "exact_match") or observed.get("creationMatch") not in ("match", "exact_match"):
-                raise ValueError(f"Public verification did not match creation and runtime code. See {state_path.name} for the verifier's explanation.")
-            attempt["verified"] = True
-        finally:
-            write_json(state_path, state)
+        if not completed_matching_receipt(contract, attempt):
+            raise ValueError(f"Public verification did not match creation and runtime code. See {state_path.name} for the verifier's explanation.")
+        observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
+        if observed is None:
+            raise ValueError("Sourcify completed verification, but its public record is not yet visible. Retry the lookup without resubmitting.")
         return observed
     raise ValueError("Public verification is still pending after five minutes. Rerun source/publish to check the same job; no deployment will be repeated.")
 
