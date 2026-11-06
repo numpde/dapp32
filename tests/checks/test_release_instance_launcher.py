@@ -104,4 +104,9 @@ release_instance pay-to-play source/publish
                     else:
                         self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
                     self.assertTrue((instance / "instance.json").is_file())
-                    self.assertEqual([], list(instance.glob(".instance-command-*")))
+                    retained = list(instance.glob(".instance-command-*"))
+                    diagnostics = completed.stdout + completed.stderr
+                    diagnostics += "".join(
+                        "\n" + (stage / "cleanup.log").read_text() if (stage / "cleanup.log").is_file()
+                        else "\nCleanup log missing at " + str(stage) for stage in retained)
+                    self.assertEqual([], retained, diagnostics)
