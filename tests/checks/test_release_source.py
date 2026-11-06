@@ -27,14 +27,15 @@ def result(**changes):
     return {"verificationId": JOB, "isJobCompleted": True, "contract": contract}
 
 
-def run_prepared_publication(directory, prepared, original, request):
+def run_prepared_publication(directory, prepared, original, request, *, artifact_metadata=None):
     root = Path(directory)
     requests = root / "requests"
     requests.mkdir()
     entry = {**prepared, "role": "example", "location": {"contract": "Example"}, "sourceCommit": "a" * 40}
     (requests / "contracts.json").write_text(json.dumps([entry]))
     (requests / "example.json").write_text(json.dumps(entry))
-    (requests / "example.metadata.json").write_text(json.dumps(original))
+    projection = prepared["metadata"] if artifact_metadata is None else artifact_metadata
+    (requests / "example.metadata.json").write_text(json.dumps({"forgeMetadata": projection, "solcMetadata": original}))
     paths = {"/requests": requests, "/state": root}
     stderr = StringIO()
     with patch.object(release_source, "Path", side_effect=paths.__getitem__), \
@@ -185,6 +186,13 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 self.assertEqual(0, status, error)
                 self.assertEqual(["GET"] if saved_job else ["POST", "GET"], methods)
                 self.assertEqual(source_request_hash(frozen), json.loads(state.read_text())["requestSha256"])
+
+    def test_replaced_artifact_cannot_attest_a_frozen_request_for_the_same_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "cached request.*retained compiler artifact"):
+                run_prepared_publication(directory, CONTRACT, {"compiler": "other build"},
+                                         lambda *_: self.fail("must reject before contacting Sourcify"),
+                                         artifact_metadata={"compiler": "other build"})
 
     def test_public_metadata_keeps_json_types_and_abi_argument_order(self):
         original = {"settings": {"optimizer": {"enabled": True}},

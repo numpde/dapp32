@@ -88,7 +88,7 @@ test("source publication exports original settings and hash-checked content, nev
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
-test("publication reads the original solc metadata from its retained artifact without requiring sources", async () => {
+test("the retained artifact binds original solc metadata to the Forge metadata saved with the request", async () => {
   const root = await mkdtemp(join(tmpdir(), "source-metadata-"))
   try {
     const location = { contract: "CamRoot", source: "cam/src/CamRoot.sol" }
@@ -97,17 +97,21 @@ test("publication reads the original solc metadata from its retained artifact wi
     const metadata = {
       compiler: { version: "0.8.35+commit.47b9dedd" }, language: "Solidity", version: 1,
       settings: { compilationTarget: { [location.source]: location.contract } },
-      output: { abi: [{ type: "error", name: "EmptyURI", inputs: [] }, { type: "function", name: "owner", inputs: [] }] },
+      output: { abi: [], userdoc: { notice: "Original contract notice" } },
       sources: { [location.source]: { keccak256: hash } },
     }
-    // Forge groups ABI entries in its typed projection. solc's rawMetadata preserves their original order.
-    const projection = { ...metadata, output: { abi: [...metadata.output.abi].reverse() } }
+    // The affected Forge version omits the contract-level notice in its typed projection.
+    const projection = { ...metadata, output: { abi: [], userdoc: {} } }
     const write = (rawMetadata: unknown) => writeFile(join(directory, "CamRoot.json"), JSON.stringify({ metadata: projection, rawMetadata }))
     await write(JSON.stringify(metadata))
-    assert.deepEqual(await readOriginalCompilerMetadata(location, root), metadata)
+    assert.deepEqual(await readOriginalCompilerMetadata(location, root), { forgeMetadata: projection, solcMetadata: metadata })
     for (const invalid of [undefined, "{", {}, "{}", JSON.stringify({ ...metadata, compiler: { version: "" } }),
       JSON.stringify({ ...metadata, settings: { compilationTarget: { "other.sol": location.contract } } })]) {
       await write(invalid)
+      await assert.rejects(readOriginalCompilerMetadata(location, root))
+    }
+    for (const invalid of [undefined, [], {}, { ...projection, settings: {} }]) {
+      await writeFile(join(directory, "CamRoot.json"), JSON.stringify({ rawMetadata: JSON.stringify(metadata), metadata: invalid }))
       await assert.rejects(readOriginalCompilerMetadata(location, root))
     }
   } finally { await rm(root, { recursive: true, force: true }) }
