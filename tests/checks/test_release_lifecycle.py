@@ -524,9 +524,10 @@ release_make_cleanup_grace=420
                 self.assertEqual(0, process.returncode, stdout + stderr)
                 self.assertEqual(f"{app} cam-bundle\n", (root / "config-mode").read_text())
                 calls = [call.split("\0") for call in (root / "calls").read_text().rstrip("\0").split("\0\0")]
+                # Recipe introspection is passive: Make -n cannot resolve or forward an engine.
                 expected = []
                 for phase, name in (("contracts", "CONTRACT_RECORDS"), ("ui", "UI_RECORDS"), ("cam", "CAM_RECORDS")):
-                    command = ["make", "DOCKER_CONTEXT=", "CAM_DOCKER_ENDPOINT=unix:///tmp/context-fixture.sock", "--no-print-directory", f"{app}/release/{phase}/artifact",
+                    command = ["make", "DOCKER_CONTEXT=", "CAM_DOCKER_ENDPOINT=unix:///dev/null", "--no-print-directory", f"{app}/release/{phase}/artifact",
                                "CONFIG=" + env["CONFIG"], f"{name}={records / phase}"]
                     if phase == "cam":
                         command.append(f"CAM_BUNDLE={records / 'cam-bundle'}")

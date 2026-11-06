@@ -69,6 +69,8 @@ def docker_context_violations(source: str, *, python: bool = False, workflow: bo
         if python and reason == "implicit engine selection":
             continue  # Python diagnostic strings are not shell commands.
         for match in pattern.finditer(code):
+            if reason == "hardcoded Docker socket" and match.group() == "unix:///dev/null":
+                continue  # This character device is a fail-closed Make inspection endpoint, not a socket.
             before = code[code.rfind("\n", 0, match.start()) + 1:match.start()]
             if reason in {"implicit engine selection", "unselected Docker endpoint"} and re.search(r"\bprintf\s+'[^']*$", before):
                 continue  # Single-quoted printf text is not executed by the shell.
