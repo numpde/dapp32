@@ -16,11 +16,9 @@ from tools import release_source
 from tools.release_source import publish_contract as submit_contract, public_source_status, choose_contracts, read_publication_state, source_request_hash
 from .common import ROOT
 
-publish_contract = partial(submit_contract, pause=lambda _: None, clock=time.monotonic)
-
-
 JOB = "12345678-1234-1234-1234-123456789012"
 CONTRACT = {"chainId": 43113, "identity": {"address": "0x" + "12" * 20}, "metadata": {"compiler": "original"}, "body": {"compilerVersion": "original"}}
+publish_contract = partial(submit_contract, compiler_metadata=CONTRACT["metadata"], pause=lambda _: None, clock=time.monotonic)
 
 
 def result(**changes):

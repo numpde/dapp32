@@ -138,7 +138,12 @@ def choose_contracts(catalog, *, request, answer, output):
         output("Enter listed contract numbers, or 0 to cancel.")
 
 
-def publish_contract(contract, state_path, *, request, pause, clock):
+def same_metadata(observed, original):
+    # JSON booleans and numbers must stay distinct. Only object key order is immaterial.
+    return json.dumps(observed, sort_keys=True, allow_nan=False) == json.dumps(original, sort_keys=True, allow_nan=False)
+
+
+def publish_contract(contract, state_path, *, compiler_metadata, request, pause, clock):
     if state_path.exists():
         state = read_publication_state(contract, state_path)
         write_json(state_path, state)
@@ -148,8 +153,8 @@ def publish_contract(contract, state_path, *, request, pause, clock):
     if attempts and attempts[-1].get("verified") is True:
         observed = lookup_public_contract(contract, request=request, metadata=True)
         if observed is not None:
-            if observed.get("metadata") != contract["metadata"] or observed.get("creationMatch") not in MATCH_LABELS or observed.get("runtimeMatch") not in MATCH_LABELS:
-                raise ValueError("Current public verification differs from the saved source verification; no success was recorded.")
+            if not same_metadata(observed.get("metadata"), compiler_metadata) or observed.get("creationMatch") not in MATCH_LABELS or observed.get("runtimeMatch") not in MATCH_LABELS:
+                raise ValueError("Current public verification differs from the original compiler metadata or bytecode matches; no success was recorded.")
             return observed
     if not attempts or ("result" in attempts[-1] and attempts[-1]["result"]["isJobCompleted"] is True):
         try:
@@ -166,7 +171,7 @@ def publish_contract(contract, state_path, *, request, pause, clock):
             attempts.append({"alreadyVerified": True, "result": existing})
             write_json(state_path, state)
             verification_contract(existing, contract)
-            if observed.get("metadata") != contract["metadata"] or observed.get("runtimeMatch") != "exact_match" or observed.get("creationMatch") != "exact_match":
+            if not same_metadata(observed.get("metadata"), compiler_metadata) or observed.get("runtimeMatch") != "exact_match" or observed.get("creationMatch") != "exact_match":
                 raise ValueError("Existing public verification does not exactly match the original compiler metadata and both bytecodes. Its response was retained.")
             attempts[-1]["verified"] = True
             write_json(state_path, state)
@@ -226,7 +231,9 @@ def main():
             raise ValueError("Prepared source request differs from the selected contract; no source was submitted for this entry.")
         print(f"Publishing {prepared['location']['contract']} on chain {prepared['chainId']} at {prepared['identity']['address']}", flush=True)
         try:
-            observed = publish_contract(prepared, Path("/state") / f"{job}.json", request=request_json, pause=time.sleep, clock=time.monotonic)
+            original = read_json(requests / f"{role}.metadata.json")
+            observed = publish_contract(prepared, Path("/state") / f"{job}.json", compiler_metadata=original,
+                                        request=request_json, pause=time.sleep, clock=time.monotonic)
         except urllib.error.HTTPError as error:
             excerpt = error.read(2048).decode("utf-8", errors="replace")
             write_json(Path("/state") / f"{job}-http-error.json", {"status": error.code, "responseExcerpt": excerpt})
