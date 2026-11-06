@@ -52,7 +52,7 @@ JS_DEFAULT_PARAMETER_RE = re.compile(
     r"\b[A-Za-z_][A-Za-z0-9_]*\s*(?<![=!<>])=(?!=|>)\s*(?:[\"'`{\[]|\d|true|false|null|undefined)"
 )
 JS_TYPED_PARAMETER_DEFAULT_RE = re.compile(
-    r"(?:^|[(,])\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*[^=;\n,)]+\s*=\s*"
+    r"(?:^|[(,])\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*[^=;\n,)]+\s*(?<![!<>=])=(?!=|>)\s*"
     r"(?:[\"'`{\[]|\d|true|false|null|undefined)"
 )
 JS_EXCEPTION_FALLBACK_RE = re.compile(
@@ -216,6 +216,8 @@ def js_default_findings_for_source(source: str, label: str) -> list[str]:
         for pattern, rule in patterns:
             for match in pattern.finditer(line):
                 if pattern is JS_TYPED_PARAMETER_DEFAULT_RE:
+                    if re.search(r":\s*<", match.group()):
+                        continue  # JSX element initializers are not typed declarations.
                     equals = match.start() + match.group().rfind("=")
                     if any(string.start() <= equals < string.end() for string in JS_STRING_RE.finditer(line)):
                         continue
