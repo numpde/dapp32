@@ -18,7 +18,7 @@ class IdentityTests(unittest.TestCase):
         ]
         for uids, gids, expected in cases:
             with self.subTest(expected=expected):
-                        def inverse(rows):
+                def inverse(rows):
                     return SimpleNamespace(translate_inverse=lambda target: next(
                         inside + target - outside for inside, outside, count in rows
                         if outside <= target < outside + count))
@@ -51,5 +51,5 @@ class IdentityTests(unittest.TestCase):
             return observed
         self.assertEqual((0, 0), release_identity.probe_owner(
             "unix:///run/user/1000/docker.sock", "python:local", 1000, 100, probe=probe,
-            request_factory=lambda **kwargs: SimpleNamespace(**kwargs)))
+            request_factory=lambda **kwargs: SimpleNamespace(**kwargs, userns_mode="default")))
         self.assertEqual([("unix:///run/user/1000/docker.sock", "python:local", 0, 0, "default")], seen)
