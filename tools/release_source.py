@@ -195,6 +195,7 @@ def completed_matching_receipt(contract, attempt):
         return False
     try:
         observed = verification_contract(result, contract)
+    # silent-defaults: allow-exception-fallback -- Invalid terminal receipts cannot establish completion; see test_other_identity_or_unmatched_creation_never_counts_as_verified.
     except ValueError:
         return False
     return all(observed.get(field) in MATCH_LABELS for field in ("creationMatch", "runtimeMatch"))

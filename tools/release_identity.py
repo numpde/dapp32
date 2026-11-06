@@ -24,6 +24,7 @@ def download_wheel(url):
     return contents
 
 
+# silent-defaults: allow-default -- Normal operation downloads from the pinned release; tests inject an offline downloader.
 def ensure_wheel(cache, *, download=download_wheel):
     """Acquire one immutable release wheel; never execute an unverified cached copy."""
     cache = Path(cache)
@@ -45,6 +46,7 @@ def ensure_wheel(cache, *, download=download_wheel):
                 os.fsync(output.fileno())
             try:
                 os.link(temporary, wheel)
+            # silent-defaults: allow-exception-fallback -- A concurrent writer's file is revalidated by SHA-256 and ownership below.
             except FileExistsError:
                 pass  # A concurrent acquisition must be verified below.
         finally:
