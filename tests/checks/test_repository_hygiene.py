@@ -415,9 +415,17 @@ class RepositoryHygieneTest(unittest.TestCase):
     def test_ci_uses_make_not_private_tool_scripts_for_host_checks(self) -> None:
         # Workflows invoke the same public entry points offered to operators.
         direct_runner = re.compile(
-            r"(?m)^\s*(?:run:\s*|-\s*)?(?:bash\s+)?tools/[A-Za-z0-9_/-]+_check\.sh(?:\s|$)"
+            r"(?m)^\s*(?:run:\s*(?:bash\s+)?|bash\s+|\./)tools/[A-Za-z0-9_/-]+_check\.sh(?:\s|$)"
         )
-        self.assertIsNotNone(direct_runner.search("run: bash tools/release_identity_check.sh default"))
+        for invocation in (
+            "run: bash tools/release_identity_check.sh default",
+            "run: tools/release_identity_check.sh default",
+            "          bash tools/release_identity_check.sh default",
+            "          ./tools/release_identity_check.sh default",
+        ):
+            self.assertIsNotNone(direct_runner.search(invocation))
+        # A workflow path filter is input discovery, not invocation.
+        self.assertIsNone(direct_runner.search("      - tools/release_identity_check.sh"))
         for workflow in sorted(repo_path(".github/workflows").glob("*.yml")):
             with self.subTest(workflow=workflow.name):
                 self.assertNotRegex(read_text(workflow), direct_runner)
