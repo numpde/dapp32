@@ -57,6 +57,24 @@ rehearsals remove only images owned by that run after their containers stop.
 A saved signing operation requires its recorded image. If that image was removed,
 restore it to resume signing; keyless verification does not require the image.
 
+On local Linux Docker engines, host-owned release and CAM-maintenance tools
+measure the selected engine's default user namespace and run as the container
+UID/GID that maps back to the invoking host owner. Ordinary rootful and
+operator-owned rootless Docker work without changing the instance directory's
+`0700` permissions, changing ownership, or setting `LOCAL_UID=0`. Host and
+container identities remain distinct. Unmapped owners or uncertain probe
+cleanup stop the operation before private inputs are opened. Fixed-identity
+services retain their own policy.
+
+The host-side probe requires Python 3.11+ and the released
+[linux-idmap 0.3.0](https://github.com/numpde/container-tools/releases/tag/v0.3.0)
+package. Its checksum-pinned wheel is acquired automatically on first use and
+cached under `~/.cache/release-idmap/`; subsequent runs check and reuse
+it without pip or network access. The selected engine must have the pinned
+Python probe image; release commands acquire it before probing. This is a
+local-Linux facility, not support for remote Docker or Docker Desktop's
+VM-based bind mounts.
+
 `release/ui/deploy` creates a read-only Solidity UI contract and saves its
 verified record. `release/ui/update` also prepares matching CAM files locally
 and updates the existing CAM root to use the selected UI contract and manifest.

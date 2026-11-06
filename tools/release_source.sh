@@ -69,6 +69,11 @@ trap cleanup EXIT
 SOURCE_NODE_IMAGE=$(release_tool_image "$PWD" "$(git rev-parse HEAD)" node-deps)
 export SOURCE_NODE_IMAGE
 release_acquire_compose_images "${compose[@]}"
+source tools/release_identity.sh
+release_select_container_identity
+# The source launcher owns no recursive Make call; Compose and teardown see this
+# process-local mapping, and the cleanup command keeps its verified Docker argv.
+export LOCAL_UID="$RELEASE_CONTAINER_UID" LOCAL_GID="$RELEASE_CONTAINER_GID"
 
 source_prepare() {
   # Preparation must not consume a caller's terminal or the remaining records in a loop.

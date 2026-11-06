@@ -7,6 +7,13 @@ on:
       - js/tools/release-compiled-contract.ts
       - js/tools/source-publication-prepare.ts
       - js/tools/release-approval/source-publication.test.ts
+      - Makefile
+      - tools/release_instance.sh
+      - tools/release_source.sh
+      - tests/checks/test_release_source_launcher.py
+      - tests/checks/test_release_instance_launcher.py
+      - tools/release_identity.py
+      - tools/release_identity.sh
       - tools/release_source.py
       - tools/release_instance.py
       - tools/release_config.py
@@ -17,6 +24,12 @@ on:
       - js/tools/release-compiled-contract.ts
       - js/tools/source-publication-prepare.ts
       - js/tools/release-approval/source-publication.test.ts
+      - Makefile
+      - tools/release_instance.sh
+      - tools/release_source.sh
+      - tests/checks/test_release_source_launcher.py
+      - tools/release_identity.py
+      - tools/release_identity.sh
       - tools/release_source.py
       - tools/release_instance.py
       - tools/release_config.py
@@ -39,7 +52,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run focused source publication tests
-        run: python3 -m unittest -v tests.checks.test_release_source
+        run: python3 -m unittest -v tests.checks.test_release_source tests.checks.test_release_identity tests.checks.test_release_source_launcher tests.checks.test_release_instance_launcher
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

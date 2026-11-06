@@ -406,7 +406,7 @@ printf "%s\n" "${PRIVATE_KEY-unset}" "${RPC_URL-unset}" "$RPC_URL_FILE" "$RELEAS
                     'release_snapshot_allocate=release_preparation_log="$$CASE_ROOT/preparation.log"; ceremony_root="$$CASE_ROOT/ceremony"; ceremony_source="$$ceremony_root/source"; ceremony_project=fixture; mkdir -p "$$ceremony_source/js"; printf "allocate\\n" >> "$$CASE_ROOT/events"',
                     'release_snapshot_archive=mkdir -p "$$ceremony_source/tools" "$$ceremony_source/dapps"; cp "$$LAUNCHER" "$$(dirname -- "$$LAUNCHER")/release_approval_preflight.sh" "$$ceremony_source/tools/"; cp() { if [[ "$${3-}" == dapps/dependencies ]]; then mkdir -p "$$4"; else command cp "$$@"; fi; }', "release_snapshot_cleanup=:",
                     'release_snapshot_dependency_compose=compose_release_dependencies() { printf "dependencies\\n" >> "$$CASE_ROOT/events"; }',
-                    "DOCKER_CONTEXT=fixture",
+                    "DOCKER_CONTEXT=fixture", "release_instance_entry=:",
                 ]
                 if case != "default":
                     arguments.append(f"RELEASE_ARTIFACT_NODE_MODULES_DIR={supplied}")
@@ -457,6 +457,7 @@ printf '%s' "$CONTRACT_RELEASE_SETTINGS_JSON" > "$CASE_ROOT/settings"
                 env = make_environment(env, delegate=stub)
                 generated = expanded_release_target(f"{app}/release/contracts/deploy", (
                     "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
+                    "release_instance_entry=:",
                     "release_require_clean_source=source_commit=" + "ab" * 20,
                     "release_host_guard_functions=:", "release_config_compose=:",
                     "release_deploy_execution=compose_release run --rm --no-deps release-plan",
@@ -503,6 +504,7 @@ release_run_owned() { shift; "$@"; }
                 env.update(CONFIG=str(root / "readonly.json"), CAM_RELEASE_OUTPUT_DIR=str(records))
                 generated = expanded_release_target(f"{app}/release/verify", (
                     "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
+                    "release_instance_entry=:",
                     "release_require_clean_source=:", "release_host_guard_functions=:", "release_config_compose=:",
                 ))
                 script = r'''
@@ -738,6 +740,10 @@ printf 'HTTP 503; chain 43113; owner 0xdead; eeeeeeeeeeeeeeeeeeee\n' | release_a
             "CASE_ROOT": str(root),
             "CEREMONY": str(ceremony),
             "LOCAL_UID": str(os.getuid()),
+            "LOCAL_GID": str(os.getgid()),
+            # Direct recipe excerpts start below the normal identity-selection boundary.
+            "RELEASE_CONTAINER_UID": str(os.getuid()),
+            "RELEASE_CONTAINER_GID": str(os.getgid()),
             "WORKER_STATUS": "143",
             "FAIL_DOWN": "",
             "REPEAT_SIGNALS": "0",

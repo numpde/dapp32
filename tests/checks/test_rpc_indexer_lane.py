@@ -22,6 +22,19 @@ class RpcIndexerLaneTest(unittest.TestCase):
             (self.checkout / name).mkdir()
         for name in ("release_process.sh", "release-config.sh", "docker_context.sh", "compose_cleanup.sh"):
             shutil.copyfile(repo_path(f"tools/{name}"), self.checkout / "tools" / name)
+        (self.checkout / "tools/release_identity.sh").write_text("""# Focused Make/Compose fixture: mapping outcome is supplied by the test.
+# Observation and retirement belong to the shared linux-idmap suite.
+release_select_container_identity() {
+  case "${TEST_ENGINE-}" in
+    rootless) RELEASE_CONTAINER_UID=0; RELEASE_CONTAINER_GID=0 ;;
+    rootful) RELEASE_CONTAINER_UID="$LOCAL_UID"; RELEASE_CONTAINER_GID="$LOCAL_GID" ;;
+    *)
+      printf '%s\\\\n' 'Cannot resolve the selected Docker engine owner mapping.' >&2
+      return 2 ;;
+  esac
+  export RELEASE_CONTAINER_UID RELEASE_CONTAINER_GID
+}
+""")
         self.upstream = self.directory / "rpc-url"
         self.upstream.write_text("https://example.com/private?token=fixture-secret\n")
         self.upstream.chmod(0o600)
@@ -81,18 +94,18 @@ class RpcIndexerLaneTest(unittest.TestCase):
     def test_integrity_identity_tracks_the_selected_engine(self) -> None:
         self.prepare_cam_outputs()
         events = self.directory / "engine-events"
-        for engine in ("rootful", "rootless", "unavailable", "malformed", "nul", "empty", "oversized"):
+        for engine in ("rootful", "rootless", "unavailable"):
             with self.subTest(engine=engine):
                 self.calls.unlink(missing_ok=True)
-                identity = (f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid()}") if engine == "rootless" else ("LOCAL_UID=1234", "LOCAL_GID=1235")
+                identity = (f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid()}")
                 result = self.make("cam/integrity/refresh", overrides=identity, extra_environment={"TEST_ENGINE": engine, "TEST_EVENTS": str(events)})
-                if engine in ("unavailable", "malformed", "nul", "empty", "oversized"):
+                if engine == "unavailable":
                     self.assertNotEqual(0, result.returncode)
                     self.assertFalse(self.calls.exists())
                     continue
                 self.assertEqual(0, result.returncode, result.stderr)
                 actual = self.calls.read_text().splitlines()
-                self.assertIn("0:0" if engine == "rootless" else "1234:1235", actual)
+                self.assertIn("0:0" if engine == "rootless" else f"{os.getuid()}:{os.getgid()}", actual)
                 self.assertEqual(engine == "rootless", "--require-owned-outputs" in actual)
                 self.assertEqual(engine == "rootless", "namespace UID 0" in result.stderr)
         for identity in ((f"LOCAL_UID={os.getuid() + 1}", f"LOCAL_GID={os.getgid()}"), (f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid() + 1}")):
@@ -107,13 +120,13 @@ class RpcIndexerLaneTest(unittest.TestCase):
         self.assertIn("compose/cam.yml", actual)
         self.assertNotIn("/tmp/wrong.yml", actual)
 
-    def test_stalled_engine_probe_times_out_and_removes_its_temporary_file(self) -> None:
+    def test_unavailable_owner_mapping_does_not_run_compose_or_allocate_scratch(self) -> None:
         self.prepare_cam_outputs()
         temporary = self.directory / "probe-tmp"
         temporary.mkdir()
-        result = self.make("cam/integrity/refresh", extra_environment={"TEST_ENGINE": "stalled", "TEST_EVENTS": str(self.directory / "events"), "TMPDIR": str(temporary)})
+        result = self.make("cam/integrity/refresh", extra_environment={"TEST_ENGINE": "unavailable", "TEST_EVENTS": str(self.directory / "events"), "TMPDIR": str(temporary)})
         self.assertNotEqual(0, result.returncode)
-        self.assertIn("Cannot inspect the selected Docker engine security posture", result.stderr)
+        self.assertIn("Cannot resolve the selected Docker engine owner mapping", result.stderr)
         self.assertFalse(self.calls.exists())
         self.assertEqual([], list(temporary.iterdir()))
 
@@ -145,7 +158,7 @@ class RpcIndexerLaneTest(unittest.TestCase):
         self.prepare_cam_outputs()
         result = self.make("cam/abi/export", overrides=("-o", "dapps/deps/verify", f"LOCAL_UID={os.getuid() + 1}"), extra_environment={"TEST_ENGINE": "rootful", "TEST_EVENTS": str(self.directory / "events")})
         self.assertNotEqual(0, result.returncode)
-        self.assertIn("requires the invoking user and group IDs", result.stderr)
+        self.assertIn("CAM outputs require the invoking host UID and GID", result.stderr)
         self.assertFalse(self.history.exists())
 
     def test_abi_check_uses_a_disposable_project(self) -> None:
@@ -194,12 +207,12 @@ class RpcIndexerLaneTest(unittest.TestCase):
         for source in ("command", "environment", "environment-e"):
             with self.subTest(source=source):
                 self.calls.unlink(missing_ok=True)
-                result = self.make("cam/integrity/refresh", overrides=("LOCAL_UID=1234", "LOCAL_GID=1235", *((f"COMPOSE_ENV={poison}",) if source == "command" else ())), extra_environment={"TEST_ENGINE": "rootful", "TEST_EVENTS": str(events), **({"COMPOSE_ENV": poison} if source != "command" else {})}, environment_override=source == "environment-e")
+                result = self.make("cam/integrity/refresh", overrides=(f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid()}", *((f"COMPOSE_ENV={poison}",) if source == "command" else ())), extra_environment={"TEST_ENGINE": "rootful", "TEST_EVENTS": str(events), **({"COMPOSE_ENV": poison} if source != "command" else {})}, environment_override=source == "environment-e")
                 self.assertEqual(0, result.returncode, result.stderr)
                 actual = self.calls.read_text().splitlines()
                 self.assertIn("project=rpc-lane-check", actual)
-                self.assertIn("uid=1234", actual)
-                self.assertIn("gid=1235", actual)
+                self.assertIn(f"uid={os.getuid()}", actual)
+                self.assertIn(f"gid={os.getgid()}", actual)
 
     def test_lane_bundle_cannot_override_guarded_project_or_identity(self) -> None:
         poison = "LOCAL_UID=0 LOCAL_GID=0 COMPOSE_PROJECT_NAME=wrong"
