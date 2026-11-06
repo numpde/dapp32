@@ -100,9 +100,8 @@ endif
 endif
 
 override COMPOSE_DIR := compose
-# Resolve the local engine once for real operations; historical release
-# snapshots also inherit the
-# endpoint through DOCKER_HOST because they may invoke Docker directly.
+# Resolve the local engine once for real operations. Historical release
+# snapshots inherit that endpoint through DOCKER_HOST for direct Docker calls.
 override DOCKER_CONTEXT_INPUT := $(value DOCKER_CONTEXT)
 override DOCKER_CONTEXT_ORIGIN := $(origin DOCKER_CONTEXT)
 docker_shell_quote = '$(subst ','"'"',$(1))'
@@ -849,7 +848,7 @@ help:
 	  '  make ci                         Run offline Solidity formatting/build/tests and JS CI checks.' \
 	  '  make tests/checks               Check repository rules, source files and rendered Compose settings.' \
 	  '  make tests/checks/anvil-compose  Check only the Anvil container configuration.' \
-	  '  make tests/live                 Run checks that contact external services; no operator deployment needed.' \
+	  '  make tests/live                 Qualify local-engine identity and external dependency egress; no deployment.' \
 	  '  make tests/live/dependency-egress  Test which download destinations dependency containers can reach.' \
 	  '  make tests/live/release-identity  Check private host-file access on the selected Docker engine.' \
 	  '  make dapps/tests                Run Solidity unit/scenario tests, random-input tests and state invariants.' \

@@ -82,8 +82,9 @@ integration lane (replace `your-local-context` with the context to test):
 make tests/live/release-identity DOCKER_CONTEXT=your-local-context
 ```
 
-CI invokes this same Make target. It is also included in `make tests/live` and the full `make tests` aggregate. It uses the production
-identity selector and pinned image, then checks a synthetic `0700` directory
+CI invokes this same Make target. The `tests/live` aggregate and the full
+`tests` aggregate also include it. The lane uses the production identity
+selector and pinned image, then checks a synthetic `0700` directory
 and `0600` files: reading, creating, atomically replacing and deleting records,
 plus host-side UID/GID and permissions. It does not mount an actual deployment
 instance, use signing credentials or publish sources. A successful check removes
