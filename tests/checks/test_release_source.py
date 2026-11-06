@@ -1,14 +1,18 @@
 import json
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 import tempfile
 import unittest
 import urllib.error
+from unittest.mock import patch
 from functools import partial
 import time
 import hashlib
 import os
 import subprocess
 
+from tools import release_source
 from tools.release_source import publish_contract as submit_contract, public_source_status, choose_contracts, read_publication_state, source_request_hash
 from .common import ROOT
 
@@ -23,6 +27,22 @@ def result(**changes):
     contract = {"chainId": "43113", "address": CONTRACT["identity"]["address"], "creationMatch": "exact_match", "runtimeMatch": "match"}
     contract.update(changes)
     return {"verificationId": JOB, "isJobCompleted": True, "contract": contract}
+
+
+def run_prepared_publication(directory, prepared, original, request):
+    root = Path(directory)
+    requests = root / "requests"
+    requests.mkdir()
+    entry = {**prepared, "role": "example", "location": {"contract": "Example"}, "sourceCommit": "a" * 40}
+    (requests / "contracts.json").write_text(json.dumps([entry]))
+    (requests / "example.json").write_text(json.dumps(entry))
+    (requests / "example.metadata.json").write_text(json.dumps(original))
+    paths = {"/requests": requests, "/state": root}
+    stderr = StringIO()
+    with patch.object(release_source, "Path", side_effect=paths.__getitem__), \
+            patch.object(release_source, "request_json", request), \
+            patch("sys.argv", ["release_source.py"]), redirect_stdout(StringIO()), redirect_stderr(stderr):
+        return release_source.main(), stderr.getvalue()
 
 
 class SourcePublicationTest(unittest.TestCase):
@@ -142,6 +162,45 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                     with self.assertRaisesRegex(ValueError, "original compiler metadata"):
                         publish_contract(CONTRACT, state, request=request)
                 self.assertEqual(accepted, json.loads(state.read_text())["attempts"][0].get("verified") is True)
+
+    def test_public_lookup_compares_solc_metadata_with_a_frozen_forge_request(self):
+        # Forge's parsed artifact omits empty ABI outputs and the solc remapping context.
+        frozen = {**CONTRACT, "metadata": {"settings": {"remappings": ["lib/=src/"]},
+                                           "output": {"abi": [{"name": "set"}]}}}
+        original = {"settings": {"remappings": [":lib/=src/"]},
+                    "output": {"abi": [{"name": "set", "outputs": []}]}}
+        for saved_job in (False, True):
+            with self.subTest(saved_job=saved_job), tempfile.TemporaryDirectory() as directory:
+                state = Path(directory) / f"{release_source.source_job_key(CONTRACT)}.json"
+                if saved_job:
+                    state.write_text(json.dumps({"requestSha256": source_request_hash(frozen), "attempts": [
+                        {"verificationId": JOB, "result": result(), "verified": True}]}))
+                methods = []
+                def lookup(method, path, body=None):
+                    methods.append(method)
+                    if method == "POST":
+                        self.assertEqual(frozen["body"], body)
+                        raise urllib.error.HTTPError(path, 409, "already verified", {}, None)
+                    return result(runtimeMatch="exact_match", metadata=original)["contract"]
+                status, error = run_prepared_publication(directory, frozen, original, lookup)
+                self.assertEqual(0, status, error)
+                self.assertEqual(["GET"] if saved_job else ["POST", "GET"], methods)
+                self.assertEqual(source_request_hash(frozen), json.loads(state.read_text())["requestSha256"])
+
+    def test_public_metadata_keeps_json_types_and_abi_argument_order(self):
+        original = {"settings": {"optimizer": {"enabled": True}},
+                    "output": {"abi": [{"inputs": ["address", "uint256"]}]}}
+        for changed in ({**original, "settings": {"optimizer": {"enabled": 1}}},
+                        {**original, "output": {"abi": [{"inputs": ["uint256", "address"]}]}}):
+            with self.subTest(changed=changed), tempfile.TemporaryDirectory() as directory:
+                state = Path(directory) / f"{release_source.source_job_key(CONTRACT)}.json"
+                frozen = {**CONTRACT, "metadata": changed}
+                state.write_text(json.dumps({"requestSha256": source_request_hash(frozen), "attempts": [
+                    {"verificationId": JOB, "result": result(), "verified": True}]}))
+                status, error = run_prepared_publication(directory, frozen, original,
+                                                         lambda *_: result(metadata=changed)["contract"])
+                self.assertEqual(1, status)
+                self.assertIn("metadata", error)
 
     def test_success_preserves_match_levels_and_refreshes_public_status_without_resubmission(self):
         with tempfile.TemporaryDirectory() as directory:
