@@ -34,8 +34,8 @@ elif "release-instance" in args:
         (stage / "operation").write_text("source/publish\n")
     elif mode != "finish":
         raise SystemExit("Unexpected instance operation")
-elif "compose" in args:
-    pass
+elif "compose" in args or (args and args[0] in ("container", "network", "volume")):
+    pass  # Verified owner teardown and its empty resource inventory.
 else:
     raise SystemExit(f"Unexpected Docker call: {args}")
 '''
