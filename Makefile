@@ -380,7 +380,7 @@ if [[ -n "$${INSTANCE-}" ]]; then \
   export RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" MAKE="$(MAKE)"; \
   export -f reject_release_path_symlinks; exec bash tools/release_instance.sh "$(1)" "$(2)"; \
 fi; \
-if [[ "$(2)" != "source/publish" ]]; then \
+if [[ "$(2)" != "source/publish" && "$(2)" != viewer/* ]]; then \
   source tools/release_identity.sh; release_select_container_identity; \
 fi
 endef
