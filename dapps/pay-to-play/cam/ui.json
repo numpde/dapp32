@@ -34,6 +34,16 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
+            "function": "$view.taskNavigation",
+            "args": {
+              "view": "$view.task"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
             "function": "$view.screen",
             "args": {
               "view": "$view.task"
@@ -75,404 +85,660 @@
         }
       ]
     },
-    "positionFields": {
+    "balanceOverview": {
       "requires": [
         "view"
       ],
-      "element": "Fragment",
+      "element": "Screen",
+      "props": {
+        "title": "Balance overview"
+      },
       "children": [
         {
-          "element": "Screen",
+          "element": "Text",
           "props": {
-            "title": "Balance overview"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "This account’s current deposit and earlier voucher payments are shown separately. The paid total is a running history, rather than money still available to spend."
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Current balance",
-                "value": "$view.balance",
-                "format": "amount",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Total paid by vouchers",
-                "value": "$view.voucherPaid",
-                "format": "amount",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              }
+            "text": "This account’s current deposit and earlier voucher payments are shown separately. The paid total is a running history, rather than money still available to spend."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current balance",
+            "value": "$view.balance",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
             }
-          ]
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Total paid by vouchers",
+            "value": "$view.voucherPaid",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          }
+        }
+      ]
+    },
+    "withdrawalSummary": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Withdrawal status"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Withdrawal requested",
+            "value": "$view.requestedAmount",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Withdrawal ready at",
+            "value": "$view.readyAt",
+            "format": "timestampSeconds",
+            "zeroText": "No active withdrawal request"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Balance minus withdrawal request",
+            "value": "$view.effectiveBalance",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "A withdrawal request is not a reservation. Voucher collection can still reduce the balance before withdrawal, and the requested amount cannot be cancelled."
+          }
+        }
+      ]
+    },
+    "channelDetails": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Channel"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The settings below apply to everyone using this channel. They set the voucher recipient, the collector allowed to claim payments, and the withdrawal waiting time."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Payment recipient (unused in channel 0)",
+            "value": "$view.payee"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "This channel’s withdrawal wait",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel admin",
+            "value": "$view.admin"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Collector (zero pauses collection)",
+            "value": "$view.collector"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channels created (including channel 0)",
+            "value": "$view.channelCount"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Channel 0 holds deposits that vouchers cannot spend. Move funds to another channel to make them available for voucher payments. The admin can change the recipient of other channels, including for vouchers already signed."
+          }
+        }
+      ]
+    },
+    "depositFields": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Deposit"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "The balance owner can add funds to this account in this channel for later payments or withdrawal. Depositing does not pay the recipient or sign a voucher."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Amount to deposit",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "fundAmount",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "fund",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Deposit"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "fund",
+            "args": {
+              "channelId": "$view.channelId",
+              "amount": "$state.fundAmount"
+            }
+          },
+          "enabledWhen": {
+            "member": "fund",
+            "in": "$view.actions"
+          }
+        }
+      ]
+    },
+    "withdrawalFields": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Withdraw or move funds"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "A withdrawal has two steps: request an amount now, then withdraw or move what remains after the waiting period. Vouchers can still spend the balance while you wait."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Balance minus withdrawal request subtracts only the request, never goes below zero, and does not subtract unpaid vouchers. A requested amount of 0 means no request."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel’s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled."
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Amount to request back",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "withdrawAmount",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "setWithdrawal",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Request withdrawal"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "requestWithdrawal",
+            "args": {
+              "channelId": "$view.channelId",
+              "amount": "$state.withdrawAmount"
+            }
+          },
+          "enabledWhen": {
+            "member": "requestWithdrawal",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Replace withdrawal request"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setWithdrawal",
+            "args": {
+              "channelId": "$view.channelId",
+              "amount": "$state.withdrawAmount"
+            }
+          },
+          "enabledWhen": {
+            "member": "setWithdrawal",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "After waiting, choose where the requested funds should go. A withdrawal always pays the owner; a move keeps the same owner and changes only the channel."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Withdraw to balance owner"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "withdraw",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          },
+          "enabledWhen": {
+            "member": "withdraw",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "NonNegativeIntegerField",
+          "props": {
+            "label": "Move to channel ID"
+          },
+          "state": {
+            "key": "targetId",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "move",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Move funds to another channel"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "move",
+            "args": {
+              "channelId": "$view.channelId",
+              "targetId": "$state.targetId"
+            }
+          },
+          "enabledWhen": {
+            "member": "move",
+            "in": "$view.actions"
+          }
+        }
+      ]
+    },
+    "voucherKeyFields": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Voucher signing key"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Permanent voucher key (zero means unregistered)",
+            "value": "$view.voucherKey"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Register a signing-key address so its signatures can authorize voucher payments here. You must keep control of that key: the contract provides no replacement or revocation."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Enter its address, never its private key. This choice cannot be changed or cancelled, even after withdrawing all funds. Changing wallet owners or wallet software does not revoke it. The key authorizes voucher payments only; it does not gain control of withdrawals. Keep it secure."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Voucher signing key address",
+            "format": "address"
+          },
+          "state": {
+            "key": "newVoucherKey",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "registerVoucherKey",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Register permanent voucher key"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "registerVoucherKey",
+            "args": {
+              "channelId": "$view.channelId",
+              "voucherKey": "$state.newVoucherKey"
+            }
+          },
+          "enabledWhen": {
+            "member": "registerVoucherKey",
+            "in": "$view.actions"
+          }
+        }
+      ]
+    },
+    "voucherPaymentFields": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Voucher payments"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Use vouchers to authorize payments from this balance. The registered key signs the payment details outside this app, then the channel’s collector submits the signature to pay the current recipient."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Voucher amounts are cumulative. The contract pays only the part of the signed total that has not already been paid, up to the available balance and your transaction limit."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Collection stops at the recovery deadline. Old unpaid vouchers can apply again if this position is refunded and later funded in an open channel. Payments go to the current recipient."
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Authorized total so far",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "cumulativeTotal",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "voucherDigest",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The invoice hash authenticates the voucher’s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Invoice hash (bytes32)",
+            "format": "hex",
+            "byteLength": 32
+          },
+          "state": {
+            "key": "invoiceHash",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "voucherDigest",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "View signing details"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "voucherDigest",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "cumulativeTotal": "$state.cumulativeTotal",
+              "invoiceHash": "$state.invoiceHash"
+            }
+          },
+          "enabledWhen": {
+            "member": "voucherDigest",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The payment limit applies to this transaction. The same signed voucher can be used again for an unpaid remainder."
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Maximum payment in this transaction",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "maxAmount",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Registered key’s voucher signature",
+            "format": "hex",
+            "byteLength": 65
+          },
+          "state": {
+            "key": "signature",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Collect voucher payment"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "collect",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "cumulativeTotal": "$state.cumulativeTotal",
+              "invoiceHash": "$state.invoiceHash",
+              "signature": "$state.signature",
+              "maxAmount": "$state.maxAmount"
+            }
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        }
+      ]
+    },
+    "channelSettingsFields": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Channel settings"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Manage this channel’s shared payment addresses here. Changing the recipient or collector affects the whole channel, rather than only the balance you are viewing."
+          }
         },
         {
           "element": "Screen",
           "props": {
-            "title": "Channel"
+            "title": "Change payment recipient"
           },
           "children": [
             {
               "element": "Text",
               "props": {
-                "text": "The settings below apply to everyone using this channel. They set the voucher recipient, the collector allowed to claim payments, and the withdrawal waiting time."
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Payment recipient (unused in channel 0)",
-                "value": "$view.payee"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "This channel’s withdrawal wait",
-                "value": "$view.claimPeriod",
-                "format": "durationSeconds"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Channel admin",
-                "value": "$view.admin"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Collector (zero pauses collection)",
-                "value": "$view.collector"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Channels created (including channel 0)",
-                "value": "$view.channelCount"
+                "text": "This setting chooses who receives voucher payments for all customers in this channel. Changing it also redirects amounts authorized by older signed vouchers."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Channel 0 holds deposits that vouchers cannot spend. Move funds to another channel to make them available for voucher payments. The admin can change the recipient of other channels, including for vouchers already signed."
-              }
-            }
-          ]
-        },
-        {
-          "element": "Screen",
-          "props": {
-            "title": "Deposit"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "The balance owner can add funds to this account in this channel for later payments or withdrawal. Depositing does not pay the recipient or sign a voucher."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
-              }
-            },
-            {
-              "element": "AmountField",
-              "props": {
-                "label": "Amount to deposit",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              },
-              "state": {
-                "key": "fundAmount",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "fund",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Deposit"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "fund",
-                "args": {
-                  "channelId": "$view.channelId",
-                  "amount": "$state.fundAmount"
-                }
-              },
-              "enabledWhen": {
-                "member": "fund",
-                "in": "$view.actions"
-              }
-            }
-          ]
-        },
-        {
-          "element": "Screen",
-          "props": {
-            "title": "Withdraw or move funds"
-          },
-          "children": [
-            {
-              "element": "Status",
-              "props": {
-                "label": "Withdrawal requested",
-                "value": "$view.requestedAmount",
-                "format": "amount",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Withdrawal ready at",
-                "value": "$view.readyAt",
-                "format": "timestampSeconds",
-                "zeroText": "No active withdrawal request"
-              }
-            },
-            {
-              "element": "Status",
-              "props": {
-                "label": "Balance minus withdrawal request",
-                "value": "$view.effectiveBalance",
-                "format": "amount",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "A withdrawal has two steps: request an amount now, then withdraw or move what remains after the waiting period. Vouchers can still spend the balance while you wait."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Balance minus withdrawal request subtracts only the request, never goes below zero, and does not subtract unpaid vouchers. A requested amount of 0 means no request."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel’s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled."
-              }
-            },
-            {
-              "element": "AmountField",
-              "props": {
-                "label": "Amount to request back",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              },
-              "state": {
-                "key": "withdrawAmount",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "setWithdrawal",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Request withdrawal"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "requestWithdrawal",
-                "args": {
-                  "channelId": "$view.channelId",
-                  "amount": "$state.withdrawAmount"
-                }
-              },
-              "enabledWhen": {
-                "member": "requestWithdrawal",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Replace withdrawal request"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "setWithdrawal",
-                "args": {
-                  "channelId": "$view.channelId",
-                  "amount": "$state.withdrawAmount"
-                }
-              },
-              "enabledWhen": {
-                "member": "setWithdrawal",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "After waiting, choose where the requested funds should go. A withdrawal always pays the owner; a move keeps the same owner and changes only the channel."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block."
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Withdraw to balance owner"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "withdraw",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId"
-                }
-              },
-              "enabledWhen": {
-                "member": "withdraw",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "NonNegativeIntegerField",
-              "props": {
-                "label": "Move to channel ID"
-              },
-              "state": {
-                "key": "targetId",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "move",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Move funds to another channel"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "move",
-                "args": {
-                  "channelId": "$view.channelId",
-                  "targetId": "$state.targetId"
-                }
-              },
-              "enabledWhen": {
-                "member": "move",
-                "in": "$view.actions"
-              }
-            }
-          ]
-        },
-        {
-          "element": "Screen",
-          "props": {
-            "title": "Voucher signing key"
-          },
-          "children": [
-            {
-              "element": "Status",
-              "props": {
-                "label": "Permanent voucher key (zero means unregistered)",
-                "value": "$view.voucherKey"
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Register a signing-key address so its signatures can authorize voucher payments here. You must keep control of that key: the contract provides no replacement or revocation."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Enter its address, never its private key. This choice cannot be changed or cancelled, even after withdrawing all funds. Changing wallet owners or wallet software does not revoke it. The key authorizes voucher payments only; it does not gain control of withdrawals. Keep it secure."
+                "text": "Only the admin can change the payment recipient. Customer balances and withdrawal waits stay the same."
               }
             },
             {
               "element": "TextField",
               "props": {
-                "label": "Voucher signing key address",
+                "label": "New recipient for this channel",
                 "format": "address"
               },
               "state": {
-                "key": "newVoucherKey",
+                "key": "replacementPayee",
                 "defaultValue": ""
               },
               "enabledWhen": {
-                "member": "registerVoucherKey",
+                "member": "setPayee",
                 "in": "$view.actions"
               }
             },
             {
               "element": "Button",
               "props": {
-                "label": "Register permanent voucher key"
+                "label": "Change channel payee"
               },
               "call": {
                 "namespace": "routes",
-                "function": "registerVoucherKey",
+                "function": "setPayee",
                 "args": {
+                  "customer": "$view.customer",
                   "channelId": "$view.channelId",
-                  "voucherKey": "$state.newVoucherKey"
+                  "payee": "$state.replacementPayee"
                 }
               },
               "enabledWhen": {
-                "member": "registerVoucherKey",
+                "member": "setPayee",
                 "in": "$view.actions"
               }
             }
@@ -481,352 +747,934 @@
         {
           "element": "Screen",
           "props": {
-            "title": "Voucher payments"
+            "title": "Change collector"
           },
           "children": [
             {
               "element": "Text",
               "props": {
-                "text": "Use vouchers to authorize payments from this balance. The registered key signs the payment details outside this app, then the channel’s collector submits the signature to pay the current recipient."
+                "text": "Use the collector setting to decide who may claim voucher payments. Zero pauses collection without making the admin or recipient an implicit replacement."
               }
             },
             {
               "element": "Text",
               "props": {
-                "text": "Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Voucher amounts are cumulative. The contract pays only the part of the signed total that has not already been paid, up to the available balance and your transaction limit."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Collection stops at the recovery deadline. Old unpaid vouchers can apply again if this position is refunded and later funded in an open channel. Payments go to the current recipient."
-              }
-            },
-            {
-              "element": "AmountField",
-              "props": {
-                "label": "Authorized total so far",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              },
-              "state": {
-                "key": "cumulativeTotal",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "voucherDigest",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "The invoice hash authenticates the voucher’s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers."
+                "text": "Only the admin can change this setting. Withdrawals and refunds do not require the collector."
               }
             },
             {
               "element": "TextField",
               "props": {
-                "label": "Invoice hash (bytes32)",
-                "format": "hex",
-                "byteLength": 32
+                "label": "New collector for this channel (zero pauses collection)",
+                "format": "address"
               },
               "state": {
-                "key": "invoiceHash",
+                "key": "newCollector",
                 "defaultValue": ""
               },
               "enabledWhen": {
-                "member": "voucherDigest",
+                "member": "setCollector",
                 "in": "$view.actions"
               }
             },
             {
               "element": "Button",
               "props": {
-                "label": "View signing details"
+                "label": "Change collector"
               },
               "call": {
                 "namespace": "routes",
-                "function": "voucherDigest",
+                "function": "setCollector",
                 "args": {
                   "customer": "$view.customer",
                   "channelId": "$view.channelId",
-                  "cumulativeTotal": "$state.cumulativeTotal",
-                  "invoiceHash": "$state.invoiceHash"
+                  "collector": "$state.newCollector"
                 }
               },
               "enabledWhen": {
-                "member": "voucherDigest",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "The payment limit applies to this transaction. The same signed voucher can be used again for an unpaid remainder."
-              }
-            },
-            {
-              "element": "AmountField",
-              "props": {
-                "label": "Maximum payment in this transaction",
-                "unit": {
-                  "assetId": "native",
-                  "baseLabel": "Wei (smallest unit)",
-                  "displayLabel": "Native coins",
-                  "decimals": 18
-                }
-              },
-              "state": {
-                "key": "maxAmount",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "collect",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "TextField",
-              "props": {
-                "label": "Registered key’s voucher signature",
-                "format": "hex",
-                "byteLength": 65
-              },
-              "state": {
-                "key": "signature",
-                "defaultValue": ""
-              },
-              "enabledWhen": {
-                "member": "collect",
-                "in": "$view.actions"
-              }
-            },
-            {
-              "element": "Button",
-              "props": {
-                "label": "Collect voucher payment"
-              },
-              "call": {
-                "namespace": "routes",
-                "function": "collect",
-                "args": {
-                  "customer": "$view.customer",
-                  "channelId": "$view.channelId",
-                  "cumulativeTotal": "$state.cumulativeTotal",
-                  "invoiceHash": "$state.invoiceHash",
-                  "signature": "$state.signature",
-                  "maxAmount": "$state.maxAmount"
-                }
-              },
-              "enabledWhen": {
-                "member": "collect",
+                "member": "setCollector",
                 "in": "$view.actions"
               }
             }
           ]
+        }
+      ]
+    },
+    "depositFacts": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Funding context"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current balance",
+            "value": "$view.balance",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          }
         },
         {
-          "element": "Screen",
+          "element": "Status",
           "props": {
-            "title": "Channel settings"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "Manage this channel’s shared payment addresses here. Changing the recipient or collector affects the whole channel, rather than only the balance you are viewing."
-              }
-            },
-            {
-              "element": "Screen",
-              "props": {
-                "title": "Change payment recipient"
-              },
-              "children": [
-                {
-                  "element": "Text",
-                  "props": {
-                    "text": "This setting chooses who receives voucher payments for all customers in this channel. Changing it also redirects amounts authorized by older signed vouchers."
-                  }
-                },
-                {
-                  "element": "Text",
-                  "props": {
-                    "text": "Only the admin can change the payment recipient. Customer balances and withdrawal waits stay the same."
-                  }
-                },
-                {
-                  "element": "TextField",
-                  "props": {
-                    "label": "New recipient for this channel",
-                    "format": "address"
-                  },
-                  "state": {
-                    "key": "replacementPayee",
-                    "defaultValue": ""
-                  },
-                  "enabledWhen": {
-                    "member": "setPayee",
-                    "in": "$view.actions"
-                  }
-                },
-                {
-                  "element": "Button",
-                  "props": {
-                    "label": "Change channel payee"
-                  },
-                  "call": {
-                    "namespace": "routes",
-                    "function": "setPayee",
-                    "args": {
-                      "customer": "$view.customer",
-                      "channelId": "$view.channelId",
-                      "payee": "$state.replacementPayee"
-                    }
-                  },
-                  "enabledWhen": {
-                    "member": "setPayee",
-                    "in": "$view.actions"
-                  }
-                }
-              ]
-            },
-            {
-              "element": "Screen",
-              "props": {
-                "title": "Change collector"
-              },
-              "children": [
-                {
-                  "element": "Text",
-                  "props": {
-                    "text": "Use the collector setting to decide who may claim voucher payments. Zero pauses collection without making the admin or recipient an implicit replacement."
-                  }
-                },
-                {
-                  "element": "Text",
-                  "props": {
-                    "text": "Only the admin can change this setting. Withdrawals and refunds do not require the collector."
-                  }
-                },
-                {
-                  "element": "TextField",
-                  "props": {
-                    "label": "New collector for this channel (zero pauses collection)",
-                    "format": "address"
-                  },
-                  "state": {
-                    "key": "newCollector",
-                    "defaultValue": ""
-                  },
-                  "enabledWhen": {
-                    "member": "setCollector",
-                    "in": "$view.actions"
-                  }
-                },
-                {
-                  "element": "Button",
-                  "props": {
-                    "label": "Change collector"
-                  },
-                  "call": {
-                    "namespace": "routes",
-                    "function": "setCollector",
-                    "args": {
-                      "customer": "$view.customer",
-                      "channelId": "$view.channelId",
-                      "collector": "$state.newCollector"
-                    }
-                  },
-                  "enabledWhen": {
-                    "member": "setCollector",
-                    "in": "$view.actions"
-                  }
-                }
-              ]
+            "label": "Current payee",
+            "value": "$view.payee"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "A deposit adds funds to this owner's selected channel; it does not pay the payee. The recovery deadline may be renewed, but an existing withdrawal request retains its ready time under the current contract."
+          }
+        }
+      ]
+    },
+    "voucherFacts": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Voucher context"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current balance",
+            "value": "$view.balance",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
             }
-          ]
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Total paid by vouchers",
+            "value": "$view.voucherPaid",
+            "format": "amount",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "Wei (smallest unit)",
+              "displayLabel": "Native coins",
+              "decimals": 18
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current payee",
+            "value": "$view.payee"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current collector",
+            "value": "$view.collector"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Full refund available at",
+            "value": "$view.refundAt",
+            "format": "timestampSeconds",
+            "zeroText": "Not scheduled"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Only the current collector can submit voucher payments; the registered key authorizes them. Channel 0 is a reserve and does not support voucher signing or collection."
+          }
+        }
+      ]
+    },
+    "positionContext": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Account and channel"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
+          }
         }
       ]
     },
     "balanceSection.none": {
-      "requires": ["view"],
+      "requires": [
+        "view"
+      ],
       "element": "Fragment",
       "children": []
     },
-    "balanceSection.position": {
-      "requires": ["view"],
+    "balanceSection.selected": {
+      "requires": [
+        "view"
+      ],
       "element": "Screen",
-      "props": { "title": "Selected balance" },
+      "props": {
+        "title": "Selected balance"
+      },
       "children": [
-        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
         {
           "element": "Include",
-          "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } }
+          "call": {
+            "namespace": "ui",
+            "function": "accountIdentity",
+            "args": {
+              "view": "$view"
+            }
+          }
         },
         {
           "element": "Include",
-          "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } }
+          "call": {
+            "namespace": "ui",
+            "function": "changePosition",
+            "args": {
+              "view": "$view"
+            }
+          }
         }
       ]
     },
-    "balanceSection.recovery": {
-      "requires": ["view"],
+    "taskNavigation.none": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": []
+    },
+    "taskNavigation.balance": {
+      "requires": [
+        "view"
+      ],
       "element": "Screen",
-      "props": { "title": "Selected balance" },
+      "props": {
+        "title": "Balance tasks"
+      },
       "children": [
-        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } }
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.current.balance",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.deposit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.vouchers",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.recovery",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.channelSettings",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
       ]
     },
-    "balanceSection.chooser": {
-      "requires": ["view"],
+    "taskNavigation.deposit": {
+      "requires": [
+        "view"
+      ],
       "element": "Screen",
-      "props": { "title": "Selected balance" },
+      "props": {
+        "title": "Balance tasks"
+      },
       "children": [
-        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "openPosition", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } } }
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.balance",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.current.deposit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.vouchers",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.recovery",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.channelSettings",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "taskNavigation.withdrawal": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Balance tasks"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.balance",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.deposit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.current.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.vouchers",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.recovery",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.channelSettings",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "taskNavigation.vouchers": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Balance tasks"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.balance",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.deposit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.current.vouchers",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.recovery",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.channelSettings",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "taskNavigation.recovery": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Balance tasks"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.balance",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.deposit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.vouchers",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.current.recovery",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.channelSettings",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "taskNavigation.channelSettings": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Balance tasks"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.balance",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.deposit",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.withdrawal",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.vouchers",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.go.recovery",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "taskNav.current.channelSettings",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "taskNav.current.balance": {
+      "requires": [
+        "view"
+      ],
+      "element": "Text",
+      "props": {
+        "text": "Balance — current task"
+      }
+    },
+    "taskNav.go.balance": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Balance"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
+    },
+    "taskNav.current.deposit": {
+      "requires": [
+        "view"
+      ],
+      "element": "Text",
+      "props": {
+        "text": "Deposit — current task"
+      }
+    },
+    "taskNav.go.deposit": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Deposit"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "depositForm",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
+    },
+    "taskNav.current.withdrawal": {
+      "requires": [
+        "view"
+      ],
+      "element": "Text",
+      "props": {
+        "text": "Withdraw or move — current task"
+      }
+    },
+    "taskNav.go.withdrawal": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Withdraw or move"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "withdrawalForm",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
+    },
+    "taskNav.current.vouchers": {
+      "requires": [
+        "view"
+      ],
+      "element": "Text",
+      "props": {
+        "text": "Vouchers — current task"
+      }
+    },
+    "taskNav.go.vouchers": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Vouchers"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "voucherPaymentsForm",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
+    },
+    "taskNav.current.recovery": {
+      "requires": [
+        "view"
+      ],
+      "element": "Text",
+      "props": {
+        "text": "Recovery — current task"
+      }
+    },
+    "taskNav.go.recovery": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Recovery"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "recovery",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
+    },
+    "taskNav.current.channelSettings": {
+      "requires": [
+        "view"
+      ],
+      "element": "Text",
+      "props": {
+        "text": "Channel settings — current task"
+      }
+    },
+    "taskNav.go.channelSettings": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Channel settings"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "channelSettingsForm",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
+    },
+    "balanceSection.chooser": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Selected balance"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "accountIdentity",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openPosition",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openRecovery",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
       ]
     },
     "balanceSection.voucher": {
-      "requires": ["view"],
+      "requires": [
+        "view"
+      ],
       "element": "Screen",
-      "props": { "title": "Selected balance" },
+      "props": {
+        "title": "Selected balance"
+      },
       "children": [
-        { "element": "Include", "call": { "namespace": "ui", "function": "accountIdentity", "args": { "view": "$view" } } },
-        { "element": "Include", "call": { "namespace": "ui", "function": "changePosition", "args": { "view": "$view" } } },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "accountIdentity",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "changePosition",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
         {
           "element": "Button",
-          "props": { "label": "View balance with fresh inputs" },
-          "call": { "namespace": "routes", "function": "position", "args": { "customer": "$view.customer", "channelId": "$view.channelId" } }
-        },
-        { "element": "Include", "call": { "namespace": "ui", "function": "openRecovery", "args": { "view": "$view" } } }
+          "props": {
+            "label": "View balance with fresh inputs"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "position",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          }
+        }
       ]
     },
     "openPosition": {
-      "requires": ["view"],
+      "requires": [
+        "view"
+      ],
       "element": "Button",
-      "props": { "label": "Return to selected balance" },
-      "call": { "namespace": "routes", "function": "position", "args": { "customer": "$view.customer", "channelId": "$view.channelId" } }
+      "props": {
+        "label": "Return to selected balance"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
     },
     "openRecovery": {
-      "requires": ["view"],
+      "requires": [
+        "view"
+      ],
       "element": "Button",
-      "props": { "label": "Manage recovery and channel closure" },
-      "call": { "namespace": "routes", "function": "recovery", "args": { "customer": "$view.customer", "channelId": "$view.channelId" } }
+      "props": {
+        "label": "Manage recovery and channel closure"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "recovery",
+        "args": {
+          "customer": "$view.customer",
+          "channelId": "$view.channelId"
+        }
+      }
     },
     "voucher": {
       "requires": [
@@ -988,24 +1836,14 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Screen",
-          "props": {
-            "title": "Account and channel"
-          },
-          "children": [
-            {
-              "element": "Text",
-              "props": {
-                "text": "You are viewing one account’s balance in one channel. Connecting a wallet lets you act with that wallet’s permissions; it does not change the account or channel shown here."
-              }
-            },
-            {
-              "element": "Text",
-              "props": {
-                "text": "Deposit, key registration, request and move require this owner’s account. Only the channel’s collector can submit voucher payments. Anyone can submit a ready withdrawal back to the balance owner. Connecting or changing wallet accounts clears form entries."
-              }
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionContext",
+            "args": {
+              "view": "$view"
             }
-          ]
+          }
         },
         {
           "element": "Include",
@@ -1021,7 +1859,229 @@
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "positionFields",
+            "function": "balanceOverview",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "withdrawalSummary",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "channelDetails",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "depositForm": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionContext",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionStatus",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "depositFacts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "depositFields",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "withdrawalForm": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionContext",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionStatus",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "withdrawalSummary",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "withdrawalFields",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "voucherPaymentsForm": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionContext",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionStatus",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "voucherFacts",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "voucherKeyFields",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "voucherPaymentFields",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "channelSettingsForm": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionContext",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionStatus",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "channelDetails",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "channelSettingsFields",
             "args": {
               "view": "$view"
             }

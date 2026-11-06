@@ -2164,7 +2164,7 @@ bike-nft/local/demo/gui/up: dapps/deps/verify
 	$(call print_local_demo_ready,bike-nft,BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME); \
 	$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
-	  up --build --force-recreate --abort-on-container-exit cam-web bike-nft-browser-gateway
+	  up --build --no-deps --force-recreate --abort-on-container-exit cam-web bike-nft-browser-gateway
 
 bike-nft/local/demo/gui/down:
 	@$(LANE_GUARD); \
@@ -2225,7 +2225,7 @@ escrow/local/demo/gui/up: dapps/deps/verify
 	$(call print_local_demo_ready,escrow,ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME); \
 	$(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(ESCROW_VIEWER_GUI_COMPOSE_FILES) \
-	  up --build --force-recreate --abort-on-container-exit cam-web escrow-browser-gateway
+	  up --build --no-deps --force-recreate --abort-on-container-exit cam-web escrow-browser-gateway
 
 escrow/local/demo/gui/down:
 	@$(LANE_GUARD); \
@@ -2400,7 +2400,7 @@ pay-to-play/local/demo/gui/up: dapps/deps/verify
 	$(call print_local_demo_ready,pay-to-play,PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME); \
 	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
-	  up --build --force-recreate --abort-on-container-exit cam-web pay-to-play-browser-gateway
+	  up --build --no-deps --force-recreate --abort-on-container-exit cam-web pay-to-play-browser-gateway
 
 pay-to-play/local/demo/gui/down:
 	@$(LANE_GUARD); \

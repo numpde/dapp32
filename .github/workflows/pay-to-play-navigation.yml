@@ -1,0 +1,126 @@
+name: Pay-to-Play navigation
+
+on:
+  push:
+    paths:
+      - .github/workflows/pay-to-play-navigation.yml
+      - Makefile
+      - compose/pay-to-play/local/**
+      - compose/fragments/**
+      - dapps/pay-to-play/**
+      - js/packages/cam-viewer/**
+      - js/packages/cam-screen/**
+      - js/apps/cam-web/src/**
+      - js/apps/cam-web/test/pay-to-play-browser-check.mjs
+      - js/tools/pay-to-play-local-scenario/**
+      - tests/checks/test_pay_to_play_navigation.py
+      - tests/checks/test_local_demo_gui_lifecycle.py
+  pull_request:
+    paths:
+      - .github/workflows/pay-to-play-navigation.yml
+      - Makefile
+      - compose/pay-to-play/local/**
+      - compose/fragments/**
+      - dapps/pay-to-play/**
+      - js/packages/cam-viewer/**
+      - js/packages/cam-screen/**
+      - js/apps/cam-web/src/**
+      - js/apps/cam-web/test/pay-to-play-browser-check.mjs
+      - js/tools/pay-to-play-local-scenario/**
+      - tests/checks/test_pay_to_play_navigation.py
+      - tests/checks/test_local_demo_gui_lifecycle.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pay-to-play-navigation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  authoring-and-local-scenario:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install checksum-locked JavaScript dependencies
+        run: make js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+      - name: Validate CAM authoring and package/viewer tests
+        run: |
+          make cam/conformance/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+          make js/tests DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+      - name: Install locked Solidity dependencies
+        run: make dapps/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+      - name: Execute real contracts in the disposable local payment scenario
+        run: make pay-to-play/local/scenario/run DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+      - name: Qualify focused tasks in a disposable headless browser
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          command -v google-chrome
+          scratch="$(mktemp -d)"
+          # The two child PIDs do not exist before their respective launches.
+          unset -v chrome_pid gui_pid
+          cleanup() {
+            result=$?
+            trap - EXIT
+            if [[ -v gui_pid ]]; then
+              kill "$gui_pid" 2>/dev/null || :
+              wait "$gui_pid" 2>/dev/null || :
+            fi
+            if ! make pay-to-play/local/demo/gui/down DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation; then
+              result=2
+            fi
+            if [[ -v chrome_pid ]]; then
+              kill "$chrome_pid" 2>/dev/null || :
+              wait "$chrome_pid" 2>/dev/null || :
+            fi
+            rm -rf -- "$scratch"
+            exit "$result"
+          }
+          trap cleanup EXIT
+
+          google-chrome --headless=new --no-first-run --disable-gpu \
+            --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 \
+            --user-data-dir="$scratch/chrome" about:blank >"$scratch/chrome.log" 2>&1 &
+          chrome_pid=$!
+          for attempt in {1..45}; do
+            if curl --silent --show-error --fail http://127.0.0.1:9222/json/version > /dev/null 2>&1; then break; fi
+            if ! kill -0 "$chrome_pid" 2>/dev/null; then
+              cat "$scratch/chrome.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          curl --silent --show-error --fail http://127.0.0.1:9222/json/version > /dev/null
+
+          make pay-to-play/local/demo/gui/up DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation \
+            >"$scratch/gui.log" 2>&1 &
+          gui_pid=$!
+          ready=0
+          for attempt in {1..240}; do
+            if curl --silent --show-error --fail http://127.0.0.1:5175/cam/main.json > /dev/null 2>&1 \
+              && curl --silent --show-error --fail http://127.0.0.1:5175/ > /dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$gui_pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          if [[ "$ready" != 1 ]]; then
+            tail -100 "$scratch/gui.log"
+            exit 1
+          fi
+          viewer_url="$(grep -m1 '^http://127[.]0[.]0[.]1:5175/[?]' "$scratch/gui.log" || :)"
+          if [[ -z "$viewer_url" ]]; then
+            tail -100 "$scratch/gui.log"
+            exit 1
+          fi
+          cam_hash="0x$(sha256sum dapps/pay-to-play/cam/main.json | cut -d' ' -f1)"
+          make pay-to-play/live/browser/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation \
+            CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL="$viewer_url" \
+            EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json EXPECTED_CAM_HASH="$cam_hash"
