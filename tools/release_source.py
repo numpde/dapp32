@@ -276,7 +276,7 @@ def main():
     # Check the whole batch before the first network request; retries must not partially
     # publish a selection whose later saved inputs are inconsistent.
     prepared_batch = []
-    for contract in read_json(requests / "contracts.json"):
+    for contract in json.loads((requests / "contracts.json").read_text()):
         role = contract["key"] if "key" in contract else contract["role"]
         prepared = read_bounded_json(requests / f"{role}.json", SOURCE_REQUEST_MAX_BYTES)
         job = source_job_key(prepared)
