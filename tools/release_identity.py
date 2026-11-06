@@ -100,4 +100,7 @@ if __name__ == "__main__":
         if callable(failure):
             import json
             print(json.dumps(failure(), sort_keys=True), file=sys.stderr)
-        raise SystemExit(2)
+        # In particular, an unresolved probe removal must not be treated as
+        # an ordinary settled refusal; the caller retains its operation evidence.
+        state = getattr(getattr(error, "retirement", None), "state", None)
+        raise SystemExit(3 if state == "uncertain-outcome" else 2)

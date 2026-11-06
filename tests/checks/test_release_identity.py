@@ -52,6 +52,43 @@ class IdentityTests(unittest.TestCase):
                     download=lambda url: self.fail("cache unexpectedly downloaded again"))
                 self.assertEqual(path, again)
 
+    def test_shell_selection_reuses_one_probe_and_discards_stale_ids_on_failure(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            calls = Path(directory) / "probes"
+            script = r'''
+source tools/release_identity.sh
+docker() { [[ "$*" == *'image inspect'* ]]; }
+python3() {
+  if [[ "${1-}" == -I && "${2-}" == -S && "${3-}" == -B ]]; then
+    printf '%s\\n' "$CAM_DOCKER_ENDPOINT" >> "$CALLS"
+    case "$CAM_DOCKER_ENDPOINT" in
+      *one.sock) printf '0:0\\n' ;;
+      *two.sock) return 3 ;;
+      *) return 2 ;;
+    esac
+  else
+    command python3 "$@"
+  fi
+}
+release_select_container_identity
+[[ "$RELEASE_CONTAINER_UID:$RELEASE_CONTAINER_GID" == 0:0 ]]
+release_select_container_identity
+[[ "$(wc -l < "$CALLS")" -eq 1 ]]
+CAM_DOCKER_ENDPOINT=unix:///tmp/two.sock
+status=0
+release_select_container_identity || status=$?
+[[ "$status" == 3 ]]
+[[ ! -v RELEASE_CONTAINER_UID && ! -v RELEASE_CONTAINER_GID ]]
+[[ "$(wc -l < "$CALLS")" -eq 2 ]]
+'''
+            env = {**os.environ, "LOCAL_UID": str(os.getuid()), "LOCAL_GID": str(os.getgid()),
+                   "CAM_DOCKER_ENDPOINT": "unix:///tmp/one.sock", "CALLS": str(calls)}
+            completed = subprocess.run(["bash", "-euo", "pipefail", "-c", script],
+                                        env=env, cwd=Path(__file__).resolve().parents[2],
+                                        capture_output=True, text=True, timeout=12)
+            self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+
     def test_probe_only_maps_after_success(self):
         observed = SimpleNamespace(
             uid_map=SimpleNamespace(translate_inverse=lambda value: 0 if value == 1000 else -1),
