@@ -58,6 +58,7 @@ class InstanceIdentityLauncherTest(unittest.TestCase):
                 with self.subTest(ids=ids):
                     env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",
                            "CAM_DOCKER_ENDPOINT": "unix:///tmp/dapp32-mapping-test.sock",
+                           "LOCAL_UID": str(os.getuid()), "LOCAL_GID": str(os.getgid()),
                            "TEST_MAPPED_IDS": ids,
                            "TEST_PROBE_IMAGE": "docker.io/library/python:3.13-alpine@sha256:" + "a" * 64}
                     script = r'''

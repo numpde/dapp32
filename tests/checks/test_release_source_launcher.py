@@ -126,7 +126,8 @@ class SourceLauncherTest(unittest.TestCase):
             catalog = root / "catalog.json"
             catalog.write_text("{}")
             env = {name: value for name, value in os.environ.items() if name not in ("SOURCE_ARTIFACT", "SOURCE_CATALOG")}
-            env.update(CASE_ROOT=str(root), SOURCE_CATALOG=str(catalog), RELEASE_INSTANCE_ROOT=str(instance),
+            env.update(LOCAL_UID=str(os.getuid()), LOCAL_GID=str(os.getgid()),
+                       CASE_ROOT=str(root), SOURCE_CATALOG=str(catalog), RELEASE_INSTANCE_ROOT=str(instance),
                        REAL_CP=shutil.which("cp"), REAL_SETSID=shutil.which("setsid"),
                        FAKE_DOCKER=str(binaries / "docker"), FAKE_GIT=str(binaries / "git"), FAKE_CP=str(binaries / "cp"))
             script = r'''
