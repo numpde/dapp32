@@ -433,6 +433,37 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             self.assertEqual(1, len(attempts))
             self.assertTrue(attempts[0]["alreadyVerified"])
 
+    def test_batch_rejects_invalid_later_request_before_first_submission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            requests = root / "requests"
+            requests.mkdir()
+            entries = []
+            for role, address in (("first", "0x" + "11" * 20), ("second", "0x" + "22" * 20)):
+                entry = {**CONTRACT, "role": role, "identity": {"address": address},
+                         "location": {"contract": role}, "sourceCommit": "a" * 40}
+                entries.append(entry)
+                (requests / f"{role}.json").write_text(json.dumps(entry))
+                forge = entry["metadata"] if role == "first" else {"compiler": "wrong artifact"}
+                (requests / f"{role}.metadata.json").write_text(json.dumps({
+                    "forgeMetadata": forge, "solcMetadata": CONTRACT["metadata"]}))
+            (requests / "contracts.json").write_text(json.dumps(entries))
+            with patch.object(release_source, "Path", side_effect={"/requests": requests, "/state": root}.__getitem__), \\
+                    patch.object(release_source, "request_json", side_effect=AssertionError("network before preflight")), \\
+                    patch("sys.argv", ["release_source.py"]), redirect_stdout(StringIO()):
+                with self.assertRaisesRegex(ValueError, "cached request"):
+                    release_source.main()
+
+    def test_publisher_accepts_prepared_requests_larger_than_one_mib(self):
+        with tempfile.TemporaryDirectory() as directory:
+            large = {**CONTRACT, "body": {"stdJsonInput": {"sources": {"large.sol": {"content": "x" * 1_200_000}}}}}
+            def request(method, path, body=None):
+                if method == "POST":
+                    raise urllib.error.HTTPError(path, 409, "already verified", {}, None)
+                return {**result(runtimeMatch="exact_match")["contract"], "metadata": CONTRACT["metadata"]}
+            status, error = run_prepared_publication(directory, large, CONTRACT["metadata"], request)
+            self.assertEqual(0, status, error)
+
     def test_wait_is_bounded_and_retains_job(self):
         with tempfile.TemporaryDirectory() as directory:
             ticks = iter((0, 1, 301))
