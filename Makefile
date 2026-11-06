@@ -80,8 +80,28 @@ export UI_RECORDS
 endif
 
 
+# Non-executing Make queries must never inspect Docker or open /dev/tty.
+# The first MAKEFLAGS word contains normalized short flags (n/q for dry-run
+# and question, including completion's -qp). Hyphen-prefixed long options
+# such as --no-print-directory are not themselves n/q: they still execute.
+# Refuse command-line replacement of MAKEFLAGS; it can forge flag letters
+# without changing Make's actual execution mode.
+ifneq ($(origin MAKEFLAGS),file)
+ifeq ($(origin MAKEFLAGS),command line)
+$(error MAKEFLAGS is reserved; pass Make options as flags rather than MAKEFLAGS=...)
+endif
+endif
+override MAKE_PRIMARY_FLAGS := $(firstword $(MAKEFLAGS))
+override MAKE_INTROSPECTION_ONLY := no
+ifeq ($(filter -%,$(MAKE_PRIMARY_FLAGS)),)
+ifneq ($(findstring n,$(MAKE_PRIMARY_FLAGS))$(findstring q,$(MAKE_PRIMARY_FLAGS)),)
+override MAKE_INTROSPECTION_ONLY := yes
+endif
+endif
+
 override COMPOSE_DIR := compose
-# Resolve the local engine once; historical release snapshots also inherit the
+# Resolve the local engine once for real operations; historical release
+# snapshots also inherit the
 # endpoint through DOCKER_HOST because they may invoke Docker directly.
 override DOCKER_CONTEXT_INPUT := $(value DOCKER_CONTEXT)
 override DOCKER_CONTEXT_ORIGIN := $(origin DOCKER_CONTEXT)
@@ -97,6 +117,7 @@ ifneq ($(filter-out help release/rpc/list,$(MAKECMDGOALS)),)
 ifneq ($(filter command line,$(origin DOCKER_HOST) $(origin DOCKER_TLS) $(origin DOCKER_TLS_VERIFY) $(origin DOCKER_CERT_PATH) $(origin DOCKER_COMPOSE) $(origin BUILDX_BUILDER) $(origin BUILDX_CONFIG) $(origin COMPOSE_BAKE)),)
 $(error Select the Docker engine with DOCKER_CONTEXT=<local-context>, not Docker endpoint or command overrides)
 endif
+ifneq ($(MAKE_INTROSPECTION_ONLY),yes)
 override CAM_DOCKER_ENDPOINT := $(shell command env -u BASH_ENV -u ENV -u 'BASH_FUNC_timeout%%' -u 'BASH_FUNC_env%%' bash tools/docker_context.sh \
   $(call docker_shell_quote,$(value DOCKER_CONTEXT_ORIGIN)) \
   $(call docker_shell_quote,$(value DOCKER_CONTEXT_INPUT)) \
@@ -109,6 +130,7 @@ endif
 override DOCKER_HOST := $(CAM_DOCKER_ENDPOINT)
 override BUILDX_BUILDER := default
 export DOCKER_HOST CAM_DOCKER_ENDPOINT BUILDX_BUILDER
+endif
 endif
 override DOCKER_COMPOSE = docker --host "$${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose
 override DOCKER_FORWARD = DOCKER_CONTEXT= CAM_DOCKER_ENDPOINT=$(call docker_shell_quote,$(CAM_DOCKER_ENDPOINT))

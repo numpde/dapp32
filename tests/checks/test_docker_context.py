@@ -255,6 +255,23 @@ context-child:
             self.assertNotIn(b"Choice [", observed)
             self.assertFalse(trace.exists(), "Completion query inspected Docker")
 
+    def test_command_line_makeflags_cannot_forge_nonexecuting_mode(self):
+        with tempfile.TemporaryDirectory() as directory:
+            trace = Path(directory) / "docker-inspections"
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS",
+                                  "MAKELEVEL", "DOCKER_CONTEXT_INPUT", "CAM_DOCKER_ENDPOINT")}
+            env.update({"PATH": f"{FAKE_DOCKER}:{os.environ['PATH']}",
+                        "TRACE": str(trace), "ENDPOINT": "unix:///tmp/selected.sock"})
+            command = ["make", "--no-print-directory", "tests/live/release-identity",
+                       "MAKEFLAGS=notification", "DOCKER_CONTEXT=chosen"]
+            result = subprocess.run(command, cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
+                                    start_new_session=True, capture_output=True, text=True,
+                                    timeout=10)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("MAKEFLAGS is reserved", result.stderr)
+            self.assertFalse(trace.exists())
+
     def test_empty_private_docker_config_resolves_default_to_the_fixture_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             environment = os.environ | {"DOCKER_CONFIG": directory, "DOCKER_HOST": "tcp://wrong:2375",
