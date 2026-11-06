@@ -75,10 +75,25 @@ async function main(): Promise<void> {
     await session.setAccount({ address: accounts[role].address })
     await session.navigate("position", inert({ customer: accounts.customer.address, channelId }))
   }
+  async function task(route: string) {
+    const selected = view()
+    await session.navigate(route, inert({ customer: selected.customer, channelId: selected.channelId }))
+  }
+  const formForWrite: Record<string, string> = {
+    registerVoucherKey: "voucherPaymentsForm", fund: "depositForm",
+    requestWithdrawal: "withdrawalForm", setWithdrawal: "withdrawalForm",
+    withdraw: "withdrawalForm", move: "withdrawalForm",
+    collect: "voucherPaymentsForm", setCollector: "channelSettingsForm",
+    setPayee: "channelSettingsForm",
+  }
   async function write(role: Role, route: string, state: Record<string, unknown>) {
     const inspected = view()
     await session.setAccount({ address: accounts[role].address })
-    if (route !== "createChannel") await session.navigate("position", inert({ customer: inspected.customer, channelId: inspected.channelId }))
+    if (route !== "createChannel") {
+      const form = formForWrite[route]
+      assert.ok(form, `Unknown scenario task for ${route}`)
+      await session.navigate(form, inert({ customer: inspected.customer, channelId: inspected.channelId }))
+    }
     session.updateState(inert(state))
     const rendered = action(route, false)
     if (["registerVoucherKey", "fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {
@@ -143,6 +158,7 @@ async function main(): Promise<void> {
     const typed = voucherForInvoice(invoice)
     const invoiceHash = hashInvoice(invoice)
     const signature = await voucherSigner.signTypedData(typed)
+    await task("voucherPaymentsForm")
     session.updateState(inert({ cumulativeTotal: total.toString(), invoiceHash }))
     const read = await session.dispatchAction(action("voucherDigest", false))
     assert.equal(read.type, "navigated")
@@ -179,18 +195,23 @@ async function main(): Promise<void> {
     return abi
   }
 
+  await session.navigate("createChannelForm", inert({}))
   action("createChannel", false)
   assert.equal(loaded().state.fundAmount, undefined, "entry chooser must not display a balance form")
   await write("admin", "createChannel", { newPayee: accounts.payee.address, newChannelCollector: accounts.relayer.address, newClaimPeriod: "60" })
   await position("customer", "1")
   assert.equal(String(view().payee).toLowerCase(), accounts.payee.address.toLowerCase())
   assert(!resolvedUiButtons(loaded().resolvedUi).some(button => button.call.function === "createChannel"), "channel creation belongs to the chooser, not the selected balance")
+  await task("channelSettingsForm")
   action("setPayee", true)
+  await task("withdrawalForm")
   action("withdraw", true)
+  await task("voucherPaymentsForm")
   action("collect", true)
   action("registerVoucherKey", false)
   await write("customer", "registerVoucherKey", { newVoucherKey: voucherSigner.address })
   assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase())
+  await task("voucherPaymentsForm")
   action("registerVoucherKey", true)
   action("collect", true)
   await write("customer", "fund", { fundAmount: "100" })
@@ -200,6 +221,7 @@ async function main(): Promise<void> {
   const secondPurchase = await voucher(100n, 60n)
   await write("customer", "requestWithdrawal", { withdrawAmount: "80" })
   assert.equal(view().effectiveBalance, "20")
+  await task("withdrawalForm")
   action("requestWithdrawal", true)
 
   await collect(firstPurchase, "20")
@@ -208,6 +230,7 @@ async function main(): Promise<void> {
   assert.equal(view().voucherPaid, "60")
   assert.equal(view().requestedAmount, "80")
   await position("relayer", "1")
+  await task("withdrawalForm")
   action("requestWithdrawal", true)
   action("setWithdrawal", true)
   action("move", true)
@@ -253,6 +276,7 @@ async function main(): Promise<void> {
   assert.equal(view().requestedAmount, "100")
   assert.equal(view().effectiveBalance, "0")
   assert.ok(BigInt(String(view().readyAt)) >= firstReady + 10n, "higher renewal starts a full new wait")
+  await task("withdrawalForm")
   action("withdraw", true)
   action("move", true)
   const renewedReady = view().readyAt
@@ -270,6 +294,7 @@ async function main(): Promise<void> {
   assert.equal(view().requestedAmount, "0")
   await position("customer", "0")
   assert.equal(view().balance, "50")
+  await task("voucherPaymentsForm")
   action("collect", true)
   await write("customer", "requestWithdrawal", { withdrawAmount: "50" })
   await mature()
@@ -287,6 +312,7 @@ async function main(): Promise<void> {
   assert.equal(view().readyAt, "0")
   assert.equal(view().voucherPaid, "230")
   assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase(), "emptying a position never resets its key")
+  await task("voucherPaymentsForm")
   action("registerVoucherKey", true)
   assert.equal(await publicClient.getBalance({ address: payments }), 0n)
 
@@ -297,6 +323,7 @@ async function main(): Promise<void> {
   const invoiceB = await voucher(300n, 260n)
   assert.notEqual(invoiceA.invoiceHash, invoiceB.invoiceHash)
   await position("relayer", "1")
+  await task("voucherPaymentsForm")
   session.updateState(inert({ cumulativeTotal: invoiceB.cumulativeTotal, maxAmount: invoiceB.cumulativeTotal, invoiceHash: invoiceA.invoiceHash, signature: invoiceB.signature }))
   const substituted = await session.dispatchAction(action("collect", false))
   assert.equal(substituted.type, "contractCall")
