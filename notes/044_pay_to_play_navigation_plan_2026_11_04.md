@@ -1,6 +1,8 @@
 # Pay-to-Play navigation plan
 
-2026-11-04 · Baseline `f2e6e11c` · Proposed; navigation is not implemented.
+2026-11-04 · Baseline `f2e6e11c`. Implemented in CAM source in PR #16
+(`feature/pay-to-play-focused-navigation`); browser and disposable-chain
+qualification must finish before marking the plan fully complete.
 
 ## Outcome and scope
 
@@ -168,7 +170,11 @@ Acceptance checks:
   source/conformance proof from rendered usability proof.
 
 Commit meaningful slices with bodies explaining the problem, ownership choice,
-behavior and validation. Navigation remains proposed, not complete.
+behavior and validation. The six routes and menu are implemented on the
+branch, with source-level navigation contracts and updated viewer/scenario/
+browser checks. The new CI lane runs CAM conformance, JavaScript tests and the
+disposable local payment scenario. The separate CDP browser campaign still
+requires an isolated live fixture and must not be claimed from source checks.
 
 ## Sources and related work
 

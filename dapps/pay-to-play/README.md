@@ -91,6 +91,22 @@ example, opening Alice's position and connecting Bob's wallet does not turn it
 into Bob's balance. Owner-only controls become unavailable, while permitted
 relayer or channel-operator controls remain available.
 
+A selected balance opens a **Balance** overview without transaction editors.
+Its six destinations are **Balance**, **Deposit**, **Withdraw or move**,
+**Vouchers**, **Recovery** and **Channel settings**. All carry the selected
+balance owner and channel; each destination rereads those facts with the
+currently viewing account's permissions. The current destination is a label,
+not a button that silently starts a fresh form. **Change account or channel**
+returns to the chooser without silently replacing the selected identity.
+The top-level balance lookup and channel creation remain separate.
+
+Use Deposit for funding, Withdraw or move for ordinary requests and transfers,
+Vouchers to register a permanent key, inspect signing details or collect, and
+Channel settings to manage the shared payee/collector. Channel 0 is a reserve:
+it can hold and move funds, but cannot be used for voucher payment. Buttons
+and forms on a read destination remain subject to the contract's own
+action availability; selecting a task does not authorize a transaction.
+
 Enter the inputs and choose the action. Its **Review transaction** subtext means
 it prepares and simulates a transaction. Inspect the contract, function,
 arguments and native value, then choose **Send with wallet** to request signing
@@ -105,14 +121,14 @@ block, advance chain time, reload publication resources or execute a refund.
 **Back** rereads a prior view and restores compatible drafts when session
 history exists. Reloading or changing the connected account clears drafts.
 
-For collection, connect the configured collector and enter the signed cumulative
+For collection, open **Vouchers**, connect the configured collector and enter the signed cumulative
 total, exact 32-byte invoice hash, signature, and the maximum payment for this
 transaction. The maximum is separate from the signed voucher. Signing details
 display that same reference and its EIP-712 digest. This generic form does not fetch, validate or approve invoice
 contents; the external signing client must verify and display the invoice,
 merchant, settlement context and cumulative increase before authorization.
 
-Open **Manage recovery and channel closure** for the recovery screen. It keeps
+Open **Recovery** for the recovery screen. It keeps
 the same owner/channel pinned and displays the phase, effective deadlines,
 refund destination and entire channel's escrow total. Phase 0 is operating,
 1 is settling, and 2 is refund-only. Displayed dates use chain timestamps; a
