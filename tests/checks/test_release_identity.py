@@ -18,17 +18,18 @@ class IdentityTests(unittest.TestCase):
         ]
         for uids, gids, expected in cases:
             with self.subTest(expected=expected):
-                from linux_idmap.core import IdMap, IdRange
-                from linux_idmap.probe import ProbeResult
-                observed = SimpleNamespace(
-                    uid_map=IdMap([IdRange(*row) for row in uids]),
-                    gid_map=IdMap([IdRange(*row) for row in gids]))
+                        def inverse(rows):
+                    return SimpleNamespace(translate_inverse=lambda target: next(
+                        inside + target - outside for inside, outside, count in rows
+                        if outside <= target < outside + count))
+                observed = SimpleNamespace(uid_map=inverse(uids), gid_map=inverse(gids))
                 self.assertEqual(expected, release_identity.map_owner(observed, 1000, 100))
 
     def test_unmapped_host_owner_is_rejected(self):
-        from linux_idmap.core import IdMap, IdRange
-        observed = SimpleNamespace(uid_map=IdMap([IdRange(0, 100000, 65536)]),
-                                   gid_map=IdMap([IdRange(0, 200000, 65536)]))
+        def unmapped(target):
+            raise ValueError("host owner not mapped")
+        observed = SimpleNamespace(uid_map=SimpleNamespace(translate_inverse=unmapped),
+                                   gid_map=SimpleNamespace(translate_inverse=unmapped))
         with self.assertRaises(ValueError):
             release_identity.map_owner(observed, 1000, 100)
 
@@ -41,14 +42,14 @@ class IdentityTests(unittest.TestCase):
                 release_identity.ensure_wheel(root, download=lambda _: self.fail("must not download"))
 
     def test_probe_only_maps_after_success(self):
-        from linux_idmap.core import IdMap, IdRange
         observed = SimpleNamespace(
-            uid_map=IdMap([IdRange(0, 1000, 1), IdRange(1, 100000, 65536)]),
-            gid_map=IdMap([IdRange(0, 100, 1), IdRange(1, 200000, 65536)]))
+            uid_map=SimpleNamespace(translate_inverse=lambda value: 0 if value == 1000 else -1),
+            gid_map=SimpleNamespace(translate_inverse=lambda value: 0 if value == 100 else -1))
         seen = []
         def probe(request):
             seen.append((request.endpoint, request.image, request.user_uid, request.user_gid, request.userns_mode))
             return observed
         self.assertEqual((0, 0), release_identity.probe_owner(
-            "unix:///run/user/1000/docker.sock", "python:local", 1000, 100, probe=probe))
+            "unix:///run/user/1000/docker.sock", "python:local", 1000, 100, probe=probe,
+            request_factory=lambda **kwargs: SimpleNamespace(**kwargs)))
         self.assertEqual([("unix:///run/user/1000/docker.sock", "python:local", 0, 0, "default")], seen)
