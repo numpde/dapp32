@@ -15,6 +15,7 @@ from release_instance import read_bounded_json, read_json, write_json
 
 API = "https://sourcify.dev/server"
 MAX_RESPONSE = 1024 * 1024
+SOURCE_REQUEST_MAX_BYTES = 8 * 1024 * 1024
 MATCH_LABELS = {"exact_match": "exact match", "match": "code matches; metadata differs"}
 
 
@@ -265,20 +266,28 @@ def main():
         keys = choose_contracts(read_json(requests / "catalog.json"), request=request_json, answer=input, output=lambda message: print(message, flush=True))
         (Path("/state") / "selected-keys").write_bytes(b"".join((key + "\0").encode() for key in keys))
         return 0
-    contracts = json.loads((requests / "contracts.json").read_text())
-    failures = 0
-    for contract in contracts:
+    # Check the whole batch before the first network request; retries must not partially
+    # publish a selection whose later saved inputs are inconsistent.
+    prepared_batch = []
+    for contract in read_json(requests / "contracts.json"):
         role = contract["key"] if "key" in contract else contract["role"]
-        prepared = read_json(requests / f"{role}.json")
+        prepared = read_bounded_json(requests / f"{role}.json", SOURCE_REQUEST_MAX_BYTES)
         job = source_job_key(prepared)
         if job != source_job_key(contract) or prepared["location"] != contract["location"] or prepared["sourceCommit"] != contract["sourceCommit"]:
             raise ValueError("Prepared source request differs from the selected contract; no source was submitted for this entry.")
         proof = read_bounded_json(requests / f"{role}.metadata.json", 2 * 1024 * 1024)
         if not isinstance(proof.get("solcMetadata"), dict) or not same_metadata(proof.get("forgeMetadata"), prepared["metadata"]):
             raise ValueError(f"The cached request for {role} differs from its retained compiler artifact.")
+        state_path = Path("/state") / f"{job}.json"
+        if state_path.exists():
+            read_publication_state(prepared, state_path)
+        prepared_batch.append((prepared, proof["solcMetadata"], state_path))
+    failures = 0
+    for prepared, original, state_path in prepared_batch:
+        job = source_job_key(prepared)
         print(f"Publishing {prepared['location']['contract']} on chain {prepared['chainId']} at {prepared['identity']['address']}", flush=True)
         try:
-            observed = publish_contract(prepared, Path("/state") / f"{job}.json", compiler_metadata=proof["solcMetadata"],
+            observed = publish_contract(prepared, state_path, compiler_metadata=original,
                                         request=request_json, pause=time.sleep, clock=time.monotonic)
         except urllib.error.HTTPError as error:
             excerpt = error.read(2048).decode("utf-8", errors="replace")

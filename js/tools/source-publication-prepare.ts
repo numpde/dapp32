@@ -62,9 +62,12 @@ async function main() {
       continue
     }
     const { metadata, ...input } = await readSourceVerificationInput(contract.location, artifacts, resolve("/sources", contract.sourceCommit, "dapps"))
-    await writeNewJson(`/requests/${contract.role}.json`, { ...contract, metadata, body: {
+    const request = { ...contract, metadata, body: {
       ...input, creationTransactionHash: contract.identity.creationTransaction.toLowerCase(),
-    } }, "public source request")
+    } }
+    const encoded = new TextEncoder().encode(`${JSON.stringify(request, null, 2)}\n`)
+    if (encoded.byteLength > 8 * 1024 * 1024) throw new Error("Public source request exceeds the publisher's 8 MiB limit")
+    await writeNewBytes(`/requests/${contract.role}.json`, encoded, "public source request")
   }
 }
 

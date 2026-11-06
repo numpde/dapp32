@@ -59,9 +59,9 @@ class SourcePublicationTest(unittest.TestCase):
             calls = []
             def poll(method, path, body=None):
                 calls.append(method)
-                return result()
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]} if path.startswith("/v2/contract/") else result()
             publish_contract(modern, target, request=poll)
-            self.assertEqual(["GET"], calls)
+            self.assertEqual(["GET", "GET"], calls)
             self.assertEqual(JOB, json.loads(target.read_text())["attempts"][0]["verificationId"])
             self.assertEqual(old_state, json.loads(old.read_text()))
             with self.assertRaisesRegex(ValueError, "request changed"):
@@ -448,8 +448,8 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 (requests / f"{role}.metadata.json").write_text(json.dumps({
                     "forgeMetadata": forge, "solcMetadata": CONTRACT["metadata"]}))
             (requests / "contracts.json").write_text(json.dumps(entries))
-            with patch.object(release_source, "Path", side_effect={"/requests": requests, "/state": root}.__getitem__), \\
-                    patch.object(release_source, "request_json", side_effect=AssertionError("network before preflight")), \\
+            with patch.object(release_source, "Path", side_effect={"/requests": requests, "/state": root}.__getitem__), \
+                    patch.object(release_source, "request_json", side_effect=AssertionError("network before preflight")), \
                     patch("sys.argv", ["release_source.py"]), redirect_stdout(StringIO()):
                 with self.assertRaisesRegex(ValueError, "cached request"):
                     release_source.main()
