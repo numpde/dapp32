@@ -71,8 +71,20 @@ export async function readPublicationMetadata(location: ContractLocation, artifa
   }
   const forgeMetadata = record(artifact.metadata, `${location.contract} Forge metadata`)
   const solcMetadata = record(parseJsonText(artifact.rawMetadata), `${location.contract} original compiler metadata`)
-  compilerFields(forgeMetadata, location)
-  compilerFields(solcMetadata, location)
+  const forge = compilerFields(forgeMetadata, location)
+  const solc = compilerFields(solcMetadata, location)
+  if (forge.compilerVersion !== solc.compilerVersion) throw new Error(`${location.contract} compiler metadata version differs`)
+  const names = Object.keys(forge.sources).sort()
+  if (JSON.stringify(names) !== JSON.stringify(Object.keys(solc.sources).sort())) {
+    throw new Error(`${location.contract} compiler metadata source inventory differs`)
+  }
+  for (const name of names) {
+    const projected = record(forge.sources[name], `${location.contract} Forge source ${name}`).keccak256
+    const original = record(solc.sources[name], `${location.contract} solc source ${name}`).keccak256
+    if (typeof projected !== "string" || typeof original !== "string" || projected.toLowerCase() !== original.toLowerCase()) {
+      throw new Error(`${location.contract} compiler metadata source hash differs: ${name}`)
+    }
+  }
   return { forgeMetadata, solcMetadata }
 }
 

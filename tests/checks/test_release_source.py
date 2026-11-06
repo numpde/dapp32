@@ -59,9 +59,9 @@ class SourcePublicationTest(unittest.TestCase):
             calls = []
             def poll(method, path, body=None):
                 calls.append(method)
-                return result()
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]} if path.startswith("/v2/contract/") else result()
             publish_contract(modern, target, request=poll)
-            self.assertEqual(["GET"], calls)
+            self.assertEqual(["GET", "GET"], calls)
             self.assertEqual(JOB, json.loads(target.read_text())["attempts"][0]["verificationId"])
             self.assertEqual(old_state, json.loads(old.read_text()))
             with self.assertRaisesRegex(ValueError, "request changed"):
@@ -221,10 +221,10 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             observed = publish_contract(CONTRACT, state, request=request)
             self.assertEqual("match", observed["runtimeMatch"])
             self.assertEqual(CONTRACT["body"], calls[0][2])
-            self.assertEqual(["POST", "GET"], [call[0] for call in calls])
+            self.assertEqual(["POST", "GET", "GET"], [call[0] for call in calls])
             refreshed = publish_contract(CONTRACT, state, request=request)
             self.assertEqual(observed["runtimeMatch"], refreshed["runtimeMatch"])
-            self.assertEqual(["POST", "GET", "GET"], [call[0] for call in calls])
+            self.assertEqual(["POST", "GET", "GET", "GET"], [call[0] for call in calls])
             with self.assertRaisesRegex(ValueError, "request changed"):
                 publish_contract({**CONTRACT, "body": {}}, state, request=request)
 
@@ -285,7 +285,7 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                     self.assertFalse(check["accepted"])
                     self.assertEqual([attempt], json.loads(state.read_text())["attempts"])
 
-    def test_saved_job_is_resubmitted_only_after_public_lookup_reports_absence(self):
+    def test_missing_public_record_never_automatically_resubmits_a_successful_job(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "saved.json"
             attempt = {"verificationId": JOB, "verified": True, "result": result()}
@@ -301,8 +301,9 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 if path.startswith("/v2/contract/"):
                     raise urllib.error.HTTPError(path, 404, "missing", {}, None)
                 return {"verificationId": JOB} if method == "POST" else result()
-            publish_contract(CONTRACT, state, request=missing)
-            self.assertEqual(["GET", "POST", "GET"], calls)
+            with self.assertRaisesRegex(ValueError, "public index"):
+                publish_contract(CONTRACT, state, request=missing)
+            self.assertEqual(["GET"], calls)
             self.assertEqual(attempt, json.loads(state.read_text())["attempts"][0])
 
     def test_pending_job_survives_interruption_and_next_command_only_polls(self):
@@ -317,9 +318,11 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             calls = []
             def resumed(method, path, body=None):
                 calls.append(method)
+                if path.startswith("/v2/contract/"):
+                    return {**result()["contract"], "metadata": CONTRACT["metadata"]}
                 return result()
             publish_contract(CONTRACT, state, request=resumed)
-            self.assertEqual(["GET"], calls)
+            self.assertEqual(["GET", "GET"], calls)
             self.assertEqual(1, len(json.loads(state.read_text())["attempts"]))
 
     def test_interruption_after_saving_a_completed_job_resumes_without_posting(self):
@@ -346,7 +349,11 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 return {"verificationId": JOB} if method == "POST" else {**result(runtimeMatch=None), "error": {"message": "mismatch"}}
             with self.assertRaisesRegex(ValueError, "did not match"):
                 publish_contract(CONTRACT, state, request=failed)
-            publish_contract(CONTRACT, state, request=lambda method, *_: {"verificationId": JOB} if method == "POST" else result())
+            def recovered(method, path, body=None):
+                if method == "POST":
+                    return {"verificationId": JOB}
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]} if path.startswith("/v2/contract/") else result()
+            publish_contract(CONTRACT, state, request=recovered)
             attempts = json.loads(state.read_text())["attempts"]
             self.assertEqual(2, len(attempts))
             self.assertIn("error", attempts[0]["result"])
@@ -359,6 +366,122 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 with self.assertRaises(ValueError):
                     publish_contract(CONTRACT, state, request=lambda method, *_: {"verificationId": JOB} if method == "POST" else result(**changes))
                 self.assertNotIn("verified", json.loads(state.read_text())["attempts"][0])
+
+    def test_completed_receipt_requires_public_provenance_before_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "manager.json"
+            calls = []
+            def disagree(method, path, body=None):
+                calls.append(method)
+                if method == "POST":
+                    return {"verificationId": JOB}
+                if path.startswith("/v2/verify/"):
+                    return result()
+                return {**result()["contract"], "metadata": {"compiler": "other"}}
+            with self.assertRaisesRegex(ValueError, "metadata"):
+                publish_contract(CONTRACT, state, request=disagree)
+            attempt = json.loads(state.read_text())["attempts"][0]
+            self.assertNotIn("verified", attempt)
+            self.assertEqual(["POST", "GET", "GET"], calls)
+            def recovered(method, path):
+                calls.append(method)
+                self.assertIn("/v2/contract/", path)
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]}
+            publish_contract(CONTRACT, state, request=recovered)
+            self.assertEqual(["POST", "GET", "GET", "GET"], calls)
+            final = json.loads(state.read_text())["attempts"]
+            self.assertEqual(1, len(final))
+            self.assertTrue(final[0]["verified"])
+
+    def test_completed_job_without_public_record_resumes_without_resubmission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "manager.json"
+            calls = []
+            def invisible(method, path, body=None):
+                calls.append(method)
+                if method == "POST":
+                    return {"verificationId": JOB}
+                if path.startswith("/v2/verify/"):
+                    return result()
+                raise urllib.error.HTTPError(path, 404, "not indexed", {}, None)
+            with self.assertRaisesRegex(ValueError, "public"):
+                publish_contract(CONTRACT, state, request=invisible)
+            self.assertEqual(["POST", "GET", "GET"], calls)
+            def recovered(method, path):
+                calls.append(method)
+                self.assertIn("/v2/contract/", path)
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]}
+            publish_contract(CONTRACT, state, request=recovered)
+            self.assertEqual(["POST", "GET", "GET", "GET"], calls)
+            self.assertEqual(1, len(json.loads(state.read_text())["attempts"]))
+
+    def test_conflict_and_missing_public_record_do_not_accumulate_attempts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "manager.json"
+            calls = []
+            def invisible(method, path, body=None):
+                calls.append(method)
+                if method == "POST":
+                    raise urllib.error.HTTPError(path, 409, "already verified", {}, None)
+                raise urllib.error.HTTPError(path, 404, "not indexed", {}, None)
+            for _ in range(4):
+                with self.assertRaisesRegex(ValueError, "public"):
+                    publish_contract(CONTRACT, state, request=invisible)
+            self.assertEqual(1, calls.count("POST"))
+            self.assertEqual(4, calls.count("GET"))
+            attempts = json.loads(state.read_text())["attempts"]
+            self.assertEqual(1, len(attempts))
+            self.assertTrue(attempts[0]["alreadyVerified"])
+
+    def test_batch_rejects_invalid_later_request_before_first_submission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            requests = root / "requests"
+            requests.mkdir()
+            entries = []
+            for role, address in (("first", "0x" + "11" * 20), ("second", "0x" + "22" * 20)):
+                entry = {**CONTRACT, "role": role, "identity": {"address": address},
+                         "location": {"contract": role}, "sourceCommit": "a" * 40}
+                entries.append(entry)
+                (requests / f"{role}.json").write_text(json.dumps(entry))
+                forge = entry["metadata"] if role == "first" else {"compiler": "wrong artifact"}
+                (requests / f"{role}.metadata.json").write_text(json.dumps({
+                    "forgeMetadata": forge, "solcMetadata": CONTRACT["metadata"]}))
+            (requests / "contracts.json").write_text(json.dumps(entries))
+            with patch.object(release_source, "Path", side_effect={"/requests": requests, "/state": root}.__getitem__), \
+                    patch.object(release_source, "request_json", side_effect=AssertionError("network before preflight")), \
+                    patch("sys.argv", ["release_source.py"]), redirect_stdout(StringIO()):
+                with self.assertRaisesRegex(ValueError, "cached request"):
+                    release_source.main()
+
+    def test_publisher_accepts_prepared_requests_larger_than_one_mib(self):
+        with tempfile.TemporaryDirectory() as directory:
+            large = {**CONTRACT, "body": {"stdJsonInput": {"sources": {"large.sol": {"content": "x" * 1_200_000}}}}}
+            def request(method, path, body=None):
+                if method == "POST":
+                    raise urllib.error.HTTPError(path, 409, "already verified", {}, None)
+                return {**result(runtimeMatch="exact_match")["contract"], "metadata": CONTRACT["metadata"]}
+            status, error = run_prepared_publication(directory, large, CONTRACT["metadata"], request)
+            self.assertEqual(0, status, error)
+
+    def test_public_mismatch_remains_inspectable_after_successful_refresh(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "saved.json"
+            attempt = {"verified": True, "verificationId": JOB, "result": result(runtimeMatch="exact_match")}
+            state.write_text(json.dumps({"requestSha256": source_request_hash(CONTRACT), "attempts": [attempt]}))
+            bad = {**result(runtimeMatch="exact_match")["contract"], "metadata": {"compiler": "different"}}
+            good = {**result(runtimeMatch="exact_match")["contract"], "metadata": CONTRACT["metadata"]}
+            with self.assertRaisesRegex(ValueError, "metadata"):
+                publish_contract(CONTRACT, state, request=lambda *_: bad)
+            failures = list(Path(directory).glob("saved.public-failure-*.json"))
+            self.assertEqual(1, len(failures))
+            retained = failures[0].read_bytes()
+            publish_contract(CONTRACT, state, request=lambda *_: good)
+            self.assertEqual(retained, failures[0].read_bytes())
+            self.assertTrue(json.loads(state.with_suffix(".public-check.json").read_text())["accepted"])
+            with self.assertRaisesRegex(ValueError, "metadata"):
+                publish_contract(CONTRACT, state, request=lambda *_: bad)
+            self.assertEqual(1, len(list(Path(directory).glob("saved.public-failure-*.json"))))
 
     def test_wait_is_bounded_and_retains_job(self):
         with tempfile.TemporaryDirectory() as directory:

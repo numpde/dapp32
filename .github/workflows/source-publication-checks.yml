@@ -1,0 +1,55 @@
+name: Source publication checks
+
+on:
+  push:
+    paths:
+      - .github/workflows/source-publication-checks.yml
+      - js/tools/release-compiled-contract.ts
+      - js/tools/source-publication-prepare.ts
+      - js/tools/release-approval/source-publication.test.ts
+      - tools/release_source.py
+      - tools/release_instance.py
+      - tools/release_config.py
+      - tests/checks/test_release_source.py
+  pull_request:
+    paths:
+      - .github/workflows/source-publication-checks.yml
+      - js/tools/release-compiled-contract.ts
+      - js/tools/source-publication-prepare.ts
+      - js/tools/release-approval/source-publication.test.ts
+      - tools/release_source.py
+      - tools/release_instance.py
+      - tools/release_config.py
+      - tests/checks/test_release_source.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-publication-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Run focused source publication tests
+        run: python3 -m unittest -v tests.checks.test_release_source
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - name: Install locked JavaScript dependencies
+        run: npm ci --ignore-scripts
+        working-directory: js
+      - name: Check release TypeScript and original-metadata tests
+        working-directory: js
+        run: |
+          npm run build:packages
+          ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json
+          node --test --experimental-strip-types tools/release-approval/source-publication.test.ts

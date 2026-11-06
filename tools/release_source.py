@@ -15,6 +15,7 @@ from release_instance import read_bounded_json, read_json, write_json
 
 API = "https://sourcify.dev/server"
 MAX_RESPONSE = 1024 * 1024
+SOURCE_REQUEST_MAX_BYTES = 8 * 1024 * 1024
 MATCH_LABELS = {"exact_match": "exact match", "match": "code matches; metadata differs"}
 
 
@@ -171,7 +172,14 @@ def recheck_publication(contract, compiler_metadata, state, state_path, request)
             if required not in ("match", "exact_match") or current not in (required, "exact_match"):
                 raise ValueError(f"Sourcify returned {field}={current!r}. This publication requires {required!r} or better")
     except ValueError as error:
-        write_json(diagnostic, {**check, "error": str(error), "expectedMetadata": compiler_metadata})
+        failure = {**check, "error": str(error), "expectedMetadata": compiler_metadata}
+        # Deduplicate identical observations, but do not overwrite earlier failures
+        # when the next public check succeeds.
+        digest = hashlib.sha256(json.dumps(failure, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
+        preserved = state_path.with_name(f"{state_path.stem}.public-failure-{digest}.json")
+        if not preserved.exists():
+            write_json(preserved, failure)
+        write_json(diagnostic, {**failure, "failureRecord": preserved.name})
         raise ValueError(f"{error}. See {diagnostic.name}.") from error
 
     write_json(diagnostic, {**check, "accepted": True})
@@ -179,6 +187,17 @@ def recheck_publication(contract, compiler_metadata, state, state_path, request)
         attempt["verified"] = True
         write_json(state_path, state)
     return observed
+
+
+def completed_matching_receipt(contract, attempt):
+    result = attempt.get("result")
+    if not isinstance(result, dict) or result.get("isJobCompleted") is not True or result.get("error"):
+        return False
+    try:
+        observed = verification_contract(result, contract)
+    except ValueError:
+        return False
+    return all(observed.get(field) in MATCH_LABELS for field in ("creationMatch", "runtimeMatch"))
 
 
 def publish_contract(contract, state_path, *, compiler_metadata, request, pause, clock):
@@ -189,11 +208,12 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
         state = {"requestSha256": source_request_hash(contract), "attempts": []}
     attempts = state["attempts"]
     last = attempts[-1] if attempts else {}
-    if last.get("verified") is True or last.get("alreadyVerified") is True:
+    if last.get("verified") is True or last.get("alreadyVerified") is True or completed_matching_receipt(contract, last):
         observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
         if observed is not None:
             return observed
-    if not attempts or last.get("alreadyVerified") is True or ("result" in last and last["result"]["isJobCompleted"] is True):
+        raise ValueError("The completed verification is not yet in Sourcify's public index. Retry to check it; no sources were resubmitted.")
+    if not attempts or (isinstance(last.get("result"), dict) and last["result"].get("isJobCompleted") is True):
         try:
             ticket = request("POST", f"/v2/verify/{contract['chainId']}/{contract['identity']['address']}", contract["body"])
         # silent-defaults: allow-exception-fallback -- Sourcify 409 is a documented already-verified outcome; test_already_verified_requires_original_metadata_and_both_exact_matches proves its separate admission.
@@ -205,7 +225,7 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
             write_json(state_path, state)
             observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
             if observed is None:
-                raise ValueError("Sourcify reported existing source but its lookup is missing. Retry later.")
+                raise ValueError("Sourcify reported existing source, but its public record is not yet visible. Retry the lookup; no sources will be resubmitted.")
             return observed
         identifier = ticket.get("verificationId")
         if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", identifier):
@@ -221,17 +241,15 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
         if result.get("verificationId") != attempt["verificationId"] or type(result.get("isJobCompleted")) is not bool:
             raise ValueError("Public verifier returned an inconsistent job status; no success was recorded.")
         attempt["result"] = result
+        write_json(state_path, state)
         if not result["isJobCompleted"]:
-            write_json(state_path, state)
             pause(3)
             continue
-        try:
-            observed = verification_contract(result, contract)
-            if result.get("error") or observed.get("runtimeMatch") not in ("match", "exact_match") or observed.get("creationMatch") not in ("match", "exact_match"):
-                raise ValueError(f"Public verification did not match creation and runtime code. See {state_path.name} for the verifier's explanation.")
-            attempt["verified"] = True
-        finally:
-            write_json(state_path, state)
+        if not completed_matching_receipt(contract, attempt):
+            raise ValueError(f"Public verification did not match creation and runtime code. See {state_path.name} for the verifier's explanation.")
+        observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
+        if observed is None:
+            raise ValueError("Sourcify completed verification, but its public record is not yet visible. Retry the lookup without resubmitting.")
         return observed
     raise ValueError("Public verification is still pending after five minutes. Rerun source/publish to check the same job; no deployment will be repeated.")
 
@@ -255,20 +273,28 @@ def main():
         keys = choose_contracts(read_json(requests / "catalog.json"), request=request_json, answer=input, output=lambda message: print(message, flush=True))
         (Path("/state") / "selected-keys").write_bytes(b"".join((key + "\0").encode() for key in keys))
         return 0
-    contracts = json.loads((requests / "contracts.json").read_text())
-    failures = 0
-    for contract in contracts:
+    # Check the whole batch before the first network request; retries must not partially
+    # publish a selection whose later saved inputs are inconsistent.
+    prepared_batch = []
+    for contract in json.loads((requests / "contracts.json").read_text()):
         role = contract["key"] if "key" in contract else contract["role"]
-        prepared = read_json(requests / f"{role}.json")
+        prepared = read_bounded_json(requests / f"{role}.json", SOURCE_REQUEST_MAX_BYTES)
         job = source_job_key(prepared)
         if job != source_job_key(contract) or prepared["location"] != contract["location"] or prepared["sourceCommit"] != contract["sourceCommit"]:
             raise ValueError("Prepared source request differs from the selected contract; no source was submitted for this entry.")
         proof = read_bounded_json(requests / f"{role}.metadata.json", 2 * 1024 * 1024)
         if not isinstance(proof.get("solcMetadata"), dict) or not same_metadata(proof.get("forgeMetadata"), prepared["metadata"]):
             raise ValueError(f"The cached request for {role} differs from its retained compiler artifact.")
+        state_path = Path("/state") / f"{job}.json"
+        if state_path.exists():
+            read_publication_state(prepared, state_path)
+        prepared_batch.append((prepared, proof["solcMetadata"], state_path))
+    failures = 0
+    for prepared, original, state_path in prepared_batch:
+        job = source_job_key(prepared)
         print(f"Publishing {prepared['location']['contract']} on chain {prepared['chainId']} at {prepared['identity']['address']}", flush=True)
         try:
-            observed = publish_contract(prepared, Path("/state") / f"{job}.json", compiler_metadata=proof["solcMetadata"],
+            observed = publish_contract(prepared, state_path, compiler_metadata=original,
                                         request=request_json, pause=time.sleep, clock=time.monotonic)
         except urllib.error.HTTPError as error:
             excerpt = error.read(2048).decode("utf-8", errors="replace")
