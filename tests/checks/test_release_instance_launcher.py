@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -61,9 +62,18 @@ class InstanceIdentityLauncherTest(unittest.TestCase):
                            "RELEASE_LOCAL_NETWORK": "fixture-internal",
                            "LOCAL_UID": str(os.getuid()), "LOCAL_GID": str(os.getgid()),
                            "TEST_MAPPED_IDS": ids,
+                           "FAKE_DOCKER": str(fake), "REAL_SETSID": shutil.which("setsid"),
                            "TEST_PROBE_IMAGE": "docker.io/library/python:3.13-alpine@sha256:" + "a" * 64}
                     script = r'''
 reject_release_path_symlinks() { :; }
+docker() { command python3 "$FAKE_DOCKER" "$@"; }
+setsid() {
+  if [[ "$1" == docker ]]; then
+    shift
+    exec "$REAL_SETSID" python3 "$FAKE_DOCKER" "$@"
+  fi
+  exec "$REAL_SETSID" "$@"
+}
 realpath() { command python3 -c 'import os,sys; print(os.path.normpath(sys.argv[-1]))' "$@"; }
 python3() {
   if [[ ${1-} == -I && ${2-} == -S && ${3-} == -B && ${4-} == tools/release_identity.py ]]; then
@@ -72,7 +82,7 @@ python3() {
     command python3 "$@"
   fi
 }
-export -f reject_release_path_symlinks realpath python3
+export -f reject_release_path_symlinks realpath python3 docker setsid
 source tools/release_process.sh
 release_process_init
 release_instance pay-to-play source/publish

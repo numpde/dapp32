@@ -42,8 +42,8 @@ jobs:
         run: |
           set -euo pipefail
           export LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)"
-          CAM_DOCKER_ENDPOINT=$(docker context inspect default --format '{{.Endpoints.docker.Host}}')
-          [[ "$CAM_DOCKER_ENDPOINT" == unix:///* ]] || { echo "Selected CI Docker context is not local" >&2; exit 2; }
+          # Use the same context selector as ordinary release operations.
+          CAM_DOCKER_ENDPOINT=$(bash tools/docker_context.sh 'command line' default undefined '' 0)
           export CAM_DOCKER_ENDPOINT
           source tools/release_identity.sh
           release_select_container_identity
@@ -60,13 +60,6 @@ jobs:
           test "$(stat -c %u "$scratch/output")" = "$LOCAL_UID"
           test "$(cat "$scratch/output")" = host-owned
           printf 'Private round trip passed as container %s:%s for host %s:%s\n' "$RELEASE_CONTAINER_UID" "$RELEASE_CONTAINER_GID" "$LOCAL_UID" "$LOCAL_GID"
-      - name: Record rootless test prerequisites
-        if: always()
-        run: |
-          for name in dockerd-rootless.sh rootlesskit newuidmap newgidmap slirp4netns; do command -v "$name" || true; done
-          cat /etc/subuid /etc/subgid || true
-          sysctl kernel.apparmor_restrict_unprivileged_userns || true
-          cp -a "$HOME/.cache/release-idmap" "$RUNNER_TEMP/identity-audit/" 2>/dev/null || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
