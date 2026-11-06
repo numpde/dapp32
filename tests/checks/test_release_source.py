@@ -360,6 +360,72 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                     publish_contract(CONTRACT, state, request=lambda method, *_: {"verificationId": JOB} if method == "POST" else result(**changes))
                 self.assertNotIn("verified", json.loads(state.read_text())["attempts"][0])
 
+    def test_completed_receipt_requires_public_provenance_before_success(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "manager.json"
+            calls = []
+            def disagree(method, path, body=None):
+                calls.append(method)
+                if method == "POST":
+                    return {"verificationId": JOB}
+                if path.startswith("/v2/verify/"):
+                    return result()
+                return {**result()["contract"], "metadata": {"compiler": "other"}}
+            with self.assertRaisesRegex(ValueError, "metadata"):
+                publish_contract(CONTRACT, state, request=disagree)
+            attempt = json.loads(state.read_text())["attempts"][0]
+            self.assertNotIn("verified", attempt)
+            self.assertEqual(["POST", "GET", "GET"], calls)
+            def recovered(method, path):
+                calls.append(method)
+                self.assertIn("/v2/contract/", path)
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]}
+            publish_contract(CONTRACT, state, request=recovered)
+            self.assertEqual(["POST", "GET", "GET", "GET"], calls)
+            final = json.loads(state.read_text())["attempts"]
+            self.assertEqual(1, len(final))
+            self.assertTrue(final[0]["verified"])
+
+    def test_completed_job_without_public_record_resumes_without_resubmission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "manager.json"
+            calls = []
+            def invisible(method, path, body=None):
+                calls.append(method)
+                if method == "POST":
+                    return {"verificationId": JOB}
+                if path.startswith("/v2/verify/"):
+                    return result()
+                raise urllib.error.HTTPError(path, 404, "not indexed", {}, None)
+            with self.assertRaisesRegex(ValueError, "public"):
+                publish_contract(CONTRACT, state, request=invisible)
+            self.assertEqual(["POST", "GET", "GET"], calls)
+            def recovered(method, path):
+                calls.append(method)
+                self.assertIn("/v2/contract/", path)
+                return {**result()["contract"], "metadata": CONTRACT["metadata"]}
+            publish_contract(CONTRACT, state, request=recovered)
+            self.assertEqual(["POST", "GET", "GET", "GET"], calls)
+            self.assertEqual(1, len(json.loads(state.read_text())["attempts"]))
+
+    def test_conflict_and_missing_public_record_do_not_accumulate_attempts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "manager.json"
+            calls = []
+            def invisible(method, path, body=None):
+                calls.append(method)
+                if method == "POST":
+                    raise urllib.error.HTTPError(path, 409, "already verified", {}, None)
+                raise urllib.error.HTTPError(path, 404, "not indexed", {}, None)
+            for _ in range(4):
+                with self.assertRaisesRegex(ValueError, "public"):
+                    publish_contract(CONTRACT, state, request=invisible)
+            self.assertEqual(1, calls.count("POST"))
+            self.assertEqual(4, calls.count("GET"))
+            attempts = json.loads(state.read_text())["attempts"]
+            self.assertEqual(1, len(attempts))
+            self.assertTrue(attempts[0]["alreadyVerified"])
+
     def test_wait_is_bounded_and_retains_job(self):
         with tempfile.TemporaryDirectory() as directory:
             ticks = iter((0, 1, 301))
