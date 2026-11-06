@@ -62,10 +62,17 @@ class IdentityLaneTests(unittest.TestCase):
             'printf "%s\\n" unix:///tmp/identity-lane-fixture.sock\n'
         )
         (self.case / "docker.py").write_text(DOCKER)
+        timeout = shutil.which("timeout")
+        help_result = subprocess.run([timeout, "--help"], capture_output=True,
+                                     text=True, timeout=5)
+        timeout_help = help_result.stdout + help_result.stderr
+        self.assertTrue("--foreground" in timeout_help or "BusyBox" in timeout_help,
+                        "The fixture needs GNU or BusyBox timeout")
         self.environment = {**os.environ, "CASE_ROOT": str(self.case), "CASE_MODE": "success",
             "PAYLOAD": str(ROOT / "tests/live/check_release_identity.py"),
             "PYTHON": sys.executable, "REAL_SETSID": shutil.which("setsid"),
-            "REAL_TIMEOUT": shutil.which("timeout")}
+            "REAL_TIMEOUT": timeout,
+            "TIMEOUT_IS_BUSYBOX": "1" if "BusyBox" in timeout_help else "0"}
         self.wrapper = r'''
 docker() { "$PYTHON" "$CASE_ROOT/docker.py" "$@"; }
 python3() {
@@ -77,7 +84,12 @@ python3() {
 }
 timeout() {
   local -a before=()
-  while [[ $# -gt 0 && "$1" != docker && "$1" != bash ]]; do before+=("$1"); shift; done
+  while [[ $# -gt 0 && "$1" != docker && "$1" != bash ]]; do
+    # The Alpine checker has BusyBox timeout, which already preserves the
+    # command's process group. GNU timeout needs --foreground to do so.
+    if [[ "$1" != --foreground || "$TIMEOUT_IS_BUSYBOX" != 1 ]]; then before+=("$1"); fi
+    shift
+  done
   if [[ "$1" == docker ]]; then
     shift
     "$REAL_TIMEOUT" "${before[@]}" "$PYTHON" "$CASE_ROOT/docker.py" "$@"
@@ -95,9 +107,9 @@ exec bash tools/release_identity_check.sh fixture
             env={**self.environment, "CASE_MODE": mode}, capture_output=True,
             text=True, timeout=12)
         marker = self.case / "workspace"
-        directory = Path(marker.read_text()) if marker.exists() else None
-        if directory is not None:
-            self.addCleanup(shutil.rmtree, directory, True)
+        self.assertTrue(marker.is_file(), result.stdout + result.stderr)
+        directory = Path(marker.read_text())
+        self.addCleanup(shutil.rmtree, directory, True)
         return result, directory
 
     def test_ci_calls_the_same_lane_without_reimplementing_the_round_trip(self):
@@ -156,4 +168,4 @@ exec bash tools/release_identity_check.sh fixture
         finally:
             if process.poll() is None:
                 process.kill()
-                process.communicate()
+            process.communicate()
