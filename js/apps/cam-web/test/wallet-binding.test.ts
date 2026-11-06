@@ -14,7 +14,7 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 async function settle() { for (let i = 0; i < 12; i++) await Promise.resolve() }
-function fixture() {
+function fixture(selectedAccount?: Address) {
   const listeners = new Map<string, (value: unknown) => void>()
   Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: {
     request: async () => { throw new Error("unsolicited wallet request") },
@@ -32,12 +32,13 @@ function fixture() {
     chainId: "eip155:31337",
     connect: () => connection.promise,
     isViewBusy: () => busy,
+    currentAccount: () => selectedAccount,
     setAccount: async (address: Address) => {
       const result = deferred<string>()
       refreshes.push({ address, result })
-      return result.promise
+      return { address, snapshot: await result.promise }
     },
-    commitAccount: (snapshot: string) => commits.push(snapshot),
+    commitAccount: ({ address, snapshot }) => { selectedAccount = address; commits.push(snapshot) },
     invalidate: () => { invalidations++ },
     onState: state => states.push(state),
     onError: error => failures.push(error),
@@ -143,7 +144,7 @@ test("account events wait behind the existing view operation and resume with the
   f.connection.resolve(FIRST)
   await connect
   assert.equal(f.refreshes.length, 0)
-  assert(f.invalidations() >= 3)
+  assert.equal(f.invalidations(), 2)
   f.setBusy(false)
   const resumed = f.binding.resume()
   await settle()
@@ -211,8 +212,8 @@ test("explicit reconnect clears an older chain mismatch but preserves a newer ne
     const reconnect = f.binding.connect()
     if (newerMismatch) f.emit("chainChanged", "0x2")
     await settle()
-    f.refreshes[1]!.result.resolve("reconnected view")
     await reconnect
+    assert.equal(f.refreshes.length, 1, "reconnecting the same selected account does not reload the view")
     assert.deepEqual(f.states.at(-1), {
       wallet: { status: "connected", address: FIRST }, chainMatches: !newerMismatch,
       refreshing: false, accountSynchronized: true,
@@ -240,4 +241,107 @@ test("successful reconnect verifies network even when an exposed-account event s
     refreshing: false, accountSynchronized: true,
   })
   f.binding.dispose()
+})
+
+
+test("connecting the selected account preserves the view across address casing and redundant notifications", async () => {
+  const selected = "0xa55aA83C7090D87b7Aa151346862455D6209D789" as Address
+  for (const address of [selected, selected.toLowerCase() as Address]) {
+    const f = fixture(selected)
+    const connecting = f.binding.connect()
+    assert.equal(f.invalidations(), 0)
+    assert.deepEqual(f.states.at(-1), { wallet: { status: "disconnected" }, chainMatches: true, refreshing: true, accountSynchronized: false })
+    f.emit("chainChanged", "0x7a69")
+    f.connection.resolve(address)
+    await connecting
+    f.emit("accountsChanged", [address])
+    await settle()
+    assert.equal(f.invalidations(), 0)
+    assert.equal(f.refreshes.length, 0)
+    assert.deepEqual(f.commits, [])
+    assert.deepEqual(f.states.at(-1), { wallet: { status: "connected", address }, chainMatches: true, refreshing: false, accountSynchronized: true })
+    f.binding.dispose()
+  }
+})
+
+test("a public read account is distinct from an explicitly selected zero address", async () => {
+  const zero = "0x0000000000000000000000000000000000000000" as Address
+  for (const selected of [undefined, zero]) {
+    const f = fixture(selected)
+    const connecting = f.binding.connect()
+    f.connection.resolve(zero)
+    await settle()
+    if (selected === undefined) {
+      assert.equal(f.invalidations(), 1)
+      assert.equal(f.refreshes.length, 1)
+      f.refreshes[0]!.result.resolve("explicit zero account")
+    } else {
+      assert.equal(f.invalidations(), 0)
+      assert.equal(f.refreshes.length, 0)
+    }
+    await connecting
+    f.binding.dispose()
+  }
+})
+
+test("different-account connection invalidates before its read can start", async () => {
+  const f = fixture(FIRST)
+  f.setBusy(true)
+  const connecting = f.binding.connect()
+  f.connection.resolve(SECOND)
+  await connecting
+  assert.equal(f.invalidations(), 1)
+  assert.equal(f.refreshes.length, 0)
+  assert.deepEqual(f.states.at(-1), { wallet: { status: "disconnected" }, chainMatches: true, refreshing: true, accountSynchronized: false })
+  f.setBusy(false)
+  const resumed = f.binding.resume()
+  await settle()
+  f.refreshes[0]!.result.resolve("second account")
+  await resumed
+  assert.deepEqual(f.commits, ["second account"])
+  f.binding.dispose()
+})
+
+test("a queued return to the original account reconciles after an intervening read commits", async () => {
+  const f = fixture(FIRST)
+  f.connection.resolve(FIRST)
+  await f.binding.connect()
+  f.emit("accountsChanged", [SECOND])
+  await settle()
+  f.emit("accountsChanged", [FIRST])
+  f.refreshes[0]!.result.resolve("second account")
+  await settle()
+  assert.deepEqual(f.refreshes.map(read => read.address), [SECOND, FIRST])
+  f.refreshes[1]!.result.resolve("first account again")
+  await settle()
+  assert.deepEqual(f.commits, ["second account", "first account again"])
+  assert.deepEqual(f.states.at(-1), { wallet: { status: "connected", address: FIRST }, chainMatches: true, refreshing: false, accountSynchronized: true })
+  f.binding.dispose()
+})
+
+test("connection failure cannot preserve a review through a newer same-account notification", async () => {
+  for (const mismatch of [false, true]) {
+    const f = fixture(FIRST)
+    const connecting = f.binding.connect()
+    if (mismatch) f.emit("chainChanged", "0x1")
+    f.emit("accountsChanged", [FIRST])
+    f.connection.reject(new Error("connection rejected after account notification"))
+    await connecting
+    assert.equal(f.invalidations(), mismatch ? 2 : 1)
+    assert.equal(f.refreshes.length, 0)
+    assert.deepEqual(f.states.at(-1), { wallet: { status: "connected", address: FIRST }, chainMatches: !mismatch, refreshing: false, accountSynchronized: true })
+    f.binding.dispose()
+  }
+})
+
+test("disconnect, malformed account and network mismatch still invalidate a same-account review", async () => {
+  for (const [event, value] of [["disconnect", { code: 4900 }], ["accountsChanged", []], ["accountsChanged", ["bad address"]], ["chainChanged", "0x1"]] as const) {
+    const f = fixture(FIRST)
+    f.connection.resolve(FIRST)
+    await f.binding.connect()
+    assert.equal(f.invalidations(), 0)
+    f.emit(event, value)
+    assert.equal(f.invalidations(), 1)
+    f.binding.dispose()
+  }
 })

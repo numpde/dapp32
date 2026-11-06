@@ -19,6 +19,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
   const button = `document.querySelector('button[aria-label="Update record"]')`
   const failures = []
   try {
+    await checkWalletReviewContinuity({ call, evaluate, viewerURL })
     for (const scenario of ['bare', 'partial']) {
       await open(scenario)
       await wait(`!!document.querySelector('#app-host')`)
@@ -307,7 +308,7 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
         }
       }
     }
-    return { publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, loadedByteVerification: true, sends: 0 }
+    return { sameAccountReviewPreserved: true, publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, loadedByteVerification: true, sends: 0 }
   } catch (error) { failures.push(error) }
   finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
 }
@@ -329,6 +330,10 @@ async function checkResourceHelp({ call, evaluate, wait, label }) {
         return {x:(box.left+box.right)/2,y:(box.top+box.bottom)/2,aligned:Math.abs((title.top+title.bottom-box.top-box.bottom)/2)<1,gap:box.left-title.right,target:box.width>=28&&box.height>=28,centered:Math.abs((svg.left+svg.right-box.left-box.right)/2)<1&&Math.abs((svg.top+svg.bottom-box.top-box.bottom)/2)<1};
       })()`)
       assert(icon.aligned && icon.centered && icon.target && icon.gap >= 7 && icon.gap <= 9, `the information icon aligns with the heading and has a comfortable target at ${width}px`)
+      assert(await evaluate(`Array.from(document.querySelectorAll('svg')).every(icon => {
+        const style=getComputedStyle(icon),size=Number(icon.getAttribute('width'));
+        return icon.getAttribute('aria-hidden')==='true'&&icon.getAttribute('focusable')==='false'&&icon.tabIndex<0&&[16,18].includes(size)&&Number(icon.getAttribute('height'))===size&&style.fill==='none'&&style.strokeWidth==='1.8px';
+      })`), 'decorative icons have explicit dimensions, consistent strokes and no separate accessible or focus target')
       await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: icon.x, y: icon.y })
       await wait(visible)
       const help = await evaluate(`(()=>{
@@ -362,5 +367,52 @@ async function checkResourceHelp({ call, evaluate, wait, label }) {
   } finally {
     await call('Emulation.setTouchEmulationEnabled', { enabled: false })
     await call('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false })
+  }
+}
+
+
+async function checkWalletReviewContinuity({ call, evaluate, viewerURL }) {
+  const wait = expression => waitForBrowserCondition(() => evaluate(expression), `wallet review continuity: ${expression}`)
+  const editDraft = value => evaluate(`(()=>{const input=document.querySelector('input[name=draft]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+  const snapshot = `({href:location.href,history:history.state,draft:document.querySelector('input[name=draft]').value,review:document.querySelector('.prepared-call')?.textContent,calldata:document.querySelector('textarea[aria-label="Transaction data (hex)"]')?.value,reads:connectionFixture.state.subjects.length,reviews:connectionFixture.state.reviews,simulations:connectionFixture.state.simulations})`
+  for (const scenario of ['selected-wallet', 'selected-other']) {
+    const url = new URL('/test/connection-fixture.html', viewerURL)
+    url.searchParams.set('scenario', scenario)
+    await navigateBrowserDocument({ call, url: url.href, description: 'the selected-account wallet fixture', ready: () => evaluate(`!!document.querySelector('input[name=draft]')`) })
+    await editDraft('earlier draft')
+    await evaluate(`document.querySelector('button[aria-label="Next view"]').click()`)
+    await wait(`document.querySelector('h1').textContent==='Connection detail'`)
+    await editDraft('transaction draft')
+    await evaluate(`document.querySelector('button[aria-label="Update record"]').click()`)
+    await wait(`!!document.querySelector('.prepared-call')&&!document.querySelector('.wallet-button').disabled`)
+    assert(await evaluate(`document.querySelector('.send-button').disabled`), 'a selected viewing account can prepare but cannot send without its wallet')
+    const before = await evaluate(snapshot)
+    await evaluate(`connectionFixture.holdConnection();document.querySelector('.wallet-button').click()`)
+    await wait(`document.querySelector('.wallet-button').getAttribute('aria-busy')==='true'`)
+    assert(await evaluate(`!!document.querySelector('.prepared-call')&&document.querySelector('.send-button').disabled&&document.querySelector('input[name=draft]').value==='transaction draft'`), 'connecting suspends sending without discarding the existing review or draft')
+    await evaluate(`connectionFixture.emit('chainChanged','0x7a69');connectionFixture.releaseConnection()`)
+    await wait(`document.querySelector('.wallet-button').textContent==='Reconnect wallet'&&!document.querySelector('.wallet-button').disabled`)
+    if (scenario === 'selected-wallet') {
+      assert.deepEqual(await evaluate(snapshot), before, 'the same EVM address preserves the exact review, drafts, URL and history without rereading or resimulating')
+      assert(await evaluate(`!document.querySelector('.send-button').disabled`), 'the preserved review becomes sendable only after the wallet connection completes')
+      await evaluate(`connectionFixture.emit('accountsChanged',[connectionFixture.wallet.toLowerCase()]);connectionFixture.emit('chainChanged','0x7a69');new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))`)
+      assert.deepEqual(await evaluate(snapshot), before, 'redundant account and matching-network notifications preserve the reviewed transaction')
+      await evaluate(`connectionFixture.emit('chainChanged','0x1')`)
+      await wait(`!document.querySelector('.prepared-call')`)
+      await evaluate(`connectionFixture.emit('chainChanged','0x7a69')`)
+      assert(await evaluate(`!document.querySelector('.prepared-call')`), 'returning from a network mismatch cannot resurrect the invalidated review')
+      await evaluate(`document.querySelector('.ui-meta > button').click()`)
+      await wait(`document.querySelector('h1').textContent==='Connection fixture'&&document.querySelector('input[name=draft]').value==='earlier draft'`)
+    } else {
+      const after = await evaluate(snapshot)
+      assert.equal(after.review, undefined, 'a different wallet discards the prior prepared review')
+      assert.equal(after.draft, '', 'a different wallet resets account-specific drafts')
+      assert.equal(new URL(after.href).searchParams.get('account'), await evaluate('connectionFixture.wallet'))
+      assert.equal(after.reads, before.reads + 1, 'the different account gets its own view read')
+      await evaluate(`document.querySelector('.ui-meta > button').click()`)
+      await wait(`document.querySelector('h1').textContent==='Connection fixture'&&document.querySelector('input[name=draft]').value===''`)
+      assert(await evaluate(`new URL(location.href).searchParams.get('account')===connectionFixture.wallet&&connectionFixture.state.subjects.at(-1)===connectionFixture.wallet`), 'Back reads the previous route under the new account without restoring old-account drafts')
+    }
+    assert.equal(await evaluate('connectionFixture.state.sends'), 0, 'wallet connection and notifications never submit a transaction')
   }
 }

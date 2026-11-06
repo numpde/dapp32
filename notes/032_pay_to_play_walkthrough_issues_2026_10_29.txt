@@ -156,6 +156,7 @@ P3 — Navigation and input ergonomics
     Evidence: contextual links exist, but no complete TOC/local navigation;
     the sampled narrow balance body measured about 7,505 CSS pixels.
     This is an authoring convention, not a CAM conformance requirement.
+    Focused-destination plan: note 044 (proposed; not implemented).
 
 [x] Offer known-address suggestions across address fields.
     (Shared: Escrow issue 7)

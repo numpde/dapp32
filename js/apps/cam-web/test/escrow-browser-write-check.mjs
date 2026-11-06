@@ -531,7 +531,7 @@ try {
     const before = BigInt(await rpc('eth_getBalance', [accounts.contractor.address, 'latest']))
     await fill('recipient', accounts.contractor.address)
     await send('Withdraw credit')
-    await waitFor(state => /Total withdrawable credit for this account\s+0 Native asset \(0 wei\)/.test(state.text), 'withdrawn credit')
+    await waitFor(state => /Total withdrawable credit for this account\s+0(?:\r?\n|$)/.test(state.text), 'withdrawn credit')
     const receipt = await publicClient.getTransactionReceipt({ hash: owner.sent[5].hash })
     const after = BigInt(await rpc('eth_getBalance', [accounts.contractor.address, 'latest']))
     assert.equal(after - before + receipt.gasUsed * receipt.effectiveGasPrice, BigInt(match[1].replaceAll(',', '')), 'withdrawal must transfer the displayed credit less gas')

@@ -8,7 +8,7 @@ const scenario = new URL(location.href).searchParams.get("scenario")
 const resourceBase = new URL("/connection-fixture-resources/", location.href)
 const host = "0x0000000000000000000000000000000000000001"
 const target = "0x0000000000000000000000000000000000000002"
-const wallet = "0x0000000000000000000000000000000000000003"
+const wallet = scenario === "selected-wallet" ? "0xa55aA83C7090D87b7Aa151346862455D6209D789" : "0x0000000000000000000000000000000000000003"
 const encode = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
 const abi = parseAbi(["function read(address subject) view returns (uint256)", "function review() view returns (address)", "function update(uint256 amount)", "function updateMetadata(string tokenURI)"])
 const rootAbi = parseAbi(["function camManifest() view returns ((string uri, bytes32 sha256Digest))"])
@@ -40,7 +40,7 @@ const cam = encode({ cam: "1.4.0", protocol: { uri: "./protocol.html", integrity
 })
 const resources = new Map([["main.json", cam], ["protocol.html", protocol], ["abi.json", abiBytes], ["ui.json", ui]])
 if (scenario === "mismatch") resources.set("ui.json", new TextEncoder().encode(`${new TextDecoder().decode(ui)}\n`))
-const state = { requests: [] as string[], forbidRequests: false, rootHash: scenario === "mismatch" ? sha256(ui) : sha256(cam), holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
+const state = { requests: [] as string[], forbidRequests: false, rootHash: scenario === "mismatch" ? sha256(ui) : sha256(cam), holdProtocol: scenario === "unverified-held", unverifiedRoot: scenario === "unverified" || scenario === "unverified-held", protocolStarted: 0, protocolCompleted: 0, failHeldProtocol: false, tamperHeldProtocol: false, subjects: [] as string[], readOrigins: [] as string[], reviews: 0, simulations: 0, sends: 0, receiptRequests: 0, transactionLookups: 0, failReceipt: scenario?.startsWith("transaction-label-retry") === true, failTransactionLookup: scenario === "transaction-label", failAccountRead: false, holdPublicRead: scenario === "held", holdCandidate: false, candidateStarted: false, failCandidateRead: false }
 const transactionHash = `0x${"ab".repeat(32)}`
 const transactionBlockHash = `0x${"cd".repeat(32)}`
 let holdReceipt = scenario === "transaction-label"
@@ -103,10 +103,15 @@ window.fetch = async (input, init) => {
       result = "0x"
     } else throw new Error(`Unexpected fixture selector: ${selector}`)
   } else if (scenario?.startsWith("transaction-label") === true && rpc.method === "eth_getTransactionByHash") {
+    state.transactionLookups++
+    if (state.failTransactionLookup) return Response.json({ jsonrpc: "2.0", id: rpc.id, result: null })
     result = { hash: transactionHash, blockHash: transactionBlockHash, blockNumber: "0x10", from: wallet, to: target, nonce: "0x1", input: "0x", value: "0x0", gas: "0x10000", gasPrice: "0x1", type: "0x0", transactionIndex: "0x0", v: "0x1b", r: zeroHash, s: zeroHash }
   } else if (scenario?.startsWith("transaction-label") === true && rpc.method === "eth_getTransactionReceipt") {
+    state.receiptRequests++
+    if (String(rpc.params[0]) !== transactionHash) throw new Error("Confirmation must inspect the original submitted hash")
+    if (state.failReceipt) return Response.json({ jsonrpc: "2.0", id: rpc.id, error: { code: -32602, message: "Fixture receipt service unavailable" } })
     if (holdReceipt) await new Promise<void>(resolve => receiptReads.push(resolve))
-    result = { transactionHash, blockHash: transactionBlockHash, blockNumber: "0x10", from: wallet, to: target, contractAddress: null, transactionIndex: "0x0", status: "0x1", type: "0x0", gasUsed: "0x5208", cumulativeGasUsed: "0x5208", effectiveGasPrice: "0x1", logs: [], logsBloom: `0x${"00".repeat(256)}` }
+    result = { transactionHash, blockHash: transactionBlockHash, blockNumber: "0x10", from: wallet, to: target, contractAddress: null, transactionIndex: "0x0", status: scenario === "transaction-label-retry-revert" ? "0x0" : "0x1", type: "0x0", gasUsed: "0x5208", cumulativeGasUsed: "0x5208", effectiveGasPrice: "0x1", logs: [], logsBloom: `0x${"00".repeat(256)}` }
   } else if (scenario?.startsWith("transaction-label") === true && rpc.method === "eth_blockNumber") result = "0x10"
   else throw new Error(`Unexpected fixture RPC method: ${rpc.method}`)
   return Response.json({ jsonrpc: "2.0", id: rpc.id, result })
@@ -120,7 +125,7 @@ const provider = {
     if (method === "wallet_switchEthereumChain") return null
     if (method === "eth_sendTransaction" || method === "wallet_sendTransaction") {
       state.sends++
-      if (scenario === "transaction-label") return transactionHash
+      if (scenario === "transaction-label" || scenario?.startsWith("transaction-label-retry") === true) return transactionHash
       if (scenario === "transaction-label-unknown") throw new Error("Fixture transport disconnected without returning a hash")
       if (holdWallet) return new Promise<never>((_resolve, reject) => { rejectWallet = reject })
       throw new Error("The connection fixture never signs or sends transactions")
@@ -145,6 +150,7 @@ Object.assign(window, { ethereum: scenario === "no-wallet" ? undefined : provide
     state.rootHash = sha256(nextRoot)
     state.unverifiedRoot = false
   },
+  holdReceipt() { holdReceipt = true },
   releaseReceipt() { holdReceipt = false; receiptReads.splice(0).forEach(release => release()) },
   holdConnection() { holdConnection = true },
   releaseConnection() { holdConnection = false; releaseConnection?.(); releaseConnection = undefined },
@@ -162,5 +168,7 @@ if (scenario === "invalid-rpc") url.searchParams.set("rpcUrl", "not a URL")
 if (scenario === "bare") url.search = ""
 if (scenario === "partial") url.search = new URLSearchParams({ chainId: "eip155:31337", host: "needs correction", rpcUrl: "https://rpc.fixture.test" }).toString()
 if (scenario === "explicit-zero") url.searchParams.set("account", zeroAddress)
+if (scenario === "selected-wallet") url.searchParams.set("account", wallet.toLowerCase())
+if (scenario === "selected-other") url.searchParams.set("account", "0x1111111111111111111111111111111111111111")
 history.replaceState(null, "", url)
 createRoot(document.getElementById("root")!).render(createElement(App))

@@ -3,6 +3,7 @@ import type { ReactElement } from "react"
 import { Popover } from "@base-ui/react/popover"
 import type { CamIntegrityCheck } from "@cam/evm-viem"
 import { requireHttpURL, resolveIpfsGatewayURL } from "@cam/protocol"
+import { Icon } from "./icon.tsx"
 import { DownloadContext } from "./download-context.ts"
 import { useClipboardCopy } from "./clipboard.ts"
 import { CopyButton, CopyRecovery } from "./copy-button.tsx"
@@ -74,7 +75,7 @@ function ResourceHeading({ label, description }: { readonly label: string; reado
     <h2>{label} verification</h2>
     <Popover.Root>
       <Popover.Trigger className="resource-info" aria-label={`About ${label}`} openOnHover>
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7h.01" /></svg>
+        <Icon name="info" size={18} />
       </Popover.Trigger>
       <Popover.Portal container={container} className="resource-info-portal">
         <Popover.Positioner positionMethod="fixed" collisionBoundary={container?.closest("dialog") ?? "clipping-ancestors"} side="bottom" align="start" sideOffset={8} collisionPadding={8} className="resource-info-positioner">

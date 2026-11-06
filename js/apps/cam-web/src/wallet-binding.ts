@@ -14,6 +14,7 @@ export function createInjectedWalletBinding<TSnapshot>(ports: {
   readonly chainId: string
   readonly connect: () => Promise<Address>
   readonly isViewBusy: () => boolean
+  readonly currentAccount: () => Address | undefined
   readonly setAccount: (address: Address) => Promise<TSnapshot>
   readonly commitAccount: (snapshot: TSnapshot) => void
   readonly invalidate: () => void
@@ -32,6 +33,10 @@ export function createInjectedWalletBinding<TSnapshot>(ports: {
   let failed = false
   let signer: Address | undefined
   let desiredAccount: Address | undefined
+
+  function matchesCurrentAccount(address: Address): boolean {
+    return ports.currentAccount()?.toLowerCase() === address.toLowerCase()
+  }
 
   function publish() {
     if (!active) return
@@ -61,16 +66,18 @@ export function createInjectedWalletBinding<TSnapshot>(ports: {
 
   function receive(change: InjectedWalletChange) {
     if (!active) return
-    ports.invalidate()
     if (change.type === "chainChanged") {
       chainRevision++
-      chainMatches = BigInt(change.chainId) === expectedChain
+      const matches = BigInt(change.chainId) === expectedChain
+      if (!matches || !chainMatches) ports.invalidate()
+      chainMatches = matches
       publish()
       return
     }
     accountRevision++
     failed = false
     signer = change.type === "disconnect" ? undefined : change.accounts[0]
+    if (signer === undefined || !matchesCurrentAccount(signer)) ports.invalidate()
     desiredAccount = signer
     pending = signer !== undefined
     publish()
@@ -83,6 +90,9 @@ export function createInjectedWalletBinding<TSnapshot>(ports: {
       if (address === undefined) return
       const revision = accountRevision
       pending = false
+      // Compare after earlier account reads commit: a queued return to the
+      // previous address must not be mistaken for an unchanged account.
+      if (matchesCurrentAccount(address)) continue
       try {
         const snapshot = await ports.setAccount(address)
         if (!active) return
@@ -119,7 +129,6 @@ export function createInjectedWalletBinding<TSnapshot>(ports: {
     const networkRevision = chainRevision
     connecting = true
     failed = false
-    ports.invalidate()
     publish()
     try {
       if (unsubscribe === undefined) unsubscribe = subscribeInjectedWallet(receive, fail)
@@ -127,11 +136,15 @@ export function createInjectedWalletBinding<TSnapshot>(ports: {
       if (!active) return
       if (networkRevision === chainRevision) chainMatches = true
       if (revision !== accountRevision) return
+      if (!matchesCurrentAccount(address)) ports.invalidate()
       signer = address
       desiredAccount = address
       pending = true
     } catch (error) {
-      if (active && revision === accountRevision) fail(error)
+      if (active) {
+        if (revision === accountRevision) fail(error)
+        else ports.invalidate()
+      }
     } finally {
       if (active) {
         connecting = false

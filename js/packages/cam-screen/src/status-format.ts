@@ -24,6 +24,7 @@ export function formatStatusValue(value: InertValue, format: InertValue, path: s
   if (format === "amount") {
     if (unit === undefined) throw new UiError("UI_INVALID_FIELD", "Cannot display an amount without its declared unit.", `${path}.unit`)
     const amount = statusInteger(value, path)
+    if (amount === 0n) return "0"
     return `${formatAmountDisplay(amount.toString(), unit)} ${unit.displayLabel} (${groupedInteger(amount)} ${unit.baseLabel})`
   }
   if (format !== "bytes" && format !== "durationSeconds" && format !== "timestampSeconds") {

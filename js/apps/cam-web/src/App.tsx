@@ -75,7 +75,6 @@ import {
   type SubmittedTransactionReference,
   type TransactionStage,
   SubmissionOutcomeUnknownError,
-  submittedTransactionDiagnosis,
   submitPreparedContractCall,
   waitForSubmittedTransactionReceipt,
 } from "./transactions.ts"
@@ -98,6 +97,13 @@ type AppPublicClient = ReturnType<typeof createPublicClient>
 type PreparedTransactionReview = {
   readonly call: CamViewerPreparedContractCall
   readonly actionLabel: string
+}
+
+type SubmittedConfirmation = {
+  readonly ready: Extract<LoadState, { readonly status: "ready" }>
+  readonly review: PreparedTransactionReview
+  readonly account: `0x${string}`
+  readonly transaction: SubmittedTransactionReference
 }
 
 type Notice = FailureReport & { readonly kind: "error" | "status" }
@@ -159,11 +165,12 @@ export function App(): ReactElement {
   const [walletRefreshing, setWalletRefreshing] = useState(false)
   const [walletAccountSynchronized, setWalletAccountSynchronized] = useState(true)
   const [notice, setNotice] = useState<Notice | undefined>(undefined)
-  const [transactionNotice, setTransactionNotice] = useState<(Notice & { readonly actionLabel: string; readonly transaction?: SubmittedTransactionReference; readonly result?: { readonly ui: ResolvedUiNode; readonly session: CamViewerSession } }) | undefined>(undefined)
+  const [transactionNotice, setTransactionNotice] = useState<(Notice & { readonly actionLabel: string; readonly transaction?: SubmittedTransactionReference; readonly confirmation?: SubmittedConfirmation; readonly result?: { readonly ui: ResolvedUiNode; readonly session: CamViewerSession } }) | undefined>(undefined)
   const [preparedReview, setPreparedReviewState] = useState<PreparedTransactionReview | undefined>(undefined)
   const preparedReviewRef = useRef<PreparedTransactionReview | undefined>(undefined)
   const [sendStage, setSendStage] = useState<TransactionStage | undefined>(undefined)
-  const sending = sendStage !== undefined
+  const [checkingConfirmation, setCheckingConfirmation] = useState(false)
+  const sending = sendStage !== undefined || checkingConfirmation
   const [changingView, setChangingView] = useState(false)
   const interactionRevision = useRef(0)
   const sendRevision = useRef(0)
@@ -301,6 +308,7 @@ export function App(): ReactElement {
       chainId: connection.chainId,
       connect: () => connectInjectedWallet(connectionOptions(readyRef.current)!),
       isViewBusy: () => changingViewRef.current,
+      currentAccount: () => readyRef.current.status === "ready" ? currentViewerAccount(readyRef.current) : undefined,
       setAccount: async address => {
         const current = readyRef.current
         if (current.status !== "ready") return { type: "startup" as const, address }
@@ -382,6 +390,7 @@ export function App(): ReactElement {
         await browserHistory.settled()
         if (browserHistory.isCurrent(target)) {
           commitSnapshot(current, snapshot, target)
+          setTransactionNotice(undefined)
           if (isCurrentInteraction(revision)) arriveAtFeedback("view")
         }
       } catch (error) {
@@ -424,7 +433,10 @@ export function App(): ReactElement {
       try {
         result = await ready.runtime.session.dispatchAction(action)
         await browserHistory.settled()
-        if (result.type === "navigated") commitSnapshot(ready, result.snapshot, "push")
+        if (result.type === "navigated") {
+          commitSnapshot(ready, result.snapshot, "push")
+          setTransactionNotice(undefined)
+        }
       } finally {
         setViewChanging(false)
       }
@@ -441,7 +453,7 @@ export function App(): ReactElement {
         ? `Simulation passed on viewer chain ${ready.runtime.startup.chainId}, but the wallet is on another network. Change the network in your wallet, use Reconnect wallet, then review the transaction again.`
         : wallet.status === "connected"
           ? "Simulation passed. Review the transaction, then send it with your wallet."
-          : "Simulation passed. Connect a wallet, then review the transaction again before sending.", false)
+          : "Simulation passed for the viewing account. Sending requires its connected wallet.", false)
       arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return
@@ -518,6 +530,7 @@ export function App(): ReactElement {
       await browserHistory.settled()
       if (!isCurrentInteraction(revision) || readyRef.current.status !== "ready" || readyRef.current.runtime.session !== result.session) return
       commitSnapshot(ready, snapshot, "push")
+      setTransactionNotice(undefined)
       arriveAtFeedback("view")
     } catch (error) {
       if (isCurrentInteraction(revision)) showError(failureReport(error, "Cannot open the transaction result. The transaction remains confirmed."), true)
@@ -543,8 +556,6 @@ export function App(): ReactElement {
     // tx hash exists, the send revision owns user-visible transaction feedback.
     const ownsInteraction = () => isCurrentInteraction(interaction)
     const ownsSend = () => isCurrentSend(send)
-    let submittedTransaction: SubmittedTransactionReference | undefined
-    let reverted = false
 
     // React disables the button after state commit, but a second click can
     // enter this handler before that render. The ref is the synchronous
@@ -565,35 +576,47 @@ export function App(): ReactElement {
         onStage: stage => { if (ownsSend()) setSendStage(stage) },
       })
       if (txHash === undefined) return
-      submittedTransaction = { chainId: ready.runtime.startup.chainId, hash: txHash }
       if (!ownsSend()) return
-      reportTransaction(actionLabel, { message: "Transaction submitted." }, "status", false, submittedTransaction)
+      const confirmation = { ready, review, account: wallet.address, transaction: { chainId: ready.runtime.startup.chainId, hash: txHash } }
+      reportTransaction(actionLabel, { message: "Transaction submitted." }, "status", false, confirmation.transaction)
       setSendStage("confirming")
-
-      const nonceGap = await submittedTransactionDiagnosis({
-        client: ready.runtime.rpc.active.client,
-        txHash,
-        rpcEndpoint: displayRpcEndpoint(ready.runtime.rpc.active.url),
-        includePendingAdvice: false,
-      })
-      if (!ownsSend()) return
-      if (nonceGap !== undefined) {
-        throw new Error(nonceGap)
+      await confirmSubmittedTransaction(confirmation, interaction, send, "submission")
+    } catch (error) {
+      if (!ownsSend() || (!(error instanceof SubmissionOutcomeUnknownError) && !ownsInteraction())) return
+      if (error instanceof SubmissionOutcomeUnknownError) {
+        if (ownsInteraction()) setPreparedReview(undefined)
+        reportTransaction(actionLabel, failureReport(error.cause, "The transaction may have been sent, but the wallet did not return a transaction hash. Check your wallet before trying again."), "error", ownsInteraction())
+      } else {
+        showError(failureReport(error, "Transaction not sent."), true)
       }
+    } finally {
+      sendingRef.current = false
+      if (ownsSend()) {
+        setSendStage(undefined)
+      }
+    }
+  }
 
-      const receipt = await waitForReceipt(ready, txHash)
+  async function confirmSubmittedTransaction(confirmation: SubmittedConfirmation, interaction: number, send: number, origin: "submission" | "retry"): Promise<void> {
+    const { ready, review: { call, actionLabel }, account } = confirmation
+    let submittedTransaction = confirmation.transaction
+    let reverted = false
+    const ownsInteraction = () => isCurrentInteraction(interaction)
+    const ownsSend = () => isCurrentSend(send) && readyRef.current.status === "ready" && readyRef.current.runtime === ready.runtime
+    try {
+      const receipt = await waitForReceipt(ready, submittedTransaction.hash)
       if (!ownsSend()) return
+      submittedTransaction = { ...submittedTransaction, hash: receipt.transactionHash }
       if (receipt.status !== "success") {
         reverted = true
-        throw new Error(`Transaction reverted: ${txHash}`)
+        throw new Error(`Transaction reverted: ${receipt.transactionHash}`)
       }
-      submittedTransaction = { ...submittedTransaction, hash: receipt.transactionHash }
       let outcome: ResolvedUiNode | undefined
       let interpretationFailure: FailureReport | undefined
       if (call.receipt !== undefined) {
         try {
           const transaction = await ready.runtime.rpc.active.client.getTransaction({ hash: receipt.transactionHash })
-          outcome = call.receipt(receipt, transaction, wallet.address)
+          outcome = call.receipt(receipt, transaction, account)
         } catch (error) {
           interpretationFailure = failureReport(error, "Transaction confirmed, but its result could not be interpreted. Check the transaction before repeating it.")
         }
@@ -602,11 +625,11 @@ export function App(): ReactElement {
       reportTransaction(actionLabel, interpretationFailure === undefined
         ? { message: `Transaction confirmed in block ${receipt.blockNumber.toString()}.` }
         : interpretationFailure, interpretationFailure === undefined ? "status" : "error", ownsInteraction(), submittedTransaction, outcome === undefined ? undefined : { ui: outcome, session: ready.runtime.session })
-      if (ownsInteraction()) {
+      if (origin === "submission" && ownsInteraction()) {
         setPreparedReview(undefined)
       }
 
-      if (call.then.namespace === "routes" && ownsInteraction()) {
+      if (origin === "submission" && call.then.namespace === "routes" && ownsInteraction()) {
         setSendStage("refreshing")
         try {
           setViewChanging(true)
@@ -624,25 +647,27 @@ export function App(): ReactElement {
         }
       }
     } catch (error) {
-      if (!ownsSend() || (submittedTransaction === undefined && !(error instanceof SubmissionOutcomeUnknownError) && !ownsInteraction())) return
-      if (submittedTransaction !== undefined) {
-        if (ownsInteraction()) {
-          setPreparedReview(undefined)
-        }
-        reportTransaction(actionLabel, failureReport(error, reverted
-          ? "Transaction reverted."
-          : "Transaction submitted, but confirmation could not be checked. Check its status before sending another transaction."), "error", ownsInteraction(), submittedTransaction)
-      } else if (error instanceof SubmissionOutcomeUnknownError) {
-        if (ownsInteraction()) setPreparedReview(undefined)
-        reportTransaction(actionLabel, failureReport(error.cause, "The transaction may have been sent, but the wallet did not return a transaction hash. Check your wallet before trying again."), "error", ownsInteraction())
-      } else {
-        showError(failureReport(error, "Transaction not sent."), true)
-      }
+      if (!ownsSend()) return
+      if (origin === "submission" && ownsInteraction()) setPreparedReview(undefined)
+      reportTransaction(actionLabel, failureReport(error, reverted
+        ? "Transaction reverted."
+        : "Transaction submitted, but confirmation could not be checked. Check its status before sending another transaction."), "error", ownsInteraction(), submittedTransaction, undefined, reverted ? undefined : confirmation)
+    }
+  }
+
+  async function retryTransactionConfirmation(): Promise<void> {
+    const confirmation = transactionNotice?.confirmation
+    if (confirmation === undefined || sendingRef.current || changingViewRef.current || walletRefreshingRef.current || readyRef.current.status !== "ready" || readyRef.current.runtime !== confirmation.ready.runtime) return
+    const send = nextSendRevision()
+    const interaction = interactionRevision.current
+    sendingRef.current = true
+    setCheckingConfirmation(true)
+    reportTransaction(confirmation.review.actionLabel, { message: "Checking transaction confirmation…" }, "status", false, confirmation.transaction, undefined, confirmation)
+    try {
+      await confirmSubmittedTransaction(confirmation, interaction, send, "retry")
     } finally {
       sendingRef.current = false
-      if (ownsSend()) {
-        setSendStage(undefined)
-      }
+      setCheckingConfirmation(false)
     }
   }
 
@@ -792,8 +817,8 @@ export function App(): ReactElement {
     if (focus) arriveAtFeedback("notice")
   }
 
-  function reportTransaction(actionLabel: string, report: FailureReport, kind: Notice["kind"], focus: boolean, transaction?: SubmittedTransactionReference, result?: { readonly ui: ResolvedUiNode; readonly session: CamViewerSession }): void {
-    setTransactionNotice({ ...report, kind, actionLabel, ...(transaction === undefined ? {} : { transaction }), ...(result === undefined ? {} : { result }) })
+  function reportTransaction(actionLabel: string, report: FailureReport, kind: Notice["kind"], focus: boolean, transaction?: SubmittedTransactionReference, result?: { readonly ui: ResolvedUiNode; readonly session: CamViewerSession }, confirmation?: SubmittedConfirmation): void {
+    setTransactionNotice({ ...report, kind, actionLabel, ...(transaction === undefined ? {} : { transaction }), ...(result === undefined ? {} : { result }), ...(confirmation === undefined ? {} : { confirmation }) })
     if (focus) arriveAtFeedback("transaction")
   }
 
@@ -835,6 +860,7 @@ export function App(): ReactElement {
   function restartLoad(startup: ConnectionOptions | undefined): void {
     if (startup === undefined) return
     resourceLoadAbortRef.current?.abort()
+    setTransactionNotice(undefined)
     const request = { ...startup }
     readyRef.current = { status: "loading", startup: request, integrityChecks: [] }
     setLoadState(readyRef.current)
@@ -961,6 +987,11 @@ export function App(): ReactElement {
       {transactionNotice === undefined ? null : (
         <section className="transaction-feedback" aria-label="Transaction outcome">
           <TransactionFeedback actionLabel={transactionNotice.actionLabel} report={transactionNotice} kind={transactionNotice.kind} transaction={transactionNotice.transaction} messageRef={transactionNoticeRef} />
+          <div className="transaction-actions transaction-feedback-actions">
+            {transactionNotice.confirmation === undefined || loadState.status !== "ready" || transactionNotice.confirmation.ready.runtime !== loadState.runtime ? null
+              : <button type="button" disabled={sending || changingView || walletRefreshing} aria-busy={checkingConfirmation} onClick={() => { void retryTransactionConfirmation() }}>Check confirmation</button>}
+            <button type="button" className="button-quiet" disabled={sending} onClick={() => { setTransactionNotice(undefined); arriveAtFeedback("view") }}>Dismiss</button>
+          </div>
           {transactionNotice.result === undefined || loadState.status !== "ready" || transactionNotice.result.session !== loadState.runtime.session ? null
             : <TransactionPresentationView node={transactionNotice.result.ui} headingLevel={2} busy={sending || changingView} onAction={openTransactionResult} />}
         </section>
@@ -969,8 +1000,8 @@ export function App(): ReactElement {
         <PreparedCallView
           call={preparedReview.call}
           reviewRef={preparedRef}
-          canSend={wallet.status === "connected" && walletChainMatches && walletAccountSynchronized && !changingView && !walletRefreshing}
-          canDiscard={!changingView && !walletRefreshing}
+          canSend={wallet.status === "connected" && walletChainMatches && walletAccountSynchronized && !sending && !changingView && !walletRefreshing}
+          canDiscard={!sending && !changingView && !walletRefreshing}
           stage={sendStage}
           onSend={async () => await sendPreparedCall(preparedReview)}
           onDiscard={discardPreparedCall}
