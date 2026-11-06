@@ -2,7 +2,7 @@ import { resolve } from "node:path"
 import { access } from "node:fs/promises"
 import { requiredEnv } from "./input.ts"
 import { readBoundedRegularFile, writeNewBytes, writeNewJson } from "./release-files.ts"
-import { readSourceVerificationInput } from "./release-compiled-contract.ts"
+import { readOriginalCompilerMetadata, readSourceVerificationInput } from "./release-compiled-contract.ts"
 import { runReleaseTool } from "./release-values.ts"
 import { sourcePublicationContracts, sourcePublicationCatalog } from "./source-publication.ts"
 
@@ -36,19 +36,18 @@ async function main() {
       else roles.push(contract.role)
     }
     await writeNewBytes("/requests/source-records", new TextEncoder().encode([...groups].map(([path, roles]) => `${path}\0${roles.join(" ")}\0`).join("")), "selected source records")
-    await writeNewBytes("/requests/request-links", new TextEncoder().encode(selected.map(contract => `${contract.artifactPath}\0${contract.role}\0${contract.key}\0`).join("")), "selected source request links")
     return
   }
   const all = sourcePublicationContracts(app, await readBoundedRegularFile("/selected/deployment.json", "selected deployment", 1024 * 1024))
-  const roles = process.argv.slice(process.argv[2] === "select" ? 3 : 2)
+  const selecting = process.argv[2] === "select"
+  const roles = process.argv.slice(selecting ? 3 : 2)
   for (const role of roles) if (!all.some(contract => contract.role === role)) throw new Error(`Unknown source publication role: ${role}`)
   const contracts = roles.length === 0 ? all : all.filter(contract => roles.includes(contract.role))
-  if (process.argv[2] === "select") {
+  if (selecting) {
     await writeNewJson("/requests/contracts.json", contracts, "source publication selection")
     await writeNewBytes("/requests/source-commits", new TextEncoder().encode([...new Set(contracts.map(contract => contract.sourceCommit))].join("\n") + "\n"), "original source commits")
     await writeNewBytes("/requests/source-roles", new TextEncoder().encode(contracts.map(contract => `${contract.role}\0`).join("")), "selected source roles")
     await writeNewBytes("/requests/source-state-keys", new TextEncoder().encode(contracts.map(contract => `${contract.role}\0${contract.chainId}-${contract.identity.address.toLowerCase()}\0`).join("")), "source job identities")
-    return
   }
   // Prepare every request before any external submission, so a missing original source fails locally.
   for (const contract of contracts) {
@@ -56,6 +55,11 @@ async function main() {
     if (contract.role === "camRoot") {
       try { await access("/records/root-proof/compiler/root/CamRoot.sol/CamRoot.json"); artifacts = "/records/root-proof/compiler/root" }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
+    }
+    if (selecting) {
+      const original = await readOriginalCompilerMetadata(contract.location, artifacts)
+      await writeNewJson(`/requests/${contract.role}.metadata.json`, original, "original solc metadata")
+      continue
     }
     const { metadata, ...input } = await readSourceVerificationInput(contract.location, artifacts, resolve("/sources", contract.sourceCommit, "dapps"))
     await writeNewJson(`/requests/${contract.role}.json`, { ...contract, metadata, body: {

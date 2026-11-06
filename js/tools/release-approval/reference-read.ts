@@ -7,7 +7,7 @@ import type { UIBackingReference } from "../ui-release/shared.ts"
 
 export type ReleaseApp = "escrow" | "bike-nft" | "pay-to-play"
 
-type ContractLocation = { readonly source: string; readonly contract: string }
+export type ContractLocation = { readonly source: string; readonly contract: string }
 
 export const ARTIFACTS: Record<ReleaseApp, Record<string, ContractLocation>> = {
   escrow: {

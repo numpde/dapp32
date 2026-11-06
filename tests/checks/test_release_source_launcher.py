@@ -41,7 +41,6 @@ elif "source-prepare" in a:
                      ("original/artifact/deployment.json", "components", "components"),
                      ("original/artifact/deployment.json", "camRoot", "root"),
                      ("replacement/ui/artifact/ui-deployment.json", "ui", "new-ui")]
-        (out / "request-links").write_bytes(b"".join((path + "\0" + role + "\0" + key + "\0").encode() for path, role, key in contracts))
         (out / "contracts.json").write_text(json.dumps([{"role": role, "key": key} for _, role, key in contracts]))
     elif mode == "select":
         if not roles:
