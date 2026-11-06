@@ -298,7 +298,10 @@ context-child:
                 cwd=ROOT, env=env, stdin=subprocess.DEVNULL, start_new_session=True,
                 capture_output=True, text=True, timeout=10,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            # GNU Make executes recursive recipe lines even under -n. The fake
+            # Docker command must fail closed rather than report a successful
+            # dry-run operation against an unspecified daemon.
+            self.assertEqual(2, result.returncode, result.stderr)
             self.assertIn(
                 "unix:///dev/null|",
                 trace.read_text(),
