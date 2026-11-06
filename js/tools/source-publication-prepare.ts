@@ -1,8 +1,8 @@
 import { resolve } from "node:path"
 import { access } from "node:fs/promises"
 import { requiredEnv } from "./input.ts"
-import { readBoundedRegularFile, writeNewBytes, writeNewJson } from "./release-files.ts"
-import { readOriginalCompilerMetadata, readSourceVerificationInput } from "./release-compiled-contract.ts"
+import { readBoundedRegularFile, writeNewBytes, writeNewJson, writeNewText } from "./release-files.ts"
+import { readPublicationMetadata, readSourceVerificationInput } from "./release-compiled-contract.ts"
 import { runReleaseTool } from "./release-values.ts"
 import { sourcePublicationContracts, sourcePublicationCatalog } from "./source-publication.ts"
 
@@ -57,8 +57,8 @@ async function main() {
       catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error }
     }
     if (selecting) {
-      const original = await readOriginalCompilerMetadata(contract.location, artifacts)
-      await writeNewJson(`/requests/${contract.role}.metadata.json`, original, "original solc metadata")
+      const metadata = await readPublicationMetadata(contract.location, artifacts)
+      await writeNewText(`/requests/${contract.role}.metadata.json`, JSON.stringify(metadata), "source publication metadata")
       continue
     }
     const { metadata, ...input } = await readSourceVerificationInput(contract.location, artifacts, resolve("/sources", contract.sourceCommit, "dapps"))

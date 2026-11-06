@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import test from "node:test"
 import { keccak256, toHex, zeroAddress } from "viem"
-import { readOriginalCompilerMetadata, readSourceVerificationInput } from "../release-compiled-contract.ts"
+import { readPublicationMetadata, readSourceVerificationInput } from "../release-compiled-contract.ts"
 import { sourcePublicationContracts, sourcePublicationCatalog } from "../source-publication.ts"
 import type { ReleaseApp } from "./reference-read.ts"
 
@@ -104,15 +104,15 @@ test("the retained artifact binds original solc metadata to the Forge metadata s
     const projection = { ...metadata, output: { abi: [], userdoc: {} } }
     const write = (rawMetadata: unknown) => writeFile(join(directory, "CamRoot.json"), JSON.stringify({ metadata: projection, rawMetadata }))
     await write(JSON.stringify(metadata))
-    assert.deepEqual(await readOriginalCompilerMetadata(location, root), { forgeMetadata: projection, solcMetadata: metadata })
+    assert.deepEqual(await readPublicationMetadata(location, root), { forgeMetadata: projection, solcMetadata: metadata })
     for (const invalid of [undefined, "{", {}, "{}", JSON.stringify({ ...metadata, compiler: { version: "" } }),
       JSON.stringify({ ...metadata, settings: { compilationTarget: { "other.sol": location.contract } } })]) {
       await write(invalid)
-      await assert.rejects(readOriginalCompilerMetadata(location, root))
+      await assert.rejects(readPublicationMetadata(location, root))
     }
     for (const invalid of [undefined, [], {}, { ...projection, settings: {} }]) {
       await writeFile(join(directory, "CamRoot.json"), JSON.stringify({ rawMetadata: JSON.stringify(metadata), metadata: invalid }))
-      await assert.rejects(readOriginalCompilerMetadata(location, root))
+      await assert.rejects(readPublicationMetadata(location, root))
     }
   } finally { await rm(root, { recursive: true, force: true }) }
 })

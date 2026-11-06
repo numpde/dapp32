@@ -62,16 +62,18 @@ function compilerFields(metadata: Record<string, unknown>, location: ContractLoc
   return { compilerVersion: compiler.version, settings, sources }
 }
 
-/** Forge's typed metadata can reorder ABI items and reformat solc fields. Only rawMetadata preserves the original output. */
-export async function readOriginalCompilerMetadata(location: ContractLocation, artifactsRoot: string) {
+/** Pair the solc output Sourcify serves with the Forge projection frozen in the source request. */
+export async function readPublicationMetadata(location: ContractLocation, artifactsRoot: string) {
   const bytes = await checkedArtifactBytes(artifactsRoot, location.contract)
   const artifact = record(parseJsonBytes(bytes), `${location.contract} compiler artifact`)
   if (typeof artifact.rawMetadata !== "string" || artifact.rawMetadata.length === 0) {
     throw new Error(`${location.contract} compiler artifact is missing solc rawMetadata`)
   }
-  const metadata = record(parseJsonText(artifact.rawMetadata), `${location.contract} original compiler metadata`)
-  compilerFields(metadata, location)
-  return metadata
+  const forgeMetadata = record(artifact.metadata, `${location.contract} Forge metadata`)
+  const solcMetadata = record(parseJsonText(artifact.rawMetadata), `${location.contract} original compiler metadata`)
+  compilerFields(forgeMetadata, location)
+  compilerFields(solcMetadata, location)
+  return { forgeMetadata, solcMetadata }
 }
 
 async function readCompilation(location: ContractLocation,

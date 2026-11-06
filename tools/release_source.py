@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 
 sys.path.insert(0, str(Path(__file__).parent))
-from release_instance import read_json, write_json
+from release_instance import read_bounded_json, read_json, write_json
 
 
 API = "https://sourcify.dev/server"
@@ -260,10 +260,12 @@ def main():
         job = source_job_key(prepared)
         if job != source_job_key(contract) or prepared["location"] != contract["location"] or prepared["sourceCommit"] != contract["sourceCommit"]:
             raise ValueError("Prepared source request differs from the selected contract; no source was submitted for this entry.")
+        proof = read_bounded_json(requests / f"{role}.metadata.json", 2 * 1024 * 1024)
+        if not isinstance(proof.get("solcMetadata"), dict) or not same_metadata(proof.get("forgeMetadata"), prepared["metadata"]):
+            raise ValueError(f"The cached request for {role} differs from its retained compiler artifact.")
         print(f"Publishing {prepared['location']['contract']} on chain {prepared['chainId']} at {prepared['identity']['address']}", flush=True)
         try:
-            original = read_json(requests / f"{role}.metadata.json")
-            observed = publish_contract(prepared, Path("/state") / f"{job}.json", compiler_metadata=original,
+            observed = publish_contract(prepared, Path("/state") / f"{job}.json", compiler_metadata=proof["solcMetadata"],
                                         request=request_json, pause=time.sleep, clock=time.monotonic)
         except urllib.error.HTTPError as error:
             excerpt = error.read(2048).decode("utf-8", errors="replace")
