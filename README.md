@@ -76,10 +76,10 @@ local-Linux facility, not support for remote Docker or Docker Desktop's
 VM-based bind mounts.
 
 Qualify private-file access on a selected engine with the maintained host-side
-integration lane (replace `dapp32` with the context to test):
+integration lane (replace `your-local-context` with the context to test):
 
 ```sh
-bash tools/release_identity_check.sh dapp32
+bash tools/release_identity_check.sh your-local-context
 ```
 
 CI invokes this same lane with its selected context. It uses the production
