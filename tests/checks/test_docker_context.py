@@ -272,6 +272,39 @@ context-child:
             self.assertIn("MAKEFLAGS is reserved", result.stderr)
             self.assertFalse(trace.exists())
 
+    def test_recursive_dry_run_never_inherits_a_usable_default_engine(self):
+        # GNU Make executes an entire recipe line containing $(MAKE), even -n.
+        # A dry run must poison Docker's endpoint rather than falling back to
+        # the host default if such a recipe invokes docker before the submake.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            trace = root / "docker-inspections"
+            source = root / "recursive.mk"
+            source.write_text(
+                f"include {ROOT / 'Makefile'}\n"
+                ".PHONY: recursive-probe recursive-child\n"
+                "recursive-probe:\n"
+                f"\t@docker info; $(MAKE) --no-print-directory -f {source} recursive-child\n"
+                "recursive-child:\n"
+                "\t@echo child\n"
+            )
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("MAKEFLAGS", "MAKEOVERRIDES", "MFLAGS", "GNUMAKEFLAGS",
+                                  "MAKELEVEL", "DOCKER_CONTEXT_INPUT", "CAM_DOCKER_ENDPOINT")}
+            env.update({"PATH": f"{FAKE_DOCKER}:{os.environ['PATH']}",
+                        "TRACE": str(trace), "ENDPOINT": "unix:///tmp/selected.sock"})
+            result = subprocess.run(
+                ["make", "--no-print-directory", "-n", "-f", str(source), "recursive-probe"],
+                cwd=ROOT, env=env, stdin=subprocess.DEVNULL, start_new_session=True,
+                capture_output=True, text=True, timeout=10,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn(
+                "invalid-make-query-endpoint|",
+                trace.read_text(),
+                "Make's recursive -n exception must never fall back to a real Docker endpoint",
+            )
+
     def test_empty_private_docker_config_resolves_default_to_the_fixture_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             environment = os.environ | {"DOCKER_CONFIG": directory, "DOCKER_HOST": "tcp://wrong:2375",
