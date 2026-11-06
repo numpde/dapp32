@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - .github/workflows/identity-integration.yml
+      - Makefile
+      - tests/checks/test_repository_hygiene.py
+      - tools/docker_context.sh
       - tools/release_identity.py
       - tools/release_identity.sh
       - tools/release_identity_check.sh
@@ -15,6 +18,9 @@ on:
   pull_request:
     paths:
       - .github/workflows/identity-integration.yml
+      - Makefile
+      - tests/checks/test_repository_hygiene.py
+      - tools/docker_context.sh
       - tools/release_identity.py
       - tools/release_identity.sh
       - tools/release_identity_check.sh
@@ -43,7 +49,7 @@ jobs:
       - name: Verify lane failures, cancellation and cleanup
         run: python3 -B -m unittest -v tests.checks.test_release_identity_lane tests.checks.test_release_identity
       - name: Qualify the selected engine through the maintained lane
-        run: bash tools/release_identity_check.sh default
+        run: make tests/live/release-identity DOCKER_CONTEXT=default
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

@@ -2,13 +2,26 @@
 # Real-engine qualification of the release owner's private bind mounts.
 set -euo pipefail
 if [[ $# != 1 || -z $1 ]]; then
-  printf '%s\n' 'Usage: bash tools/release_identity_check.sh <local-docker-context>' >&2
+  printf '%s\n' 'Usage: bash tools/release_identity_check.sh <local-docker-context>|--selected' >&2
   exit 2
 fi
-context=$1
+selection=$1
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 export LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)"
-CAM_DOCKER_ENDPOINT=$(bash tools/docker_context.sh 'command line' "$context" undefined '' 0)
+if [[ $selection == --selected ]]; then
+  # Make has already selected the engine. Verify the handed-off local endpoint
+  # against the same selector policy without inspecting the context again.
+  [[ -v CAM_DOCKER_ENDPOINT && -n $CAM_DOCKER_ENDPOINT ]] ||
+    { printf '%s\n' 'Missing previously selected Docker endpoint.' >&2; exit 2; }
+  checked=$(bash tools/docker_context.sh undefined '' 'command line' "$CAM_DOCKER_ENDPOINT" 1)
+  [[ $checked == "$CAM_DOCKER_ENDPOINT" ]] ||
+    { printf '%s\n' 'Selected Docker endpoint changed during handoff.' >&2; exit 2; }
+  context=selected-local-engine
+else
+  # Direct runner invocation remains supported for existing automation.
+  context=$selection
+  CAM_DOCKER_ENDPOINT=$(bash tools/docker_context.sh 'command line' "$context" undefined '' 0)
+fi
 export CAM_DOCKER_ENDPOINT
 source tools/release_identity.sh
 release_select_container_identity
