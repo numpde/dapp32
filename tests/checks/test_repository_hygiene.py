@@ -415,13 +415,14 @@ class RepositoryHygieneTest(unittest.TestCase):
     def test_ci_uses_make_not_private_tool_scripts_for_host_checks(self) -> None:
         # Workflows invoke the same public entry points offered to operators.
         direct_runner = re.compile(
-            r"(?m)^\s*(?:run:\s*(?:bash\s+)?|bash\s+|\./)tools/[A-Za-z0-9_/-]+_check\.sh(?:\s|$)"
+            r"(?m)^\s*(?:run:\s*(?:bash\s+)?|bash\s+|\./)tools/[A-Za-z0-9_/-]+_(?:check|test)\.sh(?:\s|$)"
         )
         for invocation in (
             "run: bash tools/release_identity_check.sh default",
             "run: tools/release_identity_check.sh default",
             "          bash tools/release_identity_check.sh default",
             "          ./tools/release_identity_check.sh default",
+            "run: bash tools/example_test.sh fixture",
         ):
             self.assertIsNotNone(direct_runner.search(invocation))
         # A workflow path filter is input discovery, not invocation.
