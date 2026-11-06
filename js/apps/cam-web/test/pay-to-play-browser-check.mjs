@@ -239,6 +239,26 @@ async function assertHierarchy(route, peers, nested) {
 async function click(label) {
   assert(await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim()===${JSON.stringify(label)});if(!b||b.matches(':disabled'))return false;b.click();return true})()`), `button must be usable: ${label}`)
 }
+async function openTask(label, route) {
+  await click(label)
+  await wait(state => state.readRoute === route, `open ${label}`)
+  await assertTaskMenu(label)
+}
+async function assertTaskMenu(current) {
+  const menu = await evaluate(`(()=>{
+    const section=[...document.querySelectorAll('section')].find(node=>node.getAttribute('aria-label')==='Balance tasks');
+    if(!section)return null;
+    return {
+      labels:[...section.querySelectorAll('button')].map(node=>node.getAttribute('aria-label')||node.textContent.trim()),
+      text:section.textContent,
+      overflow:section.scrollWidth>section.clientWidth,
+    }
+  })()`)
+  assert(menu, 'selected positions must expose their stable task menu')
+  assert.deepEqual(menu.labels, ['Balance', 'Deposit', 'Withdraw or move', 'Vouchers', 'Recovery', 'Channel settings'].filter(label => label !== current))
+  assert(menu.text.includes(`${current} — current task`), 'current task must be visible, not a draft-clearing button')
+  assert(!menu.overflow, 'task navigation must not overflow')
+}
 async function fill(name, value) {
   assert(await evaluate(`(()=>{const e=[...document.querySelectorAll('input')].find(x=>x.name===${JSON.stringify(name)});if(!e||e.matches(':disabled'))return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));return true})()`), `field must be usable: ${name}`)
 }
@@ -318,31 +338,42 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await click('View balance in this channel')
   await wait(state => state.readRoute === 'position' && state.values['Channel ID'] === id, 'open mined channel from receipt')
-  await assertHierarchy('position', ['App navigation', 'Selected balance', 'Account and channel', 'Position status', 'Balance overview', 'Channel', 'Deposit', 'Withdraw or move funds', 'Voucher signing key', 'Voucher payments', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
+  await assertHierarchy('position', ['App navigation', 'Selected balance', 'Balance tasks', 'Account and channel', 'Position status', 'Balance overview', 'Withdrawal status', 'Channel'], [])
+  await assertTaskMenu('Balance')
   await inspect(accounts.customer.address, id)
+  await openTask('Vouchers', 'voucherPaymentsForm')
   disabled(await evaluate(snapshot), 'Register permanent voucher key')
   await role('customer')
+  await openTask('Deposit', 'depositForm')
+  await assertHierarchy('depositForm', ['App navigation', 'Selected balance', 'Balance tasks', 'Account and channel', 'Position status', 'Funding context', 'Deposit'], [])
   await wait(state => state.buttons.some(button => button.name === 'Deposit' && !button.disabled), 'customer funding capability')
   assert.equal((await evaluate(snapshot)).values['Position phase'], 'Operating')
   await click('Deposit')
   await wait(state => state.notices.some(value => value.includes('Enter a value for Amount to deposit')), 'missing deposit feedback')
-  assert(await evaluate(`(()=>{const field=document.querySelector('input[name="fundAmount"]');return field.getAttribute('aria-invalid')==='true'&&document.getElementById(field.getAttribute('aria-describedby')).textContent==='Enter an amount.'&&document.querySelector('input[name="withdrawAmount"]').getAttribute('aria-invalid')==='false'&&!document.querySelector('.prepared-call')})()`), 'only the submitted empty editor is invalid and no review is prepared')
+  assert(await evaluate(`(()=>{const field=document.querySelector('input[name="fundAmount"]');return field.getAttribute('aria-invalid')==='true'&&document.getElementById(field.getAttribute('aria-describedby')).textContent==='Enter an amount.'&&document.querySelector('input[name="withdrawAmount"]')===null&&!document.querySelector('.prepared-call')})()`), 'only the submitted empty editor is invalid; unrelated forms are absent')
   assert.equal(sent, 1, 'empty deposit must not send a transaction')
+  await openTask('Vouchers', 'voucherPaymentsForm')
+  await assertHierarchy('voucherPaymentsForm', ['App navigation', 'Selected balance', 'Balance tasks', 'Account and channel', 'Position status', 'Voucher context', 'Voucher signing key', 'Voucher payments'], [])
   disabled(await evaluate(snapshot), 'Collect voucher payment')
   await fill('newVoucherKey', voucherSigner.address)
   await send('Register permanent voucher key')
+  await openTask('Vouchers', 'voucherPaymentsForm')
   const registered = await wait(state => state.values['Permanent voucher key (zero means unregistered)']?.toLowerCase() === voucherSigner.address.toLowerCase(), 'registered voucher key')
   disabled(registered, 'Register permanent voucher key')
+  await openTask('Deposit', 'depositForm')
   await fill('fundAmount', '100')
   await send('Deposit')
   await wait(state => showsExactWei(state.values['Current balance'], '100'), 'funded balance')
   assert(await evaluate(`(()=>{const row=[...document.querySelectorAll('dl')].find(row=>row.querySelector('dt')?.textContent==='Withdrawal ready at');return row&&!row.querySelector('.timestamp-options')})()`), 'the absent withdrawal timestamp has no display switch even while recovery deadlines exist')
+  await openTask('Deposit', 'depositForm')
   await fill('fundAmount', '23')
   await click('Deposit')
   await wait(state => state.prepared && state.notices.some(value => value.includes('Simulation passed')), 'prepared funding before refresh')
   await click('Refresh')
   await wait(state => !state.prepared && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), 'refresh discards prepared transaction')
   assert(await evaluate(`document.querySelector('input[name="fundAmount"]').value === "23"`), 'refresh preserves the amount draft')
+  await openTask('Withdraw or move', 'withdrawalForm')
+  await assertHierarchy('withdrawalForm', ['App navigation', 'Selected balance', 'Balance tasks', 'Account and channel', 'Position status', 'Withdrawal status', 'Withdraw or move funds'], [])
   await fill('withdrawAmount', '40')
   await send('Request withdrawal')
   await wait(state => showsExactWei(state.values['Balance minus withdrawal request'], '60'), 'request effective balance')
@@ -352,10 +383,12 @@ try {
   await timestampMode(true)
   await wait(state => state.timestampMode === 'true', 'relative timestamp display')
   assert(await evaluate(`window.__timestampTimers.active.size===1`), 'relative display owns one timer')
+  await openTask('Withdraw or move', 'withdrawalForm')
   await fill('withdrawAmount', '80')
   await send('Replace withdrawal request')
   await wait(state => showsExactWei(state.values['Balance minus withdrawal request'], '20') && showsExactWei(state.values['Withdrawal requested'], '80'), 'renewed effective balance')
   assert(await evaluate(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')==='true'`), 'same-field timestamp updates retain the display preference')
+  await openTask('Deposit', 'depositForm')
   await fill('fundAmount', '23')
   await click('Deposit')
   await wait(state => state.prepared, 'prepared transaction before display switch')
@@ -374,9 +407,13 @@ try {
   await timestampMode(false)
   await evaluate(`(()=>{const t=window.__timestampTimers;window.setInterval=t.originalSet;window.clearInterval=t.originalClear;delete window.__timestampTimers})()`)
   let state = await evaluate(snapshot)
-  disabled(state, 'Withdraw to balance owner')
-  disabled(state, 'Move funds to another channel')
-  disabled(state, 'Change channel payee')
+  await openTask('Withdraw or move', 'withdrawalForm')
+  disabled(await evaluate(snapshot), 'Withdraw to balance owner')
+  disabled(await evaluate(snapshot), 'Move funds to another channel')
+  await openTask('Channel settings', 'channelSettingsForm')
+  await assertHierarchy('channelSettingsForm', ['App navigation', 'Selected balance', 'Balance tasks', 'Account and channel', 'Position status', 'Channel', 'Channel settings'], [['Change payment recipient', 'Channel settings'], ['Change collector', 'Channel settings']])
+  disabled(await evaluate(snapshot), 'Change channel payee')
+  await openTask('Balance', 'position')
   phase = '320 pixel form reflow'
   await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 740, deviceScaleFactor: 1, mobile: true })
   state = await evaluate(snapshot)
