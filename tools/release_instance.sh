@@ -40,13 +40,15 @@ release_instance() {
     rm -rf -- "$stage"
   }
   cleanup_instance() {
-    local result=$?
+    local result=$? cleanup_failed=0 stage="$1" project="$2"
     if ! release_process_cleanup_begin; then cleanup_failed=1; fi
     if ! retire_instance_selection; then cleanup_failed=1; fi
     if [[ "$cleanup_failed" != 0 ]]; then result=2; fi
     exit "$result"
   }
-  trap cleanup_instance EXIT
+  # Capture cleanup ownership before a failed command can return out of this
+  # function and release its locals. Preserve the original failure status.
+  trap "cleanup_instance $(printf '%q' "$stage") $(printf '%q' "$project")" EXIT
   source tools/release_tool_images.sh
   release_acquire_compose_images "${compose[@]}"
   source tools/release_identity.sh

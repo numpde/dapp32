@@ -18,6 +18,9 @@ if args[:2] != ["--host", os.environ["CAM_DOCKER_ENDPOINT"]]:
     raise SystemExit(f"Wrong selected engine: {args}")
 args = args[2:]
 if args[:2] == ["image", "inspect"]:
+    if os.environ.get("TEST_FAIL_IMAGE_INSPECT") == "1":
+        print("fixture image lookup failed", file=sys.stderr)
+        raise SystemExit(9)
     print("sha256:" + "b" * 64)
 elif "config" in args and "--images" in args:
     print(os.environ["TEST_PROBE_IMAGE"])
@@ -55,13 +58,13 @@ class InstanceIdentityLauncherTest(unittest.TestCase):
             fake = bin_dir / "docker"
             fake.write_text(DOCKER)
             fake.chmod(0o755)
-            for ids in ("0:0", f"{os.getuid()}:{os.getgid()}"):
-                with self.subTest(ids=ids):
+            for ids, failed_image in (("0:0", False), (f"{os.getuid()}:{os.getgid()}", False), ("0:0", True)):
+                with self.subTest(ids=ids, failed_image=failed_image):
                     env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",
                            "CAM_DOCKER_ENDPOINT": "unix:///tmp/idmap-test.sock",
                            "RELEASE_LOCAL_NETWORK": "fixture-internal",
                            "LOCAL_UID": str(os.getuid()), "LOCAL_GID": str(os.getgid()),
-                           "TEST_MAPPED_IDS": ids,
+                           "TEST_MAPPED_IDS": ids, "TEST_FAIL_IMAGE_INSPECT": "1" if failed_image else "0",
                            "FAKE_DOCKER": str(fake), "REAL_SETSID": shutil.which("setsid"),
                            "TEST_PROBE_IMAGE": "docker.io/library/python:3.13-alpine@sha256:" + "a" * 64}
                     script = r'''
@@ -94,5 +97,11 @@ release_instance pay-to-play source/publish
                         ["bash", "-euo", "pipefail", "-c", script],
                         cwd=ROOT, env={**env, "INSTANCE": str(instance)}, text=True,
                         capture_output=True, timeout=45)
-                    self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+                    if failed_image:
+                        self.assertEqual(2, completed.returncode, completed.stdout + completed.stderr)
+                        self.assertIn("fixture image lookup failed", completed.stderr)
+                        self.assertNotIn("unbound variable", completed.stderr)
+                    else:
+                        self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
                     self.assertTrue((instance / "instance.json").is_file())
+                    self.assertEqual([], list(instance.glob(".instance-command-*")))
