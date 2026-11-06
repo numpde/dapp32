@@ -63,19 +63,19 @@ jobs:
           set -euo pipefail
           command -v google-chrome
           scratch="$(mktemp -d)"
-          chrome_pid=''
-          gui_pid=''
+          # The two child PIDs do not exist before their respective launches.
+          unset -v chrome_pid gui_pid
           cleanup() {
             result=$?
             trap - EXIT
-            if [[ -n "$gui_pid" ]]; then
+            if [[ -v gui_pid ]]; then
               kill "$gui_pid" 2>/dev/null || :
               wait "$gui_pid" 2>/dev/null || :
             fi
             if ! make pay-to-play/local/demo/gui/down DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation; then
               result=2
             fi
-            if [[ -n "$chrome_pid" ]]; then
+            if [[ -v chrome_pid ]]; then
               kill "$chrome_pid" 2>/dev/null || :
               wait "$chrome_pid" 2>/dev/null || :
             fi
@@ -121,7 +121,6 @@ jobs:
             exit 1
           fi
           cam_hash="0x$(sha256sum dapps/pay-to-play/cam/main.json | cut -d' ' -f1)"
-          make pay-to-play/live/browser/check \
-            DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation \
+          make pay-to-play/live/browser/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation \
             CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL="$viewer_url" \
             EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json EXPECTED_CAM_HASH="$cam_hash"
