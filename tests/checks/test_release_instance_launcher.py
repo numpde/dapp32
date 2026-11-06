@@ -31,7 +31,7 @@ elif "release-instance" in args:
         if not json.loads((instance / "instance.json").read_text())["selection"]:
             raise SystemExit("Private instance inputs were unavailable")
         (stage / "arguments").write_bytes(b"")
-        (stage / "operation").write_text("source/publish\\n")
+        (stage / "operation").write_text("source/publish\n")
     elif mode != "finish":
         raise SystemExit("Unexpected instance operation")
 elif "compose" in args:
@@ -64,7 +64,7 @@ class InstanceIdentityLauncherTest(unittest.TestCase):
 reject_release_path_symlinks() { :; }
 python3() {
   if [[ ${1-} == -I && ${2-} == -S && ${3-} == -B && ${4-} == tools/release_identity.py ]]; then
-    printf '%s\\n' "$TEST_MAPPED_IDS"
+    printf '%s\n' "$TEST_MAPPED_IDS"
   else
     command python3 "$@"
   fi

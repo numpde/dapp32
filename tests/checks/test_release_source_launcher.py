@@ -134,7 +134,7 @@ reject_release_path_symlinks() { :; }
 docker() { python3 "$FAKE_DOCKER" "$@"; }
 python3() {
   if [[ ${1-} == -I && ${2-} == -S && ${3-} == -B && ${4-} == tools/release_identity.py ]]; then
-    printf '0:0\\n'
+    printf '0:0\n'
   else
     command python3 "$@"
   fi
