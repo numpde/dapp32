@@ -103,7 +103,7 @@ function peerSections(node: ResolvedUiNode): readonly ResolvedContainerNode[] {
 function taskSections(root: ResolvedUiNode) {
   assert(root.element === "Screen")
   assert.equal(root.props.title, "Pay-to-Play")
-  const body = root.children[2]
+  const body = root.children[3]
   assert(body)
   return peerSections(body)
 }
@@ -127,7 +127,7 @@ test("empty numeric actions identify their own fields before any RPC, while expl
   const { session, readCalls } = await fixture()
   await session.load()
   for (const [route, actor, actionName, field, enterZero] of [
-    ["position", customer, "fund", "fundAmount", () => session.editAmount("fundAmount", "base", "0")],
+    ["depositForm", customer, "fund", "fundAmount", () => session.editAmount("fundAmount", "base", "0")],
     ["choosePosition", customer, "position", "lookupChannelId", () => session.editInteger("lookupChannelId", "0")],
     ["createChannelForm", other, "createChannel", "newClaimPeriod", () => session.editDuration("newClaimPeriod", "seconds", "0")],
   ] as const) {
@@ -206,7 +206,8 @@ test("opened balance identity precedes explanatory text and controls", async () 
   assert.equal(opened.resolvedUi.element, "Screen")
   opened.resolvedUi.children.slice(1).forEach(visit)
   assert.equal(opened.resolvedUi.props.title, "Pay-to-Play")
-  assert.equal(opened.resolvedUi.children[2]?.element, "Fragment")
+  assert.equal(opened.resolvedUi.children[2]?.element, "Screen")
+  assert.equal(opened.resolvedUi.children[2]?.props.title, "Balance tasks")
   assert.equal(taskSections(opened.resolvedUi)[0]?.props.title, "Account and channel")
   assert.deepEqual(content.slice(0, 2).map(node => node.element === "Status" ? [node.element, node.props.label, node.props.value] : [node.element]), [
     ["Status", "Balance owner", customer],
@@ -221,7 +222,11 @@ test("every read destination retains the application heading above its task", as
   const titles: Record<string, readonly string[]> = {
     home: ["View a balance"],
     createChannelForm: ["Create a channel (admin only)"],
-    position: ["Account and channel", "Position status", "Balance overview", "Channel", "Deposit", "Withdraw or move funds", "Voucher signing key", "Voucher payments", "Channel settings"],
+    position: ["Account and channel", "Position status", "Balance overview", "Withdrawal status", "Channel"],
+    depositForm: ["Account and channel", "Position status", "Funding context", "Deposit"],
+    withdrawalForm: ["Account and channel", "Position status", "Withdrawal status", "Withdraw or move funds"],
+    voucherPaymentsForm: ["Account and channel", "Position status", "Voucher context", "Voucher signing key", "Voucher payments"],
+    channelSettingsForm: ["Account and channel", "Position status", "Channel", "Channel settings"],
     voucherDigest: ["Account and channel", "Voucher signing details"],
     channelLookup: ["View a balance"],
     choosePosition: ["View a balance"],
@@ -238,7 +243,7 @@ test("every read destination retains the application heading above its task", as
     assert.deepEqual(resolvedUiButtons(navigation).map(button => [button.props.label, button.call.function, button.call.args]), [
       ["View a balance", "channelLookup", {}], ["Create a channel", "createChannelForm", {}],
     ].map(([label, destination, args]) => [label, destination, toInertValue(args)]), `${route} has the same direct destinations`)
-    const body = opened.resolvedUi.children[2]
+    const body = opened.resolvedUi.children[3]
     assert(body)
     const tasks = peerSections(body)
     assert.deepEqual(tasks.map(task => {
@@ -249,25 +254,40 @@ test("every read destination retains the application heading above its task", as
   }
 })
 
-test("payment tasks keep their controls together and separate channel administration", async () => {
+test("each payment task owns its controls, with a write-free balance overview", async () => {
   const { session } = await fixture()
   await session.load()
-  const opened = await session.navigate("position", { customer, channelId: "1" })
-  const groups = actionSections(opened.resolvedUi)
-  for (const [route, path] of [
-    ["fund", ["Pay-to-Play", "Deposit"]],
-    ...["requestWithdrawal", "setWithdrawal", "withdraw", "move"].map(route => [route, ["Pay-to-Play", "Withdraw or move funds"]] as const),
-    ["registerVoucherKey", ["Pay-to-Play", "Voucher signing key"]],
-    ["voucherDigest", ["Pay-to-Play", "Voucher payments"]],
-    ["collect", ["Pay-to-Play", "Voucher payments"]],
-    ["setPayee", ["Pay-to-Play", "Channel settings", "Change payment recipient"]],
-    ["setCollector", ["Pay-to-Play", "Channel settings", "Change collector"]],
-  ] as const) assert.deepEqual(groups[route], [path], route)
-  assert.equal(groups.createChannel, undefined, "creating another channel is outside this selected balance")
+  const cases: readonly [string, readonly [string, readonly string[]][]][] = [
+    ["position", []],
+    ["depositForm", [["fund", ["Pay-to-Play", "Deposit"]]]],
+    ["withdrawalForm", ["requestWithdrawal", "setWithdrawal", "withdraw", "move"]
+      .map(route => [route, ["Pay-to-Play", "Withdraw or move funds"]] as const)],
+    ["voucherPaymentsForm", [
+      ["registerVoucherKey", ["Pay-to-Play", "Voucher signing key"]],
+      ["voucherDigest", ["Pay-to-Play", "Voucher payments"]],
+      ["collect", ["Pay-to-Play", "Voucher payments"]],
+    ]],
+    ["channelSettingsForm", [
+      ["setPayee", ["Pay-to-Play", "Channel settings", "Change payment recipient"]],
+      ["setCollector", ["Pay-to-Play", "Channel settings", "Change collector"]],
+    ]],
+  ]
+  const writes = ["fund", "requestWithdrawal", "setWithdrawal", "withdraw", "move", "registerVoucherKey",
+    "voucherDigest", "collect", "setPayee", "setCollector", "renewPosition", "setRefundRecipient",
+    "closePosition", "closeChannel", "refund"]
+  for (const [route, expected] of cases) {
+    const opened = await session.navigate(route, { customer, channelId: "1" })
+    const groups = actionSections(opened.resolvedUi)
+    for (const [write, path] of expected) assert.deepEqual(groups[write], [path], `${route}: ${write}`)
+    const listed = new Set(expected.map(([write]) => write))
+    for (const write of writes) if (!listed.has(write)) assert.equal(groups[write], undefined, `${route} must not show ${write}`)
+    assert.equal(groups.createChannel, undefined, "creation belongs to the top-level chooser")
+  }
+  const opened = await session.navigate("withdrawalForm", { customer, channelId: "1" })
+  const summary = taskSections(opened.resolvedUi).find(node => node.props.title === "Withdrawal status")!
+  assert(summary.element === "Screen")
   for (const label of ["Withdrawal requested", "Withdrawal ready at", "Balance minus withdrawal request"]) {
-    const withdrawal = taskSections(opened.resolvedUi).find(node => node.props.title === "Withdraw or move funds")!
-    assert(withdrawal.element === "Screen")
-    assert(withdrawal.children.some(node => node.element === "Status" && node.props.label === label), label)
+    assert(summary.children.some(node => node.element === "Status" && node.props.label === label), label)
   }
 })
 
@@ -328,25 +348,41 @@ test("signing context precedes the coherent domain, key and message task", async
   }), ["Signing domain", "Signing key", "Voucher message"])
 })
 
-test("account destinations offer navigation with the inspected identity across wallet changes", async () => {
-  const { session } = await fixture()
+test("all six tasks keep owner/channel and show a stable, inert current item after wallet changes", async () => {
+  const { session, readCalls } = await fixture()
   await session.load()
-  for (const route of ["position", "recovery", "voucherDigest"]) {
-    await session.navigate(route, route === "voucherDigest" ? { customer, channelId: "1", cumulativeTotal: "20", invoiceHash } : { customer, channelId: "1" })
+  const tasks = [
+    ["position", "Balance"],
+    ["depositForm", "Deposit"],
+    ["withdrawalForm", "Withdraw or move"],
+    ["voucherPaymentsForm", "Vouchers"],
+    ["recovery", "Recovery"],
+    ["channelSettingsForm", "Channel settings"],
+  ] as const
+  for (const [route, currentLabel] of tasks) {
+    const before = readCalls.filter(call => call === "viewPosition").length
+    await session.navigate(route, { customer, channelId: "1" })
+    assert.equal(readCalls.filter(call => call === "viewPosition").length, before + 1, "each task must make one fresh position read")
     const opened = await session.setAccount({ address: other })
-    assert(opened.resolvedUi.element === "Screen")
-    const menu = opened.resolvedUi.children[1]
-    assert(menu?.element === "Screen")
-    const menuButtons = resolvedUiButtons(menu)
-    const chooser = menuButtons.find(button => button.call.function === "choosePosition")
-    assert(chooser, `${route} must offer a way to change the inspected account or channel`)
-    assert.equal(chooser.props.label, "Change account or channel")
+    assert.equal(opened.resolvedUi.element, "Screen")
+    const selected = opened.resolvedUi.children[1]
+    assert(selected?.element === "Screen")
+    const chooser = resolvedUiButtons(selected).find(button => button.call.function === "choosePosition")
+    assert(chooser, `${route} needs the context-preserving chooser`)
     assert.deepEqual(chooser.call.args, toInertValue({ customer, channelId: "1" }))
-    const destination = route === "position" ? "recovery" : "position"
-    const navigation = menuButtons.find(button => button.call.function === destination)
-    assert(navigation, `${route} must offer ${destination}`)
-    assert.deepEqual(navigation.call.args, toInertValue({ customer, channelId: "1" }))
-    if (route !== "voucherDigest") assert(!menuButtons.some(button => button.call.function === route), `${route} must not offer a draft-clearing action to itself`)
+    const menu = opened.resolvedUi.children[2]
+    assert(menu?.element === "Screen")
+    assert.equal(menu.props.title, "Balance tasks")
+    assert.equal(menu.children.length, 6)
+    assert.deepEqual(menu.children.map(child => child.element === "Button"
+      ? child.props.label : child.element === "Text" ? String(child.props.text).replace(" — current task", "") : null), tasks.map(([, label]) => label))
+    assert.equal(menu.children.filter(child => child.element === "Text").length, 1)
+    const current = menu.children.find(child => child.element === "Text")!
+    assert.equal(current.props.text, `${currentLabel} — current task`)
+    for (const button of resolvedUiButtons(menu)) {
+      assert.notEqual(button.call.function, route, "the current task cannot silently clear its own draft")
+      assert.deepEqual(button.call.args, toInertValue({ customer, channelId: "1" }))
+    }
   }
 })
 
@@ -397,7 +433,7 @@ test("the shared navigation opens balance lookup and channel creation directly",
 test("opened balances stay pinned across wallet changes and chooser round trips", async () => {
   const { session } = await fixture()
   await session.load()
-  await session.navigate("position", { customer, channelId: "1" })
+  await session.navigate("depositForm", { customer, channelId: "1" })
   session.editAmount("fundAmount", "base", "23")
   const changed = await session.setAccount({ address: other })
   assert.equal((changed.values[0] as Record<string, unknown>).customer, customer)
@@ -415,6 +451,7 @@ test("opened balances stay pinned across wallet changes and chooser round trips"
   assert.equal(seeded.state.lookupChannelId, "1")
   const switched = await session.setAccount({ address: customer })
   await session.dispatchAction(resolvedUiButtons(switched.resolvedUi).find(button => button.props.label === "View balance")!)
+  await session.navigate("depositForm", { customer, channelId: "1" })
   assert.equal(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "fund")?.disabled, false)
 })
 
