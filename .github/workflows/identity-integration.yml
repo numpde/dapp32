@@ -1,0 +1,73 @@
+name: Identity integration
+
+on:
+  push:
+    paths:
+      - .github/workflows/identity-integration.yml
+      - tools/release_identity.py
+      - tools/release_identity.sh
+  pull_request:
+    paths:
+      - .github/workflows/identity-integration.yml
+      - tools/release_identity.py
+      - tools/release_identity.sh
+
+permissions:
+  contents: read
+
+jobs:
+  rootful:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Retain the exact integration source
+        run: |
+          mkdir -p "$RUNNER_TEMP/identity-audit"
+          git bundle create "$RUNNER_TEMP/identity-audit/dapp32.bundle" HEAD
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: numpde/container-tools
+          ref: 54d4f38067cfcc0a3d1ea4e0801c44ca179151b5
+          path: .identity-upstream
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Retain the exact shared-library source
+        run: git -C .identity-upstream bundle create "$RUNNER_TEMP/identity-audit/container-tools.bundle" HEAD
+      - name: Private bind-mount round trip
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)"
+          export CAM_DOCKER_ENDPOINT=unix:///var/run/docker.sock
+          source tools/release_identity.sh
+          release_select_container_identity
+          image='docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc'
+          scratch=$(mktemp -d)
+          trap 'rm -rf -- "$scratch"' EXIT
+          printf 'private input\n' > "$scratch/input"
+          chmod 600 "$scratch/input"
+          docker --host "$CAM_DOCKER_ENDPOINT" run --rm --pull never \
+            --user "$RELEASE_CONTAINER_UID:$RELEASE_CONTAINER_GID" \
+            --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,src=$scratch,dst=/private" \
+            "$image" python3 -I -B -c 'from pathlib import Path; p=Path("/private"); assert p.joinpath("input").read_text()=="private input\n"; p.joinpath("output").write_text("host-owned\n")'
+          test "$(stat -c %u "$scratch/output")" = "$LOCAL_UID"
+          test "$(cat "$scratch/output")" = host-owned
+          printf 'Private round trip passed as container %s:%s for host %s:%s\n' "$RELEASE_CONTAINER_UID" "$RELEASE_CONTAINER_GID" "$LOCAL_UID" "$LOCAL_GID"
+      - name: Record rootless test prerequisites
+        if: always()
+        run: |
+          for name in dockerd-rootless.sh rootlesskit newuidmap newgidmap slirp4netns; do command -v "$name" || true; done
+          cat /etc/subuid /etc/subgid || true
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          cp -a "$HOME/.cache/dapp32/linux-idmap" "$RUNNER_TEMP/identity-audit/" 2>/dev/null || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: identity-audit
+          path: ${{ runner.temp }}/identity-audit
+          retention-days: 1
