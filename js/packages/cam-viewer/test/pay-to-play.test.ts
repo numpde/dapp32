@@ -378,6 +378,7 @@ test("all six tasks keep owner/channel and show a stable, inert current item aft
       ? child.props.label : child.element === "Text" ? String(child.props.text).replace(" — current task", "") : null), tasks.map(([, label]) => label))
     assert.equal(menu.children.filter(child => child.element === "Text").length, 1)
     const current = menu.children.find(child => child.element === "Text")!
+    assert(current.element === "Text")
     assert.equal(current.props.text, `${currentLabel} — current task`)
     for (const button of resolvedUiButtons(menu)) {
       assert.notEqual(button.call.function, route, "the current task cannot silently clear its own draft")
