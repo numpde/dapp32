@@ -221,15 +221,18 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
         if result.get("verificationId") != attempt["verificationId"] or type(result.get("isJobCompleted")) is not bool:
             raise ValueError("Public verifier returned an inconsistent job status; no success was recorded.")
         attempt["result"] = result
-        write_json(state_path, state)
-        if result["isJobCompleted"]:
+        if not result["isJobCompleted"]:
+            write_json(state_path, state)
+            pause(3)
+            continue
+        try:
             observed = verification_contract(result, contract)
             if result.get("error") or observed.get("runtimeMatch") not in ("match", "exact_match") or observed.get("creationMatch") not in ("match", "exact_match"):
                 raise ValueError(f"Public verification did not match creation and runtime code. See {state_path.name} for the verifier's explanation.")
             attempt["verified"] = True
+        finally:
             write_json(state_path, state)
-            return observed
-        pause(3)
+        return observed
     raise ValueError("Public verification is still pending after five minutes. Rerun source/publish to check the same job; no deployment will be repeated.")
 
 
