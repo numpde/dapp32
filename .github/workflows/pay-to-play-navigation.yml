@@ -103,7 +103,7 @@ jobs:
             tail -100 "$scratch/gui.log"
             exit 1
           fi
-          viewer_url="$(grep -m1 '^http://127\\.0\\.0\\.1:5175/\\?' "$scratch/gui.log")"
+          viewer_url="$(grep -m1 '^http://127[.]0[.]0[.]1:5175/[?]' "$scratch/gui.log" || :)"
           if [[ -z "$viewer_url" ]]; then
             tail -100 "$scratch/gui.log"
             exit 1
