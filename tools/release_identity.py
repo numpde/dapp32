@@ -33,6 +33,7 @@ def ensure_wheel(cache, *, download=download_wheel):
         raise ValueError("linux-idmap cache must be a private caller-owned directory")
     wheel = cache / WHEEL_NAME
     if not wheel.exists() and not wheel.is_symlink():
+        print("Acquiring checksum-pinned linux-idmap 0.3.0 wheel for host identity mapping.", file=sys.stderr)
         content = download(WHEEL_URL)
         if hashlib.sha256(content).hexdigest() != WHEEL_SHA256:
             raise ValueError("Downloaded linux-idmap wheel checksum differs from the pinned release")
@@ -49,8 +50,8 @@ def ensure_wheel(cache, *, download=download_wheel):
         finally:
             os.unlink(temporary)
     info = wheel.lstat()
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
-        raise ValueError("Pinned linux-idmap wheel must be a caller-owned regular file")
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_size > 512 * 1024:
+        raise ValueError("Pinned linux-idmap wheel must be a bounded caller-owned regular file")
     if hashlib.sha256(wheel.read_bytes()).hexdigest() != WHEEL_SHA256:
         raise ValueError("Cached linux-idmap wheel checksum differs from the pinned release")
     return wheel
