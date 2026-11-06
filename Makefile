@@ -1554,21 +1554,12 @@ dapps/scripts/build: dapps/deps/verify
 # Rootless Docker maps namespace UID 0 to the engine owner. Callers must
 # verify their writable outputs before using that identity.
 override define select_cam_output_identity
-cam_user="$$LOCAL_UID:$$LOCAL_GID"; \
-if ! security_options="$$( \
-  security_options_file="$$(mktemp)" || exit 2; \
-  trap 'rm -f "$$security_options_file" || exit 2' EXIT; \
-  timeout -k 2s 10s docker --host "$$CAM_DOCKER_ENDPOINT" info --format '{{range .SecurityOptions}}{{println .}}{{end}}' | head -c 16385 > "$$security_options_file" || exit 2; \
-  security_size="$$(wc -c < "$$security_options_file")" || exit 2; \
-  sanitized_size="$$(tr -d "\000" < "$$security_options_file" | wc -c)" || exit 2; \
-  [[ "$$security_size" -gt 0 && "$$security_size" -le 16384 && "$$sanitized_size" -eq "$$security_size" ]] || exit 2; \
-  cat "$$security_options_file" || exit 2; \
-)"; then printf '%s\n' 'Cannot inspect the selected Docker engine security posture.' >&2; exit 2; fi; \
-while IFS= read -r security_option; do if [[ ! "$$security_option" =~ ^name=[[:graph:]]+$$ ]]; then printf '%s\n' 'Docker engine returned malformed security options.' >&2; exit 2; fi; done <<< "$$security_options"; \
-if grep -Fxq 'name=rootless' <<< "$$security_options"; then \
-  if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then printf '%s\n' 'Rootless CAM output requires the invoking user and group IDs.' >&2; exit 2; fi; \
-  cam_user=0:0; \
-fi
+if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then \
+  printf '%s\\n' 'CAM outputs require the invoking host UID and GID.' >&2; exit 2; \
+fi; \
+source tools/release_identity.sh; release_select_container_identity; \
+cam_user="$${RELEASE_CONTAINER_UID:?missing mapped UID}:${RELEASE_CONTAINER_GID:?missing mapped GID}"
+
 endef
 
 override define cam_integrity_refresh
