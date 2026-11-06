@@ -1,8 +1,10 @@
 # Pay-to-Play navigation plan
 
-2026-11-04 · Baseline `f2e6e11c`. Implemented in CAM source in PR #16
-(`feature/pay-to-play-focused-navigation`); browser and disposable-chain
-qualification must finish before marking the plan fully complete.
+2026-11-04 · Baseline `f2e6e11c`. Implemented and qualified in PR #16
+(`feature/pay-to-play-focused-navigation`). A disposable-chain scenario and
+a 13-transaction headless-browser journey passed on 2026-11-06, including 1280px
+and 320px layouts, receipt evidence, voucher-detail Back navigation, and the
+selected-account task menu. These are fixture results, not a public deployment.
 
 ## Outcome and scope
 
@@ -15,10 +17,10 @@ calls, routes, `Include`, `Screen` and `Button`. No contract, ABI, UI schema or
 generic viewer navigation feature is required. Keep write arguments, simulation,
 review, receipt interpretation and contract-owned availability intact.
 
-The current `positionFields` stacks seven sections: balance overview, channel
-facts, deposit, withdrawal/move, voucher key, voucher payments and channel
-settings. Its forms serve different tasks and actors. Existing app navigation
-and selected-balance identity are useful foundations; retain them.
+Before this change, `positionFields` stacked seven sections: balance overview,
+channel facts, deposit, withdrawal/move, voucher key, voucher payments and
+channel settings. The implementation replaces it with separate task routes and
+reuses the existing app navigation and selected-balance identity.
 
 Priorities below follow the supported funding/payment/withdrawal lifecycle.
 There is no usage telemetry establishing which task is most frequent.
@@ -78,7 +80,7 @@ Channel 0 remains inspectable and its no-voucher limitation stays explicit.
 ## Manifest and UI composition
 
 Keep `position(customer, channelId)` as the read-only Balance overview and retain
-`recovery` and `voucherDigest`. Proposed additional read routes:
+`recovery` and `voucherDigest`. Added task-specific read routes:
 
 | Route | Destination |
 | --- | --- |
@@ -169,12 +171,14 @@ Acceptance checks:
   focus/keyboard order, wrapping and absence of horizontal overflow. Distinguish
   source/conformance proof from rendered usability proof.
 
-Commit meaningful slices with bodies explaining the problem, ownership choice,
-behavior and validation. The six routes and menu are implemented on the
-branch, with source-level navigation contracts and updated viewer/scenario/
-browser checks. The new CI lane runs CAM conformance, JavaScript tests and the
-disposable local payment scenario. The separate CDP browser campaign still
-requires an isolated live fixture and must not be claimed from source checks.
+The implementation preserves meaningful test-first commits documenting each
+ownership choice. The branch's navigation CI runs CAM conformance, JavaScript
+tests, real-contract disposable local scenarios, and a separate Chrome/CDP
+browser journey on a fresh local GUI fixture. The browser reported 13 local
+transactions, tested at 1280px and 320px, and returned a successful E2E result:
+https://github.com/numpde/dapp32/actions/runs/42308551898
+The host-owned rootless Docker and public Fuji deployment paths are not exercised
+by this navigation CI.
 
 ## Sources and related work
 

@@ -4,19 +4,31 @@ on:
   push:
     paths:
       - .github/workflows/pay-to-play-navigation.yml
-      - dapps/pay-to-play/cam/**
+      - Makefile
+      - compose/pay-to-play/local/**
+      - compose/fragments/**
+      - dapps/pay-to-play/**
       - js/packages/cam-viewer/**
+      - js/packages/cam-screen/**
+      - js/apps/cam-web/src/**
       - js/apps/cam-web/test/pay-to-play-browser-check.mjs
       - js/tools/pay-to-play-local-scenario/**
       - tests/checks/test_pay_to_play_navigation.py
+      - tests/checks/test_local_demo_gui_lifecycle.py
   pull_request:
     paths:
       - .github/workflows/pay-to-play-navigation.yml
-      - dapps/pay-to-play/cam/**
+      - Makefile
+      - compose/pay-to-play/local/**
+      - compose/fragments/**
+      - dapps/pay-to-play/**
       - js/packages/cam-viewer/**
+      - js/packages/cam-screen/**
+      - js/apps/cam-web/src/**
       - js/apps/cam-web/test/pay-to-play-browser-check.mjs
       - js/tools/pay-to-play-local-scenario/**
       - tests/checks/test_pay_to_play_navigation.py
+      - tests/checks/test_local_demo_gui_lifecycle.py
 
 permissions:
   contents: read

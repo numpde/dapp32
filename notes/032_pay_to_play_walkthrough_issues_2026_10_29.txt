@@ -2,7 +2,7 @@ Pay-to-Play walkthrough: prioritized implementation checklist
 ============================================================
 
 Date: 2026-10-29 (local date).
-Status: P1 complete; P2 and P3 remain queued.
+Status: P1 complete; P2 remains queued; P3 task navigation complete, Enter-to-submit still queued.
 Attribution: findings in this note are agent-identified, not user reports.
 
 Context
@@ -149,14 +149,16 @@ P2 — Complete the task flow
 
 P3 — Navigation and input ergonomics
 ------------------------------------
-[ ] Provide a complete screen/task TOC and useful section navigation.
+[x] Provide a complete screen/task TOC and useful section navigation.
     (Shared app-authoring convention; Escrow issue 8)
-    Preserve owner/channel context and existing task headings. Put current facts
-    and tasks ahead of generic explanation where appropriate.
-    Evidence: contextual links exist, but no complete TOC/local navigation;
-    the sampled narrow balance body measured about 7,505 CSS pixels.
-    This is an authoring convention, not a CAM conformance requirement.
-    Focused-destination plan: note 044 (proposed; not implemented).
+    The selected owner/channel now has six focused destinations: Balance,
+    Deposit, Withdraw or move, Vouchers, Recovery and Channel settings.
+    The active destination is inert, other destinations preserve the inspected
+    account/channel, and Balance is an overview without transaction editors.
+    This remains an app-authored convention, not a CAM schema rule.
+    Implemented in PR #16 (note 044); source, viewer tests, local-chain
+    scenario and 13-transaction browser E2E at 1280px/320px passed. The old
+    7,505px narrow-page measurement is historical baseline, not a new metric.
 
 [x] Offer known-address suggestions across address fields.
     (Shared: Escrow issue 7)

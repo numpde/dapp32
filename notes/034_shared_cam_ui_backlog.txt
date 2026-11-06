@@ -84,11 +84,13 @@ choices; those sources do not prescribe these dimensions or arrangements.
 
 4. Complete navigation and visible app details
 
-   Status: in progress. Owners: app-authored navigation across all apps; shared
-   viewer for visible route/resource details in the preamble. The read route
-   and UI resource now appear in the preamble without expansion. Preserve object
-   and account context. Complete navigation is an authoring convention, not a
-   protocol requirement.
+   Status: in progress across apps; Pay-to-Play navigation completed in PR #16.
+   Owners: app-authored navigation across all apps; shared viewer for visible
+   route/resource details in the preamble. The read route and UI resource now
+   appear in the preamble without expansion. Preserve object and account context.
+   Pay-to-Play provides six focused, context-preserving tasks and an inert
+   current item, qualified with a disposable 13-transaction browser run.
+   Complete navigation remains an authoring convention, not a protocol requirement.
 
 5. Readable transaction review for nested inputs
 

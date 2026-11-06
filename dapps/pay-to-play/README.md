@@ -699,7 +699,7 @@ make pay-to-play/live/browser/check \
   EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json EXPECTED_CAM_HASH=0x...
 ```
 
-It creates and closes its own tab in that browser. Its 11 transactions cover
+It creates and closes its own tab in that browser. Its 13 transactions cover
 invoice-bearing payment/withdrawal workflows and, in a separate zero-wait
 channel, choosing a refund recipient, starting wind-down and relaying a refund.
 It checks invoice-hash entry, digest/reference display, restored voucher drafts,
