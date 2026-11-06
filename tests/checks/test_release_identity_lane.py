@@ -58,7 +58,11 @@ class IdentityLaneTests(unittest.TestCase):
                      "release_tool_images.sh", "compose_cleanup.sh"):
             shutil.copyfile(ROOT / "tools" / name, self.checkout / "tools" / name)
         (self.checkout / "tools/docker_context.sh").write_text(
-            '[[ "$*" == "command line fixture undefined  0" ]] || exit 2\n'
+            'printf "%s\n" "$*" >> "$CASE_ROOT/selector-calls"\n'
+            'case "$*" in\n'
+            '  "command line fixture undefined  0"|"undefined  command line unix:///tmp/identity-lane-fixture.sock 1") ;;\n'
+            '  *) exit 2 ;;\n'
+            'esac\n'
             'printf "%s\\n" unix:///tmp/identity-lane-fixture.sock\n'
         )
         (self.case / "docker.py").write_text(DOCKER)
@@ -102,10 +106,17 @@ export -f docker python3 timeout setsid
 exec bash tools/release_identity_check.sh fixture
 '''
 
-    def run_lane(self, mode):
-        result = subprocess.run(["bash", "-c", self.wrapper], cwd=self.checkout,
-            env={**self.environment, "CASE_MODE": mode}, capture_output=True,
-            text=True, timeout=12)
+    def run_lane(self, mode, *, selected=False):
+        command = self.wrapper
+        environment = {**self.environment, "CASE_MODE": mode}
+        if selected:
+            command = command.replace(
+                "exec bash tools/release_identity_check.sh fixture",
+                "exec bash tools/release_identity_check.sh --selected",
+            )
+            environment["CAM_DOCKER_ENDPOINT"] = "unix:///tmp/identity-lane-fixture.sock"
+        result = subprocess.run(["bash", "-c", command], cwd=self.checkout,
+            env=environment, capture_output=True, text=True, timeout=12)
         marker = self.case / "workspace"
         self.assertTrue(marker.is_file(), result.stdout + result.stderr)
         directory = Path(marker.read_text())
@@ -114,7 +125,8 @@ exec bash tools/release_identity_check.sh fixture
 
     def test_ci_calls_the_same_lane_without_reimplementing_the_round_trip(self):
         workflow = (ROOT / ".github/workflows/identity-integration.yml").read_text()
-        self.assertIn("run: bash tools/release_identity_check.sh default", workflow)
+        self.assertIn("run: make tests/live/release-identity DOCKER_CONTEXT=default", workflow)
+        self.assertNotIn("run: bash tools/release_identity_check.sh", workflow)
         self.assertNotIn("docker --host", workflow)
         self.assertNotIn("python3 -I -B -c", workflow)
 
@@ -128,6 +140,29 @@ exec bash tools/release_identity_check.sh fixture
         self.assertTrue(any("run" in call for call in calls))
         self.assertTrue(any("down" in call for call in calls))
         self.assertEqual(["container", "network", "volume"], [call[0] for call in calls[-3:]])
+
+    def test_make_handoff_uses_preselected_endpoint_without_reinspection(self):
+        result, directory = self.run_lane("success", selected=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertIn("PASS", result.stdout)
+        self.assertFalse(directory.exists())
+        self.assertEqual(
+            ["undefined  command line unix:///tmp/identity-lane-fixture.sock 1"],
+            (self.case / "selector-calls").read_text().splitlines(),
+        )
+
+    def test_make_handoff_rejects_untrusted_remote_endpoint_before_execution(self):
+        script = self.wrapper.replace(
+            "exec bash tools/release_identity_check.sh fixture",
+            "exec bash tools/release_identity_check.sh --selected",
+        )
+        env = {**self.environment, "CAM_DOCKER_ENDPOINT": "tcp://remote.invalid:2375"}
+        result = subprocess.run(["bash", "-c", script], cwd=self.checkout,
+                                env=env, capture_output=True, text=True, timeout=12)
+        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertNotIn("PASS", result.stdout)
+        self.assertFalse((self.case / "workspace").exists())
+        self.assertFalse((self.case / "calls").exists())
 
     def test_worker_failure_is_not_reported_as_success_and_still_cleans_up(self):
         result, directory = self.run_lane("worker-failure")
