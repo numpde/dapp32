@@ -32,7 +32,7 @@ EDITORS = {
 WRITES = set().union(*EDITORS.values()) - {"voucherDigest"}
 
 
-def authored_calls(node: dict, nodes: dict, seen: frozenset[str] = frozenset()) -> list[str]:
+def authored_calls(node: dict, nodes: dict, seen: frozenset[str]) -> list[str]:
     if node["element"] == "Button":
         call = node["call"]
         return [call["function"]] if call["namespace"] == "routes" else []
@@ -44,7 +44,7 @@ def authored_calls(node: dict, nodes: dict, seen: frozenset[str] = frozenset()) 
             raise AssertionError(f"Recursive UI Include: {name}")
         return authored_calls(nodes[name], nodes, seen | {name})
     if node["element"] in ("Screen", "Fragment"):
-        return [name for child in node.get("children", ())
+        return [name for child in node["children"]
                 for name in authored_calls(child, nodes, seen)]
     return []
 
@@ -96,9 +96,9 @@ class PayToPlayNavigationContractTest(unittest.TestCase):
         for _, _, route in DESTINATIONS:
             with self.subTest(route=route):
                 screen = self.cam["routes"][route]["then"]["args"]["view"]["screen"]
-                calls = set(authored_calls(self.nodes[screen], self.nodes))
+                calls = set(authored_calls(self.nodes[screen], self.nodes, frozenset()))
                 self.assertEqual(EDITORS[route], calls & (WRITES | {"voucherDigest"}))
-        self.assertEqual(set(), set(authored_calls(self.nodes["position"], self.nodes)) & WRITES,
+        self.assertEqual(set(), set(authored_calls(self.nodes["position"], self.nodes, frozenset())) & WRITES,
                          "balance is an overview, never an omnibus editor")
 
     def test_lookup_stays_separate_and_voucher_details_remain_read_only(self) -> None:
@@ -108,7 +108,7 @@ class PayToPlayNavigationContractTest(unittest.TestCase):
         self.assertEqual("taskNavigation.vouchers",
                          self.cam["routes"]["voucherDigest"]["then"]["args"]["view"]["taskNavigation"])
         self.assertEqual("read", self.cam["routes"]["voucherDigest"]["kind"])
-        self.assertEqual(set(), set(authored_calls(self.nodes["voucher"], self.nodes)) & WRITES)
+        self.assertEqual(set(), set(authored_calls(self.nodes["voucher"], self.nodes, frozenset())) & WRITES)
 
 
 if __name__ == "__main__":
