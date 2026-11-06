@@ -322,6 +322,23 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             self.assertEqual(["GET"], calls)
             self.assertEqual(1, len(json.loads(state.read_text())["attempts"]))
 
+    def test_interruption_after_saving_a_completed_job_resumes_without_posting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "contract.json"
+            write = release_source.write_json
+            def interrupt_after_receipt(path, value):
+                write(path, value)
+                if "result" in value["attempts"][-1]:
+                    raise InterruptedError("process stopped after the completed receipt reached disk")
+            with patch.object(release_source, "write_json", interrupt_after_receipt), self.assertRaises(InterruptedError):
+                publish_contract(CONTRACT, state, request=lambda method, *_: {"verificationId": JOB} if method == "POST" else result())
+            def lookup(method, path):
+                self.assertEqual("GET", method)
+                self.assertIn("/v2/contract/", path)
+                return result(metadata=CONTRACT["metadata"])["contract"]
+            publish_contract(CONTRACT, state, request=lookup)
+            self.assertEqual(1, len(json.loads(state.read_text())["attempts"]))
+
     def test_failure_keeps_evidence_and_next_command_can_submit_a_new_attempt(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "manager.json"
