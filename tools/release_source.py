@@ -172,7 +172,14 @@ def recheck_publication(contract, compiler_metadata, state, state_path, request)
             if required not in ("match", "exact_match") or current not in (required, "exact_match"):
                 raise ValueError(f"Sourcify returned {field}={current!r}. This publication requires {required!r} or better")
     except ValueError as error:
-        write_json(diagnostic, {**check, "error": str(error), "expectedMetadata": compiler_metadata})
+        failure = {**check, "error": str(error), "expectedMetadata": compiler_metadata}
+        # Deduplicate identical observations, but do not overwrite earlier failures
+        # when the next public check succeeds.
+        digest = hashlib.sha256(json.dumps(failure, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
+        preserved = state_path.with_name(f"{state_path.stem}.public-failure-{digest}.json")
+        if not preserved.exists():
+            write_json(preserved, failure)
+        write_json(diagnostic, {**failure, "failureRecord": preserved.name})
         raise ValueError(f"{error}. See {diagnostic.name}.") from error
 
     write_json(diagnostic, {**check, "accepted": True})
