@@ -67,13 +67,31 @@ cleanup stop the operation before private inputs are opened. Fixed-identity
 services retain their own policy.
 
 The host-side probe requires Python 3.11+ and the released
-[linux-idmap 0.3.0](https://github.com/numpde/container-tools/releases/tag/v0.3.0)
+[linux-idmap 0.3.1](https://github.com/numpde/container-tools/releases/tag/v0.3.1)
 package. Its checksum-pinned wheel is acquired automatically on first use and
 cached under `~/.cache/release-idmap/`; subsequent runs check and reuse
 it without pip or network access. The selected engine must have the pinned
 Python probe image; release commands acquire it before probing. This is a
 local-Linux facility, not support for remote Docker or Docker Desktop's
 VM-based bind mounts.
+
+Qualify private-file access on a selected engine with the maintained host-side
+integration lane (replace `dapp32` with the context to test):
+
+```sh
+bash tools/release_identity_check.sh dapp32
+```
+
+CI invokes this same lane with its selected context. It uses the production
+identity selector and pinned image, then checks a synthetic `0700` directory
+and `0600` files: reading, creating, atomically replacing and deleting records,
+plus host-side UID/GID and permissions. It does not mount an actual deployment
+instance, use signing credentials or publish sources. A successful check removes
+its container/project and scratch directory before printing `PASS`. Failure or
+cancellation also attempts bounded cleanup; unconfirmed cleanup returns nonzero
+and reports the retained directory and diagnostic log. Downloaded image/wheel
+caches are reused rather than deleted. Test each engine separately; rootful CI
+success does not qualify a workstation's rootless engine.
 
 `release/ui/deploy` creates a read-only Solidity UI contract and saves its
 verified record. `release/ui/update` also prepares matching CAM files locally
