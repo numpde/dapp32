@@ -108,7 +108,14 @@ const commands = createCdpCommands({ socket: ws, runDeadline: deadline, now: Dat
 const call = (method, params, purpose) => commands.call(method, params, method.startsWith('Target.') ? undefined : sessionId, purpose)
 async function evaluate(expression) {
   const result = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })
-  assert(!result.exceptionDetails, 'owned browser expression must succeed')
+  if (result.exceptionDetails) {
+    // Report only the JS error class and expression location, never the value,
+    // source text or potentially sensitive user-provided page contents.
+    const detail = result.exceptionDetails
+    const name = detail.exception?.className
+    const category = typeof name === 'string' && /^(TypeError|ReferenceError|SyntaxError|RangeError|Error)$/.test(name) ? name : 'unknown'
+    assert.fail(`owned browser expression must succeed (${category} at ${detail.lineNumber}:${detail.columnNumber})`)
+  }
   return result.result.value
 }
 async function bridge(request) {
@@ -180,6 +187,15 @@ const provider = fixtureWalletSource({
   initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
 })
 const snapshot = `(()=>{
+  // CDP may enter the new document before its body or CAM UI exists. All
+  // predicates see a complete, explicitly unavailable observation until then.
+  if (document.body === null || document.documentElement === null || document.querySelector('.elements') === null) {
+    return {
+      readRoute:null,tasks:[],fields:[],timestampMode:null,text:'',prepared:false,
+      notices:[],transaction:null,transactionHash:null,buttons:[],
+      values:{},reviewValues:{},resultValues:{},width:innerWidth,overflow:false,uiReady:false
+    };
+  }
   const facts=scope=>{
     if(scope===null)return {};
     return Object.fromEntries([...scope.querySelectorAll('.key-value')].map(row=>{
