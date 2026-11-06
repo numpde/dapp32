@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Resolve the selected engine's default-namespace identity for a private host owner.
 # Host LOCAL_UID/GID remain unchanged; these IDs are container coordinates only.
+release_identity_image() {
+  printf '%s\n' 'docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc'
+}
+
 release_select_container_identity() {
   local wheel_image selected uid gid status host_uid host_gid
   # Exported numbers from a previous call are not evidence for a new selection.
@@ -24,7 +28,7 @@ release_select_container_identity() {
     fi
   fi
   unset _release_identity_endpoint _release_identity_host _release_identity_userns _release_identity_pair
-  wheel_image='docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc'
+  wheel_image=$(release_identity_image)
   source tools/release_tool_images.sh
   release_acquire_image "$wheel_image" || return 2
   if selected=$(python3 -I -S -B tools/release_identity.py \

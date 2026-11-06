@@ -1,0 +1,26 @@
+# Only synthetic private inputs and this test program are mounted. No socket,
+# deployment records, credentials, or application services enter the container.
+services:
+  identity-check:
+    image: "${RELEASE_IDENTITY_CHECK_IMAGE:?Identity test image was not selected}"
+    pull_policy: never
+    user: "${RELEASE_CONTAINER_UID:?Identity was not measured}:${RELEASE_CONTAINER_GID:?Identity was not measured}"
+    init: true
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 32
+    mem_limit: 128m
+    cpus: 1
+    entrypoint: [python3, -I, -B, /check.py]
+    volumes:
+      - type: bind
+        source: "${RELEASE_IDENTITY_CHECK_DIR:?Private test directory was not selected}/private"
+        target: /private
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./check_release_identity.py
+        target: /check.py
+        read_only: true
+        bind: {create_host_path: false}
