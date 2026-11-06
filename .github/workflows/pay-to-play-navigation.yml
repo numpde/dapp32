@@ -1,0 +1,46 @@
+name: Pay-to-Play navigation
+
+on:
+  push:
+    paths:
+      - .github/workflows/pay-to-play-navigation.yml
+      - dapps/pay-to-play/cam/**
+      - js/packages/cam-viewer/**
+      - js/apps/cam-web/test/pay-to-play-browser-check.mjs
+      - js/tools/pay-to-play-local-scenario/**
+      - tests/checks/test_pay_to_play_navigation.py
+  pull_request:
+    paths:
+      - .github/workflows/pay-to-play-navigation.yml
+      - dapps/pay-to-play/cam/**
+      - js/packages/cam-viewer/**
+      - js/apps/cam-web/test/pay-to-play-browser-check.mjs
+      - js/tools/pay-to-play-local-scenario/**
+      - tests/checks/test_pay_to_play_navigation.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pay-to-play-navigation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  authoring-and-local-scenario:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install checksum-locked JavaScript dependencies
+        run: make js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+      - name: Validate CAM authoring and package/viewer tests
+        run: |
+          make cam/conformance/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+          make js/tests DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+      - name: Install locked Solidity dependencies
+        run: make dapps/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
+      - name: Execute real contracts in the disposable local payment scenario
+        run: make pay-to-play/local/scenario/run DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=pay-to-play-navigation
