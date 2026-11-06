@@ -300,7 +300,7 @@ context-child:
             )
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertIn(
-                "invalid-make-query-endpoint|",
+                "unix:///dev/null|",
                 trace.read_text(),
                 "Make's recursive -n exception must never fall back to a real Docker endpoint",
             )

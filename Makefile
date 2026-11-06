@@ -130,6 +130,13 @@ endif
 override DOCKER_HOST := $(CAM_DOCKER_ENDPOINT)
 override BUILDX_BUILDER := default
 export DOCKER_HOST CAM_DOCKER_ENDPOINT BUILDX_BUILDER
+else
+# GNU Make may still execute a recipe containing $(MAKE) in -n mode.
+# A deliberately unusable local character device blocks default-engine
+# fallback if an incidental Docker call occurs in such a recursive line.
+override CAM_DOCKER_ENDPOINT := unix:///dev/null
+override DOCKER_HOST := unix:///dev/null
+export DOCKER_HOST CAM_DOCKER_ENDPOINT
 endif
 endif
 override DOCKER_COMPOSE = docker --host "$${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose
