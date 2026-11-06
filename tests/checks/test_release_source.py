@@ -121,7 +121,8 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
                 self.assertIn("BicycleComponentManagerUI — not in selected deployment", text)
                 self.assertIn(current["identity"]["address"], text)
                 self.assertIn("Network: Fuji · chain 43113", text)
-                self.assertIn("Sourcify: Published", text)
+                self.assertIn("Sourcify bytecode", text)
+                self.assertIn("compiler metadata after selection", text)
                 self.assertIn("a" * 40, text)
                 self.assertIn("/tx/0x", text)
                 self.assertNotIn("artifact/", text)
@@ -218,6 +219,83 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             self.assertEqual(["POST", "GET", "GET"], [call[0] for call in calls])
             with self.assertRaisesRegex(ValueError, "request changed"):
                 publish_contract({**CONTRACT, "body": {}}, state, request=request)
+
+    def test_legacy_conflict_rechecks_without_another_post(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "root.json"
+            remote = result(runtimeMatch="exact_match", metadata=CONTRACT["metadata"])["contract"]
+            conflict = {"alreadyVerified": True, "result": {"isJobCompleted": True, "contract": remote}}
+            state.write_text(json.dumps({"requestSha256": source_request_hash(CONTRACT), "attempts": [conflict]}))
+            def lookup(method, path):
+                self.assertEqual("GET", method)
+                self.assertIn("/v2/contract/", path)
+                return remote
+            for _ in range(2):
+                self.assertEqual(remote, publish_contract(CONTRACT, state, request=lookup))
+            attempts = json.loads(state.read_text())["attempts"]
+            self.assertEqual(1, len(attempts))
+            self.assertEqual(conflict["result"], attempts[0]["result"])
+            self.assertTrue(attempts[0]["verified"])
+
+    def test_conflict_survives_interruption_before_first_public_lookup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "root.json"
+            def interrupted(method, path, body=None):
+                if method == "POST":
+                    raise urllib.error.HTTPError(path, 409, "already verified", {}, None)
+                raise TimeoutError("no public reply")
+            with self.assertRaises(TimeoutError):
+                publish_contract(CONTRACT, state, request=interrupted)
+            def lookup(method, path):
+                self.assertEqual("GET", method)
+                return result(runtimeMatch="exact_match", metadata=CONTRACT["metadata"])["contract"]
+            publish_contract(CONTRACT, state, request=lookup)
+            self.assertEqual(1, len(json.loads(state.read_text())["attempts"]))
+
+    def test_recheck_retains_mismatch_evidence_and_rejects_weaker_verification(self):
+        receipt = result(runtimeMatch="exact_match")
+        for external in (False, True):
+            for changes, cause in (({"address": "0x" + "34" * 20}, "different contract"),
+                                   ({"metadata": {"compiler": "unexpected"}}, "compiler"),
+                                   ({"creationMatch": "match"}, "creationMatch"),
+                                   ({"runtimeMatch": None}, "runtimeMatch")):
+                with self.subTest(external=external, changes=changes), tempfile.TemporaryDirectory() as directory:
+                    state = Path(directory) / "saved.json"
+                    attempt = {"verified": True, "result": receipt,
+                               **({"alreadyVerified": True} if external else {"verificationId": JOB})}
+                    state.write_text(json.dumps({"requestSha256": source_request_hash(CONTRACT), "attempts": [attempt]}))
+                    remote = {**receipt["contract"], "metadata": CONTRACT["metadata"], **changes}
+                    def lookup(method, path):
+                        self.assertEqual("GET", method)
+                        return remote
+                    with self.assertRaisesRegex(ValueError, cause) as failure:
+                        publish_contract(CONTRACT, state, request=lookup)
+                    diagnostic = state.with_suffix(".public-check.json")
+                    self.assertIn(diagnostic.name, str(failure.exception))
+                    check = json.loads(diagnostic.read_text())
+                    self.assertEqual(remote, check["observed"])
+                    self.assertFalse(check["accepted"])
+                    self.assertEqual([attempt], json.loads(state.read_text())["attempts"])
+
+    def test_saved_job_is_resubmitted_only_after_public_lookup_reports_absence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "saved.json"
+            attempt = {"verificationId": JOB, "verified": True, "result": result()}
+            state.write_text(json.dumps({"requestSha256": source_request_hash(CONTRACT), "attempts": [attempt]}))
+            def unavailable(method, path):
+                self.assertEqual("GET", method)
+                raise urllib.error.HTTPError(path, 503, "unavailable", {}, None)
+            with self.assertRaises(urllib.error.HTTPError):
+                publish_contract(CONTRACT, state, request=unavailable)
+            calls = []
+            def missing(method, path, body=None):
+                calls.append(method)
+                if path.startswith("/v2/contract/"):
+                    raise urllib.error.HTTPError(path, 404, "missing", {}, None)
+                return {"verificationId": JOB} if method == "POST" else result()
+            publish_contract(CONTRACT, state, request=missing)
+            self.assertEqual(["GET", "POST", "GET"], calls)
+            self.assertEqual(attempt, json.loads(state.read_text())["attempts"][0])
 
     def test_pending_job_survives_interruption_and_next_command_only_polls(self):
         with tempfile.TemporaryDirectory() as directory:
