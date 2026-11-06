@@ -12,13 +12,16 @@ release_select_container_identity() {
   fi
   # Cache only in this shell and only for this endpoint, host owner and namespace
   # policy; a different invocation remeasures its selected engine.
-  if [[ ${_release_identity_endpoint-} == "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" &&
-        ${_release_identity_host-} == "$host_uid:$host_gid" &&
-        ${_release_identity_userns-} == default &&
-        ${_release_identity_pair-} =~ ^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$ ]]; then
-    IFS=: read -r uid gid <<< "$_release_identity_pair"
-    export RELEASE_CONTAINER_UID="$uid" RELEASE_CONTAINER_GID="$gid"
-    return 0
+  if [[ -v _release_identity_endpoint && -v _release_identity_host &&
+        -v _release_identity_userns && -v _release_identity_pair ]]; then
+    if [[ "$_release_identity_endpoint" == "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" &&
+          "$_release_identity_host" == "$host_uid:$host_gid" &&
+          "$_release_identity_userns" == default &&
+          "$_release_identity_pair" =~ ^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$ ]]; then
+      IFS=: read -r uid gid <<< "$_release_identity_pair"
+      export RELEASE_CONTAINER_UID="$uid" RELEASE_CONTAINER_GID="$gid"
+      return 0
+    fi
   fi
   unset _release_identity_endpoint _release_identity_host _release_identity_userns _release_identity_pair
   wheel_image='docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc'

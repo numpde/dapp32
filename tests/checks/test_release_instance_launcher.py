@@ -58,11 +58,13 @@ class InstanceIdentityLauncherTest(unittest.TestCase):
                 with self.subTest(ids=ids):
                     env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}",
                            "CAM_DOCKER_ENDPOINT": "unix:///tmp/idmap-test.sock",
+                           "RELEASE_LOCAL_NETWORK": "fixture-internal",
                            "LOCAL_UID": str(os.getuid()), "LOCAL_GID": str(os.getgid()),
                            "TEST_MAPPED_IDS": ids,
                            "TEST_PROBE_IMAGE": "docker.io/library/python:3.13-alpine@sha256:" + "a" * 64}
                     script = r'''
 reject_release_path_symlinks() { :; }
+realpath() { command python3 -c 'import os,sys; print(os.path.normpath(sys.argv[-1]))' "$@"; }
 python3() {
   if [[ ${1-} == -I && ${2-} == -S && ${3-} == -B && ${4-} == tools/release_identity.py ]]; then
     printf '%s\n' "$TEST_MAPPED_IDS"
@@ -70,7 +72,7 @@ python3() {
     command python3 "$@"
   fi
 }
-export -f reject_release_path_symlinks python3
+export -f reject_release_path_symlinks realpath python3
 source tools/release_process.sh
 release_process_init
 release_instance pay-to-play source/publish

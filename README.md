@@ -69,7 +69,7 @@ services retain their own policy.
 The host-side probe requires Python 3.11+ and the released
 [linux-idmap 0.3.0](https://github.com/numpde/container-tools/releases/tag/v0.3.0)
 package. Its checksum-pinned wheel is acquired automatically on first use and
-cached under `~/.cache/dapp32/linux-idmap/`; subsequent runs check and reuse
+cached under `~/.cache/release-idmap/`; subsequent runs check and reuse
 it without pip or network access. The selected engine must have the pinned
 Python probe image; release commands acquire it before probing. This is a
 local-Linux facility, not support for remote Docker or Docker Desktop's

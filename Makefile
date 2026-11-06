@@ -1559,7 +1559,6 @@ if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then \
 fi; \
 source tools/release_identity.sh; release_select_container_identity; \
 cam_user="$${RELEASE_CONTAINER_UID:?missing mapped UID}:$${RELEASE_CONTAINER_GID:?missing mapped GID}"
-
 endef
 
 override define cam_integrity_refresh

@@ -16,7 +16,7 @@ WHEEL_URL = "https://github.com/numpde/container-tools/releases/download/v0.3.0/
 
 
 def download_wheel(url):
-    request = urllib.request.Request(url, headers={"User-Agent": "dapp32-linux-idmap-bootstrap/1"})
+    request = urllib.request.Request(url, headers={"User-Agent": "release-idmap-bootstrap/1"})
     with urllib.request.urlopen(request, timeout=30) as response:
         contents = response.read(512 * 1024 + 1)
     if len(contents) > 512 * 1024:
@@ -86,7 +86,7 @@ def main(argv=None):
         raise ValueError("Release identity selection requires a non-root host operator")
     if sys.version_info < (3, 11):
         raise ValueError("Release identity selection requires host Python 3.11 or later")
-    wheel = ensure_wheel(Path.home() / ".cache" / "dapp32" / "linux-idmap")
+    wheel = ensure_wheel(Path.home() / ".cache" / "release-idmap")
     sys.path.insert(0, str(wheel))  # -I -S: only this checksum-checked wheel is admitted.
     selected_uid, selected_gid = probe_owner(options.endpoint, options.image, uid, gid)
     print(f"{selected_uid}:{selected_gid}")
