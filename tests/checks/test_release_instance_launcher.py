@@ -11,7 +11,7 @@ from .common import ROOT
 
 
 DOCKER = r'''#!/usr/bin/env python3
-import os, pathlib, sys
+import json, os, pathlib, sys
 args = sys.argv[1:]
 if args[:2] != ["--host", os.environ["CAM_DOCKER_ENDPOINT"]]:
     raise SystemExit(f"Wrong selected engine: {args}")
