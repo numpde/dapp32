@@ -376,7 +376,7 @@ endef
 # failed or interrupted run leaves resource removal unconfirmed.
 # INSTANCE is an operator selection boundary; child phase calls use resolved ports.
 define release_instance_entry
-if [[ -n "${INSTANCE-}" ]]; then \
+if [[ -n "$${INSTANCE-}" ]]; then \
   export RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" MAKE="$(MAKE)"; \
   export -f reject_release_path_symlinks; exec bash tools/release_instance.sh "$(1)" "$(2)"; \
 fi; \
@@ -391,7 +391,7 @@ compose_release_config() { \
 	if [[ -v release_config_input ]]; then config_input="$$release_config_input"; fi; \
 	if [[ -v release_config_credentials ]]; then credential_input="$$release_config_credentials"; fi; \
   if [[ "$$1" == run ]]; then release_config_started=1; fi; \
-  if LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$release_config_project" \
+  if LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$release_config_project" \
     RELEASE_CONFIG_STAGE_DIR="$$release_config_dir" RELEASE_CONFIG_FILE="$$config_input" RELEASE_CREDENTIAL_CONFIG="$$credential_input" RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/config.yml "$$@"; then \
     if [[ "$$1" == run ]]; then release_config_started=0; fi; \
@@ -403,7 +403,7 @@ endef
 
 define release_setup_rpc_compose
 compose_release_setup_rpc() { \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$release_config_project-rpc" \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$release_config_project-rpc" \
   RPC_URL_FILE="$$release_config_dir/setup-rpc-url" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
     -f $(COMPOSE_DIR)/release/setup-rpc.yml -f "$$release_config_dir/images-setup-rpc.yml" "$$@"; \
@@ -485,7 +485,7 @@ endef
 
 define release_snapshot_dependency_compose
 compose_release_dependencies() { \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-deps" ALLOW_UPDATE=0 \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-deps" ALLOW_UPDATE=0 \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/compose/deps.yml" -f "$$ceremony_root/images-dependencies.yml" "$$@"; \
 }
 endef
@@ -507,7 +507,7 @@ endef
 
 define release_rpc_compose
 compose_release_rpc() { \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-rpc" \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-rpc" \
     RELEASE_RPC_OUTPUT_DIR="$$ceremony_root/rpc" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL \
     $(DOCKER_COMPOSE) -f "$$ceremony_source/compose/release/rpc.yml" "$$@"; \
 }
@@ -587,7 +587,7 @@ validate_new_release_output "$$output_dir" CONTRACT_RELEASE_OUTPUT_DIR; \
 compose_release() { $(call release_deploy_compose,$(CONTRACT_RELEASE_DEPLOY_COMPOSE_FILES)); }; \
 compose_release_check() { \
   if [[ "$$1" == run ]]; then set -- run -e RELEASE_TOOL_DIR=tools/contract-release "$${@:2}"; fi; \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(CONTRACT_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; \
 }; \
 $(call release_deploy_execution,CONTRACT_RELEASE_OUTPUT_DIR,$(patsubst %/release/contracts/deploy,%,$@),CONTRACT_RELEASE_CREATOR_ADDRESS,contracts)
@@ -613,7 +613,7 @@ output_dir="$$UI_RELEASE_OUTPUT_DIR"; \
 validate_new_release_output "$$output_dir" UI_RELEASE_OUTPUT_DIR; \
 compose_release() { $(call release_deploy_compose,$(UI_RELEASE_DEPLOY_COMPOSE_FILES)); }; \
 compose_release_check() { \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(UI_RELEASE_CHECK_COMPOSE_FILES)) -f "$$ceremony_root/images-check.yml" "$$@"; \
 }; \
 $(call release_deploy_execution,UI_RELEASE_OUTPUT_DIR,$(patsubst %/release/ui/deploy,%,$@),UI_RELEASE_CREATOR_ADDRESS,ui)
@@ -638,7 +638,7 @@ output_dir="$$CAM_RELEASE_OUTPUT_DIR"; validate_new_release_output "$$output_dir
 require_release_rpc_input; \
 release_operation=cam-bundle; release_phase=cam-bundle; release_rpc_expected_chain="$$CAM_RELEASE_EXPECTED_CHAIN_ID"; \
 compose_release() { \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
     RELEASE_SOURCE_DIR="$$ceremony_source" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
     -f "$$ceremony_source/compose/release/cam-bundle.yml" "$${release_transport_args[@]}" -f "$$ceremony_root/images-cam-bundle.yml" "$$@"; \
@@ -687,7 +687,7 @@ output_dir="$$CAM_RELEASE_OUTPUT_DIR"; validate_new_release_output "$$output_dir
 compose_release() { $(call release_deploy_compose,$(CAM_RELEASE_DEPLOY_COMPOSE_FILES)); }; \
 compose_release_check() { \
   if [[ "$$1" == run ]]; then set -- run -e RELEASE_TOOL_DIR=tools/cam-release "$${@:2}"; fi; \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) \
     -f "$$ceremony_source/compose/release/check.yml" -f "$$ceremony_root/images-check.yml" "$$@"; \
 }; \
@@ -738,7 +738,7 @@ release_log_step "$$release_preparation_log" 'Checking Solidity dependencies' co
 release_transport_args=(); \
 if [[ "$$RELEASE_REHEARSAL" == 1 ]]; then require_release_local_network; release_transport_args=(-f "$(COMPOSE_DIR)/release/rehearsal-artifact.yml"); fi; \
 compose_release() { \
-  LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+  LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
     RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" RPC_URL_FILE="$$RPC_URL_FILE" \
     release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(5) "$${release_transport_args[@]}" -f "$$ceremony_root/images-artifact.yml" "$$@"; \
 }; \
@@ -774,7 +774,7 @@ endef
 
 # App environment assignments remain explicit at the caller.
 define release_deploy_compose
-LOCAL_UID="${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing mapped release UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing mapped release GID}" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
   COMPOSE_PROGRESS="$(COMPOSE_PROGRESS)" \
   RELEASE_OUTPUT_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source" \
   RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
