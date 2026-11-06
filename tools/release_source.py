@@ -68,7 +68,6 @@ def lookup_public_contract(contract, *, request, metadata):
     suffix = "?fields=metadata" if metadata else ""
     try:
         observed = request("GET", f"/v2/contract/{contract['chainId']}/{contract['identity']['address']}{suffix}")
-        verification_contract({"contract": observed}, contract)
     except urllib.error.HTTPError as error:
         if error.code == 404:
             return None
@@ -80,9 +79,10 @@ def public_source_status(contract, *, request):
     observed = lookup_public_contract(contract, request=request, metadata=False)
     if observed is None:
         return "Not published"
-    if observed.get("runtimeMatch") not in MATCH_LABELS:
+    verification_contract({"contract": observed}, contract)
+    if observed.get("runtimeMatch") not in ("match", "exact_match"):
         return "No verified runtime source"
-    if observed.get("creationMatch") not in MATCH_LABELS:
+    if observed.get("creationMatch") not in ("match", "exact_match"):
         return f"Published — runtime: {MATCH_LABELS[observed['runtimeMatch']]}; creation unverified"
     return f"Published — creation: {MATCH_LABELS[observed['creationMatch']]}; runtime: {MATCH_LABELS[observed['runtimeMatch']]}"
 
@@ -102,7 +102,7 @@ def choose_contracts(catalog, *, request, answer, output):
             break
     group = [contract["key"] for contract in contracts if contract["selected"]] if catalog["hasSelectedDeployment"] else [contract["key"] for contract in contracts]
     output("Publish contract sources")
-    output("Public source status comes from Sourcify; selected deployment comes from the saved CAM record.")
+    output("Sourcify reports bytecode matches at each address. This command checks the deployment’s original compiler metadata after selection.")
     label = "selected deployment" if catalog["hasSelectedDeployment"] else "saved records"
     output(f"  1. All contracts in {label} ({len(group)})")
     for number, (contract, status) in enumerate(zip(contracts, statuses), 2):
@@ -112,7 +112,7 @@ def choose_contracts(catalog, *, request, answer, output):
         network = contract.get("network")
         network_name = f"{network['name']} · " if network is not None else ""
         output(f"     Network: {network_name}chain {contract['chainId']}")
-        output(f"     Sourcify: {status}")
+        output(f"     Sourcify bytecode: {status}")
         output(f"     Recorded source: https://github.com/numpde/dapp32/blob/{contract['sourceCommit']}/dapps/{contract['location']['source']}")
         explorer = network.get("explorer") if network is not None else None
         if explorer is not None:
@@ -143,6 +143,44 @@ def same_metadata(observed, original):
     return json.dumps(observed, sort_keys=True, allow_nan=False) == json.dumps(original, sort_keys=True, allow_nan=False)
 
 
+def recheck_publication(contract, compiler_metadata, state, state_path, request):
+    attempt = state["attempts"][-1]
+    observed = lookup_public_contract(contract, request=request, metadata=True)
+    diagnostic = state_path.with_suffix(".public-check.json")
+    check = {"requestSha256": state["requestSha256"], "observed": observed, "accepted": False}
+    if observed is None:
+        write_json(diagnostic, check)
+        return None
+    try:
+        verification_contract({"contract": observed}, contract)
+        metadata = observed.get("metadata")
+        if not isinstance(metadata, dict):
+            raise ValueError("Sourcify returned no compiler metadata object")
+        if not same_metadata(metadata, compiler_metadata):
+            fields = sorted(metadata.keys() | compiler_metadata.keys())
+            difference = next(field for field in fields if field not in metadata or field not in compiler_metadata
+                              or not same_metadata(metadata[field], compiler_metadata[field]))
+            raise ValueError(f"Sourcify differs from the original compiler metadata in {difference!r}")
+
+        # A conflict refers to a verification outside this request. A submitted job has its own receipt.
+        external = attempt.get("alreadyVerified") is True
+        saved = None if external else verification_contract(attempt["result"], contract)
+        for field in ("creationMatch", "runtimeMatch"):
+            required = "exact_match" if saved is None else saved.get(field)
+            current = observed.get(field)
+            if required not in ("match", "exact_match") or current not in (required, "exact_match"):
+                raise ValueError(f"Sourcify returned {field}={current!r}. This publication requires {required!r} or better")
+    except ValueError as error:
+        write_json(diagnostic, {**check, "error": str(error), "expectedMetadata": compiler_metadata})
+        raise ValueError(f"{error}. See {diagnostic.name}.") from error
+
+    write_json(diagnostic, {**check, "accepted": True})
+    if attempt.get("verified") is not True:
+        attempt["verified"] = True
+        write_json(state_path, state)
+    return observed
+
+
 def publish_contract(contract, state_path, *, compiler_metadata, request, pause, clock):
     if state_path.exists():
         state = read_publication_state(contract, state_path)
@@ -150,31 +188,24 @@ def publish_contract(contract, state_path, *, compiler_metadata, request, pause,
     else:
         state = {"requestSha256": source_request_hash(contract), "attempts": []}
     attempts = state["attempts"]
-    if attempts and attempts[-1].get("verified") is True:
-        observed = lookup_public_contract(contract, request=request, metadata=True)
+    last = attempts[-1] if attempts else {}
+    if last.get("verified") is True or last.get("alreadyVerified") is True:
+        observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
         if observed is not None:
-            if not same_metadata(observed.get("metadata"), compiler_metadata) or observed.get("creationMatch") not in MATCH_LABELS or observed.get("runtimeMatch") not in MATCH_LABELS:
-                raise ValueError("Current public verification differs from the original compiler metadata or bytecode matches; no success was recorded.")
             return observed
-    if not attempts or ("result" in attempts[-1] and attempts[-1]["result"]["isJobCompleted"] is True):
+    if not attempts or last.get("alreadyVerified") is True or ("result" in last and last["result"]["isJobCompleted"] is True):
         try:
             ticket = request("POST", f"/v2/verify/{contract['chainId']}/{contract['identity']['address']}", contract["body"])
         # silent-defaults: allow-exception-fallback -- Sourcify 409 is a documented already-verified outcome; test_already_verified_requires_original_metadata_and_both_exact_matches proves its separate admission.
         except urllib.error.HTTPError as error:
             if error.code != 409:
                 raise
-            # A verification by someone else must describe our original compiler metadata.
-            observed = lookup_public_contract(contract, request=request, metadata=True)
+            # Persist the conflict before the GET. A lost lookup can be retried independently.
+            attempts.append({"alreadyVerified": True})
+            write_json(state_path, state)
+            observed = recheck_publication(contract, compiler_metadata, state, state_path, request)
             if observed is None:
-                raise ValueError("The verifier reported existing source but its lookup is missing. Retry later.")
-            existing = {"isJobCompleted": True, "contract": observed}
-            attempts.append({"alreadyVerified": True, "result": existing})
-            write_json(state_path, state)
-            verification_contract(existing, contract)
-            if not same_metadata(observed.get("metadata"), compiler_metadata) or observed.get("runtimeMatch") != "exact_match" or observed.get("creationMatch") != "exact_match":
-                raise ValueError("Existing public verification does not exactly match the original compiler metadata and both bytecodes. Its response was retained.")
-            attempts[-1]["verified"] = True
-            write_json(state_path, state)
+                raise ValueError("Sourcify reported existing source but its lookup is missing. Retry later.")
             return observed
         identifier = ticket.get("verificationId")
         if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", identifier):
