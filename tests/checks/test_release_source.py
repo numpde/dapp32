@@ -464,6 +464,25 @@ copy_public_source_file "$COPY_SOURCE" "$COPY_TARGET"
             status, error = run_prepared_publication(directory, large, CONTRACT["metadata"], request)
             self.assertEqual(0, status, error)
 
+    def test_public_mismatch_remains_inspectable_after_successful_refresh(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory) / "saved.json"
+            attempt = {"verified": True, "verificationId": JOB, "result": result(runtimeMatch="exact_match")}
+            state.write_text(json.dumps({"requestSha256": source_request_hash(CONTRACT), "attempts": [attempt]}))
+            bad = {**result(runtimeMatch="exact_match")["contract"], "metadata": {"compiler": "different"}}
+            good = {**result(runtimeMatch="exact_match")["contract"], "metadata": CONTRACT["metadata"]}
+            with self.assertRaisesRegex(ValueError, "metadata"):
+                publish_contract(CONTRACT, state, request=lambda *_: bad)
+            failures = list(Path(directory).glob("saved.public-failure-*.json"))
+            self.assertEqual(1, len(failures))
+            retained = failures[0].read_bytes()
+            publish_contract(CONTRACT, state, request=lambda *_: good)
+            self.assertEqual(retained, failures[0].read_bytes())
+            self.assertTrue(json.loads(state.with_suffix(".public-check.json").read_text())["accepted"])
+            with self.assertRaisesRegex(ValueError, "metadata"):
+                publish_contract(CONTRACT, state, request=lambda *_: bad)
+            self.assertEqual(1, len(list(Path(directory).glob("saved.public-failure-*.json"))))
+
     def test_wait_is_bounded_and_retains_job(self):
         with tempfile.TemporaryDirectory() as directory:
             ticks = iter((0, 1, 301))

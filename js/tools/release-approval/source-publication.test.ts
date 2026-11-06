@@ -110,6 +110,13 @@ test("the retained artifact binds original solc metadata to the Forge metadata s
       await write(invalid)
       await assert.rejects(readPublicationMetadata(location, root))
     }
+    for (const differing of [
+      { ...metadata, compiler: { version: "0.8.36+commit.other" } },
+      { ...metadata, sources: { [location.source]: { keccak256: "0x" + "34".repeat(32) } } },
+    ]) {
+      await write(JSON.stringify(differing))
+      await assert.rejects(readPublicationMetadata(location, root), /compiler metadata .* differs/)
+    }
     for (const invalid of [undefined, [], {}, { ...projection, settings: {} }]) {
       await writeFile(join(directory, "CamRoot.json"), JSON.stringify({ rawMetadata: JSON.stringify(metadata), metadata: invalid }))
       await assert.rejects(readPublicationMetadata(location, root))
