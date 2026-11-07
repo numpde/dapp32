@@ -1629,6 +1629,9 @@ fi
 endef
 
 override define select_cam_output_identity
+if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then \
+  printf '%s\n' 'CAM outputs require the invoking host UID and GID.' >&2; exit 2; \
+fi; \
 $(select_host_output_identity); \
 cam_user="$$mapped_user"
 endef
