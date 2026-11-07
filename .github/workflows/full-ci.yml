@@ -1,0 +1,29 @@
+name: Full offline CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-offline-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  complete-offline-qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install checksum-locked Solidity dependencies
+        run: make dapps/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=full-offline-ci
+      - name: Install checksum-locked JavaScript dependencies
+        run: make js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=full-offline-ci
+      - name: Execute the complete maintained offline CI aggregate
+        run: make ci DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=full-offline-ci
