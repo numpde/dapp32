@@ -355,10 +355,13 @@ contract PayToPlayTest is PayToPlayTestBase {
         _fund(address(wallet), channel, 1);
         uint256 ready = payments.viewPosition(address(wallet), channel, address(wallet)).readyAt;
         vm.warp(ready);
-        bytes32 beforeWithdrawal = keccak256(abi.encode(payments.viewPosition(address(wallet), channel, address(wallet))));
+        bytes32 beforeWithdrawal =
+            keccak256(abi.encode(payments.viewPosition(address(wallet), channel, address(wallet))));
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.NativePaymentFailed.selector, address(wallet), 50));
         payments.withdraw(address(wallet), channel);
-        assertEq(keccak256(abi.encode(payments.viewPosition(address(wallet), channel, address(wallet)))), beforeWithdrawal);
+        assertEq(
+            keccak256(abi.encode(payments.viewPosition(address(wallet), channel, address(wallet)))), beforeWithdrawal
+        );
         assertEq(payments.channel(channel).escrowTotal, 51);
         assertEq(address(payments).balance, 51);
         payments.setPayee(channel, address(wallet));
