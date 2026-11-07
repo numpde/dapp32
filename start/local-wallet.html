@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Try Pay-to-Play with a local wallet · dapp32</title><meta name="description" content="Launch the disposable payment app, attach its test wallet, make a deposit and remove the fixture."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Try Pay-to-Play with a local wallet</h1>
+<p>Launch the app, create a test channel and deposit 100 wei. This uses public fixture accounts on a disposable local blockchain, not your real wallet.</p>
+<dl><dt>Run on</dt><dd>Your workstation, from the source checkout.</dd><dt>Requires</dt><dd>Docker with Compose, Make, and Chrome or Chromium. Use a separate browser profile without wallet extensions.</dd><dt>Changes</dt><dd>Local containers, temporary blockchain state and a dedicated browser profile. No public-chain transaction.</dd><dt>Success</dt><dd>A successful deposit receipt and a 100-wei balance in the selected test position.</dd></dl>
+<h2>1. Start the app — terminal A</h2>
+<p>Replace <code>your-local-context</code> below and in terminal C with the same local Docker context. Use the same project name in every command.</p>
+<pre><code>make dapps/deps/install DOCKER_CONTEXT=your-local-context
+make js/deps/install DOCKER_CONTEXT=your-local-context
+make pay-to-play/local/demo/gui/up \
+  DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo</code></pre>
+<p>Leave this command running. It starts Anvil on chain 31337, deploys the app and prints a complete viewer URL, normally on <code>http://127.0.0.1:5175</code>. A fresh chain has only reserve channel 0. Do not infer a service channel ID from a previous run.</p>
+<h2>2. Open an isolated test browser — terminal B</h2>
+<pre><code>google-chrome \
+  --remote-debugging-address=127.0.0.1 \
+  --remote-debugging-port=9222 \
+  --user-data-dir="$HOME/.cache/cam-local-test-browser" \
+  --no-first-run</code></pre>
+<p>Use <code>chromium</code> instead of <code>google-chrome</code> when that is your installed executable. Keep this profile exclusively for local fixtures. The debugging endpoint controls that browser: keep it on loopback and do not add real accounts, secrets or wallet extensions.</p>
+<p>In this browser, open the <strong>entire URL printed by terminal A</strong>, including its query parameters. Opening only the port loses the fixture coordinates.</p>
+<h2>3. Attach the test wallet — terminal C</h2>
+<p>Run from the same source checkout:</p>
+<pre><code>make viewer/local/fixture-wallet/attach \
+  DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo \
+  FIXTURE_WALLET_APP=pay-to-play \
+  CDP_ORIGIN=http://127.0.0.1:9222</code></pre>
+<p>Choose the matching app tab if prompted. The attachment reads the saved fixture deployment and verifies the tab, chain, host, manifest and payment contract. It refuses a tab that already has a wallet provider. It does not start another browser or chain.</p>
+<p>Keep terminal C running. In the app, connect the fixture wallet. Its selector starts on the customer; changing roles changes the acting account. Wait for the app to refresh after each change. Sending asks for confirmation in terminal C.</p>
+<h2>4. Create a channel as the fixture admin</h2>
+<p>Select <strong>admin</strong> in the fixture wallet, then connect or let the app update. Open channel creation. For this local experiment, use the fixture admin's displayed address as both payee and collector and choose a 60-second claim period.</p>
+<p>Review the call, send it, and approve it in terminal C. Read the new channel ID from the successful receipt's <code>ChannelCreated</code> event—not from an observed channel count.</p>
+<h2>5. Deposit as the fixture customer</h2>
+<p>Select <strong>customer</strong> and wait for the app to update. Open a balance using that customer's displayed address and the channel ID from the receipt. Choose <strong>Deposit</strong>, enter <strong>100 in the wei/base-unit input</strong>, review and send.</p>
+<p>Approve in terminal C. Check that the receipt succeeded and that the resulting balance is 100 wei. The six task destinations should remain visible, with <strong>Balance</strong> now an overview rather than a page full of editors. Funding alone does not authorize voucher collection; the <a href="../pay-to-play/#keys">voucher-key and signing workflow</a> is a separate next task.</p>
+<h2>6. Stop what you started</h2>
+<p>Stop terminal C first; it removes its injected wallet and selector without closing the tab. Then stop terminal A and let cleanup finish. To explicitly remove the matching demo resources:</p>
+<pre><code>make pay-to-play/local/demo/gui/down \
+  DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo</code></pre>
+<p>Close the dedicated browser. Its profile remains on disk; the fixture's blockchain state is disposable. Closing a tab alone does not stop the demo. Never import these public fixture keys into a wallet used with real funds.</p>
+<h2>When a step fails</h2>
+<p><strong>No matching tab:</strong> check that you opened terminal A's complete URL in the CDP browser and used the same context/project in terminal C. <strong>Existing wallet rejected:</strong> use the isolated profile, not a browser with a real provider. <strong>Action unavailable:</strong> check the active role, selected owner/channel and latest state. <strong>Port busy:</strong> stop the old owned fixture/browser; do not kill unrelated services.</p>
+<p>Source procedure: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/pay-to-play/README.md#run-the-disposable-local-demo">Pay-to-Play local demo at 04a18763</a>. For a persistent server website, use <a href="../viewer/">Deploy the viewer</a>, not this fixture.</p>
+</article></main></body></html>
