@@ -15,11 +15,15 @@ contract PayToPlayRecoveryHandler is Test {
     uint256 public refunded;
     mapping(uint256 => uint256) public firstCloseAt;
     mapping(address => mapping(uint256 => uint256)) public actuallyPaid;
+    // Independent history of successful credits; never copied from the contract's readyAt.
+    mapping(address => mapping(uint256 => uint256)) public lastPositiveCreditAt;
+    uint256 public checkedPositiveExits;
+    bool public prematureExit;
 
     constructor() {
-        payments = new PayToPlay(address(this), 100);
+        payments = new PayToPlay(address(this), 0);
         payments.createChannel(makeAddr("recovery payee one"), address(this), 100);
-        payments.createChannel(makeAddr("recovery payee two"), address(this), 100);
+        payments.createChannel(makeAddr("recovery payee two"), address(this), 250);
         customers[0] = makeAddr("recovery customer one");
         customers[1] = makeAddr("recovery customer two");
         voucherKey = vm.addr(KEY);
@@ -40,6 +44,7 @@ contract PayToPlayRecoveryHandler is Test {
         vm.prank(customer);
         payments.fund{value: amount}(id, amount);
         funded += amount;
+        if (amount != 0) lastPositiveCreditAt[customer][id] = block.timestamp;
     }
 
     function collect(uint8 who, uint8 channel, uint96 total, bytes32 invoiceHash, uint96 maxAmount) external {
@@ -66,7 +71,9 @@ contract PayToPlayRecoveryHandler is Test {
         uint256 id = channel % 3;
         PayToPlay.PositionView memory position = _view(customer, id);
         if (position.requestedAmount == 0 || block.timestamp < position.readyAt) return;
-        withdrawn += payments.withdraw(customer, id);
+        uint256 amount = payments.withdraw(customer, id);
+        withdrawn += amount;
+        _recordExit(customer, id, amount);
     }
 
     function move(uint8 who, uint8 rawSource, uint8 rawTarget) external {
@@ -77,7 +84,9 @@ contract PayToPlayRecoveryHandler is Test {
         if (source == target || position.requestedAmount == 0 || block.timestamp < position.readyAt) return;
         if (_view(customer, target).phase != PayToPlay.Phase.Operating) return;
         vm.prank(customer);
-        payments.move(source, target);
+        uint256 amount = payments.move(source, target);
+        _recordExit(customer, source, amount);
+        if (amount != 0) lastPositiveCreditAt[customer][target] = block.timestamp;
     }
 
     function closePosition(uint8 who, uint8 channel) external {
@@ -105,12 +114,23 @@ contract PayToPlayRecoveryHandler is Test {
         address customer = customers[who % 2];
         uint256 id = channel % 3;
         if (_view(customer, id).phase != PayToPlay.Phase.RefundOnly) return;
-        refunded += payments.refund(customer, id);
+        uint256 amount = payments.refund(customer, id);
+        refunded += amount;
+        _recordExit(customer, id, amount);
     }
 
     function advanceTime(uint32 elapsed) external {
         uint256 delta = elapsed % 16 == 0 ? 365 days + uint256(elapsed % 201) : elapsed % 201;
         vm.warp(block.timestamp + delta);
+    }
+
+    function _recordExit(address customer, uint256 id, uint256 amount) private {
+        if (amount == 0) return;
+        checkedPositiveExits++;
+        uint256 earliest = lastPositiveCreditAt[customer][id] + uint256(payments.channel(id).claimPeriod);
+        // Do not revert here: invariant campaigns can ignore handler reverts.
+        // Keep the violation observable even after later credits or successful exits.
+        if (block.timestamp < earliest) prematureExit = true;
     }
 
     function _view(address customer, uint256 channel) private view returns (PayToPlay.PositionView memory) {
@@ -140,6 +160,66 @@ contract PayToPlayRecoveryInvariantTest is Test {
         selectors[9] = PayToPlayRecoveryHandler.advanceTime.selector;
         targetContract(address(handler));
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
+    }
+
+    function invariantPositiveCreditsKeepTheirExitWindowAcrossAllInterleavings() external view {
+        assertFalse(handler.prematureExit(), "positive withdrawal, move or refund escaped the latest credit window");
+    }
+
+    // Deterministic witnesses keep the ghost model exercised even with a small fuzz campaign.
+    function testFundingExitWindowWitnessBlocksEarlyExitAndAllowsMatureExit() public {
+        handler.request(0, 1, 80);
+        vm.warp(block.timestamp + 100);
+        handler.collect(0, 0, 100, bytes32(0), 100);
+        handler.fund(0, 1, 20);
+        uint256 creditedAt = block.timestamp;
+        assertEq(handler.lastPositiveCreditAt(handler.customers(0), 1), creditedAt);
+        handler.withdraw(0, 1);
+        assertFalse(handler.prematureExit());
+        assertEq(handler.checkedPositiveExits(), 0);
+        vm.warp(creditedAt + 100);
+        handler.withdraw(0, 1);
+        assertEq(handler.checkedPositiveExits(), 1);
+        assertEq(handler.withdrawn(), 20);
+        assertFalse(handler.prematureExit());
+    }
+
+    function testMovedCreditWitnessUsesDestinationPeriodAndCannotMoveBackEarly() public {
+        handler.request(0, 1, 100);
+        handler.fund(0, 2, 100);
+        handler.request(0, 2, 100);
+        handler.collect(0, 1, 100, bytes32(0), 100);
+        vm.warp(block.timestamp + 250);
+        handler.move(0, 1, 2);
+        uint256 creditedAt = block.timestamp;
+        assertEq(handler.lastPositiveCreditAt(handler.customers(0), 2), creditedAt);
+        assertEq(handler.checkedPositiveExits(), 1);
+        handler.move(0, 2, 0);
+        assertFalse(handler.prematureExit());
+        assertEq(handler.checkedPositiveExits(), 1);
+        vm.warp(creditedAt + 250);
+        handler.move(0, 2, 0);
+        assertEq(handler.checkedPositiveExits(), 2);
+        assertEq(handler.lastPositiveCreditAt(handler.customers(0), 0), block.timestamp);
+        assertFalse(handler.prematureExit());
+    }
+
+    function testZeroCreditsDoNotAdvanceOracleAndZeroPeriodExitsRemainValid() public {
+        handler.request(0, 1, 100);
+        handler.collect(0, 0, 100, bytes32(0), 100);
+        handler.fund(0, 2, 10);
+        uint256 prior = handler.lastPositiveCreditAt(handler.customers(0), 2);
+        vm.warp(block.timestamp + 100);
+        handler.fund(0, 2, 0);
+        handler.move(0, 1, 2);
+        assertEq(handler.lastPositiveCreditAt(handler.customers(0), 2), prior);
+        assertEq(handler.checkedPositiveExits(), 0);
+        handler.fund(0, 0, 10);
+        handler.request(0, 0, 10);
+        handler.withdraw(0, 0);
+        assertEq(handler.checkedPositiveExits(), 1);
+        assertEq(handler.withdrawn(), 10);
+        assertFalse(handler.prematureExit());
     }
 
     function invariantFundsKeysAndPermanentClosureSurviveAllInterleavings() external view {
