@@ -53,29 +53,13 @@
 <h3 id="batches">Refund many positions</h3>
 <p>Use the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/pay-to-play-refunds/README.md">bounded refund worker</a> for event discovery and independent batches. Complete historical funding and incoming-move coverage matters. A channel's <code>escrowTotal == 0</code> means no credited customer balance remains, not that forced uncredited native transfers are absent.</p>
 <h2 id="integrate">Integrate with a service</h2>
-<h3 id="binding">Use the payment address, not the CAM host</h3>
-<p>Resolve <code>contractAddress("PayToPlay")</code> on the trusted CAM host. Verify the chain, deployment and resources. That bound payment address is the EIP-712 <code>verifyingContract</code>; the host address is not.</p>
-<h3 id="signing">Sign the v2 voucher outside the viewer</h3>
-<pre><code>Domain: name = "PayToPlay", version = "2"
-        chainId = deployment chain ID
-        verifyingContract = PayToPlay address
-
-Voucher(address customer,
-        uint256 channelId,
-        uint256 cumulativeTotal,
-        bytes32 invoiceHash)</code></pre>
-<p>Use the confirmed registered key and the agreed invoice codec. Compare the typed-data digest with <code>voucherDigest(customer, channelId, cumulativeTotal, invoiceHash)</code>. Do not use personal-message signing for that digest. The signing-details screen produces comparison data, not a signature. Follow the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/pay-to-play/README.md">source integration manual</a> for the complete invoice/signing contract.</p>
-<h3 id="api">Current call shapes</h3>
-<pre><code>createChannel(payee, collector, claimPeriod)
-fund(channelId, amount)                 // msg.value must equal amount
-collect(customer, channelId, cumulativeTotal,
-        invoiceHash, maxAmount, signature)
-viewPosition(customer, channelId, actor)</code></pre>
-<p>Use the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/pay-to-play/cam/abi/PayToPlay.json">exact ABI</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/pay-to-play/cam/main.json">authored route arguments</a>. A route's continuation inputs are not necessarily Solidity arguments. Keep accepted-but-uncollected obligations durable; a signed voucher or enabled button is not a reservation of backing.</p>
-<h3 id="compatibility">Do not treat a manifest update as a contract upgrade</h3>
-<p>Contracts are not upgradeable. An old deployment retains its original code, tuple layouts and voucher policy. Replacing a payment contract changes its verifying address and requires explicit client and balance/key/voucher migration decisions. This guide does not establish that an existing public deployment is compatible.</p>
+<p><a href="integration.html">Follow the payment-integration guide</a> from deployment identity through durable invoice authorization, collection and reconciliation. The contract does not provide a purchase database or prove service delivery.</p>
+<p id="binding"><a href="integration.html#binding">Resolve and verify the payment address</a>, not the CAM host.</p>
+<p id="signing"><a href="integration.html#sign">Sign the four-field PayToPlay/2 voucher</a> with the confirmed permanent key. The helper reference owns exact invoice encodings and interoperability vectors.</p>
+<p id="api"><a href="integration.html#api">Use the deployed ABI and authored route mapping</a>; continuation inputs are not necessarily Solidity arguments.</p>
+<p id="compatibility"><a href="integration.html#compatibility">Plan replacement explicitly</a>. A new manifest cannot migrate balances, keys or issued vouchers to another contract.</p>
 <h2 id="local">Try locally</h2>
-<p>The <a href="../examples/#local-demos">local-demo entry point</a> explains the disposable chain. The <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/pay-to-play/README.md#run-the-disposable-local-demo">source demo procedure</a> includes the supported fixture-wallet attachment and invoice-bearing local signer. Use public fixture keys only on the disposable local chain.</p>
+<p>Start with <a href="../start/local-wallet.html">a local wallet and 100-wei deposit</a>, then <a href="local-payment.html">sign and collect a test voucher</a>. The shared wallet guide owns browser setup and cleanup; use public fixture keys only on disposable local state.</p>
 <h3 id="verify">Verification for contributors</h3>
-<p>Run CAM conformance for authored resources; use the existing Pay-to-Play local payment/recovery scenarios for contract integration. The optional live browser check submits transactions and owns a test tab; point it only at disposable state. See the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/pay-to-play/README.md#verify-the-workflows">verification commands and boundaries</a>. A passing fixture is not evidence that a public service delivered work.</p>
+<p><a href="../development/app-checks.html#payment">Choose the payment or recovery campaign</a>, or <a href="../development/payment-fixture.html">hand an isolated deployment to another repository's test runner</a>. Live signing checks require disposable state. A passing fixture does not establish production readiness or delivered work.</p>
 </article></main></body></html>
