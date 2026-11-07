@@ -155,6 +155,20 @@
       </ul>
     </section>
 
+    <section id="development" class="narrow">
+      <h2>Development setup</h2>
+      <p>Development uses <code>main</code>; published documentation lives on the independent <code>gh-pages</code> branch. Both branches are protected against deletion and force pushes. The <a href="#archive">historical proof of concept</a> remains available through its archive tag.</p>
+      <p>Use Docker, Compose and Make as a non-root user. Install the locked dependencies explicitly, then run the offline checks on a selected local Docker engine:</p>
+      <pre><code>git clone https://github.com/numpde/dapp32.git
+cd dapp32
+make dapps/deps/install DOCKER_CONTEXT=your-local-context
+make js/deps/install DOCKER_CONTEXT=your-local-context
+make ci DOCKER_CONTEXT=your-local-context</code></pre>
+      <p>Replace <code>your-local-context</code> with a context from <code>docker context ls</code>, or omit <code>DOCKER_CONTEXT</code> to choose a local context interactively. Each operation resolves the selected context to its local Unix socket once; child operations and cleanup use that endpoint. Noninteractive commands require the context on the Make command line.</p>
+      <p>Compose services with their own network namespace disable Multipath TCP. The host kernel must expose the per-namespace <code>net.mptcp.enabled</code> setting. Browser tools using host networking share the host's network settings instead. Host-owned release and CAM-maintenance tools have additional <a href="deployment/#docker-identity">private-file identity requirements and an engine qualification check</a>.</p>
+      <p><code>make tests</code> also runs networked checks and disposable local scenarios; <code>make ci</code> retains its offline test scope. Dependency installation is a separate networked step. Run <code>make help</code> for commands, prerequisites and operator options.</p>
+    </section>
+
     <section id="try" class="split">
       <div>
         <h2>Local demo</h2>
@@ -167,8 +181,8 @@
           the <a href="bike-nft/#try">Bike NFT</a>,
           <a href="escrow/#try">Escrow</a> or
           <a href="pay-to-play/#local">Pay-to-Play</a> instructions.
-          Docker, Compose and Make are required; install the locked
-          dependencies before launching a demo.
+          Complete the <a href="#development">development setup and locked dependency installation</a>
+          before launching a demo.
         </p>
         <p>
           Each demo attempts cleanup when its foreground command exits. Closing
@@ -180,12 +194,8 @@
           then check that it has stopped.
         </p>
       </div>
-      <pre class="code-block"><span>git clone https://github.com/numpde/dapp32.git
-cd dapp32
-make dapps/deps/install
-make js/deps/install
-make cam/conformance/check
-make bike-nft/local/demo/gui/up
+      <pre class="code-block"><span>make cam/conformance/check DOCKER_CONTEXT=your-local-context
+make bike-nft/local/demo/gui/up DOCKER_CONTEXT=your-local-context
 # open the printed http://127.0.0.1:5173/... URL</span></pre>
     </section>
 
