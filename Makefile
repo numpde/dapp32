@@ -8,7 +8,7 @@ PYTHON_IMAGE := docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875
 
 .PHONY: help pages/check pages/navigation/update pages/navigation/check
 help:
-	@printf '%s\n' 'make pages/navigation/update' '  Regenerate the shared header, skip link and theme asset references.' '  Every target acquires its pinned runtime automatically when absent; check containers keep their declared network scope.' 'make pages/navigation/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Check shared headers, theme changes and navigation across every site page.' 'make pages/check SOURCE_REPO=/path/to/dapp32' '  Check this site’s local links, fragments and examples against the source repository’s committed HEAD.' '  Fetches its digest-pinned runtime automatically if missing; runs checks offline with read-only inputs.' 'make pages/networks/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Open an owned browser tab to check automatic catalog loading and failure feedback.' '  Requires a running CDP browser; fetches the public catalog without visiting RPC endpoints.' 'make pages/deployments/check [LIVE_RPC=1]' '  Check deployment reads, RPC selection and recovery in an owned background browser tab.' '  Uses fixture RPC by default; LIVE_RPC=1 additionally reads the listed public deployment.'
+	@printf '%s\n' 'make pages/navigation/update' '  Regenerate the shared header, skip link and theme asset references.' '  Every target acquires its pinned runtime automatically when absent; check containers keep their declared network scope.' 'make pages/navigation/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Check shared headers, theme changes and navigation across every site page.' 'make pages/check SOURCE_REPO=/path/to/dapp32' '  Check this site’s local links, fragments, current reference bytes and examples against the source repository’s committed HEAD.' '  Fetches its digest-pinned runtime automatically if missing; runs checks offline with read-only inputs.' 'make pages/networks/check [CDP_ORIGIN=http://127.0.0.1:9222]' '  Open an owned browser tab to check automatic catalog loading and failure feedback.' '  Requires a running CDP browser; fetches the public catalog without visiting RPC endpoints.' 'make pages/deployments/check [LIVE_RPC=1]' '  Check deployment reads, RPC selection and recovery in an owned background browser tab.' '  Uses fixture RPC by default; LIVE_RPC=1 additionally reads the listed public deployment.'
 
 pages/navigation/update:
 	@archive="$$(mktemp -t dapp32-pages-navigation.XXXXXXXX)"; \
@@ -31,7 +31,7 @@ pages/check:
 	  --tmpfs /tmp:rw,nosuid,nodev,noexec,size=32m \
 	  --mount "type=bind,src=$$PWD,dst=/site,readonly" \
 	  --mount "type=bind,src=$$archive,dst=/source,readonly" \
-	  "$(PYTHON_IMAGE)" python3 -I -B /site/check_pages.py --source-archive /source
+	  "$(PYTHON_IMAGE)" sh -ec 'python3 -I -B /site/check_pages.py --source-archive /source; python3 -I -B /site/check_reference.py /source'
 
 NODE_IMAGE := docker.io/library/node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
 CDP_ORIGIN ?= http://127.0.0.1:9222
