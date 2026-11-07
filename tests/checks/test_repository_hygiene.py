@@ -112,6 +112,17 @@ FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
 
 class RepositoryHygieneTest(unittest.TestCase):
+    def test_solidity_tests_do_not_mutate_process_environment(self) -> None:
+        # EVM rollback does not isolate the environment shared by concurrent tests.
+        violations: list[str] = []
+        pattern = re.compile(r"\bvm\s*\.\s*setEnv\s*\(")
+        for path in sorted(repo_path("dapps").glob("*/test/**/*.t.sol")):
+            source = read_text(path)
+            for match in pattern.finditer(source):
+                line = source.count("\n", 0, match.start()) + 1
+                violations.append(f"{path.relative_to(repo_path('.'))}:{line}")
+        self.assertEqual([], violations, "Solidity tests must pass fixture inputs without process-wide environment mutation")
+
     def verified_research_source_paths(self) -> tuple[Path, ...]:
         root = SERVICE_PAYMENT_SNAPSHOT_ROOT
         self.assertFalse(path_has_symlink(root), "research snapshot must not use symlinks")

@@ -5,15 +5,24 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 import {DeployEscrowLocal} from "../../script/DeployEscrowLocal.s.sol";
 import {EscrowDeployment} from "../../script/EscrowDeployment.sol";
 
+contract DeployEscrowLocalHarness is DeployEscrowLocal {
+    function deployFixture(uint256 deployerKey, string memory camURI)
+        external
+        returns (EscrowDeployment.Deployment memory)
+    {
+        return _deploy(deployerKey, camURI);
+    }
+}
+
 contract DeployEscrowLocalTest is Test {
-    function testFixturePinsExactMountedCamBytesDespiteExternalHash() external {
+    uint256 private constant FIXTURE_KEY = 0xbabababababababababababababababababababababababababababababababa;
+    string private constant URI = "http://escrow-cam-http:8080/main.json";
+
+    function testFixturePinsExactMountedCamBytes() external {
         bytes32 sourceHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
-        vm.setEnv("PRIVATE_KEY", "0xbabababababababababababababababababababababababababababababababa");
-        vm.setEnv("CAM_URI", "http://escrow-cam-http:8080/main.json");
-        vm.setEnv("CAM_HASH", "0x1111111111111111111111111111111111111111111111111111111111111111");
-
-        EscrowDeployment.Deployment memory deployment = new DeployEscrowLocal().run();
-
+        EscrowDeployment.Deployment memory deployment = new DeployEscrowLocalHarness().deployFixture(FIXTURE_KEY, URI);
         assertEq(deployment.camRoot.camManifest().sha256Digest, sourceHash);
+        assertEq(deployment.camRoot.camManifest().uri, URI);
+        assertEq(deployment.camRoot.owner(), vm.addr(FIXTURE_KEY));
     }
 }
