@@ -1625,7 +1625,7 @@ if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then \
 fi; \
 source tools/release_identity.sh; release_select_container_identity; \
 mapped_user="$${RELEASE_CONTAINER_UID:?missing mapped UID}:$${RELEASE_CONTAINER_GID:?missing mapped GID}"; \
-if [[ ! "$$mapped_user" =~ ^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$ ]]; then \
+if [[ ! "$$mapped_user" =~ ^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$$ ]]; then \
   printf '%s\n' 'Selected Docker engine did not return a valid mapped output identity.' >&2; exit 2; \
 fi
 endef
