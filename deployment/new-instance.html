@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deploy a new app instance · dapp32</title><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="./" aria-current="page">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Deploy a new app instance</h1>
+<p>This example creates Pay-to-Play contracts and their CAM publication. It does not install a public viewer or upload the bundle for you.</p>
+<dl><dt>Run on</dt><dd>The operator's Linux workstation or server with a local Docker engine.</dd><dt>Requires</dt><dd>A clean reviewed source revision, locked dependencies, target-chain RPC, funded deployer, selected final authorities and a public bundle-hosting location.</dd><dt>Changes</dt><dd>Private operation records and approved on-chain transactions. Public chains consume gas.</dd><dt>Success</dt><dd>Verified retained records, hosted exact bundle bytes, completed intended handoffs, and a working read through a compatible viewer.</dd></dl>
+<h2>1. Choose the deployment, not just a command</h2>
+<p>Use <a href="../development/">source setup</a> and qualify <a href="./#docker-identity">private-file access</a> for the chosen engine. Read the <a href="pay-to-play/">Pay-to-Play settings</a> before selecting the admin, reserve wait and CAM owner. The <a href="escrow/">Escrow</a> and <a href="bike-nft/">Bike NFT</a> guides specify their different authorities and handoffs.</p>
+<p>For practice without public funds, use the <a href="./#rehearse-the-release-locally">isolated release rehearsal</a>. It tests the release process, unlike the simpler <a href="../start/local-wallet.html">app demo</a>.</p>
+<h2>2. Create the private instance</h2>
+<pre><code>CTX=your-local-context
+INSTANCE=/absolute/private/pay-to-play-fuji
+make pay-to-play/release/setup \
+  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>Choose an instance path outside the checkout with an existing parent. Setup creates the private folder and asks for the configuration purpose, chain, actors and app settings. It prepares the approval tool; it sends no transaction. Keep the directory and credentials private. Use separate instances for different apps or chains.</p>
+<h2>3. Arrange the hosting pause</h2>
+<p>For new files whose final URL is not ready, omit <code>settings.CAM_URI</code> from the referenced CAM configuration before starting deployment. Setup normally asks for this field; remove it deliberately to select the pause. Keep the manifest hash setting at <code>auto</code> for an exact-byte commitment.</p>
+<pre><code>make pay-to-play/release/deploy \
+  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>The operation deploys and verifies business and read-only projection contracts, prepares the bundle, and prints its directory. Approve only the reviewed transactions. At the hosting pause, the next input is the bundle's final hosted manifest URI—not another contract deployment.</p>
+<h2>4. Host the prepared public files</h2>
+<p>Upload only the contents of the printed <code>cam-bundle/bundle/</code> directory to a dedicated versioned location. Preserve <code>main.json</code>, <code>ui.json</code>, <code>protocol.html</code> and ABI relative paths. Do not upload the instance, input copies, signing material, compiler output or source archives.</p>
+<p>Use HTTPS or supported IPFS publication. Browser access must satisfy CORS. Download the hosted <code>main.json</code> and compare its SHA-256 with the prepared file; check every resource resolves to its exact prepared bytes. A successful upload is not an on-chain publication. The <a href="./#publish-prepared-cam">hosting/publication reference</a> describes the retained bundle artifact.</p>
+<h2>5. Resume and approve publication</h2>
+<p>Repeat the same deploy command, choose <strong>Resume</strong> and enter the hosted manifest URI. Do not start a separate deployment to continue the pause. Existing completed components are checked, not redeployed. Inspect the CAM root, bindings, manifest URI/hash and nominated owner before approving.</p>
+<p>Retain the entire instance. A transaction hash alone is not a mined success; inspect uncertain outcomes before approving a second attempt.</p>
+<h2>6. Verify and open</h2>
+<pre><code>make pay-to-play/release/verify \
+  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"
+make viewer/release/up \
+  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>Historical verification checks retained deployment evidence. It does not establish that nominees accepted ownership or that the app currently has a particular balance or role. Have nominees accept their authorities separately as specified by the app guide; Bike NFT acceptance can include a delay.</p>
+<p>Select the completed publication and a browser-public RPC, then open the printed URL. Check a known read before connecting a signing wallet. A permanent viewer website is a <a href="../viewer/">separate server task</a>.</p>
+<h2>When execution stops</h2>
+<p>Keep the saved records and repeat the same command to resume or reconcile. Do not discard a failed attempt, guess that a transaction was not sent, or switch to new contracts merely because a final artifact is missing. See <a href="./#complete-deployment-records">record recovery</a> and <a href="./#cancel-a-release-or-rehearsal">cleanup boundaries</a>.</p>
+<p>Source baseline: <code>04a18763</code>. This procedure is not an authorization to replace an existing public deployment.</p>
+</article></main></body></html>
