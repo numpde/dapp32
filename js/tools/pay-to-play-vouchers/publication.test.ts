@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { readFile } from "node:fs/promises"
 import test from "node:test"
+import { voucherTypedData } from "./protocol.ts"
 
 // The normal JS test lane mounts the checked-in dapps tree read-only.
 const directory = new URL("../../../dapps/pay-to-play/", import.meta.url)
@@ -48,19 +49,20 @@ test("published ABI has invoice-bearing collection and digest only", async () =>
   assert.deepEqual(event.map(field => field.indexed), [true, true, true, false, false, false])
 })
 
-test("primary signing guide agrees with the published voucher schema and v2 domain", async () => {
-  const guide = await readFile(new URL("README.md", directory), "utf8")
-  type Example = { primaryType?: string; domain: { name: string; version: string }; types: { Voucher: Field[] }; message: Record<string, string> }
-  const examples = [...guide.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)]
-    .map(match => JSON.parse(match[1]!) as Example)
-    .filter(example => example.primaryType === "Voucher")
-  assert.equal(examples.length, 1, "keep one complete signing example in the primary guide")
-  const example = examples[0]!
-  assert.equal(example.domain.name, "PayToPlay")
-  assert.equal(example.domain.version, "2")
-  assert.deepEqual(example.types.Voucher, voucherFields)
-  assert.deepEqual(Object.keys(example.message).sort(), voucherFields.map(field => field.name).sort())
-  assert.match(guide, /PAY_TO_PLAY_INVOICE_HASH=/, "manual signing must include the required invoice reference")
+test("voucher helper signs the published ABI tuple under the v2 payment domain", () => {
+  const customer = `0x${"11".repeat(20)}` as `0x${string}`
+  const paymentContract = `0x${"33".repeat(20)}` as `0x${string}`
+  const invoiceHash = `0x${"55".repeat(32)}` as `0x${string}`
+  const typed = voucherTypedData({
+    chainId: 31337n, paymentContract, customer, channelId: 7n,
+    cumulativeTotal: 70n, invoiceHash,
+  })
+  assert.deepEqual(typed.domain, {
+    name: "PayToPlay", version: "2", chainId: 31337n, verifyingContract: paymentContract,
+  })
+  assert.equal(typed.primaryType, "Voucher")
+  assert.deepEqual(typed.types.Voucher, voucherFields)
+  assert.deepEqual(typed.message, { customer, channelId: 7n, cumulativeTotal: 70n, invoiceHash })
 })
 
 test("CAM routes require and preserve the invoice reference and declare exact resource hashes", async () => {
