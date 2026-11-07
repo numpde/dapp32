@@ -1,59 +1,43 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Author a CAM workflow · dapp32</title>
-<meta name="description" content="Connect a host contract, CAM manifest, ABI resources, routes and a declarative UI using the working dapp32 examples.">
-<script src="../theme.js"></script>
-<link rel="stylesheet" href="../site.css">
-
-</head>
-<body>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Build a workflow · dapp32</title><meta name="description" content="Make one visible change to a complete CAM workflow, validate it and run it locally."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="./" aria-current="page">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<header>
-<div class="shell">
-<h1>Author a contract-defined workflow</h1>
-<p class="lede">Describe your app's screens and contract calls in a CAM manifest, a JSON workflow document. A host contract publishes its location and hash; a generic viewer loads the document and renders its UI. Start from the checked-in Bike NFT or escrow bundle.</p>
-</div>
-</header>
-<main id="main" class="shell">
-<section class="narrow">
-<h2>Give each part one responsibility</h2>
-<ol>
-<li>
-<strong>The business contract</strong> enforces permissions, amounts, lifecycle transitions, and deadlines. It must remain safe when callers bypass the UI.</li>
-<li>
-<strong>The host</strong>, currently <code>CamRoot</code>, publishes <code>camURI</code> and <code>camHash</code> and resolves contract namespace names to chain-specific addresses. Its owner controls that publication and those bindings.</li>
-<li>
-<strong>
-<code>cam/main.json</code>
-</strong> declares the CAM version, entry route, namespaces, resources, and routes. Escrow uses <code>"cam": "1.1.0"</code>; Bike NFT uses <code>"cam": "1.0.0"</code>. The current reader supports both.</li>
-<li>
-<strong>ABI resources</strong> describe contract calls. Contract namespaces point directly to <code>./abi/ContractName.json</code>; the manifest pins those bytes with SHA-256 integrity.</li>
-<li>
-<strong>
-<code>cam/ui.json</code>
-</strong> declares named UI nodes; current UI version is <code>1.0.0</code>. Its bytes are also pinned in the manifest.</li>
-<li>
-<strong>An optional read projection</strong> is a read-only contract that gathers business state into screen values and available action names. It does not execute writes or authorize transactions; the business contract enforces permissions.</li>
-</ol>
-<p>The host's manifest hash is <strong>Keccak-256 of the exact root manifest bytes</strong>. ABI/UI resource integrity uses SHA-256. Escrow document digests also use SHA-256, but are application commitments with a different purpose. Do not interchange these hashes.</p>
-</section>
-<section id="examples">
-<h2>Follow the actual escrow read route</h2>
-<p class="narrow">This complete route excerpt comes from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/main.json">escrow's manifest</a>. It reads the projection for the currently viewed account and hands the first output and a navigation selector to the UI's <code>app</code> node. In <code>main.json</code>, place this object at <code>routes.createAgreementForm</code>; it is not a standalone manifest.</p>
-<pre class="code-block" data-source-route="escrow:createAgreementForm">
-<code>{
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../use/">Use</a><a href="./" aria-current="page">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Build a workflow</h1>
+<p>Start by changing one screen in the complete Escrow example. You will see the change in the generic viewer without editing its React code or changing contract permissions.</p>
+<dl><dt>Run on</dt><dd>Your workstation, in a source checkout.</dd><dt>Requires</dt><dd><a href="../#development">Docker, Compose, Make and the locked dependencies</a>.</dd><dt>Changes</dt><dd>Local CAM files and a disposable chain. No public deployment.</dd><dt>Success</dt><dd>The local creation form shows your new label; CAM conformance passes.</dd></dl>
+<nav aria-label="Guide sections"><a href="#edit">Make a change</a> · <a href="#examples">Follow the read</a> · <a href="#write">Follow the write</a> · <a href="#publish">Publish deliberately</a></nav>
+<h2 id="edit">1. Make one visible change</h2>
+<p>In <code>dapps/escrow/cam/ui.json</code>, locate the <code>AmountField</code> with label <code>Escrow amount</code> in the agreement-creation screen. Change only its label to <code>Project budget</code>. Keep its state key, unit and expressions unchanged.</p>
+<p>The complete example has three different kinds of UI-related code:</p>
+<table><thead><tr><th>File or component</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>cam/main.json</code></td><td>Routes: what contract to read or call, and what happens next.</td></tr>
+<tr><td><code>cam/ui.json</code></td><td>Screens, fields, labels and buttons. This is what you are editing.</td></tr>
+<tr><td><code>CamEscrowUI</code></td><td>A read-only Solidity projection: state and available actions for a screen.</td></tr>
+<tr><td>Browser viewer</td><td>Renders those descriptions and connects a wallet. It is not the projection contract.</td></tr>
+</tbody></table>
+<h2>2. Refresh resource pins and validate</h2>
+<p>Replace <code>your-local-context</code> with your local Docker context. Use it for every command.</p>
+<pre><code>make cam/integrity/refresh DOCKER_CONTEXT=your-local-context
+make cam/conformance/check DOCKER_CONTEXT=your-local-context
+git diff -- dapps/escrow/cam</code></pre>
+<p>The UI's exact bytes changed, so its SHA-256 resource pin must change too. Inspect the diff: the intended label and affected integrity pins should explain it. Do not replace a digest with zero to bypass a failed check.</p>
+<h2>3. Open the complete example</h2>
+<pre><code>make escrow/local/demo/gui/up DOCKER_CONTEXT=your-local-context</code></pre>
+<p>Keep the command running. Open the complete printed URL, normally on loopback port 5174, and open the agreement-creation form. It should show <strong>Project budget</strong>. This is a local fixture, not an update to a deployed Escrow. No wallet is needed just to inspect the form.</p>
+<p>Stop the foreground command when finished. The explicit cleanup command is:</p>
+<pre><code>make escrow/local/demo/gui/down DOCKER_CONTEXT=your-local-context</code></pre>
+<p>Review your source diff before committing or discarding the experiment. Do not reset unrelated local work.</p>
+<h2 id="examples">Understand the read that opens the form</h2>
+<p>This is the complete <code>routes.createAgreementForm</code> object from the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/main.json">source manifest</a>, not a standalone manifest:</p>
+<pre data-source-route="escrow:createAgreementForm"><code>{
   "kind": "read",
   "inputs": [],
   "call": {
     "namespace": "contracts.CamEscrowUI",
     "function": "viewCreateAgreement",
-    "args": {
-      "client": "$account.address"
-    }
+    "args": { "client": "$account.address" }
   },
   "then": {
     "namespace": "ui",
@@ -65,197 +49,17 @@
       }
     }
   }
-}</code>
-</pre>
-<p class="narrow">The contract namespace declares its ABI URI and integrity in <code>namespaces</code>; the host supplies its deployed address. Route argument names must match the ABI. <code>$inputs</code> refers to declared route inputs, <code>$account.address</code> to the account being viewed, and <code>$outputs.0</code> to the first call output. These are protocol expressions, not JavaScript.</p>
-</section>
-<section>
-<h2>Keep calldata and payment together</h2>
-<p class="narrow">CAM 1.1 permits native transaction value: the payment sent with a contract call. Escrow's creation route uses the same nested amount in the call arguments (calldata) and the payment (value). Place the object below at <code>routes.createAgreement</code> in <code>main.json</code>. After successful transaction confirmation, the browser viewer runs the follow-up route named in <code>then</code>, looking up the new agreement by client and reference.</p>
-<pre class="code-block" data-source-route="escrow:createAgreement">
-<code>{
-  "kind": "write",
-  "inputs": [
-    "params"
-  ],
-  "value": "$inputs.params.amount",
-  "call": {
-    "namespace": "contracts.CamEscrow",
-    "function": "createAgreement",
-    "args": {
-      "params": "$inputs.params"
-    }
-  },
-  "then": {
-    "namespace": "routes",
-    "function": "lookupAgreement",
-    "args": {
-      "client": "$account.address",
-      "agreementRef": "$inputs.params.agreementRef"
-    }
-  },
-  "review": {
-    "call": {
-      "namespace": "contracts.CamEscrowUI",
-      "function": "arbitrationTimeoutBeneficiaryId",
-      "args": {
-        "beneficiary": "$inputs.params.arbitrationTimeoutBeneficiary"
-      }
-    },
-    "then": {
-      "namespace": "ui",
-      "function": "escrow.create.review",
-      "args": {
-        "view": {
-          "params": "$inputs.params",
-          "timeoutRecipient": "$outputs.0.read.0"
-        }
-      }
-    }
-  }
-}</code>
-</pre>
-<p class="narrow">Read routes continue to UI nodes. Write routes continue to another route. A prepared write is calldata and value for simulation and wallet review; it is not authorization or proof of execution. The business contract must reject invalid calls even if a UI advertises them.</p>
-<p class="narrow">In the browser viewer, connect the wallet before preparing creation. Connecting selects the wallet address as <code>$account.address</code> and discards earlier prepared calls. The successful creation transaction makes its sender the client, so this follow-up lookup uses that client's address and the entered reference. If the wallet reports an account change, the viewer refreshes automatically: wait for that view, check the account and chain, then prepare again. Providers without change notifications require manual reconnection through <strong>Switch wallet</strong>. An app using the headless library must coordinate its viewed account with its signer and run the follow-up only after successful confirmation.</p>
-</section>
-<section>
-<h2>Compose a declarative UI</h2>
-<p class="narrow">Named nodes declare <code>requires: ["view"]</code> when they receive a view argument. <code>Include</code> calls UI nodes, <code>Button</code> calls routes, and fields bind local <code>state.key</code> values that expressions can read through <code>$state</code>. Escrow's <code>app</code> node selects a named screen using <code>$view.screen.viewId</code>.</p>
-<div class="route-table">
-<table>
-<caption>Current UI elements and their purpose</caption>
-<thead>
-<tr>
-<th>Elements</th>
-<th>Use</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Screen, Fragment</td>
-<td>A titled screen or a group of children.</td>
-</tr>
-<tr>
-<td>Text, Address, Status, Nft</td>
-<td>Display text, addresses, values, and NFT references. Address displays an address; it is not an input field.</td>
-</tr>
-<tr>
-<td>TextField</td>
-<td>Collect text, including document URIs.</td>
-</tr>
-<tr>
-<td>DocumentHashField</td>
-<td>Collect an exact-byte SHA-256 digest manually, from a local file, or by explicitly reading a declared HTTP(S) source URI.</td>
-</tr>
-<tr>
-<td>AmountField</td>
-<td>Collect an exact base-unit amount with native/display-unit conversion, using a declared unit.</td>
-</tr>
-<tr>
-<td>NonNegativeIntegerField</td>
-<td>Collect whole nonnegative decimal integers with optional min/max bounds; escrow sets a minimum of 1 for durations.</td>
-</tr>
-<tr>
-<td>Include, Button</td>
-<td>Compose named UI nodes or dispatch declared routes.</td>
-</tr>
-</tbody>
-</table>
-</div>
-<p class="narrow">This complete anonymous field excerpt is from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/ui.json">escrow's UI</a>; place it among a node's children:</p>
-<pre class="code-block" data-source-ui="escrow:AmountField">
-<code>{
-  "element": "AmountField",
-  "props": {
-    "label": "Escrow amount",
-    "unit": {
-      "assetId": "native", "baseLabel": "wei",
-      "displayLabel": "Native asset", "decimals": 18
-    }
-  },
-  "state": { "key": "amount", "defaultValue": "" }
-}</code>
-</pre>
-<p class="narrow">The amount field stores an exact base-unit decimal string in <code>$state.amount</code>. The creation button below copies that value into <code>params.amount</code>, along with the other fields required by the contract. The write route above then reads it as <code>$inputs.params.amount</code> for both calldata and payment. Place this complete named node at <code>nodes.createAgreement</code> in <code>ui.json</code>:</p>
-<pre class="code-block" data-source-ui="escrow:Button">
-<code>{
-  "requires": ["view"],
-  "element": "Button",
-  "props": { "label": "Create agreement" },
-  "call": {
-    "namespace": "routes",
-    "function": "createAgreement",
-    "args": {
-      "params": {
-        "agreementRef": "$state.agreementRef",
-        "contractor": "$state.contractor",
-        "arbitrator": "$state.arbitrator",
-        "arbitrationTimeoutBeneficiary": "$state.arbitrationTimeoutBeneficiary",
-        "amount": "$state.amount",
-        "acceptanceDuration": "$state.acceptanceDuration",
-        "workDuration": "$state.workDuration",
-        "reviewDuration": "$state.reviewDuration",
-        "arbitrationDuration": "$state.arbitrationDuration",
-        "terms": {
-          "uri": "$state.termsUri",
-          "sha256Digest": "$state.termsDigest"
-        }
-      }
-    }
-  }
-}</code>
-</pre>
-<p class="narrow">The checked-in creation screen includes the nodes named in <code>$view.actions</code> using the object below among <code>nodes["escrow.create"].children</code>. For a nonzero viewed client address, the creation view supplies <code>createAgreement</code> as one of those names. <code>requires: ["view"]</code> declares that the named button receives the read route's view argument; the Include passes it through. This does not create the form fields or authorize a transaction. Keep the other creation fields from the existing screen: the amount field and button alone do not supply a complete agreement.</p>
-<pre class="code-block" data-source-ui="escrow:Include">
-<code>{
-  "element": "Include",
-  "call": {
-    "namespace": "ui",
-    "function": "$view.actions",
-    "args": { "view": "$view" }
-  }
-}</code>
-</pre>
-<p class="narrow">Escrow keeps document URIs in UriField and digest values in DocumentHashField. This complete terms field belongs among <code>nodes["escrow.create"].children</code> in <code>ui.json</code>:</p>
-<pre class="code-block" data-source-ui="escrow:DocumentHashField">
-<code>{
-  "element": "DocumentHashField",
-  "props": {
-    "label": "Terms SHA-256 digest",
-    "algorithm": "sha256",
-    "sourceURI": "$state.termsUri"
-  },
-  "state": {
-    "key": "termsDigest",
-    "defaultValue": "0x0000000000000000000000000000000000000000000000000000000000000000"
-  }
-}</code>
-</pre>
-<p class="narrow"><code>label</code> and the literal <code>algorithm: "sha256"</code> are required. The optional <code>sourceURI</code> expression supplies the URL for an explicit Calculate from URL action; it does not change the URI field. The scalar <code>state.key</code> holds the digest, so the creation button above still passes <code>$state.termsDigest</code> into <code>params.terms.sha256Digest</code>. Replace the all-zero default before creating an agreement.</p>
-<p class="narrow">The browser offers manual entry and local file calculation without uploading. URL calculation accepts HTTP(S), requires readable browser CORS access, omits credentials and referrers, and rejects redirects. Calculation is limited to 8 MiB and a 15-second deadline. Failures and cancellation preserve the digest; changing the URI preserves it but removes the prior calculation's association and invalidates pending work. The viewer does not fetch while rendering or typing and does not automatically fall back to another method.</p>
-<p class="narrow">Calculation hashes exact bytes, not URI text or normalized JSON. It does not compare against an existing expected digest. A local file hash does not check the URI. A URL hash describes the bytes returned at calculation time; later responses may differ. IPFS retrieval and a server proxy are not provided by this helper. See the <a href="../escrow/#documents">document guide</a> for user steps and contract limits.</p>
-<p class="narrow">Use <code>enabledWhen</code> against contract-provided action IDs to disable unavailable actions. This improves the rendered workflow but does not replace onchain enforcement.</p>
-</section>
-<section class="narrow">
-<h2>Validate the bundle before publishing</h2>
-<p>Keep Solidity under <code>dapps/&lt;name&gt;/src/</code> and tests under <code>test/</code>. Deliberately create <code>cam/abi/</code> before ABI export. This guide explains the existing bundles; it is not a one-command scaffold for a new dapp. A new dapp also needs explicit ABI outputs admitted in <a href="https://github.com/numpde/dapp32/blob/main/compose/forge-abi.yml">compose/forge-abi.yml</a> and a manifest output admitted in <a href="https://github.com/numpde/dapp32/blob/main/compose/cam.yml">compose/cam.yml</a>. Follow their existing mount patterns and the rendered-config checks under <a href="https://github.com/numpde/dapp32/tree/main/tests/checks">tests/checks</a>; do not grant writes over the repository root.</p>
-<pre class="code-block">
-<code>make dapps/deps/install
-make js/deps/install
-make cam/abi/export
-make cam/conformance/check
-make tests/checks</code>
-</pre>
-<p>
-<code>make cam/abi/export</code> exports manifest-declared ABIs and refreshes local integrity pins. For UI-only resource edits, <code>make cam/integrity/refresh</code> refreshes pins without ABI export. Inspect generated changes. When starting from the escrow bundle, run <code>make dapps/tests/unit-scenario</code> for repository checks and Forge unit and scenario tests, <code>make js/tests</code> for the TypeScript workspace, and <code>make escrow/local/scenario/run</code> for its nine local settlement paths and withdrawal. New dapps need checks for their own contract and workflow behavior. Conformance validates deterministic publication joins and resource integrity; it does not prove live authorization, RPC reliability, wallet behavior, or security.</p>
-<p>The existing <a href="https://github.com/numpde/dapp32/blob/main/dapps/bike-nft/README.md#release-deployment">Bike NFT release guide</a> documents its separate release commands and role handoffs. For the existing escrow app, <code>make escrow/release/deploy</code> plans and deploys a release only with its required explicit confirmation, chain, publication, owner, secret-file, and output settings; <code>make escrow/release/verify</code> verifies that recorded release. Use the complete commands and prerequisite publication steps in <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md#release-deployment">escrow's release guide</a> and the shared <a href="https://numpde.github.io/dapp32/deployment/">release ceremony</a>. They own root-hash calculation and address binding; replace no required settings with guesses. New dapps need their own deliberate deployment wiring. Viewers validate contract-returned manifests, resources, URLs, and actions as untrusted input.</p>
-</section>
-<section class="narrow">
-<h2>Open and inspect a workflow</h2>
-<p>The browser startup query accepts <code>chainId</code>, <code>host</code>, <code>account</code>, and <code>rpcUrl</code>, all required. Run <code>make escrow/local/demo/gui/up</code> or <code>make bike-nft/local/demo/gui/up</code> to deploy a fresh disposable fixture, start its viewer, and print its complete browser URL; the <a href="../escrow/#try">escrow</a> and <a href="../bike-nft/#try">Bike NFT</a> guides explain setup and wallet use. Read-route navigation uses the fragment, for example <code>#route=agreement&amp;agreementId=0x…</code> (replace the abbreviated ID with a complete agreement ID). A fragment opens a read view; it cannot prepare or send a write. Structured inputs can use a JSON <code>inputs</code> fragment; numeric ABI inputs must be decimal strings rather than JSON numbers.</p>
-<p>The <code>account</code> query selects the browser's initial read context. Connecting a wallet replaces that context with the wallet address and clears any prepared call. After connection, wallets that report account and network changes update the viewer automatically and clear unsent prepared calls. After an account change, wait for the refreshed view, check the account and chain, then prepare anew. A different wallet network leaves the viewer's configured chain and RPC unchanged and disables sending until the wallet returns to that chain. Disconnecting keeps the last successful read-only view; submitted hashes and receipt tracking survive wallet changes. Providers without change notifications require <strong>Switch wallet</strong> to reconnect after changing accounts or networks. Resource-origin and unsigned-manifest policy are viewer configuration, not extra URL parameters. URLs and fragments are visible: do not put secrets in them.</p>
-<p>Compare <a href="https://github.com/numpde/dapp32/tree/main/dapps/bike-nft/cam">Bike NFT's bundle</a> with <a href="https://github.com/numpde/dapp32/tree/main/dapps/escrow/cam">escrow's bundle</a>, then follow each package README for its local fixture and release workflow.</p>
-</section>
-</main>
-</body>
-</html>
+}</code></pre>
+<p>The host resolves <code>CamEscrowUI</code> to its address. The read uses the viewing account, receives the projection's result, and passes that result to the named <code>app</code> UI node. A viewing address is not proof of signing authority.</p>
+<h2 id="write">Understand how a field becomes a transaction</h2>
+<p>The amount field writes an exact base-unit decimal string to <code>$state.amount</code>. The creation button puts it in <code>params.amount</code>. The write route uses <code>$inputs.params.amount</code> for both the contract argument and native transaction value.</p>
+<p><strong>Field → button arguments → write route → review → wallet → receipt → next read.</strong> Preparation does not send anything. The contract still enforces its rules when a caller bypasses the viewer. A transaction hash is not a successful receipt.</p>
+<p>Follow the complete <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/ui.json">UI source</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/main.json">route source</a> when changing arguments. A lone field/button excerpt does not supply the other agreement inputs.</p>
+<h2 id="publish">Publish deliberately</h2>
+<p>The current format is <a href="../reference/cam/1.4.0/">CAM 1.4.0 with UI 1.1.0</a>. The manifest commitment and resource integrity use SHA-256. Current software rejects the older manifest versions.</p>
+<p>For an ABI change, export the declared ABIs with <code>make cam/abi/export</code>, inspect the generated changes, and run conformance again. For a new app, add its explicit output mounts to the existing ABI/CAM build lanes; do not give a container write access to the whole checkout.</p>
+<p>A local file edit changes no chain publication. Use the <a href="../deployment/#publish-prepared-cam">bundle preparation and publication workflow</a> to make compatible resources available and have the CAM owner approve their new reference. A new business interface may require a contract migration, not just a new manifest.</p>
+<h2>Reference, not another tutorial</h2>
+<p>Use the current reference for <a href="../reference/cam/1.4.0/#expressions">expressions</a>, <a href="../reference/cam/1.4.0/#ui">UI fields and composition</a>, <a href="../reference/cam/1.4.0/#execution">execution outcomes</a> and <a href="../reference/cam/1.4.0/#security">trust boundaries</a>. In particular, the viewer can continue after an integrity warning; rendering a screen does not prove its authenticity.</p>
+<p>Source baseline: <code>04a18763</code>. The included route is checked against committed source by the documentation tests.</p>
+</article></main></body></html>

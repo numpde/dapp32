@@ -83,6 +83,22 @@ async function clickTheme(expected) {
   assert.equal(value.label, `Switch to ${expected === 'dark' ? 'light' : 'dark'} mode`)
   return value
 }
+async function followTask(href) {
+  await visit('/')
+  const focused = await evaluate(`(()=>{
+    const link=[...document.querySelectorAll('main a')].find(a=>a.getAttribute('href')===${JSON.stringify(href)});
+    if(!link)return false;link.focus();return document.activeElement===link;
+  })()`)
+  assert(focused, `Task link is missing or cannot receive keyboard focus: ${href}`)
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 })
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (failure) throw failure
+    if (await evaluate(`location.pathname===${JSON.stringify('/' + href)}&&document.readyState==='complete'&&document.querySelector('main h1')!==null`)) return
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert.fail(`Keyboard navigation did not reach the task: ${href}`)
+}
 try {
   target = (await call('Target.createTarget', { url: 'about:blank', background: true }, undefined)).targetId
   session = (await call('Target.attachToTarget', { targetId: target, flatten: true }, undefined)).sessionId
@@ -105,6 +121,8 @@ try {
         const { fit, ...style } = value
         if (reference === undefined) reference = style
         else assert.deepEqual(style, reference, `Header style differs: ${file} (${color}, ${width}px)`)
+        const taskFits = await evaluate(`!document.querySelector('main.document > article.narrow')||document.documentElement.scrollWidth<=innerWidth+1`)
+        assert(taskFits, `Task content widens the page at ${width}px: ${file}`)
         const next = color === 'dark' ? 'light' : 'dark'
         const changed = await clickTheme(next)
         assert.notEqual(changed.background, value.body, `Theme choice did not change the rendered palette: ${file}`)
@@ -137,8 +155,10 @@ try {
   const staticHeader = await visit('/deployment/networks/')
   assert.equal(staticHeader.visible, false, 'A nonfunctional theme control stays hidden without JavaScript')
   assert(staticHeader.fit && staticHeader.labels.length === 5, 'Navigation remains usable without JavaScript')
+  await followTask('viewer/')
+  await followTask('start/local-wallet.html')
   await call('Emulation.setScriptExecutionDisabled', { value: false })
-  console.log(JSON.stringify({ pages: files.length, widths: [1280, 320], themes: ['light', 'dark'], sharedToggle: true, savedChoice: true, systemChanges: true, storageDenied: true, staticNavigation: true, externalRequests: 'blocked' }))
+  console.log(JSON.stringify({ pages: files.length, widths: [1280, 320], themes: ['light', 'dark'], sharedToggle: true, savedChoice: true, systemChanges: true, storageDenied: true, staticNavigation: true, taskLayout: true, keyboardTaskLinks: true, externalRequests: 'blocked' }))
 } finally {
   if (target) await call('Target.closeTarget', { targetId: target }, undefined)
   socket.close()

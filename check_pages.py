@@ -11,11 +11,11 @@ SOURCE_ARCHIVE_ROOT: Path | None = None
 
 # The published pages keep static, usable links; this is their single source.
 PRIMARY_NAVIGATION = (
-    ("authoring/", "Authoring"),
-    ("reference/cam/", "CAM reference"),
-    ("examples/", "Example apps"),
-    ("deployments/", "Deployments"),
-    ("deployment/", "Deploy an app"),
+    ("start/", "Start"),
+    ("use/", "Use"),
+    ("authoring/", "Build"),
+    ("deployment/", "Deploy"),
+    ("reference/", "Reference"),
 )
 
 
@@ -33,7 +33,7 @@ def shell_html(root: Path, page: Path) -> str:
     prefix = os.path.relpath(root, page.parent)
     links = []
     for destination, label in PRIMARY_NAVIGATION:
-        current = page.parent == root / destination
+        current = page == root / destination / "index.html"
         href = "./" if current else f"{prefix}/{destination}"
         attribute = ' aria-current="page"' if current else ""
         links.append(f'<a href="{href}"{attribute}>{label}</a>')

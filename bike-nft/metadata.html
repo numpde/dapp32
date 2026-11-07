@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Prepare Bike NFT metadata · dapp32</title><meta name="description" content="Choose a complete metadata URI or embedded JSON for one component and check the collection's URI prefix before writing it."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Prepare component metadata</h1>
+<p>Token metadata describes one NFT, usually its name, image and attributes. Collection metadata describes the whole collection. Neither is the CAM manifest that defines the app's workflow.</p>
+<h2 id="base">Check the collection's base URI first</h2>
+<p>The generic registration/editing workflow supplies a complete metadata URI. It expects an <strong>empty collection base URI</strong>. The current token contract concatenates a nonempty base with the stored token URI; it does not exempt full URLs or data URIs.</p>
+<p>For an older collection with a nonempty base, do not paste its resolved <code>tokenURI</code> back into the full-URI editor: that can duplicate the prefix. Use a compatible suffix-aware client or plan a deliberate collection configuration change. Changing the shared base affects existing tokens, not just the one being edited.</p>
+<h2 id="prepare">Choose a metadata input</h2>
+<p>Use <strong>JSON URL</strong> for a complete hosted metadata URL, or <strong>Embed JSON</strong> for a document encoded directly into the token URI. The active editor supplies the transaction value; there is no separate apply step. Invalid or empty active input cannot prepare a metadata transaction.</p>
+<p>For a hosted JSON document, relative image references resolve from its location. When copying it into an embedded document, replace relative image references with complete URLs or embedded images. The editor preserves attributes and extension fields; use <strong>Advanced JSON</strong> to inspect the whole document before approving.</p>
+<p>The editor does not upload a file or image. Host content separately when using URLs. Metadata and its URI are public; do not include private identity or contact information merely because the browser displays an editable field.</p>
+<h2 id="preview">Preview, then verify the write</h2>
+<p><strong>Load preview</strong> reads the JSON and image from the resolved token URI. It does not change metadata. Embedded images need no network request; HTTP(S) and IPFS reads use browser access, Download scope and the selected IPFS gateway. Remote servers must permit CORS.</p>
+<p>Current preview limits are 256 KiB for JSON and 4 MiB for PNG, JPEG, WebP or GIF images. A successful preview does not establish physical authenticity, and a broken image does not prove that token creation failed.</p>
+<p>As the owner or a metadata-authorized workshop, choose <strong>Update NFT details</strong>, review the actual URI and target, then authorize. After the receipt, refresh and load the preview again. Check both the contract's resolved URI and displayed content.</p>
+<h2>Local practice</h2>
+<p>The demo serves metadata under <code>cam/components/</code>. Use an unused serial and make its metadata attributes agree with it. The supplied <code>demo-bike-001.json</code> uses a relative image filename; convert that image reference when embedding the JSON.</p>
+<p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/bike-nft/src/BicycleComponents.sol#L92-L108">base and collection metadata</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/bike-nft/src/BicycleComponents.sol#L187-L194">resolved token URI</a>, and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/bike-nft/README.md">editor and fixture inputs</a>. Continue with <a href="./">registration</a> or <a href="ownership.html">owner and workshop tasks</a>.</p>
+</article></main></body></html>

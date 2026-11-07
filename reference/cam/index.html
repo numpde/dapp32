@@ -1,25 +1,16 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CAM reference versions</title>
-  <script src="../../theme.js"></script>
-<link rel="stylesheet" href="../../site.css">
-  <style>
-    main { max-width: 48rem; margin: auto; padding: 1rem; }
-  </style>
-</head>
-<body>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CAM reference versions · dapp32</title><script src="../../theme.js"></script>
+<link rel="stylesheet" href="../../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../authoring/">Authoring</a><a href="./" aria-current="page">CAM reference</a><a href="../../examples/">Example apps</a><a href="../../deployments/">Deployments</a><a href="../../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main">
-  <h1>CAM reference versions</h1>
-  <p>Implementation-derived references for agents authoring and interpreting contract-defined workflows.</p>
-  <ul><li><a href="1.3.0/">CAM 1.3.0 with UI 1.0.0 — Experimental draft</a>, including one bounded read to resolve a write destination and arguments.</li><li><a href="1.2.0/">Historical CAM 1.2.0 with UI 1.0.0 — Experimental draft</a>, paired SHA-256 manifest reference and pinned protocol discovery.</li><li><a href="1.1.0/">Historical CAM 1.1.0 with UI 1.0.0 — Experimental draft</a>, including CAM 1.0.0 compatibility.</li></ul>
-  <p>Current repository software accepts CAM 1.3.0 manifests with UI 1.0.0. Earlier versions are retained here as historical specifications and are rejected by current software.</p>
-  <p>Historical CAM 1.1 reference revision: <a href="https://raw.githubusercontent.com/numpde/dapp32/c1e4c140c27bc69528aa51e14a199da3156092d4/docs/reference/cam/1.1.0/index.html">c1e4c140c27bc69528aa51e14a199da3156092d4</a>. This link identifies the exact reference HTML; its implementation baseline is recorded within the document.</p>
-  <p><a href="https://numpde.github.io/dapp32/">Project overview</a></p>
-</main>
-</body>
-</html>
+<div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../start/">Start</a><a href="../../use/">Use</a><a href="../../authoring/">Build</a><a href="../../deployment/">Deploy</a><a href="../../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>CAM reference</h1>
+<p>Use <a href="1.4.0/">CAM 1.4.0 with UI 1.1.0</a> for the current implementation. This is an experimental format. Earlier versions below document historical behavior; current software does not accept their manifests.</p>
+<p>The current host returns a manifest URI and a <strong>SHA-256 digest of its exact bytes</strong> through <code>camManifest()</code>. The manifest also pins its protocol, ABI and UI resources. Do not use the older Keccak-256 manifest convention.</p>
+<h2>Which reference do I need?</h2>
+<ul><li><a href="1.4.0/#bootstrap">Discover and authenticate an application</a>.</li><li><a href="1.4.0/#graph">Interpret routes and namespaces</a>.</li><li><a href="1.4.0/#ui">Interpret the UI vocabulary</a>.</li><li><a href="1.4.0/#viewer-integrity">Understand the viewer's integrity warnings</a>.</li><li><a href="../../authoring/">Build a workflow with the worked guide</a>.</li></ul>
+<h2>Historical specifications</h2>
+<ul><li><a href="1.3.0/">CAM 1.3.0 / UI 1.0.0</a></li><li><a href="1.2.0/">CAM 1.2.0 / UI 1.0.0</a></li><li><a href="1.1.0/">CAM 1.1.0 / UI 1.0.0</a></li></ul>
+<h2>Source ownership</h2>
+<p>The published 1.4.0 document is an exact copy of <code>docs/reference/cam/1.4.0/index.html</code> in source revision <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139">04a18763</a>. CAM bundles use those same reference bytes as <code>protocol.html</code>. Edit the source owner and refresh affected bundle digests when changing that reference; do not independently rewrite or restyle the published copy.</p>
+</article></main></body></html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deployment records and authority · dapp32</title><meta name="description" content="Reference for private instances, saved operation inputs, phase artifacts, approval images and local Docker identity."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Deployment records and authority</h1>
+<p>For a first release, follow <a href="../deployment/new-instance.html">Deploy a new instance</a>. This page explains what its retained files mean and what must remain private.</p>
+<nav aria-label="Reference sections"><a href="#instance">Instance</a> · <a href="#artifacts">Artifacts</a> · <a href="#approval">Approval images</a> · <a href="#identity">Docker identity</a> · <a href="#handoffs">Handoffs</a></nav>
+<h2 id="instance">Defaults do not rewrite saved work</h2>
+<p>Keep one operator-owned instance directory outside the checkout, mode <code>0700</code>. Protected configurations are owner-only <code>0600</code> regular files, not symlinks. Commands allocate their own output directories; do not pre-create empty phase outputs.</p>
+<pre><code>instance/
+  config.json
+  instance.json
+  deployments/
+  updates/</code></pre>
+<p><code>instance.json</code> points to configurations, the selected publication and unfinished work. It is not a second address registry or a live-readiness certificate. A saved operation's <code>selection.json</code> and retained <code>inputs/</code> identify its chosen components, source revision, settings and exact approval image. Input records reference the protected credential file rather than copying its key or private RPC URL.</p>
+<p>Setup offers full, business-creator, projection-deployer and CAM-owner configurations. Separate <code>business-config.json</code>, <code>ui-config.json</code> and <code>cam-config.json</code> can assign different actors; <code>instance.json</code> retains their references. A full configuration can supply all phases. Editing those defaults does not change an already saved operation.</p>
+<h2 id="artifacts">Each phase owns its evidence</h2>
+<table><thead><tr><th>Artifact in a full operation</th><th>What it records</th></tr></thead><tbody>
+<tr><td><code>contracts/artifact/contract-deployment.json</code></td><td>Business creation and required initialization, including observed administration and pending handoffs.</td></tr>
+<tr><td><code>ui/artifact/ui-deployment.json</code></td><td>The read-only projection's creation, runtime and backing dependency.</td></tr>
+<tr><td><code>cam-bundle/artifact/cam-bundle.json</code></td><td>Selected component evidence, original ABIs and hashes of prepared publication resources.</td></tr>
+<tr><td><code>cam/artifact/cam-publication.json</code></td><td>The completed CAM root publication. Only matching completion advances the instance's selected publication.</td></tr>
+</tbody></table>
+<p>Independent operations retain only their relevant phases. Signed phases also retain plans, broadcasts, approval evidence and logs. Keep the whole instance, including failed attempts; a later UI deployment can depend on an earlier business artifact.</p>
+<p>Original artifacts choose original source and ABI export. A projection may use an earlier compatible backing contract; verification of identity does not prove arbitrary interface compatibility. Historical verification preserves completed artifact bytes and does not certify current owners, roles, balances or pause state.</p>
+<h3 id="configuration">Minimal inputs differ by operation</h3>
+<p>A signed schema-version-3 configuration supplies the app, selected <code>sourceCommit</code>, RPC, protected deployer key, approval image and operation-specific settings. Chain and expected-deployer settings are strings. <code>confirmDeploy: true</code> is not transaction approval.</p>
+<p>Keyless bundle preparation instead needs the app, authored CAM source, RPC and expected chain; it needs no signing key, approval image, output directory or CAM URI. Setup offers the signed purposes above; a protected read-only configuration can be written explicitly. On records-only machines, use the paths referenced by the saved operation, not replacement top-level defaults.</p>
+<p>Persistent-local configurations retain their selected Docker network, <code>http://release-anvil:8545</code> and chain 31338. These are different from the disposable browser demos on chain 31337. See <a href="../deployment/manual.html#start-a-local-network-then-deploy-manually">local release practice</a>.</p>
+<h2 id="approval">Approval images are saved signing inputs</h2>
+<p>Setup and new signing operations resolve the approval tool automatically. An installed saved image remains pinned. Otherwise, compatible tool inputs can reuse an image or build one through the locked dependency stage. The tool's source revision need not equal the app's source revision.</p>
+<p>A saved signing operation requires its recorded image: restore that exact image if removed. Keyless record verification does not need it. Operator images remain available to other instances; a rehearsal removes only its own tagged image after its processes and containers stop.</p>
+<p>For an explicit image build, use <code>make release/approval/image/build</code>. It records the source and image identity in its printed external directory. <code>SOURCE_COMMIT</code> chooses a committed tool revision; <code>RELEASE_APPROVAL_IMAGE_OUTPUT_DIR</code> chooses an explicit external records location. A build record is an output, not a second approval decision.</p>
+<h2 id="identity">Private files and the selected Docker engine</h2>
+<p>Host-owned release and CAM-maintenance tools measure the selected Linux engine's default user namespace and choose the container UID/GID that maps to the invoking host owner. Rootful and operator-owned rootless engines do not require chmod, chown or <code>LOCAL_UID=0</code> workarounds. Unknown mappings or unconfirmed probe cleanup stop before private inputs are opened.</p>
+<pre><code>make tests/live/release-identity DOCKER_CONTEXT=your-local-context</code></pre>
+<p>This checks a synthetic <code>0700</code> directory and <code>0600</code> files: read, create, replace and delete, including host ownership and cleanup. It mounts no deployment instance and uses no signing credential. Qualify each engine separately; a rootful CI result does not qualify a workstation's rootless engine.</p>
+<p>The host probe needs Python 3.11+ and checksum-pinned <code>linux-idmap 0.3.1</code>. First use acquires its wheel under <code>~/.cache/release-idmap/</code>; later runs check and reuse it without pip. The selected engine also needs the pinned probe image, acquired by release commands before probing. This supports local Linux engines, not remote-Docker or Docker Desktop bind-mount semantics.</p>
+<p>Successful checks remove their scratch resources. Failed or cancelled checks attempt bounded cleanup and report any retained directory/log. Image and wheel caches remain reusable. Fixed-identity services retain their own policy.</p>
+<h2 id="handoffs">Nomination is not acceptance</h2>
+<p>Business administration and CAM publication ownership can belong to different accounts. Each nominee accepts on the specific contract identified by its phase artifact. Bike Components and Manager administrator transfers also observe their configured chain-time delays. Until acceptance, the current authority remains in control.</p>
+<p>CAM ownership changes use <code>transferOwnership(newOwner)</code> followed by the nominee's <code>acceptOwnership()</code>. A proposed owner cannot publish before accepting. Editing a configuration or verifying a historical nomination changes no deployed authority.</p>
+<p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.py#L111-L190">artifact selection and configuration ownership</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.py#L444-L503">publication completion</a>, and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_identity.py">identity mapping</a>. Use <a href="../deployment/recovery.html">Recover an interrupted release</a> for the decision procedure.</p>
+</article></main></body></html>
