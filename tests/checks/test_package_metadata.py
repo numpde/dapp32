@@ -130,8 +130,9 @@ class PackageInstallIdentityTest(unittest.TestCase):
             calls = events.read_text().splitlines()
             if unwritable:
                 output.chmod(0o700)
-            return result, calls, root / ("dapps/dependencies" if target == "dapps/deps/install"
-                                          else "js/node_modules")
+            output_path = root / ("dapps/dependencies" if target == "dapps/deps/install"
+                                  else "js/node_modules")
+            return result, calls, output_path.exists()
 
     def test_each_dependency_stage_uses_one_measured_engine_identity(self):
         for mapped in (f"{os.getuid()}:{os.getgid()}", "0:0", "4321:5432"):
@@ -155,10 +156,10 @@ class PackageInstallIdentityTest(unittest.TestCase):
         for mapped in ("refused", "bad:identity", "1000:", ":1000"):
             for target in ("dapps/deps/install", "js/deps/install"):
                 with self.subTest(mapped=mapped, target=target):
-                    result, calls, output = self.run_lane(target, mapped)
+                    result, calls, output_exists = self.run_lane(target, mapped)
                     self.assertNotEqual(0, result.returncode)
                     self.assertFalse(any(" run " in call for call in calls), calls)
-                    self.assertFalse(output.exists(), "failed mapping must not create output")
+                    self.assertFalse(output_exists, "failed mapping must not create output")
 
     def test_host_identity_override_is_not_a_container_mapping_override(self):
         for target in ("dapps/deps/install", "js/deps/install"):
