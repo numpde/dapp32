@@ -48,3 +48,16 @@ jobs:
         env:
           DOCKER_CONTEXT: default
         run: make -C site pages/check SOURCE_REPO="$GITHUB_WORKSPACE/source"
+      - name: Retain committed inputs for independent review
+        run: |
+          mkdir -p "$RUNNER_TEMP/documentation-review"
+          git -C site archive --format=tar.gz --output="$RUNNER_TEMP/documentation-review/site.tar.gz" HEAD
+          git -C source archive --format=tar.gz --output="$RUNNER_TEMP/documentation-review/source.tar.gz" HEAD
+          printf 'site %s\nsource %s\n' "$(git -C site rev-parse HEAD)" "$(git -C source rev-parse HEAD)" > "$RUNNER_TEMP/documentation-review/revisions.txt"
+      - name: Upload documentation review inputs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: documentation-review
+          path: ${{ runner.temp }}/documentation-review
+          retention-days: 1
+          if-no-files-found: error
