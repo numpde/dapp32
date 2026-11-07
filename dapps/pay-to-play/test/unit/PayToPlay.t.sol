@@ -39,7 +39,7 @@ contract PayToPlayMoveGasTest is PayToPlayTestBase {
         if (previousBalance == 0) {
             assertEq(targetBefore.scheduledRefundAt, 0);
         } else {
-            assertGt(targetBefore.scheduledRefundAt, 0);
+            assertEq(targetBefore.scheduledRefundAt, 0);
         }
         uint256 expectedRefundAt = block.timestamp + payments.RECOVERY_HORIZON() + uint256(PERIOD);
         assertGt(expectedRefundAt, targetBefore.scheduledRefundAt, "fixture must start or extend recovery");
@@ -123,17 +123,51 @@ contract PayToPlayTest is PayToPlayTestBase {
         assertEq(payments.withdraw(customer, immediate), 10);
     }
 
+    // A late signature does not extend the exit window or win ordering at maturity.
     function testWithdrawBeforeVoucherCollectionLeavesUnpaidVoucherPersistent() public {
         _fund(customer, channel, 100);
-        bytes memory signature = _sign(customer, channel, 100);
         vm.prank(customer);
         payments.requestWithdrawal(channel, 100);
-        vm.warp(_position(channel).readyAt);
-        payments.withdraw(customer, channel);
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, signature), 0);
+        uint256 ready = _position(channel).readyAt;
+        vm.warp(ready - 1);
+        bytes memory signature = _sign(customer, channel, 80);
+        assertEq(_position(channel).readyAt, ready, "signing off chain changes no deadline");
+        vm.warp(ready);
+        uint256 customerBefore = customer.balance;
+        vm.prank(relayer);
+        assertEq(payments.withdraw(customer, channel), 100);
+        assertEq(customer.balance, customerBefore + 100);
+        vm.recordLogs();
+        assertEq(payments.collect(customer, channel, 80, INVOICE_HASH, 80, signature), 0);
+        assertEq(vm.getRecordedLogs().length, 0, "zero collection is not a payment event");
         assertEq(_position(channel).voucherPaid, 0);
+        assertEq(_position(channel).requestedAmount, 0);
+        assertEq(_position(channel).readyAt, 0);
         _fund(customer, channel, 20);
-        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, type(uint256).max, signature), 20);
+        assertEq(payments.collect(customer, channel, 80, INVOICE_HASH, 80, signature), 20);
+    }
+
+    function testCollectionBeforeWithdrawalAtExactReadinessWinsOnlyByExecutionOrder() public {
+        _fund(customer, channel, 100);
+        vm.prank(customer);
+        payments.requestWithdrawal(channel, 100);
+        uint256 ready = _position(channel).readyAt;
+        vm.warp(ready - 1);
+        bytes memory signature = _sign(customer, channel, 80);
+        assertEq(_position(channel).readyAt, ready, "late signing grants no new window");
+        vm.warp(ready);
+        assertEq(payments.collect(customer, channel, 80, INVOICE_HASH, 80, signature), 80);
+        assertEq(_position(channel).readyAt, ready, "collection cannot prolong the owner's exit");
+        uint256 customerBefore = customer.balance;
+        vm.prank(relayer);
+        assertEq(payments.withdraw(customer, channel), 20);
+        assertEq(customer.balance, customerBefore + 20);
+        assertEq(payee.balance, 80);
+        assertEq(_position(channel).voucherPaid, 80);
+        assertEq(_position(channel).requestedAmount, 0);
+        assertEq(_position(channel).readyAt, 0);
+        assertEq(payments.channel(channel).escrowTotal, 0);
+        assertEq(address(payments).balance, 0);
     }
 
     function testChannelsArePermanentAndOnlyPayeeChanges() public {
@@ -227,6 +261,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         assertEq(_position(channel).requestedAmount, 100);
         bytes memory signature = _sign(customer, channel, 50);
         payments.collect(customer, channel, 50, INVOICE_HASH, type(uint256).max, signature);
+        vm.warp(block.timestamp + 10);
         _fund(customer, channel, 20);
         assertEq(_position(channel).readyAt, block.timestamp + PERIOD);
         assertEq(_position(channel).effectiveBalance, 0);
@@ -316,18 +351,27 @@ contract PayToPlayTest is PayToPlayTestBase {
         wallet.configure(payments, channel, true, false);
         _fund(address(wallet), channel, 50);
         wallet.request(50);
+        vm.warp(block.timestamp + 10);
+        _fund(address(wallet), channel, 1);
         uint256 ready = payments.viewPosition(address(wallet), channel, address(wallet)).readyAt;
         vm.warp(ready);
+        bytes32 beforeWithdrawal = keccak256(abi.encode(payments.viewPosition(address(wallet), channel, address(wallet))));
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.NativePaymentFailed.selector, address(wallet), 50));
         payments.withdraw(address(wallet), channel);
-        assertEq(payments.viewPosition(address(wallet), channel, address(wallet)).requestedAmount, 50);
+        assertEq(keccak256(abi.encode(payments.viewPosition(address(wallet), channel, address(wallet)))), beforeWithdrawal);
+        assertEq(payments.channel(channel).escrowTotal, 51);
+        assertEq(address(payments).balance, 51);
         payments.setPayee(channel, address(wallet));
         bytes memory signature = _sign(customer, channel, 50);
         _fund(customer, channel, 50);
+        vm.prank(customer);
+        payments.requestWithdrawal(channel, 20);
+        bytes32 beforeCollection = keccak256(abi.encode(_position(channel)));
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.NativePaymentFailed.selector, address(wallet), 50));
         payments.collect(customer, channel, 50, INVOICE_HASH, type(uint256).max, signature);
-        assertEq(_position(channel).voucherPaid, 0);
-        assertEq(_position(channel).balance, 50);
+        assertEq(keccak256(abi.encode(_position(channel))), beforeCollection);
+        assertEq(payments.channel(channel).escrowTotal, 101);
+        assertEq(address(payments).balance, 101);
     }
 
     function testNativeCallbackCannotConsumeWithdrawalTwice() public {
