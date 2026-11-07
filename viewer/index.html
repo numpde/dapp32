@@ -10,23 +10,24 @@
 <nav aria-label="Guide sections"><a href="#build">Build</a> · <a href="#run">Run</a> · <a href="#https">HTTPS</a> · <a href="#open">Open an app</a> · <a href="#maintain">Update or stop</a> · <a href="#troubleshoot">Troubleshoot</a></nav>
 <h2 id="build">1. Build a known source revision</h2>
 <p>Clone the repository on the server and check out the reviewed commit you intend to serve. Use a clean checkout so the revision identifies its actual content. In that checkout, set the context and acquire the exact base images named by its Dockerfiles:</p>
-<pre><code>CTX=your-local-context
-for file in containers/node-deps/Dockerfile containers/viewer/Dockerfile; do
-  docker --context "$CTX" pull "$(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$file")"
-done
-make js/deps/install DOCKER_CONTEXT="$CTX"
-REV=$(git rev-parse --short=12 HEAD)
-IMAGE="cam-viewer:$REV"
+<pre><code>CTX=your-local-context &amp;&amp;
+test "$(git rev-parse --show-toplevel)" = "$PWD" &amp;&amp;
+test -z "$(git status --porcelain)" &amp;&amp;
+docker --context "$CTX" pull "$(sed -n 's/^FROM \([^ ]*\).*/\1/p' containers/node-deps/Dockerfile)" &amp;&amp;
+docker --context "$CTX" pull "$(sed -n 's/^FROM \([^ ]*\).*/\1/p' containers/viewer/Dockerfile)" &amp;&amp;
+make js/deps/install DOCKER_CONTEXT="$CTX" &amp;&amp;
+REV=$(git rev-parse --short=12 HEAD) &amp;&amp;
+IMAGE="cam-viewer:$REV" &amp;&amp;
 make viewer/image/build DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE"</code></pre>
 <p>Replace <code>your-local-context</code> with a local entry from <code>docker context ls</code>. Image acquisition and locked dependency installation are the networked preparation steps. The viewer builder then runs offline. It does not publish the image or install missing dependencies implicitly. Solidity dependencies are not needed just to build the viewer.</p>
 <h2 id="run">2. Start it on loopback</h2>
 <p>Continue in the same shell. Record the resulting image ID for updates and rollback, then start the existing runtime:</p>
-<pre><code>docker --context "$CTX" image inspect "$IMAGE" --format '{{.Id}}'
+<pre><code>docker --context "$CTX" image inspect "$IMAGE" --format '{{.Id}}' &amp;&amp;
 make viewer/up DOCKER_CONTEXT="$CTX" \
   VIEWER_IMAGE="$IMAGE" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer \
-  VIEWER_BIND_HOST=127.0.0.1 VIEWER_PORT=8080
-curl --fail --show-error http://127.0.0.1:8080/healthz
-make viewer/status DOCKER_CONTEXT="$CTX" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer</code></pre>
+  VIEWER_BIND_HOST=127.0.0.1 VIEWER_PORT=8080 &amp;&amp;
+curl --fail --show-error http://127.0.0.1:8080/healthz &amp;&amp;
+make viewer/status DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer</code></pre>
 <p>The service runs in the background with <code>restart: unless-stopped</code>, a read-only filesystem, resource limits and its own health check. Ensure the selected Docker engine starts at server boot too; for a rootless engine this is an operator service configuration, not something the Compose restart policy establishes.</p>
 <p>Only loopback port 8080 is exposed by this recipe. <code>viewer/up</code> neither builds nor pulls an image. Do not prune the previous working image while testing a replacement.</p>
 <h2 id="https">3. Put the hostname in front of it</h2>
@@ -35,9 +36,9 @@ make viewer/status DOCKER_CONTEXT="$CTX" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer<
 <pre><code>viewer.example.org {
     reverse_proxy 127.0.0.1:8080
 }</code></pre>
-<pre><code>sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl enable --now caddy
-sudo systemctl reload caddy
+<pre><code>sudo caddy validate --config /etc/caddy/Caddyfile &amp;&amp;
+sudo systemctl enable --now caddy &amp;&amp;
+sudo systemctl reload caddy &amp;&amp;
 curl --fail --show-error https://viewer.example.org/healthz</code></pre>
 <p>Replace the hostname in the last command too. Caddy obtains and renews a public certificate when its DNS, port and persistent-storage requirements are met. The repository does not manage Caddy or DNS. See the upstream <a href="https://caddyserver.com/docs/quick-starts/reverse-proxy">reverse-proxy recipe</a>, <a href="https://caddyserver.com/docs/automatic-https">HTTPS prerequisites</a> and <a href="https://caddyserver.com/docs/running#using-the-service">service management</a>.</p>
 <h2 id="open">4. Open a real application</h2>
@@ -47,7 +48,7 @@ curl --fail --show-error https://viewer.example.org/healthz</code></pre>
 <h2 id="maintain">Update, roll back and stop</h2>
 <p>Build the new reviewed revision under a new image tag using step 1. Repeat <code>viewer/up</code> with that new <code>VIEWER_IMAGE</code> and the same project, bind address and port. Check health and reopen the app. A container replacement may briefly interrupt service; this is not a zero-downtime deployment procedure.</p>
 <p>To roll back, repeat that same startup command with the retained previous image tag or image ID. A viewer rollback does not roll back contracts, CAM publication or transactions. In a new shell, set <code>CTX</code> and the chosen <code>IMAGE</code> again before using these commands.</p>
-<pre><code>make viewer/down DOCKER_CONTEXT="$CTX" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer</code></pre>
+<pre><code>make viewer/down DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer</code></pre>
 <p>Stopping removes this viewer's runtime, not its images or on-chain state. Remove its Caddy site block and reload Caddy when retiring the hostname; do not stop a shared proxy serving other sites.</p>
 <h2 id="troubleshoot">Check the failing boundary</h2>
 <table><thead><tr><th>Symptom</th><th>Next check</th></tr></thead><tbody>
