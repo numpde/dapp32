@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Open an existing app · dapp32</title><meta name="description" content="Use a hosted viewer or launch one locally for an existing publication without redeploying contracts."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Open an existing app</h1>
+<p>You need a trusted network and <strong>CAM host address</strong>, a compatible viewer and browser-readable RPC access. You do not need a deployer's private key or a new contract deployment.</p>
+<h2 id="hosted">Use a hosted viewer</h2>
+<ol>
+<li>Get the chain and CAM host from the publisher or <a href="../deployments/">available-instance directory</a>. A business-contract address is not necessarily a CAM host.</li>
+<li>Open a compatible viewer. In <strong>Open a contract app</strong>, choose the network and enter the host. A custom chain uses the form <code>eip155:43113</code>, for example.</li>
+<li>Select a browser-accessible RPC. Leave the viewing address blank for a public view, or enter an address to inspect account-dependent state.</li>
+<li>Check the resulting chain, host and resource information. Resolve integrity warnings or unexpected bindings before proceeding.</li>
+</ol>
+<p>The viewer browser fetches the resources and RPC itself. HTTPS, CORS and Download scope must allow those requests. Never paste a private signing endpoint or secret API credential into a shared viewer URL.</p>
+<h2 id="local-publication">Run a local viewer for your saved publication</h2>
+<dl><dt>Run on</dt><dd>Your workstation, in the source checkout, after <a href="../#development">dependency setup</a>.</dd><dt>Requires</dt><dd>An existing private instance containing a completed compatible publication.</dd><dt>Changes</dt><dd>A local viewer runtime. No chain deployment, signing or CAM update.</dd></dl>
+<pre><code>INSTANCE=/absolute/private/pay-to-play-fuji
+make viewer/release/up \
+  DOCKER_CONTEXT=your-local-context INSTANCE="$INSTANCE"</code></pre>
+<p>Replace the context and instance path. Choose the saved publication and a browser-public RPC; the launcher does not expose the private signing RPC. Open the complete printed URL in your regular browser. The initial viewing address comes from the publication record; it is not automatically a connected signer.</p>
+<p>Connect a wallet separately for transactions. Do not attach the public fixture wallet to a public deployment. Stop the local runtime with:</p>
+<pre><code>make viewer/release/down \
+  DOCKER_CONTEXT=your-local-context INSTANCE="$INSTANCE"</code></pre>
+<p>This does not remove contracts, stop a public blockchain or delete your retained instance records. To serve the viewer permanently on a server, use <a href="../viewer/">Deploy the viewer</a> instead.</p>
+<h2 id="send">Authorize one action deliberately</h2>
+<p>Choose the app task, enter its inputs and prepare the call. Check the network, destination contract, function, arguments and native value. Connect the intended wallet, let account-dependent state refresh, and prepare again if the account changed. Only then authorize submission.</p>
+<p>Inspect the receipt and resulting state. Simulation is a forecast; submission is a request; a successful receipt establishes execution. A receipt cannot establish off-chain service delivery.</p>
+<h2 id="navigation">Refresh, Back and account changes</h2>
+<p>Refresh rereads state and invalidates a prepared transaction. Back can restore compatible drafts from session history while rereading state. Reloading or switching accounts can clear drafts. In Pay-to-Play, the inspected owner/channel stays fixed across actor changes; check both identities rather than assuming the viewed balance belongs to your connected wallet.</p>
+<h2 id="apps">App guides</h2>
+<p><a href="../pay-to-play/">Pay-to-Play</a> explains payments and recovery. <a href="../escrow/">Escrow</a> explains agreement settlement. <a href="../bike-nft/">Bike NFT</a> explains components and ownership. The <a href="../start/local-wallet.html">local-wallet tutorial</a> is for disposable practice, not public funds.</p>
+<p>For exact verification and execution rules, use the <a href="../reference/cam/1.4.0/#security">current protocol reference</a>. Runtime baseline: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/apps/cam-web/src/app-setup.tsx">viewer setup at 04a18763</a>.</p>
+</article></main></body></html>
