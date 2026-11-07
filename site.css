@@ -393,3 +393,18 @@ code {overflow-wrap:anywhere}pre code {overflow-wrap:normal}
 .document-header .lede { margin-top: 12px; }
 .document { padding-top: 24px; }
 .document > section:first-child { margin-top: 0; }
+
+/* Task articles share readable prose and fit without widening the viewport. */
+.document > article.narrow { margin-inline: auto; min-width: 0; overflow-wrap: anywhere; }
+.document > article.narrow h1 { font-size: clamp(2rem, 4vw, 3rem); line-height: 1.15; margin-bottom: 1rem; }
+.document > article.narrow h2 { margin-top: 2rem; }
+.document > article.narrow h3 { margin-top: 1.4rem; }
+.document > article.narrow li { margin-block: .6rem; color: var(--ink); }
+.document > article.narrow dt { margin-top: 1rem; font-weight: 700; }
+.document > article.narrow dd { margin: .25rem 0 .75rem; }
+.document > article.narrow table { min-width: 0; table-layout: fixed; margin-block: 1rem; }
+.document > article.narrow td, .document > article.narrow th { overflow-wrap: anywhere; }
+.document > article.narrow pre { max-width: 100%; padding: 1rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.document > article.narrow .card { margin-top: 0; }
+.document > article.narrow .card h2 { margin-top: 0; }
+.document > article.narrow nav { margin-block: 1.5rem; }
