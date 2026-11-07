@@ -10,6 +10,7 @@ on:
       - tests/checks/**
       - tests/fixtures/release-rehearsal/**
       - Makefile
+      - '!**/README.md'
   pull_request:
     paths:
       - .github/workflows/rpc-proxy-checks.yml
@@ -19,6 +20,7 @@ on:
       - tests/checks/**
       - tests/fixtures/release-rehearsal/**
       - Makefile
+      - '!**/README.md'
 
 permissions:
   contents: read
