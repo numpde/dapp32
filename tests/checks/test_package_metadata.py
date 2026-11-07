@@ -82,7 +82,7 @@ MODULE_SPECIFIER_RE = re.compile(
 class PackageInstallIdentityTest(unittest.TestCase):
     """Installed dependencies and format outputs must use the selected engine's host-owner mapping."""
 
-    def run_lane(self, target: str, mapped: str, *, host_identity: bool = True, unwritable: bool = False):
+    def run_lane(self, target: str, mapped: str, *, host_identity: bool = True, unwritable: bool = False, allow_update: bool = False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("compose", "containers", "dapps", "docs", "js/apps", "js/packages",
@@ -124,7 +124,8 @@ class PackageInstallIdentityTest(unittest.TestCase):
             gid = str(os.getgid())
             result = subprocess.run(
                 ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), target,
-                 f"LOCAL_UID={uid}", f"LOCAL_GID={gid}", "DOCKER_CONTEXT=fixture"],
+                 f"LOCAL_UID={uid}", f"LOCAL_GID={gid}", "DOCKER_CONTEXT=fixture",
+                 f"ALLOW_UPDATE={int(allow_update)}"],
                 cwd=root, env=env, capture_output=True, text=True, timeout=25,
             )
             calls = events.read_text().splitlines()
@@ -136,21 +137,25 @@ class PackageInstallIdentityTest(unittest.TestCase):
 
     def test_each_dependency_stage_uses_one_measured_engine_identity(self):
         for mapped in (f"{os.getuid()}:{os.getgid()}", "0:0", "4321:5432"):
-            for target, services in (
-                ("dapps/deps/install", ("soldeer-stage", "soldeer-verify-stage",
-                                        "soldeer-apply-locked", "soldeer-verify")),
-                ("js/deps/install", ("package-stage", "package-apply-locked")),
+            for target, stages in (
+                ("dapps/deps/install", ("soldeer-stage", "soldeer-verify-stage")),
+                ("js/deps/install", ("package-stage",)),
             ):
-                with self.subTest(mapped=mapped, target=target):
-                    result, calls, _ = self.run_lane(target, mapped)
-                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-                    self.assertEqual(1, calls.count("map-probe"), calls)
-                    stages = [call for call in calls if " run " in call]
-                    self.assertEqual(len(services), len(stages), stages)
-                    for call, service in zip(stages, services):
-                        self.assertTrue(call.endswith(f"--user {mapped} {service}"), call)
-                    self.assertFalse(any(call.startswith("info ") for call in calls),
-                                     "Docker rootless flag must not choose the writer identity")
+                for update in (False, True):
+                    with self.subTest(mapped=mapped, target=target, update=update):
+                        result, calls, _ = self.run_lane(target, mapped, allow_update=update)
+                        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                        self.assertEqual(1, calls.count("map-probe"), calls)
+                        apply = "update" if update else "locked"
+                        services = (*stages, f"{'soldeer' if target.startswith('dapps') else 'package'}-apply-{apply}")
+                        if target.startswith("dapps"):
+                            services = (*services, "soldeer-verify")
+                        actual = [call for call in calls if " run " in call]
+                        self.assertEqual(len(services), len(actual), actual)
+                        for call, service in zip(actual, services):
+                            self.assertTrue(call.endswith(f"--user {mapped} {service}"), call)
+                        self.assertFalse(any(call.startswith("info ") for call in calls),
+                                         "Docker rootless flag must not choose the writer identity")
 
     def test_missing_or_invalid_mapping_stops_before_install_or_output_creation(self):
         for mapped in ("refused", "bad:identity", "1000:", ":1000"):
