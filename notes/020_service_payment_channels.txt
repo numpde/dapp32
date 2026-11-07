@@ -8,7 +8,8 @@ Later design decision (2026-10-20):
 022_pay_to_play_withdrawal_wait_on_funding.txt supersedes this note's rule that
 deposits and incoming moves preserve ordinary withdrawal readiness. It requires
 positive incoming funds to restart a pending request's claim period. The
-original design below is preserved; the new rule is not yet implemented.
+original design below is preserved. The new rule is implemented in source;
+older non-upgradeable deployments retain the original behavior.
 
 Scope and actors
 ----------------

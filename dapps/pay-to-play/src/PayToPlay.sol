@@ -182,6 +182,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         position.balance += amount;
         definition.escrowTotal += amount;
         _renew(position, channelId, definition.claimPeriod);
+        _restartWithdrawal(position, channelId, definition.claimPeriod);
         emit Funded(msg.sender, channelId, amount);
     }
 
@@ -279,6 +280,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
             target.escrowTotal += amount;
             destination.balance += amount;
             _renew(destination, targetId, target.claimPeriod);
+            _restartWithdrawal(destination, targetId, target.claimPeriod);
         }
         emit Moved(msg.sender, sourceId, targetId, amount);
     }
@@ -454,6 +456,15 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         if (deadline <= position.refundAt) return;
         position.refundAt = deadline;
         emit PositionRenewed(msg.sender, channelId, deadline);
+    }
+
+    // A positive credit starts a fresh ordinary claim period without replacing the request.
+    // This is separate from _renew: an unchanged recovery deadline must not skip it.
+    function _restartWithdrawal(Position storage position, uint256 channelId, uint64 period) private {
+        uint256 requested = position.requestedAmount;
+        if (requested == 0) return;
+        position.readyAt = block.timestamp + uint256(period);
+        emit WithdrawalRequested(msg.sender, channelId, requested, position.readyAt);
     }
 
     function _refundRecipient(address customer, Position storage position) private view returns (address) {

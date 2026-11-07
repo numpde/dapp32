@@ -2,7 +2,7 @@ PayToPlay: restart pending withdrawal waits when funds arrive
 ===========================================================
 
 Design decision: 2026-10-20.
-Status: accepted design; not yet implemented in PayToPlay.sol.
+Status: implemented in PayToPlay.sol; deployment and downstream adoption remain separate.
 
 This note supersedes the ordinary-withdrawal treatment of positive deposits
 and incoming moves in 020_service_payment_channels.txt. That note remains the
@@ -29,11 +29,12 @@ period remains valid and makes the request immediately executable.
 Why the change is needed
 -----------------------
 
-The current contract has two independent deadlines. Ordinary withdrawal uses
+The contract has two independent deadlines. Ordinary withdrawal uses
 readyAt. Full recovery uses the effective refundAt, derived from position and
-channel recovery deadlines. fund() and positive incoming move() currently
-renew the funding cycle through _renew(), which updates position.refundAt;
-they leave readyAt untouched.
+channel recovery deadlines. Before this change, fund() and positive incoming
+move() renewed the funding cycle through _renew(), which updates position.refundAt,
+but left readyAt untouched. Positive credits now restart the ordinary request
+independently of _renew(), including when recovery renewal does not advance.
 
 Under that baseline, a customer can request 100, wait for readiness, have
 vouchers collect the original 100, then deposit another 100. The unconsumed
@@ -41,7 +42,7 @@ mature request can immediately remove the new deposit. A service that admits
 work against that balance without accounting for the existing request can
 deliver work before collection and be left with an unbacked voucher.
 
-Under the new rule, that new deposit pushes the pending withdrawal to now + G.
+With this rule, that new deposit pushes the pending withdrawal to now + G.
 For G > 0, the service gets a fresh claim window before that ordinary exit can
 execute. This is a timing guarantee for the pending request, not a reservation of funds
 or a guarantee that a particular service will collect successfully.
@@ -96,6 +97,17 @@ requests, recovery cutoffs and transaction confirmation. Once readyAt is
 reached, collection and withdrawal still compete for the same balance. A valid
 voucher or positive balance alone remains insufficient evidence of payment.
 
+A service that conservatively excludes a pending ordinary withdrawal from backing
+must continue to use max(balance - requestedAmount, 0). Restarting readyAt does
+not increase that admissible amount: a deposit of 100 with a pending request of
+100 still contributes zero backing under this policy. A deposit-relative exit
+window is not a collection guarantee for work accepted later. Work admitted near
+the end of the window may lose to withdrawal at maturity; new withdrawal requests
+can also start after work is accepted. Services must enforce their own timing,
+reservation, payment-confirmation and fulfillment policy. Do not make voucher
+presentation or collection restart the wait: that would give the collector power
+to delay the customer's exit.
+
 Implementation acceptance and deployment
 -----------------------------------------
 
@@ -107,8 +119,10 @@ credits, exact readiness boundaries, atomic rollback and independent recovery
 renewal. Check that collection, explicit renewal and closure do not restart the
 ordinary wait, and that source-request consumption remains correct for moves.
 
-Update contract tests and public behavior documentation when implementing this
-decision. Existing non-upgradeable deployments keep their original behavior.
+The contract test suite and disposable real-chain CAM scenario specify the new
+behavior, including the competing withdrawal/collection outcomes. Public behavior
+documentation must distinguish source policy from deployed runtime policy.
+Existing non-upgradeable deployments keep their original behavior.
 A release adopting this rule requires a new deployment and deliberate updates
 to deployment/runtime-code pins; unchanged ABI signatures do not prove which
 withdrawal policy a deployed contract enforces.
