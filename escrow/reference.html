@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Escrow accounting and projection reference · dapp32</title><meta name="description" content="Agreement identity, native liabilities, core-owned action availability and the app-specific semantic projection."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Escrow accounting and projection</h1>
+<p>Use <a href="./">the agreement guide</a> for the workflow. This page records the developer contract at source <code>04a18763</code>; it does not describe arbitrary historical deployments.</p>
+<h2 id="identity">An agreement key is not its full identity</h2>
+<pre><code>agreementId = keccak256(abi.encode(client, agreementRef))</code></pre>
+<p>Include chain ID and escrow address when storing an external identity. The hash identifies the client's exact reference on that contract, not all agreement terms. A completed reference is not reusable.</p>
+<p>Each terms, submission or dispute reference is <code>{ string uri; bytes32 sha256Digest; }</code>. The digest commits to exact content bytes; the URI is a retrieval hint. The contract neither fetches nor canonicalizes content. Use <a href="documents.html">document preparation</a> for current hashing transports and bounds.</p>
+<h2 id="accounting">Value changes category before it leaves the contract</h2>
+<pre><code>Creation (amount &gt; 0, msg.value == amount):
+  totalEscrowed += amount
+
+Terminal settlement:
+  totalEscrowed -= amount
+  withdrawable[beneficiary] += amount
+  totalWithdrawable += amount
+
+Successful withdrawal:
+  withdrawable[caller] = 0
+  totalWithdrawable -= caller's complete credit
+  send that credit to the chosen recipient</code></pre>
+<p>The public liability surface exposes <code>withdrawable(account)</code>, <code>totalEscrowed()</code>, <code>totalWithdrawable()</code> and <code>totalLiabilities()</code>. Solvency requires <code>totalLiabilities() &lt;= address(escrow).balance</code>. Forced surplus is inert: there is no owner or sweep path.</p>
+<p><code>withdrawTo</code> is the sole native-value send path, using checks-effects-interactions and a reentrancy guard. Credit aggregates across agreements on this contract. Only its owner can withdraw the complete current credit; viewing it grants no authority. A rejected transfer reverts and preserves credit. Direct transfers and unknown selectors revert.</p>
+<h2 id="actions">The core owns action availability</h2>
+<p>Ordinary actions require <code>block.timestamp &lt; deadline</code>; timeout actions require <code>block.timestamp &gt;= deadline</code>. Active agreements have one deadline, while terminal and absent observations have zero. Time passing alone executes no transition.</p>
+<p>The same core predicate drives <code>availableActions()</code> and write authorization. Acceptance requires no arbitrator acknowledgement; the contract stores or emits none. Changing that policy would require a different deployment/model, not a new label.</p>
+<p>The creation-time arbitration fallback chooses Client or Contractor. The in-range <code>None</code> sentinel is rejected; out-of-range enum encodings fail at the ABI boundary. Every settlement awards the whole amount to one beneficiary: no split, residual liability, appeal, amendment, deadline extension or resubmission exists.</p>
+<h2 id="projection">A read-only application model, not a generic protocol machine</h2>
+<p><code>CamEscrowUI</code> has immutable backing verified for code and the <code>ICamEscrowView</code> ERC-165 interface. It has no owner, roles, write forwarding or native-value path. It returns the core agreement view unchanged alongside:</p>
+<pre><code>machine: escrow.agreement.v1
+instance: agreement ID
+instantiated flag, stable state ID and actor-role ID
+core-enabled transitions mapped in their existing order
+arbitration-timeout beneficiary
+arbitrator acknowledgement: neither required nor recorded</code></pre>
+<p>The projection does not recalculate permissions or timeouts. Creation is a factory action; withdrawal is an account-credit action. Neither is an agreement-machine transition. This application-specific model does not add a generic CAM machine resource or change the current CAM 1.4.0/UI 1.1.0 vocabulary.</p>
+<h2 id="routes">Arguments and continuations have separate jobs</h2>
+<p>Creation supplies one nested <code>params</code> value. <code>$inputs.params.amount</code> owns both the Solidity amount and the transaction's native value. Successful creation continues by client/reference lookup; stored transitions return to <code>agreement(agreementId)</code>; withdrawal returns to the caller's credit view.</p>
+<p>Unavailable actions and their fields can remain visible but disabled. The contract still checks actual sender, state and deadline during execution. Source-backed examples belong to the <a href="../authoring/">authoring guide</a>; campaign entrypoints belong to <a href="../development/app-checks.html#escrow">app checks</a>.</p>
+<p>Authorities: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrow.sol">core</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrowUI.sol">projection</a>, and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/main.json">manifest</a>.</p>
+</article></main></body></html>
