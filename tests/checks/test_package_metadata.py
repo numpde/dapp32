@@ -80,47 +80,117 @@ MODULE_SPECIFIER_RE = re.compile(
 
 
 class PackageInstallIdentityTest(unittest.TestCase):
-    def test_install_uses_the_selected_daemons_host_mapping(self) -> None:
-        cases = (
-            ("rootful", "docker compose", "1234:1234"),
-            ("rootless", "docker compose", "0:0"),
-            ("unavailable", "docker compose", None),
-            ("rootless", "docker --context default compose", None),
-        )
-        for engine, compose, expected_user in cases:
-            with self.subTest(engine=engine, compose=compose), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                for name in ("compose", "containers", "dapps", "docs", "js/apps", "js/packages", "tests", "tools"):
-                    (root / name).mkdir(parents=True, exist_ok=True)
-                for name in ("package.json", "package-lock.json"):
-                    (root / "js" / name).write_text("{}\n", encoding="utf-8")
-                shutil.copyfile(ROOT / "tools/compose_cleanup.sh", root / "tools/compose_cleanup.sh")
-                shutil.copyfile(ROOT / "tools/docker_context.sh", root / "tools/docker_context.sh")
-                events = root / "events"
-                events.touch()
-                delegate = root / "compose.sh"
-                delegate.write_text('printf "compose %s\\n" "$*" >> "$TEST_EVENTS"\n')
-                env = dict(os.environ, TEST_EVENTS=str(events), TEST_ENGINE=engine,
-                           PATH=f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
-                           TRACE=os.devnull, ENDPOINT="unix:///tmp/context-fixture.sock", FAKE_MODE="",
-                           DOCKER_DELEGATE=str(delegate))
-                overrides = [] if compose == "docker compose" else [f"DOCKER_COMPOSE={compose}"]
-                result = subprocess.run(
-                    ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
-                     "js/deps/install", "LOCAL_UID=1234", "LOCAL_GID=1234", "DOCKER_CONTEXT=fixture", *overrides],
-                    cwd=root, env=env, capture_output=True, text=True, timeout=20,
-                )
-                calls = events.read_text(encoding="utf-8").splitlines()
-                stages = [call for call in calls if " run " in call]
-                if expected_user is None:
+    """Installed dependencies and format outputs must use the selected engine's host-owner mapping."""
+
+    def run_lane(self, target: str, mapped: str, *, host_identity: bool, unwritable: bool, allow_update: bool):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("compose", "containers", "dapps", "docs", "js/apps", "js/packages",
+                         "tests", "tools", "ops", "dapps/pay-to-play/src"):
+                (root / name).mkdir(parents=True, exist_ok=True)
+            (root / "js/package.json").write_text("{}\n")
+            (root / "js/package-lock.json").write_text("{}\n")
+            (root / "dapps/foundry.toml").write_text("[profile.default]\n")
+            for name in ("soldeer.lock", "remappings.txt", "dependency-checksums.txt"):
+                (root / "dapps" / name).write_text("fixture\n")
+            shutil.copyfile(ROOT / "tools/compose_cleanup.sh", root / "tools/compose_cleanup.sh")
+            shutil.copyfile(ROOT / "tools/docker_context.sh", root / "tools/docker_context.sh")
+            # The real selector is independently checked by test_release_identity.
+            # Here we check that its one result reaches every stage, not Docker's
+            # informational rootless flag or the host numeric UID.
+            (root / "tools/release_identity.sh").write_text(
+                'release_select_container_identity() {\n'
+                '  printf "map-probe\\n" >> "$TEST_EVENTS"\n'
+                '  if [[ "$TEST_MAPPED_USER" == refused ]]; then return 2; fi\n'
+                '  IFS=: read -r RELEASE_CONTAINER_UID RELEASE_CONTAINER_GID <<< "$TEST_MAPPED_USER"\n'
+                '  export RELEASE_CONTAINER_UID RELEASE_CONTAINER_GID\n'
+                '}\n'
+            )
+            events = root / "events"
+            events.touch()
+            delegate = root / "compose.sh"
+            delegate.write_text('printf "compose %s\\n" "$*" >> "$TEST_EVENTS"\n')
+            if unwritable:
+                # Permission errors must be detected before the networked stage.
+                output = root / ("dapps/dependencies" if target == "dapps/deps/install"
+                                 else "js/node_modules")
+                output.mkdir()
+                output.chmod(0o500)
+            env = dict(os.environ, TEST_EVENTS=str(events), TEST_MAPPED_USER=mapped,
+                       PATH=f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
+                       TRACE=os.devnull, ENDPOINT="unix:///tmp/context-fixture.sock", FAKE_MODE="",
+                       DOCKER_DELEGATE=str(delegate))
+            uid = str(os.getuid()) if host_identity else str(os.getuid() + 1)
+            gid = str(os.getgid())
+            result = subprocess.run(
+                ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"), target,
+                 f"LOCAL_UID={uid}", f"LOCAL_GID={gid}", "DOCKER_CONTEXT=fixture",
+                 f"ALLOW_UPDATE={int(allow_update)}"],
+                cwd=root, env=env, capture_output=True, text=True, timeout=25,
+            )
+            calls = events.read_text().splitlines()
+            if unwritable:
+                output.chmod(0o700)
+            output_path = root / ("dapps/dependencies" if target == "dapps/deps/install"
+                                  else "js/node_modules")
+            return result, calls, output_path.exists()
+
+    def test_each_dependency_stage_uses_one_measured_engine_identity(self):
+        for mapped in (f"{os.getuid()}:{os.getgid()}", "0:0", "4321:5432"):
+            for target, stages in (
+                ("dapps/deps/install", ("soldeer-stage", "soldeer-verify-stage")),
+                ("js/deps/install", ("package-stage",)),
+            ):
+                for update in (False, True):
+                    with self.subTest(mapped=mapped, target=target, update=update):
+                        result, calls, _ = self.run_lane(target, mapped, host_identity=True, unwritable=False, allow_update=update)
+                        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                        self.assertEqual(1, calls.count("map-probe"), calls)
+                        apply = "update" if update else "locked"
+                        services = (*stages, f"{'soldeer' if target.startswith('dapps') else 'package'}-apply-{apply}")
+                        if target.startswith("dapps"):
+                            services = (*services, "soldeer-verify")
+                        actual = [call for call in calls if " run " in call]
+                        self.assertEqual(len(services), len(actual), actual)
+                        for call, service in zip(actual, services):
+                            self.assertTrue(call.endswith(f"--user {mapped} {service}"), call)
+                        self.assertFalse(any(call.startswith("info ") for call in calls),
+                                         "Docker rootless flag must not choose the writer identity")
+
+    def test_missing_or_invalid_mapping_stops_before_install_or_output_creation(self):
+        for mapped in ("refused", "bad:identity", "1000:", ":1000"):
+            for target in ("dapps/deps/install", "js/deps/install"):
+                with self.subTest(mapped=mapped, target=target):
+                    result, calls, output_exists = self.run_lane(target, mapped, host_identity=True, unwritable=False, allow_update=False)
                     self.assertNotEqual(0, result.returncode)
-                    self.assertEqual(0 if overrides else 1, len(calls))
-                    self.assertFalse((root / "js/node_modules").exists())
-                else:
-                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-                    self.assertEqual(2, len(stages))
-                    self.assertTrue(stages[0].endswith(f"--user {expected_user} package-stage"))
-                    self.assertTrue(stages[1].endswith(f"--user {expected_user} package-apply-locked"))
+                    self.assertFalse(any(" run " in call for call in calls), calls)
+                    self.assertFalse(output_exists, "failed mapping must not create output")
+
+    def test_host_identity_override_is_not_a_container_mapping_override(self):
+        for target in ("dapps/deps/install", "js/deps/install"):
+            with self.subTest(target=target):
+                result, calls, _ = self.run_lane(target, "0:0", host_identity=False, unwritable=False, allow_update=False)
+                self.assertNotEqual(0, result.returncode)
+                self.assertNotIn("map-probe", calls)
+                self.assertFalse(any(" run " in call for call in calls), calls)
+
+    def test_existing_unwritable_dependency_directory_fails_before_download(self):
+        for target in ("dapps/deps/install", "js/deps/install"):
+            with self.subTest(target=target):
+                result, calls, _ = self.run_lane(target, "0:0", host_identity=True, unwritable=True, allow_update=False)
+                self.assertNotEqual(0, result.returncode)
+                self.assertFalse(any(" run " in call for call in calls), calls)
+
+    def test_host_writable_formatters_use_the_measured_identity(self):
+        for target, service in (("pay-to-play/format", "forge-fmt"), ("ops/format", "execution-format")):
+            with self.subTest(target=target):
+                result, calls, _ = self.run_lane(target, "0:0", host_identity=True, unwritable=False, allow_update=False)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(1, calls.count("map-probe"), calls)
+                stages = [call for call in calls if " run " in call]
+                self.assertEqual(1, len(stages), stages)
+                self.assertIn("--user 0:0", stages[0])
+                self.assertIn(service, stages[0])
 
 
 class PackageMetadataTest(unittest.TestCase):

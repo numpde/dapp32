@@ -5,7 +5,7 @@ endef
 override COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME VIEWER_COMPOSE_PROJECT_NAME RELEASE_VIEWER_COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
 $(foreach name,LOCAL_UID LOCAL_GID ALLOW_UPDATE $(COMPOSE_PROJECT_NAME_VARS) ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN CAM_URI CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS VIEWER_TERMINAL_MOCK,$(call reject_external_make_expression,$(name)))
 
-$(foreach name,DEPS_COMPOSE_ENV PACKAGE_DEPS_COMPOSE_ENV ABI_EXPORT_COMPOSE_ENV RPC_COMPOSE_ENV RPC_INDEXER_COMPOSE_ENV ANVIL_COMPOSE_ENV LIVE_CHECK_COMPOSE_ENV BIKE_NFT_COMPOSE_ENV BIKE_NFT_LOCAL_COMPOSE_ENV BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV BIKE_NFT_VIEWER_GUI_COMPOSE_ENV BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV ESCROW_COMPOSE_ENV ESCROW_LOCAL_SCENARIO_COMPOSE_ENV ESCROW_VIEWER_TERMINAL_COMPOSE_ENV ESCROW_VIEWER_GUI_COMPOSE_ENV ESCROW_RELEASE_CHECK_COMPOSE_ENV TEST_INTEGRATION_FUZZ_ENV TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV VIEWER_TERMINAL_COMPOSE_ENV ANVIL_INTERNAL_COMPOSE_ENV ANVIL_HOST_COMPOSE_ENV ANVIL_ALL_COMPOSE_ENV PAY_TO_PLAY_COMPOSE_ENV PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV COMPOSE_ENV COMPOSE_DIR CAM_COMPOSE_FILES FORGE_ABI_COMPOSE_FILES COMPOSE_PROJECT_NAME_VARS select_cam_output_identity cam_integrity_refresh cleanup_disposable_project disposable_cleanup_command LANE_GUARD NON_ROOT_GUARD COMPOSE_PROJECT_NAME_GUARD REPO_SHAPE_GUARD FIRST_PARTY_ROOTS ACTUAL_UID ACTUAL_GID DEPS_COMPOSE_PROJECT_NAME PACKAGE_DEPS_COMPOSE_PROJECT_NAME ABI_EXPORT_COMPOSE_PROJECT_NAME ALLOW_UPDATE_GUARD CAM_RESOURCE_OUTPUT_GUARD ANVIL_HOST_PORT_GUARD BIKE_NFT_GUI_BIND_GUARD ESCROW_GUI_BIND_GUARD PAY_TO_PLAY_GUI_BIND_GUARD CAM_URI_GUARD CAM_INTEGRATION_INPUT_GUARD VIEWER_TERMINAL_MOCK_GUARD,$(call reject_external_make_expression,$(name)))
+$(foreach name,DEPS_COMPOSE_ENV PACKAGE_DEPS_COMPOSE_ENV ABI_EXPORT_COMPOSE_ENV RPC_COMPOSE_ENV RPC_INDEXER_COMPOSE_ENV ANVIL_COMPOSE_ENV LIVE_CHECK_COMPOSE_ENV BIKE_NFT_COMPOSE_ENV BIKE_NFT_LOCAL_COMPOSE_ENV BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV BIKE_NFT_VIEWER_GUI_COMPOSE_ENV BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV ESCROW_COMPOSE_ENV ESCROW_LOCAL_SCENARIO_COMPOSE_ENV ESCROW_VIEWER_TERMINAL_COMPOSE_ENV ESCROW_VIEWER_GUI_COMPOSE_ENV ESCROW_RELEASE_CHECK_COMPOSE_ENV TEST_INTEGRATION_FUZZ_ENV TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV VIEWER_TERMINAL_COMPOSE_ENV ANVIL_INTERNAL_COMPOSE_ENV ANVIL_HOST_COMPOSE_ENV ANVIL_ALL_COMPOSE_ENV PAY_TO_PLAY_COMPOSE_ENV PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV COMPOSE_ENV COMPOSE_DIR CAM_COMPOSE_FILES FORGE_ABI_COMPOSE_FILES COMPOSE_PROJECT_NAME_VARS select_cam_output_identity select_host_output_identity cam_integrity_refresh cleanup_disposable_project disposable_cleanup_command LANE_GUARD NON_ROOT_GUARD COMPOSE_PROJECT_NAME_GUARD REPO_SHAPE_GUARD FIRST_PARTY_ROOTS ACTUAL_UID ACTUAL_GID DEPS_COMPOSE_PROJECT_NAME PACKAGE_DEPS_COMPOSE_PROJECT_NAME ABI_EXPORT_COMPOSE_PROJECT_NAME ALLOW_UPDATE_GUARD CAM_RESOURCE_OUTPUT_GUARD ANVIL_HOST_PORT_GUARD BIKE_NFT_GUI_BIND_GUARD ESCROW_GUI_BIND_GUARD PAY_TO_PLAY_GUI_BIND_GUARD CAM_URI_GUARD CAM_INTEGRATION_INPUT_GUARD VIEWER_TERMINAL_MOCK_GUARD,$(call reject_external_make_expression,$(name)))
 
 # Parse-time probes use a noninteractive POSIX shell, which does not load
 # Bash's ambient startup file. Recipes use Bash after these probes are set up.
@@ -1235,25 +1235,40 @@ dapps/deps/install:
 	        exit 2; \
 	      fi; \
 	    done ;; \
-	  1) \
-	    apply_service="soldeer-apply-update"; \
-	    for file in $(DEPENDENCY_METADATA_FILES); do \
-	      if [[ ! -e "$$file" ]]; then \
-	        touch "$$file"; \
-	        created_dependency_metadata_placeholders="$$created_dependency_metadata_placeholders $$file"; \
-	      fi; \
-	    done ;; \
+	  1) apply_service="soldeer-apply-update" ;; \
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
 	esac; \
+	if [[ -d "$(DEPENDENCIES_DIR)" && ( ! -O "$(DEPENDENCIES_DIR)" || ! -w "$(DEPENDENCIES_DIR)" ) ]]; then \
+	  printf '%s\n' 'dapps/dependencies must be owned and writable by the invoking user.' >&2; exit 2; \
+	fi; \
+	if [[ ! -d "$(DEPENDENCIES_DIR)" && ! -w "$(DAPPS_DIR)" ]]; then \
+	  printf '%s\n' 'dapps must be writable before dependencies can be created.' >&2; exit 2; \
+	fi; \
+	if [[ "$$ALLOW_UPDATE" == 1 ]]; then \
+	  for file in $(DEPENDENCY_METADATA_FILES); do \
+	    if [[ -e "$$file" && ( ! -O "$$file" || ! -w "$$file" ) ]]; then \
+	      printf 'Dependency metadata is not owned and writable: %s\n' "$$file" >&2; exit 2; \
+	    fi; \
+	  done; \
+	fi; \
+	$(select_host_output_identity); \
+	if [[ "$$ALLOW_UPDATE" == 1 ]]; then \
+	  for file in $(DEPENDENCY_METADATA_FILES); do \
+	    if [[ ! -e "$$file" ]]; then \
+	      touch "$$file"; \
+	      created_dependency_metadata_placeholders="$$created_dependency_metadata_placeholders $$file"; \
+	    fi; \
+	  done; \
+	fi; \
 	reject_unsafe_dependency_targets; \
 	mkdir -p $(DEPENDENCIES_DIR); \
 	test -d $(DEPENDENCIES_DIR); \
 	reject_unsafe_dependency_targets; \
 	$(DEPS_COMPOSE_ENV) $(call cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/deps.yml,0); \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify-stage; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-stage; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify-stage; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" "$$apply_service"; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify
 
 dapps/deps/verify:
 	@$(LANE_GUARD); \
@@ -1264,9 +1279,6 @@ dapps/deps/verify:
 js/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
-	package_user="$$LOCAL_UID:$$LOCAL_GID"; \
-	security_options="$$(docker --host "$$CAM_DOCKER_ENDPOINT" info --format '{{range .SecurityOptions}}{{println .}}{{end}}')"; \
-	if grep -Fxq 'name=rootless' <<< "$$security_options"; then package_user=0:0; fi; \
 	package_input_dir=""; \
 	created_package_lock_placeholder="0"; \
 	cleanup() { \
@@ -1311,6 +1323,17 @@ js/deps/install:
 	  1) apply_service="package-apply-update" ;; \
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
 	esac; \
+	if [[ -d "$(PACKAGE_NODE_MODULES_DIR)" && ( ! -O "$(PACKAGE_NODE_MODULES_DIR)" || ! -w "$(PACKAGE_NODE_MODULES_DIR)" ) ]]; then \
+	  printf '%s\n' 'js/node_modules must be owned and writable by the invoking user.' >&2; exit 2; \
+	fi; \
+	if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" && ! -w "$(JS_DIR)" ]]; then \
+	  printf '%s\n' 'js must be writable before node_modules can be created.' >&2; exit 2; \
+	fi; \
+	if [[ "$$ALLOW_UPDATE" == 1 && -e "$(PACKAGE_LOCK_FILE)" && ( ! -O "$(PACKAGE_LOCK_FILE)" || ! -w "$(PACKAGE_LOCK_FILE)" ) ]]; then \
+	  printf '%s\n' 'js/package-lock.json must be owned and writable for an intentional update.' >&2; exit 2; \
+	fi; \
+	$(select_host_output_identity); \
+	package_user="$$mapped_user"; \
 	package_input_dir="$$(mktemp -d)"; \
 	cp "$(PACKAGE_MANIFEST_FILE)" "$$package_input_dir/package.json"; \
 	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$$package_input_dir/package-lock.json"; fi; \
@@ -1359,8 +1382,11 @@ js/execution/check:
 
 .PHONY: ops/format
 ops/format:
-	@$(OPS_SOURCE_GUARD)
-	$(call compose_run,execution-check.yml,execution-format)
+	@$(LANE_GUARD); \
+	$(OPS_SOURCE_GUARD); \
+	if [[ ! -O ops || ! -w ops ]]; then printf '%s\n' 'ops must be owned and writable by the invoking user.' >&2; exit 2; fi; \
+	$(select_host_output_identity); \
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/execution-check.yml run --build --rm --user "$$mapped_user" execution-format
 
 js/tests: js/execution/check
 	$(call compose_run_with_package_deps,packages.yml,package-test)
@@ -1544,6 +1570,7 @@ define dapp_format
 	  printf 'DAPP has no Solidity src, test, or script directory: %s\n' "$$DAPP" >&2; \
 	  exit 2; \
 	fi; \
+	$(select_host_output_identity); \
 	format_stage_dir="$$(mktemp -d)"; \
 	chmod 0700 "$$format_stage_dir"; \
 	cleanup() { \
@@ -1553,6 +1580,7 @@ define dapp_format
 	}; \
 	trap cleanup EXIT; \
 	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml run --build --rm \
+	  --user "$$mapped_user" \
 	  --env "DAPP=$$DAPP" \
 	  --volume "$$format_stage_dir:/format-output:rw" \
 	  forge-fmt \
@@ -1587,14 +1615,25 @@ dapps/build: dapps/deps/verify
 dapps/scripts/build: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-script-build)
 
-# Rootless Docker maps namespace UID 0 to the engine owner. Callers must
-# verify their writable outputs before using that identity.
+# Map the invoking host owner into the selected engine for writable outputs.
+# Rootless, rootful and userns-remapped engines can use different numeric IDs.
+override define select_host_output_identity
+if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then \
+  printf '%s\n' 'Writable Docker outputs require the invoking host UID and GID.' >&2; exit 2; \
+fi; \
+source tools/release_identity.sh; release_select_container_identity; \
+mapped_user="$${RELEASE_CONTAINER_UID:?missing mapped UID}:$${RELEASE_CONTAINER_GID:?missing mapped GID}"; \
+if [[ ! "$$mapped_user" =~ ^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$$ ]]; then \
+  printf '%s\n' 'Selected Docker engine did not return a valid mapped output identity.' >&2; exit 2; \
+fi
+endef
+
 override define select_cam_output_identity
 if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then \
   printf '%s\n' 'CAM outputs require the invoking host UID and GID.' >&2; exit 2; \
 fi; \
-source tools/release_identity.sh; release_select_container_identity; \
-cam_user="$${RELEASE_CONTAINER_UID:?missing mapped UID}:$${RELEASE_CONTAINER_GID:?missing mapped GID}"
+$(select_host_output_identity); \
+cam_user="$$mapped_user"
 endef
 
 override define cam_integrity_refresh
