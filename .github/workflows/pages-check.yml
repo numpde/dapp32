@@ -5,6 +5,7 @@ on:
     paths:
       - '**/*.html'
       - check_pages.py
+      - check_reference.py
       - theme.js
       - site.css
       - Makefile
@@ -14,6 +15,7 @@ on:
     paths:
       - '**/*.html'
       - check_pages.py
+      - check_reference.py
       - theme.js
       - site.css
       - Makefile
