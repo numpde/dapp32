@@ -16,9 +16,13 @@ import {EscrowDeployment} from "./EscrowDeployment.sol";
 /// The script hashes the mounted CAM root bytes before broadcasting.
 contract DeployEscrowLocal is Script, EscrowDeployment {
     function run() external returns (Deployment memory deployment) {
-        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
+        return _deploy(vm.envUint("PRIVATE_KEY"), vm.envString("CAM_URI"));
+    }
+
+    /// @dev The operator entry point reads ambient configuration; tests supply
+    /// explicit fixture values while exercising the same deployment and hash.
+    function _deploy(uint256 deployerKey, string memory camURI) internal returns (Deployment memory deployment) {
         address deployer = vm.addr(deployerKey);
-        string memory camURI = vm.envString("CAM_URI");
         bytes32 camHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
 
         vm.startBroadcast(deployerKey);
