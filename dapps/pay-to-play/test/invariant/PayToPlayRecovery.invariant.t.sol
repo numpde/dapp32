@@ -170,7 +170,7 @@ contract PayToPlayRecoveryInvariantTest is Test {
     function testFundingExitWindowWitnessBlocksEarlyExitAndAllowsMatureExit() public {
         handler.request(0, 1, 80);
         vm.warp(block.timestamp + 100);
-        handler.collect(0, 1, 100, bytes32(0), 100);
+        handler.collect(0, 0, 100, bytes32(0), 100);
         handler.fund(0, 1, 20);
         uint256 creditedAt = block.timestamp;
         assertEq(handler.lastPositiveCreditAt(handler.customers(0), 1), creditedAt);
@@ -188,7 +188,7 @@ contract PayToPlayRecoveryInvariantTest is Test {
         handler.request(0, 1, 100);
         handler.fund(0, 2, 100);
         handler.request(0, 2, 100);
-        handler.collect(0, 2, 100, bytes32(0), 100);
+        handler.collect(0, 1, 100, bytes32(0), 100);
         vm.warp(block.timestamp + 250);
         handler.move(0, 1, 2);
         uint256 creditedAt = block.timestamp;
@@ -206,7 +206,7 @@ contract PayToPlayRecoveryInvariantTest is Test {
 
     function testZeroCreditsDoNotAdvanceOracleAndZeroPeriodExitsRemainValid() public {
         handler.request(0, 1, 100);
-        handler.collect(0, 1, 100, bytes32(0), 100);
+        handler.collect(0, 0, 100, bytes32(0), 100);
         handler.fund(0, 2, 10);
         uint256 prior = handler.lastPositiveCreditAt(handler.customers(0), 2);
         vm.warp(block.timestamp + 100);

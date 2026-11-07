@@ -324,7 +324,6 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         vm.warp(_position(channel).readyAt);
         vm.prank(customer);
         assertEq(payments.move(channel, otherChannel), 10);
-        assertEq(_position(channel).refundAt, _position(channel).refundAt);
         assertEq(_position(otherChannel).refundAt, block.timestamp + 365 days + PERIOD);
         assertEq(payments.channel(channel).escrowTotal, 0);
         assertEq(payments.channel(otherChannel).escrowTotal, 20);
@@ -525,6 +524,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
 
     function testUnfundedRefundAndUnknownChannelsFailWithoutCreatingCycles() public {
         payments.closePosition(customer, channel);
+        assertEq(_position(channel).refundAt, 0);
         vm.expectRevert(PayToPlay.RecoveryNotScheduled.selector);
         payments.refund(customer, channel);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.ChannelNotFound.selector, 99));

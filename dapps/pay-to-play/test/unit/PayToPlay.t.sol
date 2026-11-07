@@ -39,7 +39,7 @@ contract PayToPlayMoveGasTest is PayToPlayTestBase {
         if (previousBalance == 0) {
             assertEq(targetBefore.scheduledRefundAt, 0);
         } else {
-            assertEq(targetBefore.scheduledRefundAt, 0);
+            assertGt(targetBefore.scheduledRefundAt, 0);
         }
         uint256 expectedRefundAt = block.timestamp + payments.RECOVERY_HORIZON() + uint256(PERIOD);
         assertGt(expectedRefundAt, targetBefore.scheduledRefundAt, "fixture must start or extend recovery");
