@@ -232,7 +232,7 @@ contract PayToPlayWithdrawalFundingTest is PayToPlayTestBase {
         assertEq(relayer.balance, recipientBefore, "ordinary withdrawal still pays the owner");
     }
 
-    function testFailedFundingPreservesBalanceAndBothDeadlines() public {
+    function testFundingMismatchPreservesBalanceAndBothDeadlines() public {
         _fund(customer, channel, 100);
         _request(channel, 80);
         vm.warp(block.timestamp + 20);
