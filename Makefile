@@ -1245,19 +1245,19 @@ dapps/deps/install:
 	if [[ ! -d "$(DEPENDENCIES_DIR)" && ! -w "$(DAPPS_DIR)" ]]; then \
 	  printf '%s\n' 'dapps must be writable before dependencies can be created.' >&2; exit 2; \
 	fi; \
-	if [[ "$ALLOW_UPDATE" == 1 ]]; then \
+	if [[ "$$ALLOW_UPDATE" == 1 ]]; then \
 	  for file in $(DEPENDENCY_METADATA_FILES); do \
-	    if [[ -e "$file" && ( ! -O "$file" || ! -w "$file" ) ]]; then \
-	      printf 'Dependency metadata is not owned and writable: %s\n' "$file" >&2; exit 2; \
+	    if [[ -e "$$file" && ( ! -O "$$file" || ! -w "$$file" ) ]]; then \
+	      printf 'Dependency metadata is not owned and writable: %s\n' "$$file" >&2; exit 2; \
 	    fi; \
 	  done; \
 	fi; \
 	$(select_host_output_identity); \
-	if [[ "$ALLOW_UPDATE" == 1 ]]; then \
+	if [[ "$$ALLOW_UPDATE" == 1 ]]; then \
 	  for file in $(DEPENDENCY_METADATA_FILES); do \
-	    if [[ ! -e "$file" ]]; then \
-	      touch "$file"; \
-	      created_dependency_metadata_placeholders="$created_dependency_metadata_placeholders $file"; \
+	    if [[ ! -e "$$file" ]]; then \
+	      touch "$$file"; \
+	      created_dependency_metadata_placeholders="$$created_dependency_metadata_placeholders $$file"; \
 	    fi; \
 	  done; \
 	fi; \
@@ -1266,10 +1266,10 @@ dapps/deps/install:
 	test -d $(DEPENDENCIES_DIR); \
 	reject_unsafe_dependency_targets; \
 	$(DEPS_COMPOSE_ENV) $(call cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/deps.yml,0); \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" soldeer-stage; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" soldeer-verify-stage; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" "$apply_service"; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" soldeer-verify
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-stage; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify-stage; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" "$$apply_service"; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify
 
 dapps/deps/verify:
 	@$(LANE_GUARD); \
@@ -1331,11 +1331,11 @@ js/deps/install:
 	if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" && ! -w "$(JS_DIR)" ]]; then \
 	  printf '%s\n' 'js must be writable before node_modules can be created.' >&2; exit 2; \
 	fi; \
-	if [[ "$ALLOW_UPDATE" == 1 && -e "$(PACKAGE_LOCK_FILE)" && ( ! -O "$(PACKAGE_LOCK_FILE)" || ! -w "$(PACKAGE_LOCK_FILE)" ) ]]; then \
+	if [[ "$$ALLOW_UPDATE" == 1 && -e "$(PACKAGE_LOCK_FILE)" && ( ! -O "$(PACKAGE_LOCK_FILE)" || ! -w "$(PACKAGE_LOCK_FILE)" ) ]]; then \
 	  printf '%s\n' 'js/package-lock.json must be owned and writable for an intentional update.' >&2; exit 2; \
 	fi; \
 	$(select_host_output_identity); \
-	package_user="$mapped_user"; \
+	package_user="$$mapped_user"; \
 	package_input_dir="$(mktemp -d)"; \
 	cp "$(PACKAGE_MANIFEST_FILE)" "$$package_input_dir/package.json"; \
 	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$$package_input_dir/package-lock.json"; fi; \
@@ -1388,7 +1388,7 @@ ops/format:
 	$(OPS_SOURCE_GUARD); \
 	if [[ ! -O ops || ! -w ops ]]; then printf '%s\n' 'ops must be owned and writable by the invoking user.' >&2; exit 2; fi; \
 	$(select_host_output_identity); \
-	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/execution-check.yml run --build --rm --user "$mapped_user" execution-format
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/execution-check.yml run --build --rm --user "$$mapped_user" execution-format
 
 js/tests: js/execution/check
 	$(call compose_run_with_package_deps,packages.yml,package-test)
@@ -1568,8 +1568,8 @@ define dapp_format
 	    has_solidity_sources=1; \
 	  fi; \
 	done; \
-	if [[ "$has_solidity_sources" -eq 0 ]]; then \
-	  printf 'DAPP has no Solidity src, test, or script directory: %s\n' "$DAPP" >&2; \
+	if [[ "$$has_solidity_sources" -eq 0 ]]; then \
+	  printf 'DAPP has no Solidity src, test, or script directory: %s\n' "$$DAPP" >&2; \
 	  exit 2; \
 	fi; \
 	$(select_host_output_identity); \
@@ -1582,8 +1582,8 @@ define dapp_format
 	}; \
 	trap cleanup EXIT; \
 	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml run --build --rm \
-	  --user "$mapped_user" \
-	  --env "DAPP=$DAPP" \
+	  --user "$$mapped_user" \
+	  --env "DAPP=$$DAPP" \
 	  --volume "$$format_stage_dir:/format-output:rw" \
 	  forge-fmt \
 	  sh -eu -c 'staged_dapp="/format-output/$$DAPP"; mkdir -p "$$staged_dapp"; set --; for source_kind in src test script; do source_dir="$$DAPP/$$source_kind"; if [ -d "$$source_dir" ]; then staged_dir="$$staged_dapp/$$source_kind"; mkdir -p "$$staged_dir"; cp -R "$$source_dir/." "$$staged_dir/"; set -- "$$@" "$$staged_dir"; fi; done; forge fmt "$$@"'; \
@@ -1624,15 +1624,15 @@ if [[ "$$LOCAL_UID:$$LOCAL_GID" != "$(ACTUAL_UID):$(ACTUAL_GID)" ]]; then \
   printf '%s\n' 'Writable Docker outputs require the invoking host UID and GID.' >&2; exit 2; \
 fi; \
 source tools/release_identity.sh; release_select_container_identity; \
-mapped_user="${RELEASE_CONTAINER_UID:?missing mapped UID}:${RELEASE_CONTAINER_GID:?missing mapped GID}"; \
-if [[ ! "$mapped_user" =~ ^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$ ]]; then \
+mapped_user="$${RELEASE_CONTAINER_UID:?missing mapped UID}:$${RELEASE_CONTAINER_GID:?missing mapped GID}"; \
+if [[ ! "$$mapped_user" =~ ^(0|[1-9][0-9]*):(0|[1-9][0-9]*)$ ]]; then \
   printf '%s\n' 'Selected Docker engine did not return a valid mapped output identity.' >&2; exit 2; \
 fi
 endef
 
 override define select_cam_output_identity
 $(select_host_output_identity); \
-cam_user="$mapped_user"
+cam_user="$$mapped_user"
 endef
 
 override define cam_integrity_refresh
