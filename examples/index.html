@@ -1,16 +1,26 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Example apps · dapp32</title><meta name="description" content="Concrete contracts and CAM workflows rendered by the same generic dapp32 viewer."><script src="../theme.js"></script>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choose an app or local demo · dapp32</title><meta name="description" content="Choose disposable practice or an existing published app, then follow its workflow guide."><script src="../theme.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="./" aria-current="page">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div><header class="shell document-header"><h1>Example apps</h1><p class="lede">Concrete contracts and CAM workflows rendered by the same generic dapp32 viewer.</p></header><main id="main" class="shell document"><section id="apps"><p>These apps demonstrate how a contract-defined workflow uses dapp32. Each app owns its business rules and publishes its own CAM bundle. The generic viewer interprets those bundles; it has no Bike NFT, Escrow or Pay-to-Play business logic.</p><div class="grid"><article class="card"><h2><a href="../bike-nft/">Bike NFT</a></h2><p>Register components and manage ownership, metadata, missing reports and workshop access.</p><p><a href="../deployment/bike-nft/">Deploy an instance</a></p></article><article class="card"><h2><a href="../escrow/">Escrow</a></h2><p>Create agreements, fund work, resolve disputes and withdraw settlement credit.</p><p><a href="../deployment/escrow/">Deploy an instance</a></p></article><article class="card"><h2><a href="../pay-to-play/">Pay-to-Play</a></h2><p>Fund service-payment channels, authorize vouchers and recover balances.</p><p><a href="../deployment/pay-to-play/">Deploy an instance</a></p></article></div><p>The app guides explain behavior and local demos. The <a href="../deployment/">deployment guides</a> explain how an operator creates and verifies an instance. No deployed addresses are implied by these documentation pages.</p></section>
-<section id="local-demos">
-<h2>What the demo launchers are for</h2>
-<p>Use a demo to explore an app’s workflow or manually test changes to its contracts, CAM bundle and viewer together. Each launcher starts its own disposable Anvil blockchain (chain ID <code>31337</code>), deploys fresh app contracts, serves the CAM resources, and starts the generic viewer. Open the URL it prints.</p>
-<ul>
-<li><code>make bike-nft/local/demo/gui/up</code> — <a href="../bike-nft/#try">Bike NFT demo guide</a></li>
-<li><code>make escrow/local/demo/gui/up</code> — <a href="../escrow/#try">Escrow demo guide</a></li>
-<li><code>make pay-to-play/local/demo/gui/up</code> — <a href="../pay-to-play/#local">Pay-to-Play demo guide</a></li>
-</ul>
-<p>Run from a source checkout with Docker, Compose and Make, after <a href="../#try">installing the locked dependencies</a>. Keep the command running while using the demo. Exiting attempts cleanup; closing the browser tab does not stop it. Treat all chain state as temporary. The app guides explain wallet setup and each demo’s matching <code>down</code> command if cleanup fails. A demo does not attach a signing wallet automatically.</p>
-<p>To view contracts already deployed on a public chain, use <code>make viewer/release/up</code> with their saved <code>deployment.json</code>; it asks for the artifact path and a browser-public RPC, and deploys nothing. To practice the actual deployment and approval process, follow the <a href="../deployment/#start-a-local-network-then-deploy-manually">local release workflow</a> on chain <code>31338</code>.</p>
-</section></main></body></html>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="./" aria-current="page">Example apps</a><a href="../deployments/">Deployments</a><a href="../deployment/">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Choose an app</h1>
+<p>For a first run, follow <a href="../start/local-wallet.html">Pay-to-Play with a local test wallet</a>. It reaches a deposit and cleanup without real credentials. To use contracts already deployed, follow <a href="../use/">Open an existing app</a> instead.</p>
+<section id="apps"><h2>Workflow guides</h2>
+<div class="grid">
+<section class="card"><h3><a href="../pay-to-play/">Pay-to-Play</a></h3><p>Fund a position, authorize voucher payments, withdraw and recover balances.</p><p><a href="../deployment/pay-to-play/">Deployment settings</a></p></section>
+<section class="card"><h3><a href="../escrow/">Escrow</a></h3><p>Create agreements, fund work, resolve disputes and withdraw settlement credit.</p><p><a href="../deployment/escrow/">Deployment settings</a></p></section>
+<section class="card"><h3><a href="../bike-nft/">Bike NFT</a></h3><p>Register components and manage ownership, metadata and workshop access.</p><p><a href="../deployment/bike-nft/">Deployment settings</a></p></section>
+</div></section>
+<section id="local-demos"><h2>Local demos</h2>
+<p>Each launcher creates its own disposable Anvil chain on ID 31337, deploys the app, serves its CAM files and prints a viewer URL. It does not attach a wallet automatically. Complete <a href="../development/">source setup</a> first.</p>
+<table><thead><tr><th>App</th><th>Start</th><th>Stop</th></tr></thead><tbody>
+<tr><td>Pay-to-Play</td><td><code>make pay-to-play/local/demo/gui/up</code></td><td><code>make pay-to-play/local/demo/gui/down</code></td></tr>
+<tr><td>Escrow</td><td><code>make escrow/local/demo/gui/up</code></td><td><code>make escrow/local/demo/gui/down</code></td></tr>
+<tr><td>Bike NFT</td><td><code>make bike-nft/local/demo/gui/up</code></td><td><code>make bike-nft/local/demo/gui/down</code></td></tr>
+</tbody></table>
+<p>Add <code>DOCKER_CONTEXT=your-local-context</code> and use the same <code>COMPOSE_PROJECT_NAME</code> for startup, wallet attachment and shutdown. Keep the foreground launcher running and open its entire printed URL. Closing the browser tab does not stop the fixture.</p>
+<p>The <a href="../start/local-wallet.html">complete wallet tutorial</a> shows the separate browser profile, attachment, actor selection and transaction approval. The other app guides retain their app-specific exercises. All fixture keys are public test identities; never use them with real funds.</p>
+<p>To rehearse the actual operator approval/publication process rather than just explore an app, use the <a href="../deployment/#rehearse-the-release-locally">isolated release rehearsal</a>. Its deployment process and chain are separate from these demos.</p>
+</section>
+</article></main></body></html>
