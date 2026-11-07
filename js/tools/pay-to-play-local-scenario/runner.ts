@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
 import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbiItem, toEventSelector, sha256, stringToBytes } from "viem"
-import type { Address, Hex } from "viem"
+import type { Address, Chain, Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
 import { createCamViewerSession, viewerErrorMessage } from "../../packages/cam-viewer/dist/index.js"
@@ -37,11 +37,17 @@ async function main(): Promise<void> {
   })) as Record<Role, ReturnType<typeof privateKeyToAccount>>
   // Public, unfunded voucher-only key for this disposable local fixture, never a live key.
   const voucherSigner = privateKeyToAccount(`0x${"55".repeat(32)}`)
-  const chain = {
+  const chain: Chain = {
     id: 31337,
     name: "Payment channels local fixture",
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [rpcURL] } },
+    // Local signing uses the RPC estimate directly. Leave room for _renew() to
+    // write a new deadline if the mined timestamp advances after estimation.
+    prepareTransactionRequest: [async request => ({
+      ...request,
+      gas: request.gas === undefined ? undefined : (request.gas * 5n + 3n) / 4n,
+    }), { runAt: ["afterFillParameters"] }],
   }
   const publicClient = createPublicClient({ chain, transport: http(rpcURL) })
   assert.equal(await publicClient.getChainId(), 31337)
@@ -133,7 +139,7 @@ async function main(): Promise<void> {
     const walletClient = createWalletClient({ account: accounts[role], chain, transport: http(rpcURL) })
     const hash = await sendCamContractCall({ walletClient, chain, call: prepared.call })
     const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: RECEIPT_TIMEOUT })
-    assert.equal(receipt.status, "success", `${route} must succeed`)
+    assert.equal(receipt.status, "success", `${route} transaction ${hash} must succeed; gas used ${receipt.gasUsed}`)
     assert.equal(prepared.call.then.namespace, "routes")
     await session.navigate(prepared.call.then.function, prepared.call.then.args)
     process.stdout.write(`${JSON.stringify({ event: "write_ok", role, route, hash })}\n`)
