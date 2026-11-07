@@ -8,12 +8,20 @@ contract RefreshLocalCam is Script {
     uint256 private constant FIXTURE_KEY = 0xbabababababababababababababababababababababababababababababababa;
 
     function run(string memory deploymentPath, string memory manifestPath) external {
+        // Reject a non-fixture chain before consulting operator environment.
+        require(block.chainid == 31337, "CAM refresh requires local fixture chain 31337");
+        _refresh(deploymentPath, manifestPath, vm.envString("CAM_URI"));
+    }
+
+    /// @dev The entry point owns environment acquisition; fixture tests supply
+    /// the expected URI directly so their guard conditions cannot race.
+    function _refresh(string memory deploymentPath, string memory manifestPath, string memory expectedURI) internal {
         require(block.chainid == 31337, "CAM refresh requires local fixture chain 31337");
         string memory deploymentJSON = vm.readFile(deploymentPath);
         require(vm.parseJsonUint(deploymentJSON, ".chain") == 31337, "Saved deployment is not a local fixture");
         (CamRoot root, string memory uri) = recordedRoot(deploymentJSON);
         require(root.owner() == vm.addr(FIXTURE_KEY), "CAM root is not owned by the public fixture account");
-        require(keccak256(bytes(uri)) == keccak256(bytes(vm.envString("CAM_URI"))), "Fixture origin changed");
+        require(keccak256(bytes(uri)) == keccak256(bytes(expectedURI)), "Fixture origin changed");
         require(keccak256(bytes(root.camManifest().uri)) == keccak256(bytes(uri)), "CAM manifest URI changed");
         bytes32 digest = sha256(vm.readFileBinary(manifestPath));
         if (root.camManifest().sha256Digest != digest) {
