@@ -1,6 +1,6 @@
 pragma solidity 0.8.35;
 
-import {Vm} from "forge-std-1.12.0/src/Vm.sol";
+import {Vm} from "forge-std-1.12.0/src/Test.sol";
 import {PayToPlay} from "../../src/PayToPlay.sol";
 import {PayToPlayTestBase} from "../support/PayToPlayTestBase.sol";
 
