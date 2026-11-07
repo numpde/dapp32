@@ -9,6 +9,7 @@ This repository contains the protocol, viewers, shared packages, and example con
 - [Project overview](https://numpde.github.io/dapp32/)
 - [Protocol reference](https://numpde.github.io/dapp32/reference/cam/1.4.0/)
 - [Examples and local demos](https://numpde.github.io/dapp32/examples/#local-demos)
+- [Development setup](https://numpde.github.io/dapp32/#development)
 - [Deployment and verification](https://numpde.github.io/dapp32/deployment/)
 - [Networks](https://numpde.github.io/dapp32/deployment/networks/) and [RPC services](https://numpde.github.io/dapp32/deployment/rpc/)
 
