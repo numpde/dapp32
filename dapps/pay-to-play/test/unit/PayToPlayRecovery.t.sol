@@ -28,6 +28,125 @@ contract RecoveryRecipient {
 }
 
 contract PayToPlayRecoveryTest is PayToPlayTestBase {
+    function testPositionClosureAtCreditCannotBypassTheFreshWindow() public {
+        _assertClosureAfterCredit(false, 0);
+    }
+
+    function testChannelClosureAtCreditCannotBypassTheFreshWindow() public {
+        _assertClosureAfterCredit(true, 0);
+    }
+
+    function testLaterPositionClosureDoesNotPostponeRestartedWithdrawal() public {
+        _assertClosureAfterCredit(false, 10);
+    }
+
+    function testLaterChannelClosureDoesNotPostponeRestartedWithdrawal() public {
+        _assertClosureAfterCredit(true, 10);
+    }
+
+    function testCreditImmediatelyBeforeAnnualSettlementRenewsBothDeadlines() public {
+        _fund(customer, channel, 100);
+        vm.prank(customer);
+        payments.requestWithdrawal(channel, 50);
+        uint256 formerSettlement = _position(channel).settleAt;
+        vm.warp(formerSettlement - 1);
+        _fund(customer, channel, 1);
+        assertEq(_position(channel).requestedAmount, 50);
+        assertEq(_position(channel).readyAt, block.timestamp + PERIOD);
+        assertEq(_position(channel).refundAt, block.timestamp + payments.RECOVERY_HORIZON() + PERIOD);
+        vm.warp(formerSettlement);
+        assertEq(uint256(_position(channel).phase), uint256(PayToPlay.Phase.Operating));
+        assertFalse(_hasAction(_position(channel).actions, "withdraw"));
+    }
+
+    function testAnnualSettlementRejectsPositiveCreditsWithoutConsumingEitherRequest() public {
+        _prepareTwoRequestedPositions();
+        vm.warp(_position(channel).settleAt);
+        _assertRejectedCreditsAreAtomic();
+    }
+
+    function testPositionClosureRejectsPositiveCreditsWithoutConsumingEitherRequest() public {
+        _prepareTwoRequestedPositions();
+        vm.warp(_position(channel).readyAt);
+        payments.closePosition(customer, channel);
+        _assertRejectedCreditsAreAtomic();
+    }
+
+    function testChannelClosureRejectsPositiveCreditsWithoutConsumingEitherRequest() public {
+        _prepareTwoRequestedPositions();
+        vm.warp(_position(channel).readyAt);
+        payments.closeChannel(channel);
+        _assertRejectedCreditsAreAtomic();
+    }
+
+    function _prepareTwoRequestedPositions() private {
+        _fund(customer, channel, 100);
+        _fund(customer, otherChannel, 50);
+        vm.startPrank(customer);
+        payments.requestWithdrawal(channel, 80);
+        payments.requestWithdrawal(otherChannel, 40);
+        vm.stopPrank();
+    }
+
+    function _assertRejectedCreditsAreAtomic() private {
+        bytes32 beforeSource = keccak256(abi.encode(_position(otherChannel)));
+        bytes32 beforeTarget = keccak256(abi.encode(_position(channel)));
+        uint256 held = address(payments).balance;
+        vm.deal(customer, 1);
+        vm.startPrank(customer);
+        vm.expectRevert(PayToPlay.PositionNotOperating.selector);
+        payments.fund{value: 1}(channel, 1);
+        vm.expectRevert(PayToPlay.PositionNotOperating.selector);
+        payments.fund(channel, 0);
+        vm.expectRevert(PayToPlay.PositionNotOperating.selector);
+        payments.move(otherChannel, channel);
+        vm.stopPrank();
+        assertEq(keccak256(abi.encode(_position(otherChannel))), beforeSource);
+        assertEq(keccak256(abi.encode(_position(channel))), beforeTarget);
+        assertEq(address(payments).balance, held);
+        assertEq(customer.balance, 1);
+    }
+
+    function _assertClosureAfterCredit(bool channelWide, uint256 delay) private {
+        _fund(customer, channel, 100);
+        vm.prank(customer);
+        payments.requestWithdrawal(channel, 100);
+        payments.collect(customer, channel, 100, INVOICE_HASH, 100, _sign(customer, channel, 100));
+        vm.warp(_position(channel).readyAt + 1);
+        _fund(customer, channel, 100);
+        uint256 ready = block.timestamp + PERIOD;
+        assertEq(_position(channel).readyAt, ready);
+        vm.warp(block.timestamp + delay);
+        if (channelWide) payments.closeChannel(channel);
+        else payments.closePosition(customer, channel);
+        uint256 cutoff = ready + delay;
+        assertEq(_position(channel).refundAt, cutoff);
+        assertEq(_position(channel).readyAt, ready, "closure cannot restart the ordinary wait");
+        vm.warp(ready - 1);
+        vm.expectRevert(abi.encodeWithSelector(PayToPlay.WithdrawalNotReady.selector, ready));
+        payments.withdraw(customer, channel);
+        vm.prank(customer);
+        vm.expectRevert(abi.encodeWithSelector(PayToPlay.WithdrawalNotReady.selector, ready));
+        payments.move(channel, otherChannel);
+        vm.expectRevert(abi.encodeWithSelector(PayToPlay.RefundNotReady.selector, cutoff));
+        payments.refund(customer, channel);
+        assertEq(payments.collect(customer, channel, 130, INVOICE_HASH, 30, _sign(customer, channel, 130)), 30);
+        vm.warp(ready);
+        if (delay != 0) {
+            assertEq(payments.withdraw(customer, channel), 70, "ordinary exit remains earlier than recovery");
+            vm.warp(cutoff);
+        }
+        bytes memory voucher = _sign(customer, channel, 180);
+        vm.expectRevert(abi.encodeWithSelector(PayToPlay.VoucherCollectionEnded.selector, cutoff));
+        payments.collect(customer, channel, 180, INVOICE_HASH, 50, voucher);
+        assertEq(payments.refund(customer, channel), delay == 0 ? 70 : 0);
+        assertEq(_position(channel).requestedAmount, 0);
+        assertEq(_position(channel).readyAt, 0);
+        assertEq(_position(channel).voucherPaid, 130);
+        assertEq(payments.channel(channel).escrowTotal, 0);
+        assertEq(address(payments).balance, 0);
+    }
+
     function testFirstFundingStartsAnnualHorizonButRegistrationAndZeroFundingDoNot() public {
         assertEq(_position(channel).refundAt, 0);
         _fund(customer, channel, 0);
@@ -205,6 +324,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         vm.warp(_position(channel).readyAt);
         vm.prank(customer);
         assertEq(payments.move(channel, otherChannel), 10);
+        assertEq(_position(channel).refundAt, _position(channel).refundAt);
         assertEq(_position(otherChannel).refundAt, block.timestamp + 365 days + PERIOD);
         assertEq(payments.channel(channel).escrowTotal, 0);
         assertEq(payments.channel(otherChannel).escrowTotal, 20);
@@ -367,19 +487,24 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         _fund(relayer, channel, 20);
         vm.prank(customer);
         payments.setRefundRecipient(channel, address(rejector));
+        vm.prank(customer);
+        payments.requestWithdrawal(channel, 80);
+        vm.warp(block.timestamp + 10);
+        _fund(customer, channel, 1);
         payments.closeChannel(channel);
         uint256 deadline = payments.channel(channel).closeAt;
         vm.warp(deadline);
-        vm.expectRevert(abi.encodeWithSelector(PayToPlay.NativePaymentFailed.selector, address(rejector), 100));
+        bytes32 beforePosition = keccak256(abi.encode(_position(channel)));
+        vm.expectRevert(abi.encodeWithSelector(PayToPlay.NativePaymentFailed.selector, address(rejector), 101));
         payments.refund(customer, channel);
-        assertEq(_position(channel).balance, 100);
-        assertEq(_position(channel).refundAt, deadline);
-        assertEq(payments.channel(channel).escrowTotal, 120);
+        assertEq(keccak256(abi.encode(_position(channel))), beforePosition);
+        assertEq(payments.channel(channel).escrowTotal, 121);
+        assertEq(address(payments).balance, 121);
         assertEq(payments.refund(relayer, channel), 20);
-        assertEq(payments.channel(channel).escrowTotal, 100);
+        assertEq(payments.channel(channel).escrowTotal, 101);
         vm.prank(customer);
         payments.setRefundRecipient(channel, customer);
-        assertEq(payments.refund(customer, channel), 100);
+        assertEq(payments.refund(customer, channel), 101);
         assertEq(payments.channel(channel).escrowTotal, 0);
     }
 
@@ -400,7 +525,6 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
 
     function testUnfundedRefundAndUnknownChannelsFailWithoutCreatingCycles() public {
         payments.closePosition(customer, channel);
-        assertEq(_position(channel).refundAt, 0);
         vm.expectRevert(PayToPlay.RecoveryNotScheduled.selector);
         payments.refund(customer, channel);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.ChannelNotFound.selector, 99));
