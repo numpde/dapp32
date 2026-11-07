@@ -331,10 +331,13 @@ function statusTerminalOutput(
     contractAddresses: {},
     visitId: 1,
     camURI: "fixture://status-display/main.json",
-    integrityChecks: snapshotOverrides?.integrityWarnings ?? [],
+    integrityChecks: [],
     integrityWarnings: [],
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
     ...snapshotOverrides,
+    ...(snapshotOverrides?.integrityWarnings === undefined
+      ? {}
+      : { integrityChecks: snapshotOverrides.integrityWarnings }),
     documentHashes: {},
     resolvedUi: title === undefined
       ? { element: "Fragment", props: {}, children }
