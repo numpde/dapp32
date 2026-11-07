@@ -1,0 +1,244 @@
+name: Credit exit test qualification
+
+on:
+  push:
+    branches: [test/pay-to-play-credit-exit-qualification]
+    paths: [.github/workflows/credit-exit-qualification.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: a3e7e94cbb2cb2529e5d430964e2c8abdd86fa53
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Apply reviewed fixture corrections on the exact test parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = a3e7e94cbb2cb2529e5d430964e2c8abdd86fa53
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          def blob(text):
+              b = text.encode()
+              return hashlib.sha1(f'blob {len(b)}\0'.encode() + b).hexdigest()
+          def edit(path, expected, replacements, result):
+              p = Path(path)
+              text = p.read_text()
+              assert blob(text) == expected, path
+              for old, new, count in replacements:
+                  assert text.count(old) == count, (path, old)
+                  text = text.replace(old, new)
+              assert blob(text) == result, path
+              p.write_text(text)
+          edit('dapps/pay-to-play/test/unit/PayToPlay.t.sol', '9152e6feebcac4c624849982412f4b819e03e6db', [
+              ('        } else {\n            assertEq(targetBefore.scheduledRefundAt, 0);', '        } else {\n            assertGt(targetBefore.scheduledRefundAt, 0);', 1),
+          ], '14f88b9443a6113483ae33d3f87a04172b26ba45')
+          edit('dapps/pay-to-play/test/unit/PayToPlayRecovery.t.sol', '919b37bbcc0c07a222901bc0da5a81785b98b484', [
+              ('        assertEq(_position(channel).refundAt, _position(channel).refundAt);\n', '', 1),
+              ('        payments.closePosition(customer, channel);\n        vm.expectRevert', '        payments.closePosition(customer, channel);\n        assertEq(_position(channel).refundAt, 0);\n        vm.expectRevert', 1),
+          ], '1f716f83bee7f2ebd9b321bc16e5bccc63f3f585')
+          edit('dapps/pay-to-play/test/invariant/PayToPlayRecovery.invariant.t.sol', '5a047d5037e482ce6ef1b52dc7d4f2b448017a6d', [
+              ('handler.collect(0, 1, 100, bytes32(0), 100);', 'handler.collect(0, 0, 100, bytes32(0), 100);', 2),
+              ('handler.collect(0, 2, 100, bytes32(0), 100);', 'handler.collect(0, 1, 100, bytes32(0), 100);', 1),
+          ], 'b57bfd19ee47b0851c157ae97ca47c778eb62832')
+          PY
+          git add dapps/pay-to-play/test
+          git commit -m 'Correct invariant witness selectors and preserve existing controls' -m 'Problem: Read-back found a copied gas-fixture assertion and an unfunded-refund assertion changed inadvertently. The new deterministic witnesses also passed a logical channel ID to a handler that maps collection inputs as 1 + raw % 2.' -m 'Rationale: Expected-red tests must fail for the missing restart policy, not damaged controls or collection from the wrong position.' -m 'Solution: Restore the original gas/unfunded assertions, remove a self-comparison and use raw collection selectors 0/1 for logical channels 1/2. Preserve the independently tracked credit oracle and all production code.' -m 'Validation: Exact before/after Git blob hashes checked against the reviewed source. Docker qualification follows on this test-only branch.'
+      - name: Add the reviewed real-chain CAM regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/scenario.patch" <<'PATCH'
+          --- a/js/tools/pay-to-play-local-scenario/runner.ts
+          +++ b/js/tools/pay-to-play-local-scenario/runner.ts
+          @@ -1,6 +1,6 @@
+           import assert from "node:assert/strict"
+           import { readFileSync } from "node:fs"
+          -import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, sha256, stringToBytes } from "viem"
+          +import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbiItem, toEventSelector, sha256, stringToBytes } from "viem"
+           import type { Address, Hex } from "viem"
+           import { privateKeyToAccount } from "viem/accounts"
+           import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
+          @@ -15,6 +15,7 @@
+           const roles = ["admin", "customer", "relayer", "payee"] as const
+           type Role = typeof roles[number]
+           const RECEIPT_TIMEOUT = 20_000
+          +const WITHDRAWAL_REQUESTED = parseAbiItem("event WithdrawalRequested(address indexed customer,uint256 indexed channelId,uint256 amount,uint256 readyAt)")
+           
+           async function main(): Promise<void> {
+             const rpcURL = requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RPC_URL")
+          @@ -137,6 +138,22 @@
+               await session.navigate(prepared.call.then.function, prepared.call.then.args)
+               process.stdout.write(`${JSON.stringify({ event: "write_ok", role, route, hash })}\n`)
+               return { receipt, abi: prepared.call.abi }
+          +  }
+          +  async function assertFundingRestart(funded: Awaited<ReturnType<typeof write>>, requested: bigint, oldReady: bigint) {
+          +    const block = await publicClient.getBlock({ blockHash: funded.receipt.blockHash })
+          +    const ready = block.timestamp + BigInt(String(view().claimPeriod))
+          +    assert(ready > oldReady, "the fixture must distinguish a restart from the previous readiness")
+          +    assert.equal(BigInt(String(view().readyAt)), ready, "funding starts a full wait from its mined block")
+          +    assert.equal(BigInt(String(view().requestedAmount)), requested, "funding preserves the whole request")
+          +    const restarts = funded.receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase()
+          +      && log.topics[0] === toEventSelector(WITHDRAWAL_REQUESTED))
+          +    assert.equal(restarts.length, 1, "funding must publish the restarted request, not just Funded")
+          +    const event = decodeEventLog({ abi: [WITHDRAWAL_REQUESTED], data: restarts[0]!.data, topics: restarts[0]!.topics })
+          +    assert.equal(event.args.customer.toLowerCase(), accounts.customer.address.toLowerCase())
+          +    assert.equal(event.args.channelId, 1n)
+          +    assert.equal(event.args.amount, requested)
+          +    assert.equal(event.args.readyAt, ready)
+          +    return ready
+             }
+             async function mature() {
+               const deadline = BigInt(String(view().readyAt))
+          @@ -279,9 +296,12 @@
+             await task("withdrawalForm")
+             action("withdraw", true)
+             action("move", true)
+          -  const renewedReady = view().readyAt
+          -  await write("customer", "fund", { fundAmount: "10" })
+          -  assert.equal(view().readyAt, renewedReady, "top-up preserves wait")
+          +  const beforeTopUp = BigInt(String(view().readyAt))
+          +  // Do not let same-timestamp funding make the old and new policies indistinguishable.
+          +  await localRpc(rpcURL, "evm_increaseTime", [10])
+          +  await localRpc(rpcURL, "evm_mine", [])
+          +  const topUp = await write("customer", "fund", { fundAmount: "10" })
+          +  const renewedReady = (await assertFundingRestart(topUp, 100n, beforeTopUp)).toString()
+             const duringWait = await voucher(210n, 150n)
+             await collect(duringWait, duringWait.cumulativeTotal)
+             assert.equal(view().balance, "50")
+          @@ -347,8 +367,58 @@
+             }))
+             assert.equal(merchantPosition.balance, 0n, "merchant earnings go to its wallet, not a shared spending position")
+             assert.equal(await publicClient.getBalance({ address: payments }), 0n)
+          +  // End-to-end note 022 regression: old backing is fully collected while its request survives.
+          +  await position("customer", "1")
+          +  await write("customer", "fund", { fundAmount: "100" })
+          +  await write("customer", "requestWithdrawal", { withdrawAmount: "100" })
+          +  const oldBacking = await voucher(400n, 300n)
+          +  await collect(oldBacking, "100")
+          +  assert.equal(view().balance, "0")
+          +  assert.equal(view().requestedAmount, "100")
+          +  await mature()
+          +  await position("relayer", "1")
+          +  await task("withdrawalForm")
+          +  const staleWithdrawal = await session.dispatchAction(action("withdraw", false))
+          +  assert.equal(staleWithdrawal.type, "contractCall")
+          +  if (staleWithdrawal.type !== "contractCall") throw new Error("fixture expected a mature withdrawal call")
+          +  const oldReady = BigInt(String(view().readyAt))
+          +  const replenishment = await write("customer", "fund", { fundAmount: "100" })
+          +  const restarted = await assertFundingRestart(replenishment, 100n, oldReady)
+          +  assert.equal(view().balance, "100")
+          +  assert.equal(view().effectiveBalance, "0", "restarting time does not turn requested funds into free backing")
+          +  assert.equal(view().voucherPaid, "400")
+          +  assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase())
+          +  await task("withdrawalForm")
+          +  action("withdraw", true)
+          +  action("move", true)
+          +  await assert.rejects(() => simulateCamContractCall({ publicClient, account: accounts.relayer.address, call: staleWithdrawal.call }),
+          +    "the contract must reject the previously mature call after replenishment")
+          +  const nextPayment = await voucher(480n, 400n)
+          +  await collect(nextPayment, "80")
+          +  assert.equal(view().balance, "20")
+          +  assert.equal(view().readyAt, restarted.toString(), "collection does not postpone the new exit")
+          +  assert((await publicClient.getBlock()).timestamp < restarted - 1n, "collection must execute within the fresh window")
+          +  await localRpc(rpcURL, "evm_setNextBlockTimestamp", [Number(restarted - 1n)])
+          +  await localRpc(rpcURL, "evm_mine", [])
+          +  await position("customer", "1")
+          +  await task("withdrawalForm")
+          +  action("withdraw", true)
+          +  action("move", true)
+          +  await localRpc(rpcURL, "evm_setNextBlockTimestamp", [Number(restarted)])
+          +  await localRpc(rpcURL, "evm_mine", [])
+          +  await session.refresh()
+          +  action("withdraw", false)
+          +  action("move", false)
+          +  const customerBeforeExit = await publicClient.getBalance({ address: accounts.customer.address })
+          +  await write("relayer", "withdraw", {})
+          +  assert.equal(await publicClient.getBalance({ address: accounts.customer.address }), customerBeforeExit + 20n)
+          +  assert.equal(view().balance, "0")
+          +  assert.equal(view().requestedAmount, "0")
+          +  assert.equal(view().readyAt, "0")
+          +  assert.equal(view().voucherPaid, "480")
+          +  assert.equal(await publicClient.getBalance({ address: payments }), 0n)
+             await assert.rejects(() => session.navigate("position", inert({ customer: accounts.customer.address, channelId: "999" })), "undefined channel must fail")
+          -  process.stdout.write(`${JSON.stringify({ event: "ok", host, payments, voucherPaid: "300", contractBalance: "0" })}\n`)
+          +  process.stdout.write(`${JSON.stringify({ event: "ok", host, payments, voucherPaid: "480", contractBalance: "0" })}\n`)
+           }
+           
+           function object(value: unknown): Record<string, unknown> {
+          PATCH
+          git apply --check "$RUNNER_TEMP/scenario.patch"
+          git apply "$RUNNER_TEMP/scenario.patch"
+          test "$(git hash-object js/tools/pay-to-play-local-scenario/runner.ts)" = 8f83dc38a632e6e27d8ea58c440b5c527e79ea8c
+          test "$(git hash-object dapps/pay-to-play/test/unit/PayToPlayWithdrawalFunding.t.sol)" = dfd656f4d6f6557faa10d880b6378331d5761c86
+          git add js/tools/pay-to-play-local-scenario/runner.ts
+          git commit -m 'Exercise the credit restart through mined CAM calls and receipts' -m 'Problem: The existing real-chain campaign explicitly expects a top-up to preserve readiness and has no depleted-mature-request replenishment journey.' -m 'Rationale: Solidity owns the timing matrix; this integration must prove the actual ABI, event, position view and rendered action gates expose it coherently. A stale prepared withdrawal must still be rejected by the contract.' -m 'Solution: Separate timestamps in the former top-up assertion and derive readiness from its mined block. Decode one WithdrawalRequested restart event. Add a compact collected-old-backing, mature request, replenish, collect-before-exit and residual-withdrawal journey using existing CAM routes and test keys. No service ledger is simulated.' -m 'Validation: Reviewed patch applied only to runner.ts and its exact Git blob verified. The unchanged contract should fail the first fresh-wait assertion; TypeScript and real-chain execution follow.'
+      - name: Install locked test dependencies
+        id: deps
+        run: |
+          make dapps/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=credit-exit-qualification
+          make js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=credit-exit-qualification
+      - name: Format through the existing app target and verify scope
+        id: format
+        run: |
+          make pay-to-play/format DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=credit-exit-qualification
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+              'dapps/pay-to-play/test/unit/PayToPlayWithdrawalFunding.t.sol',
+              'dapps/pay-to-play/test/unit/PayToPlay.t.sol',
+              'dapps/pay-to-play/test/unit/PayToPlayRecovery.t.sol',
+              'dapps/pay-to-play/test/invariant/PayToPlayRecovery.invariant.t.sol',
+              'js/tools/pay-to-play-local-scenario/runner.ts',
+          }
+          changed = set(subprocess.check_output(['git','diff','--name-only','82ccbb108b5d4e67537d0cb92c85a84eb6151de8'], text=True).splitlines())
+          assert changed == allowed, changed
+          PY
+          git diff --check
+          if ! git diff --quiet; then
+            git add dapps/pay-to-play/test
+            git commit -m 'Apply the pinned Solidity formatter to the new tests' -m 'Problem: New test sources need the repository-owned Foundry formatting, not hand-guessed layout.' -m 'Solution: Run make pay-to-play/format with its pinned confined image and retain only test-file formatting. An exact allowlist verifies that contracts, manifests, workflows and service code remain unchanged.' -m 'Validation: The maintained formatter completed; the full unit/scenario and invariant lanes follow on these exact bytes.'
+          fi
+      - name: Fast-forward only the requested test branch
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' push origin HEAD:refs/heads/test/pay-to-play-credit-exit-window
+          mkdir -p "$RUNNER_TEMP/credit-exit-results"
+          git rev-parse HEAD | tee "$RUNNER_TEMP/credit-exit-results/test-head.txt"
+          git diff --stat 82ccbb108b5d4e67537d0cb92c85a84eb6151de8
+          git archive HEAD dapps/pay-to-play/test js/tools/pay-to-play-local-scenario/runner.ts > "$RUNNER_TEMP/credit-exit-results/tests.tar"
+      - name: Run existing unit and scenario lane (restart assertions should be red)
+        if: ${{ !cancelled() && steps.publish.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          make dapps/tests/unit-scenario DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=credit-exit-qualification 2>&1 | tee "$RUNNER_TEMP/credit-exit-results/unit.log"
+      - name: Run existing invariant lane (new exit property should be red)
+        if: ${{ !cancelled() && steps.publish.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          make dapps/tests/invariant DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=credit-exit-qualification 2>&1 | tee "$RUNNER_TEMP/credit-exit-results/invariant.log"
+      - name: Run actual CAM scenario (unchanged contract should reject the expectation)
+        if: ${{ !cancelled() && steps.publish.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          make pay-to-play/local/scenario/run DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=credit-exit-qualification 2>&1 | tee "$RUNNER_TEMP/credit-exit-results/scenario.log"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: credit-exit-test-results
+          path: ${{ runner.temp }}/credit-exit-results
+          retention-days: 1
+          if-no-files-found: warn
