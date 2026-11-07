@@ -1238,7 +1238,6 @@ dapps/deps/install:
 	  1) apply_service="soldeer-apply-update" ;; \
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
 	esac; \
-	# Existing output must be writable by its host owner, not a subordinate namespace UID. \
 	if [[ -d "$(DEPENDENCIES_DIR)" && ( ! -O "$(DEPENDENCIES_DIR)" || ! -w "$(DEPENDENCIES_DIR)" ) ]]; then \
 	  printf '%s\n' 'dapps/dependencies must be owned and writable by the invoking user.' >&2; exit 2; \
 	fi; \
@@ -1280,7 +1279,6 @@ dapps/deps/verify:
 js/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
-	# The selected engine's UID map, not its rootless label, owns bind access. \
 	package_input_dir=""; \
 	created_package_lock_placeholder="0"; \
 	cleanup() { \
@@ -1336,7 +1334,7 @@ js/deps/install:
 	fi; \
 	$(select_host_output_identity); \
 	package_user="$$mapped_user"; \
-	package_input_dir="$(mktemp -d)"; \
+	package_input_dir="$$(mktemp -d)"; \
 	cp "$(PACKAGE_MANIFEST_FILE)" "$$package_input_dir/package.json"; \
 	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$$package_input_dir/package-lock.json"; fi; \
 	while IFS= read -r manifest; do \
