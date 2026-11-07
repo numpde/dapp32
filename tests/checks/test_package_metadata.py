@@ -82,7 +82,7 @@ MODULE_SPECIFIER_RE = re.compile(
 class PackageInstallIdentityTest(unittest.TestCase):
     """Installed dependencies and format outputs must use the selected engine's host-owner mapping."""
 
-    def run_lane(self, target: str, mapped: str, *, host_identity: bool = True, unwritable: bool = False, allow_update: bool = False):
+    def run_lane(self, target: str, mapped: str, *, host_identity: bool, unwritable: bool, allow_update: bool):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("compose", "containers", "dapps", "docs", "js/apps", "js/packages",
@@ -143,7 +143,7 @@ class PackageInstallIdentityTest(unittest.TestCase):
             ):
                 for update in (False, True):
                     with self.subTest(mapped=mapped, target=target, update=update):
-                        result, calls, _ = self.run_lane(target, mapped, allow_update=update)
+                        result, calls, _ = self.run_lane(target, mapped, host_identity=True, unwritable=False, allow_update=update)
                         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                         self.assertEqual(1, calls.count("map-probe"), calls)
                         apply = "update" if update else "locked"
@@ -161,7 +161,7 @@ class PackageInstallIdentityTest(unittest.TestCase):
         for mapped in ("refused", "bad:identity", "1000:", ":1000"):
             for target in ("dapps/deps/install", "js/deps/install"):
                 with self.subTest(mapped=mapped, target=target):
-                    result, calls, output_exists = self.run_lane(target, mapped)
+                    result, calls, output_exists = self.run_lane(target, mapped, host_identity=True, unwritable=False, allow_update=False)
                     self.assertNotEqual(0, result.returncode)
                     self.assertFalse(any(" run " in call for call in calls), calls)
                     self.assertFalse(output_exists, "failed mapping must not create output")
@@ -169,7 +169,7 @@ class PackageInstallIdentityTest(unittest.TestCase):
     def test_host_identity_override_is_not_a_container_mapping_override(self):
         for target in ("dapps/deps/install", "js/deps/install"):
             with self.subTest(target=target):
-                result, calls, _ = self.run_lane(target, "0:0", host_identity=False)
+                result, calls, _ = self.run_lane(target, "0:0", host_identity=False, unwritable=False, allow_update=False)
                 self.assertNotEqual(0, result.returncode)
                 self.assertNotIn("map-probe", calls)
                 self.assertFalse(any(" run " in call for call in calls), calls)
@@ -177,14 +177,14 @@ class PackageInstallIdentityTest(unittest.TestCase):
     def test_existing_unwritable_dependency_directory_fails_before_download(self):
         for target in ("dapps/deps/install", "js/deps/install"):
             with self.subTest(target=target):
-                result, calls, _ = self.run_lane(target, "0:0", unwritable=True)
+                result, calls, _ = self.run_lane(target, "0:0", host_identity=True, unwritable=True, allow_update=False)
                 self.assertNotEqual(0, result.returncode)
                 self.assertFalse(any(" run " in call for call in calls), calls)
 
     def test_host_writable_formatters_use_the_measured_identity(self):
         for target, service in (("pay-to-play/format", "forge-fmt"), ("ops/format", "execution-format")):
             with self.subTest(target=target):
-                result, calls, _ = self.run_lane(target, "0:0")
+                result, calls, _ = self.run_lane(target, "0:0", host_identity=True, unwritable=False, allow_update=False)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertEqual(1, calls.count("map-probe"), calls)
                 stages = [call for call in calls if " run " in call]
