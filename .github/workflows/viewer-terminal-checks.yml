@@ -58,3 +58,5 @@ jobs:
         run: make js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-terminal-checks
       - name: Typecheck and exercise the terminal viewer
         run: make viewer/terminal/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-terminal-checks
+      - name: Enforce repository checks, including no silent defaults
+        run: make tests/checks DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-terminal-checks
