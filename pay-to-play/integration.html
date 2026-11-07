@@ -30,6 +30,7 @@ Voucher(address customer,uint256 channelId,
 <p>Verify the signature and confirmed key, then check current balance, pending ordinary withdrawal, outstanding authorizations/reservations and recovery cutoff. With balance B, request R, paid total P and greatest outstanding signed/reserved total A, one conservative admission policy for new work x is:</p>
 <pre><code>max(A - P, 0) + x &lt;= max(B - R, 0)</code></pre>
 <p>This is service policy, not an on-chain reservation. Collection can consume funds under a withdrawal request and race another collection or withdrawal. Stop new work when settling and allow time for inclusion, confirmations and transfer failure before the cutoff.</p>
+<p>The updated source <a href="./#withdrawals">restarts the ordinary wait after a positive credit</a> when a request is pending. That changes <code>readyAt</code>, not admissible backing: if B = R = 100, the right-hand side remains zero even immediately after replenishment. A later invoice or voucher does not restart this clock. Work accepted near readiness can still lose to withdrawal; check the deployed runtime version and enforce confirmation, inclusion and delivery timing separately. Zero-period channels provide no positive exit window.</p>
 <h2 id="collect">5. Collect, then allocate the observed payment</h2>
 <pre><code>collect(customer, channelId, cumulativeTotal,
         invoiceHash, maxAmount, signature)</code></pre>
