@@ -1,0 +1,41 @@
+name: Published documentation checks
+
+on:
+  push:
+    paths:
+      - '**/*.html'
+      - check_pages.py
+      - theme.js
+      - site.css
+      - Makefile
+      - .github/workflows/pages-check.yml
+  pull_request:
+    branches: [gh-pages]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out the documentation candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: site
+          persist-credentials: false
+      - name: Check out the source used by documentation examples
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          path: source
+          persist-credentials: false
+      - name: Run the maintained offline documentation check
+        env:
+          DOCKER_CONTEXT: default
+        run: make -C site pages/check SOURCE_REPO="$GITHUB_WORKSPACE/source"
