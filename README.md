@@ -1,8 +1,6 @@
-# Contract-Defined Workflows
+# Blockchain-defined UI and workflows
 
-Contracts publish a Contract Application Manifest (CAM) describing their workflows. Generic viewers and agents load the manifest and its resources to render or interpret those workflows. Contracts enforce business rules and transaction authority.
-
-This repository contains the protocol, viewers, shared packages, and example contracts. Current software supports CAM 1.4.0 with UI 1.1.0.
+On-chain smart contracts publish a Contract Application Manifest (CAM) describing their UI and workflows. Generic viewers and agents load the manifest and its resources to render or interpret those workflows. Contracts still enforce business rules and transaction authority. This repository proposes the protocol, viewers, shared packages, and example contracts. 
 
 ## Documentation
 
