@@ -11,6 +11,13 @@ on:
       - .github/workflows/pages-check.yml
   pull_request:
     branches: [gh-pages]
+    paths:
+      - '**/*.html'
+      - check_pages.py
+      - theme.js
+      - site.css
+      - Makefile
+      - .github/workflows/pages-check.yml
 
 permissions:
   contents: read
