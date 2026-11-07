@@ -1,0 +1,112 @@
+name: Verify published documentation
+
+on:
+  push:
+    branches: [verify/docs-publication-a66b2e1]
+    paths: [.github/workflows/verify-published-docs.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  public-links:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out the exact published documentation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: a66b2e1164de56b5687e1b6626242f6c04f32d1c
+          path: site
+          persist-credentials: false
+      - name: Check out the exact README candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 280d814e43775ca02739bddb8fde42e3c96270da
+          path: source
+          persist-credentials: false
+      - name: Verify public bytes, linked fragments and local source destinations
+        run: |
+          python3 -B - <<'PY'
+          from concurrent.futures import ThreadPoolExecutor
+          from html.parser import HTMLParser
+          from pathlib import Path
+          from urllib.parse import unquote, urldefrag, urlsplit
+          from urllib.request import Request, urlopen
+          import hashlib
+          import json
+          import re
+          import time
+
+          site = Path('site').resolve()
+          source = Path('source').resolve()
+          prefix = 'https://numpde.github.io/dapp32/'
+          references = []
+          public = {}
+          local_count = 0
+
+          class Identifiers(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = set()
+              def handle_starttag(self, tag, attrs):
+                  for key, value in attrs:
+                      if key == 'id' and value:
+                          self.ids.add(value)
+
+          for app in ('pay-to-play', 'escrow', 'bike-nft'):
+              readme = source / 'dapps' / app / 'README.md'
+              links = re.findall(r'\[[^\]\n]*\]\(([^\s)]+)\)', readme.read_text(encoding='utf-8'))
+              assert links, f'No links parsed from {readme}'
+              for href in links:
+                  references.append(href)
+                  if href.startswith(prefix):
+                      url, fragment = urldefrag(href)
+                      public.setdefault(url, set()).add(unquote(fragment))
+                  else:
+                      target = urlsplit(href)
+                      assert not target.scheme and not target.netloc and not target.fragment, href
+                      path = (readme.parent / unquote(target.path)).resolve()
+                      assert path.is_relative_to(source) and path.exists(), href
+                      local_count += 1
+
+          for suffix in ('', 'viewer/', 'start/local-wallet.html'):
+              public.setdefault(prefix + suffix, set())
+
+          def verify(item):
+              url, fragments = item
+              relative = unquote(url[len(prefix):])
+              path = site / relative
+              if path.is_dir():
+                  path = path / 'index.html'
+              assert path.is_file() and path.resolve().is_relative_to(site), url
+              expected = path.read_bytes()
+              failure = None
+              for attempt in range(3):
+                  try:
+                      request = Request(url, headers={'User-Agent': 'dapp32-publication-check', 'Cache-Control': 'no-cache'})
+                      with urlopen(request, timeout=20) as response:
+                          assert response.status == 200, (url, response.status)
+                          assert response.geturl().startswith(prefix), (url, response.geturl())
+                          actual = response.read(1024 * 1024 + 1)
+                      assert len(actual) <= 1024 * 1024, f'Oversized document: {url}'
+                      assert actual == expected, f'Published bytes differ from merged source: {url}'
+                      parser = Identifiers()
+                      parser.feed(actual.decode('utf-8'))
+                      for fragment in fragments:
+                          assert not fragment or fragment in parser.ids, f'Missing fragment: {url}#{fragment}'
+                      return {'url': url, 'sha256': hashlib.sha256(actual).hexdigest(), 'fragments': sorted(fragments)}
+                  except Exception as error:
+                      failure = error
+                      if attempt < 2:
+                          time.sleep(5)
+              raise RuntimeError(f'Public verification failed: {url}: {failure}') from failure
+
+          with ThreadPoolExecutor(max_workers=4) as executor:
+              results = list(executor.map(verify, sorted(public.items())))
+          for result in results:
+              print(json.dumps(result, sort_keys=True))
+          print(json.dumps({'result': 'PASS', 'readme_links': len(references), 'source_links': local_count,
+                            'public_pages': len(results), 'site_commit': 'a66b2e1164de56b5687e1b6626242f6c04f32d1c',
+                            'readme_commit': '280d814e43775ca02739bddb8fde42e3c96270da'}, sort_keys=True))
+          PY
