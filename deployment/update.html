@@ -1,42 +1,41 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Update an existing app · dapp32</title><script src="../theme.js"></script>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Update an existing app · dapp32</title><meta name="description" content="Choose a viewer, workflow-file, projection or business-contract update and follow its actual approval boundary."><script src="../theme.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
 <main id="main" class="shell document"><article class="narrow">
 <h1>Update an existing app</h1>
-<p>First identify what changed. A new viewer image, new workflow files and a new contract are not interchangeable updates.</p>
-<table><thead><tr><th>Change</th><th>Operation</th><th>Approval boundary</th></tr></thead><tbody>
-<tr><td>Browser viewer software</td><td><a href="../viewer/#maintain">Replace its image</a>.</td><td>Server operator; no CAM transaction.</td></tr>
-<tr><td>Labels, screens or navigation using compatible interfaces</td><td>Prepare/host a CAM bundle; publish its reference.</td><td>Current CAM root owner.</td></tr>
-<tr><td>Read-only Solidity projection</td><td><a href="./#update-an-existing-ui">Deploy/select a compatible projection and update CAM</a>.</td><td>Projection deployer and current CAM owner.</td></tr>
-<tr><td>Business behavior or incompatible ABI</td><td>Plan a new deployment and client/state migration.</td><td>Explicit migration decisions; not a UI refresh.</td></tr>
+<p>First identify what changed. A viewer image, workflow files and a contract are different components with different update procedures.</p>
+<table><thead><tr><th>Changed component</th><th>Procedure and authority</th></tr></thead><tbody>
+<tr><td>Browser viewer</td><td>The server operator <a href="../viewer/#maintain">replaces its image</a>. No CAM transaction.</td></tr>
+<tr><td>Compatible labels, screens or navigation</td><td><a href="#cam-only">Prepare and host CAM files</a>; the current root owner approves their publication.</td></tr>
+<tr><td>Read-only Solidity projection</td><td><a href="#projection">Deploy or select the projection</a>, then publish compatible resources/bindings. Deployer and CAM owner may differ.</td></tr>
+<tr><td>Business behavior or incompatible ABI</td><td><a href="#migration">Plan replacement and migration</a>. This is not a UI refresh.</td></tr>
 </tbody></table>
-<h2 id="cam-only">Example: publish the focused Pay-to-Play navigation</h2>
-<dl><dt>Run on</dt><dd>The release operator's machine with its local Docker engine and private instance.</dd><dt>Requires</dt><dd>Existing compatible business/projection contracts and CAM root, reviewed authored resources, their retained artifacts and the current publication owner's approval.</dd><dt>Changes</dt><dd>Prepared files and approved CAM reference/binding transactions; no intended business-contract replacement.</dd></dl>
-<p>Check the deployed ABI and voucher policy first. The current guide does not qualify an older Pay-to-Play deployment automatically. The new operation must select the intended authored source revision; editing defaults does not rewrite the retained inputs of an older operation.</p>
-<pre><code>CTX=your-local-context
-INSTANCE=/absolute/private/pay-to-play-fuji
-make pay-to-play/release/verify \
-  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"
-make pay-to-play/release/cam/bundle \
-  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
-<p>Choose the compatible retained components and the existing CAM root. Preparation exports their original ABIs, combines the authored files, refreshes resource pins and checks conformance. It sends no transaction. Review the selected identities and the resulting bundle before hosting it.</p>
-<h2>Host, then publish</h2>
-<p>Host only the printed bundle contents at a new versioned public location. Keep relative resource paths and browser CORS working. Compare the served bytes with the prepared files; never replace the private instance with a public web directory.</p>
-<pre><code>make pay-to-play/release/cam/publish \
-  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
-<p>Select the prepared bundle and existing root, provide its hosted manifest URI, and review the proposed bindings and manifest hash. Approve only the intended publication. The command does not upload files, and a nominated future owner cannot publish before accepting ownership.</p>
-<h2>Check the new result</h2>
-<pre><code>make pay-to-play/release/verify \
-  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"
-make viewer/release/up \
-  DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
-<p>Select the completed publication. Open a fresh viewer session or reload: refreshing a screen's read is not the same as reloading publication resources. Check the selected chain/root, resource integrity and the six navigation destinations. Business balances and keys should belong to the same intended contracts.</p>
-<p>Record verification and a working read do not replace a full application smoke test. Check intended authorities and critical actions before accepting a public cutover.</p>
-<h2>Projection or business changes</h2>
-<p><code>release/ui/deploy</code> creates a read-only projection without changing the root. <code>release/ui/update</code> can select or deploy a projection, prepare resources and update the root; it still requires hosting and explicit approvals. See the <a href="./#update-an-existing-ui">component reference</a>.</p>
-<p>A new business contract has a new address and its own state. Pay-to-Play signatures bind their verifying address; an ABI or manifest edit cannot migrate deposits, permanent keys or vouchers. Stop and design that migration separately.</p>
-<h2>Recover without guessing</h2>
-<p>Retain failed attempts and resume the same selected operation. Restoring an older publication is itself an authorized on-chain update and may no longer be compatible; it is not the same as rolling back the viewer image. Use <a href="./#complete-deployment-records">retained evidence</a> to resolve uncertain submissions before attempting another transaction.</p>
+<h2 id="cam-only">Publish compatible navigation or screen changes</h2>
+<dl><dt>Run on</dt><dd>The release operator's machine, in the reviewed source checkout, using its local Docker engine and private instance.</dd><dt>Requires</dt><dd>Retained evidence for compatible business/projection contracts and an existing CAM root; current publication-owner approval.</dd><dt>Changes</dt><dd>Prepared files and approved CAM reference/binding transactions, not an intended business-contract replacement.</dd></dl>
+<p>These examples use Pay-to-Play; substitute the app prefix for another app. Verify its deployed ABI and policy before selecting today's authored files. A new operation must select the intended source revision; editing defaults does not rewrite an older operation's retained inputs.</p>
+<pre><code>CTX=your-local-context &amp;&amp;
+INSTANCE=/absolute/private/pay-to-play-fuji &amp;&amp;
+make pay-to-play/release/verify DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE" &amp;&amp;
+make pay-to-play/release/cam/bundle DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>Select the compatible saved components and existing root. Preparation exports their original ABIs, combines authored files, refreshes pins and checks conformance. It sends no transaction. Inspect the selected identities and the printed bundle.</p>
+<p>Host only that bundle's contents at a new versioned location, preserving paths and browser access. Compare the served bytes with the prepared files. Never upload private instance/configuration records.</p>
+<pre><code>make pay-to-play/release/cam/publish DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>Select the prepared bundle and existing root, supply its manifest URI when prompted, and inspect every binding, hash and owner change before approval. This command does not upload files. A nominated future owner cannot publish before accepting.</p>
+<h2 id="projection">Replace the read-only projection</h2>
+<p>Use this path when screen data requires a new Solidity read helper but the business contracts remain compatible. Run from the selected projection/authored source, retaining the original backing-contract evidence and its source.</p>
+<pre><code>make pay-to-play/release/ui/update DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>The menu offers a new projection, a saved projection or a saved update to resume. Choose the existing root and compatible backing contracts. The operation prepares matching CAM files and updates that root only through approved transactions; it does not replace the business contracts.</p>
+<p>For a new hosting location, omit <code>settings.CAM_URI</code> from the referenced CAM configuration <strong>before starting the new operation</strong>. At the hosting pause, host the printed files and repeat the same command, choosing Resume and entering their URI. A configured URI can skip the pause; ensure those bytes are hosted before approving publication.</p>
+<p>To deploy a projection candidate <em>without</em> changing the app, use <code>release/ui/deploy</code> instead. Its saved artifact can be selected later; deployment alone changes no root reference. Separate projection-deployer and CAM-owner configurations are described in <a href="../reference/operations.html#configuration">operation inputs</a>.</p>
+<h2 id="check">Check the new publication</h2>
+<pre><code>make pay-to-play/release/verify DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE" &amp;&amp;
+make viewer/release/up DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>Select the completed publication and open a fresh session. Refreshing a screen's read does not reload publication resources. Inspect the chain, root, resource integrity, intended bindings and a known task. For the Pay-to-Play navigation update, check all six destinations and that the balances/keys belong to the same intended payment contract.</p>
+<p>Historical record verification does not prove current ownership or every critical action. Test the intended authorities and app behavior before accepting the cutover. Stop this local viewer with <code>viewer/release/down</code>; permanent server hosting has its <a href="../viewer/">own lifecycle</a>.</p>
+<h2 id="migration">Business replacement needs a migration decision</h2>
+<p>A new business contract has a new address and state. Pay-to-Play vouchers bind the verifying-contract address; changing an ABI or manifest cannot move deposits, permanent keys or signatures. Specify the client/state transition and treatment of the old instance before deploying a replacement.</p>
+<h2 id="recover">Recover or reverse deliberately</h2>
+<p>Keep failed attempts and <a href="recovery.html">resume the selected operation</a>. Resolve uncertain submissions before approving another creation. Restoring an earlier CAM publication is itself an authorized on-chain update and may be incompatible with subsequent changes; rolling back a viewer image does not perform that reversal.</p>
 </article></main></body></html>
