@@ -330,6 +330,8 @@ function statusTerminalOutput(
   const snapshot: CamViewerLoadedSnapshot = {
     contractAddresses: {},
     visitId: 1,
+    camURI: "fixture://status-display/main.json",
+    integrityChecks: snapshotOverrides?.integrityWarnings ?? [],
     integrityWarnings: [],
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
     ...snapshotOverrides,

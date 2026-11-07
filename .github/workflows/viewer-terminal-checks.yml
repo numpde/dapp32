@@ -1,0 +1,60 @@
+name: Viewer terminal checks
+
+on:
+  push:
+    paths:
+      - .github/workflows/viewer-terminal-checks.yml
+      - Makefile
+      - compose/viewer-terminal.yml
+      - compose/fragments/node-workspace.yml
+      - containers/node-deps/**
+      - js/package.json
+      - js/package-lock.json
+      - js/tsconfig.tool.json
+      - js/tools/viewer-terminal/**
+      - js/tools/local-cam-files.ts
+      - js/packages/cam-viewer/**
+      - js/packages/cam-screen/**
+      - js/packages/cam-core/**
+      - js/packages/cam-protocol/**
+      - js/packages/cam-evm-viem/**
+      - tests/fixtures/cam/**
+  pull_request:
+    paths:
+      - .github/workflows/viewer-terminal-checks.yml
+      - Makefile
+      - compose/viewer-terminal.yml
+      - compose/fragments/node-workspace.yml
+      - containers/node-deps/**
+      - js/package.json
+      - js/package-lock.json
+      - js/tsconfig.tool.json
+      - js/tools/viewer-terminal/**
+      - js/tools/local-cam-files.ts
+      - js/packages/cam-viewer/**
+      - js/packages/cam-screen/**
+      - js/packages/cam-core/**
+      - js/packages/cam-protocol/**
+      - js/packages/cam-evm-viem/**
+      - tests/fixtures/cam/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: viewer-terminal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install locked JavaScript dependencies
+        run: make js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-terminal-checks
+      - name: Typecheck and exercise the terminal viewer
+        run: make viewer/terminal/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-terminal-checks
