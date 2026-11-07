@@ -1,215 +1,52 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bike NFT - dapp32</title>
-  <meta name="description" content="Bike NFT is a dapp32 contract-defined bicycle component registry with ERC-721 component tokens, manager-owned permissions, and CAM routes a generic viewer can render.">
-  <script src="../theme.js"></script>
-<link rel="stylesheet" href="../site.css">
-
-</head>
-<body>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Use Bike NFT · dapp32</title><meta name="description" content="Look up or register a component, manage its metadata and reports, and hand over its NFT or authorize a workshop."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-
-  <header>
-    <div class="shell hero">
-      <div>
-        <h1>Bike NFT component registry</h1>
-        <p class="lede">
-          Bike NFT is a contract-defined workflow for registering
-          serial-numbered bicycle components as ERC-721 tokens, looking them up
-          by serial number, and exposing owner/delegate actions through a
-          generic CAM viewer.
-        </p>
-        <div class="actions">
-          <a class="button primary" href="https://github.com/numpde/dapp32/tree/main/dapps/bike-nft">Source</a>
-          <a class="button" href="#try">Try locally</a>
-          <a class="button" href="#cam">CAM routes</a>
-          <a class="button" href="../">dapp32 overview</a>
-        </div>
-      </div>
-
-      <aside class="registry-panel" aria-label="Component registry example">
-        <h2>Example component view</h2>
-        <div class="component-card">
-          <p class="serial">DEMO-FRAME-001</p>
-          <div class="status-row">
-            <span>Status</span>
-            <strong>active</strong>
-          </div>
-          <div class="status-row">
-            <span>Token</span>
-            <strong>ERC-721 component NFT</strong>
-          </div>
-          <div class="status-row">
-            <span>Owner actions</span>
-            <strong>metadata, reports, service state, workshop access</strong>
-          </div>
-          <div class="chips" aria-label="Visible workflow actions">
-            <span class="chip">look up</span>
-            <span class="chip">register</span>
-            <span class="chip">update URI</span>
-            <span class="chip">report missing</span>
-            <span class="chip">take out of service</span>
-          </div>
-        </div>
-      </aside>
-    </div>
-  </header>
-
-  <main id="main" class="shell">
-    <section id="what" class="narrow">
-      <h2>What the app does</h2>
-      <p>
-        The app models a bicycle component registry. A role-authorized registrar creates
-        a registry record for a physical component serial number and mints a
-        normal ERC-721 token to the owner. The manager contract stores the
-        serial lookup, status, registrar, timestamps, token contract, and token
-        id. The NFT contract remains a regular token contract, so wallets and
-        indexers can treat component ownership normally.
-      </p>
-      <p>“Verified” here identifies a registrar-created record; the contract does not inspect the physical component or prove its authenticity.</p>
-      <p>
-        The visible app is defined by CAM resources. A host contract publishes
-        the manifest URI/hash and contract address bindings; the generic viewer
-        loads those resources, calls the read routes, renders the declared UI
-        nodes, and prepares wallet writes from the manifest routes.
-      </p>
-    </section>
-
-    <section id="workflow">
-      <h2>User workflow</h2>
-      <div class="flow">
-        <article class="flow-step">
-          <strong>1. Look up</strong>
-          <p>Enter the component's serial number to see its registered owner, status, and available actions.</p>
-        </article>
-        <article class="flow-step">
-          <strong>2. Register</strong>
-          <p>A registrar mints the component NFT and creates the verified serial record.</p>
-        </article>
-        <article class="flow-step">
-          <strong>3. Maintain</strong>
-          <p>The owner or a scoped delegate updates metadata, opens a missing report, or resolves it.</p>
-        </article>
-        <article class="flow-step">
-          <strong>4. Change service state or ownership</strong>
-          <p>Only the owner can take the component out of service or reactivate it. Missing reports remain attached. An ownership handover transfers the NFT directly and permanently invalidates previous workshop grants.</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="try" class="narrow">
-      <h2>Try locally with Docker</h2>
-      <p>From the repository's <code>main</code> branch, run the commands below. The GUI target starts a disposable Anvil test chain, deploys the contracts and demo records, and prints the browser URL. This page documents the workflow; it does not host a registry app.</p>
-      <pre class="code-block"><code>git clone https://github.com/numpde/dapp32.git
-cd dapp32
-make dapps/deps/install
-make js/deps/install
-make cam/conformance/check
-make bike-nft/local/demo/gui/up</code></pre>
-      <p>You can browse the seeded <code>DEMO-FRAME-001</code> record without a wallet. The address in the printed URL selects whose actions you see; it cannot sign transactions. Preparing a write does not change the registry.</p>
-      <p>To send a transaction, use a separate browser wallet profile. Add chain ID <code>31337</code> with RPC URL <code>http://127.0.0.1:5173/rpc</code>, or the printed GUI origin followed by <code>/rpc</code> if you changed the port. Import the public local-only <code>PRIVATE_KEY</code> from <a href="https://github.com/numpde/dapp32/blob/main/compose/bike-nft/local/deploy.yml">compose/bike-nft/local/deploy.yml</a> and connect it to the viewer. That funded fixture account is both the registrar and the owner of the demo components. Connecting a wallet selects its address for the view and clears prepared calls. If you switch accounts in the wallet, wait for the refreshed view, check the account and chain, then prepare again. This fixture key is unsafe on any other chain; keep real funds and valuable keys out of this disposable chain.</p>
-      <p>After connection, wallets that report account and network changes update the viewer automatically and clear unsent prepared calls. A different wallet network leaves the viewer's configured chain and RPC unchanged and disables sending until the wallet returns to that chain. Disconnecting keeps the last successful read-only view. Submitted transaction hashes and receipt tracking survive wallet changes. If your provider cannot report changes, use <strong>Switch wallet</strong> to reconnect after changing accounts or networks.</p>
-      <p>To register, enter an unused serial number, the intended owner's address, and a token metadata URI. Prepare the call, review it, and send it with the registrar wallet. Wait for successful confirmation before treating the record as created; the viewer then reads the component view. The GUI target attempts teardown when its foreground command exits. Successful teardown removes the local fixture state. After an interrupted run, or if the fixture remains running, use <code>make bike-nft/local/demo/gui/down</code> and check that it has stopped.</p>
-      <p>Token metadata describes one component, including its name and image reference. For your own release, the empty base URI default lets the viewer store a complete HTTP(S) metadata URL or embedded JSON data URI for each token. A shared nonempty prefix requires an advanced client that supplies relative suffixes; the viewer's complete URIs must not be combined with that prefix. Collection metadata describes the collection as a whole and is separate from token metadata and the CAM manifest. See the <a href="../deployment/bike-nft/#token-and-collection-metadata">release setup's metadata choices</a>, including inline collection JSON.</p>
-      <p>This fixture allows a zero manifest hash for local development. It still checks the manifest's ABI and UI resource hashes; it does not demonstrate a hash-pinned root publication.</p>
-    </section>
-
-    <section id="contracts">
-      <h2>Onchain pieces</h2>
-      <div class="grid">
-        <article class="card">
-          <h3><code>CamRoot</code></h3>
-          <p>
-            Publishes the CAM URI/hash and resolves manifest contract names to
-            deployed addresses for this chain.
-          </p>
-        </article>
-        <article class="card">
-          <h3><code>BicycleComponents</code></h3>
-          <p>
-            A non-upgradeable ERC-721 collection. It owns token behavior,
-            transferability, token URI storage, and collection metadata.
-          </p>
-        </article>
-        <article class="card">
-          <h3><code>BicycleComponentManager</code></h3>
-          <p>
-            The registry and policy contract. It owns serial lookup, status,
-            component delegations, account info, missing report state,
-            lifecycle events, and write permissions.
-          </p>
-        </article>
-        <article class="card">
-          <h3><code>BicycleComponentManagerUI</code></h3>
-          <p>
-            A read-only route projection contract. It never writes manager
-            state; it returns semantic view data and action names for CAM.
-          </p>
-        </article>
-        <article class="card">
-          <h3>CAM manifest</h3>
-          <p>
-            Declares contract namespaces, read routes, write routes, ABI
-            resources, and the UI resource consumed by generic viewers.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Generic viewer</h3>
-          <p>
-            Renders the workflow from manifest data and prepares contract calls;
-            business authority remains in the manager and token contracts.
-          </p>
-        </article>
-      </div>
-    </section>
-
-    <section id="authority">
-      <h2>Authority model</h2>
-      <div class="grid two">
-        <article class="card">
-          <h3>Registrar authority</h3>
-          <p>
-            Registrars create verified component records and mint component
-            tokens to owners. Removing the registrar role immediately changes
-            both write authority and the registration view.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Owner authority</h3>
-          <p>
-            Current ERC-721 owners can update metadata, manage missing reports, take components out of service or reactivate them, manage expiring workshop permissions, and transfer the NFT directly. Service state does not erase or block missing reports.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Scoped delegates</h3>
-          <p>
-            Owners grant workshops selected update capabilities with an expiry and can revoke them in the app. These grants do not authorize NFT transfers or changes to service state. A change of owner invalidates old grants permanently, including if the token returns to that owner.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Account metadata</h3>
-          <p>
-            Account info is self-managed by the account address and is used by
-            the read projection. Report and resolution documents remain
-            external URI references, not registry authority.
-          </p>
-        </article>
-      </div>
-    </section>
-
-    <section id="cam">
-      <h2>CAM routes</h2>
-      <p class="narrow">
-        The manifest defines named contract calls, called routes. Read routes
-        return values for the app's screens. Write routes prepare direct wallet calls
-        to the contract responsible for the action. In the browser viewer, the follow-up read runs after the
-        wallet sends the transaction and the viewer receives a successful receipt.
-      </p>
-      <div class="route-table">
+<main id="main" class="shell document"><article class="narrow">
+<h1>Use Bike NFT</h1>
+<p id="what">An authorized registrar records a component's serial and mints its ERC-721 token to an owner. The owner can maintain its record, grant limited workshop access or transfer the NFT. The contract does not inspect the physical component or prove its authenticity.</p>
+<nav id="workflow" aria-label="Guide sections"><a href="#lookup">Look up</a> · <a href="#register">Register</a> · <a href="metadata.html">Metadata</a> · <a href="ownership.html">Handover and workshops</a> · <a href="#reports">Reports</a> · <a href="#try">Try locally</a></nav>
+<h2 id="lookup">Find the component before acting</h2>
+<p><a href="../use/">Open the intended chain and CAM host</a>. Enter the exact serial, including case and spaces, and choose <strong>Look up component</strong>. Check its owner, collection, token ID, service state and missing-report state.</p>
+<p>Editing the search input does not change the displayed loaded component or the target of its actions. Look up the new serial first. Connect the intended wallet and let the view refresh before preparing a write.</p>
+<h2 id="register">Register an unused serial</h2>
+<ol>
+<li>Connect a wallet with the manager's registrar role. Choose <strong>Check registration</strong> for the unused serial.</li>
+<li>Enter the initial owner's address. It can differ from the registrar. Prepare the token document using <a href="metadata.html">the metadata guide</a>, including its collection-base check.</li>
+<li>Choose <strong>Register component</strong>, review and send. After a successful receipt, check the loaded record and NFT owner.</li>
+</ol>
+<p>The serial determines the token ID from its hash; it is not a short human identifier or a metadata digest. Losing registrar authority removes permission to create records, not ownership of existing NFTs.</p>
+<h2 id="authority">Choose the right authority</h2>
+<table><thead><tr><th>Task</th><th>Who can authorize it?</th></tr></thead><tbody>
+<tr><td>Register</td><td>A manager-authorized registrar.</td></tr>
+<tr><td>Change metadata or manage a missing report</td><td>The owner or a workshop with that specific live capability.</td></tr>
+<tr><td>Take out of service, reactivate or manage grants</td><td>The current token owner.</td></tr>
+<tr><td>Handover through the app</td><td>The current owner, through a direct NFT transfer.</td></tr>
+</tbody></table>
+<p><a href="ownership.html">Hand over ownership or authorize a workshop</a> explains expiry, replacement presets and transfer invalidation. These grants are not NFT transfer approvals. Account profile information is separately self-managed by its account and grants no registry authority.</p>
+<h2 id="reports">Missing reports and service state</h2>
+<p>Use <strong>Report component missing</strong> with a nonempty published report URI. Resolve it with <strong>Resolve missing report</strong> and a resolution URI. These are public references, not encrypted private messages or proof of an investigation.</p>
+<p><strong>Take out of service</strong> and <strong>Reactivate</strong> change a separate owner-controlled lifecycle flag. Neither opens, resolves nor erases a missing report. Current contracts still allow metadata corrections and ordinary token transfers in either service state; older irreversible retirement contracts retain their old behavior.</p>
+<h2 id="try">Try locally</h2>
+<p>After <a href="../development/">source setup</a>, start:</p>
+<pre><code>make bike-nft/local/demo/gui/up \
+  DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo</code></pre>
+<p>Keep it running and open the complete printed URL, normally on loopback port 5173. Read <code>DEMO-FRAME-001</code>, <code>DEMO-BATTERY-001</code>, <code>DEMO-MOTOR-001</code> or <code>DEMO-BIKE-001</code> without a wallet. Choose <strong>Load preview</strong> to inspect its metadata.</p>
+<p>Follow <a href="../start/fixture-wallet.html">Attach a local test wallet</a> using <code>FIXTURE_WALLET_APP=bike-nft</code> and the same context/project. Its seller, mechanic and buyer are public fixture identities; the latter two need local gas before sending. Practice registration with a new serial, not an already seeded one.</p>
+<p>Detach the wallet, stop the launcher and let cleanup finish. The explicit matching cleanup is:</p>
+<pre><code>make bike-nft/local/demo/gui/down \
+  DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo</code></pre>
+<p>The current fixture pins SHA-256 of the exact CAM manifest bytes. That local result does not qualify a public deployment. Closing a browser tab alone does not stop the fixture or erase its state.</p>
+<h2 id="contracts">Know which contract owns the action</h2>
+<p><code>BicycleComponents</code> owns the ERC-721 tokens. <code>BicycleComponentManager</code> owns registry actions and workshop grants. The read-only projection returns screen data; <code>CamRoot</code> publishes resources and contract bindings. The viewer submits calls to those actual destinations.</p>
+<p id="boundaries">Manager pause and collection pause are separate. A paused manager blocks its registry writes, not direct token transfers; a paused collection blocks transfers. A manifest label, preview or enabled control is not authorization: inspect the actual call and wait for its receipt.</p>
+<h2 id="deployment">Deploy or accept administration</h2>
+<p>Use <a href="../deployment/bike-nft/">Bike deployment settings</a> with the <a href="../deployment/new-instance.html">shared release procedure</a>. For a pending nominee, open <strong>Deployment handovers</strong>, connect the nominated wallet and check the specific contract and acceptance time. CAM ownership and the two delayed administrator handovers are independent.</p>
+<p>Source baseline: <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/bike-nft">04a18763</a>. This page changes no older deployment's permissions, metadata-prefix policy or retirement semantics.</p>
+<h2 id="cam">CAM route reference</h2>
+<p>The table is checked against the committed manifest. Read routes supply screens; write routes prepare calls and continue after successful execution.</p>
+<details><summary>Show route calls and continuations</summary><div class="route-table">
         <table data-check="bike-routes">
           <thead>
             <tr>
@@ -243,41 +80,5 @@ make bike-nft/local/demo/gui/up</code></pre>
 <tr><td><code>transferComponent</code></td><td>write</td><td><code>safeTransferFrom(address,address,uint256)(from, to, tokenId)</code></td><td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td><td>Owner transfers the NFT directly to its recipient.</td></tr>
 </tbody>
         </table>
-      </div>
-    </section>
-
-    <section id="boundaries">
-      <h2>Important boundaries</h2>
-      <div class="grid">
-        <article class="card">
-          <h3>The UI contract is read-only</h3>
-          <p>
-            <code>BicycleComponentManagerUI</code> has no roles, no owner, and no
-            write functions. It projects registry and deployment-authority state.
-            Unavailable declared actions remain visible but disabled, including
-            paused registry writes and deployment acceptances that are not yet
-            available to the nominated account.
-          </p>
-        </article>
-        <article class="card">
-          <h3>The token remains standard</h3>
-          <p>
-            Transfers and approvals are ordinary ERC-721 operations on
-            <code>BicycleComponents</code>. Registry status is stored by the manager; token transfers do not
-            update it in V1.
-          </p>
-        </article>
-        <article class="card">
-          <h3>The manifest is not authority</h3>
-          <p>
-            CAM describes reads, UI nodes, and prepared writes. The manager and
-            token contracts still enforce all business rules onchain.
-          </p>
-        </article>
-      </div>
-    </section>
-  <section id="deployment" class="narrow"><h2>Deploy your own instance</h2><p>This is an example app guide. Use the <a href="../deployment/bike-nft/">app deployment guide</a> for its contract settings, authority handoffs and verification, and the <a href="../deployment/">shared deployment guide</a> for the release workflow. Deployment selects your chain and publication; this page supplies no running public instance.</p></section></main>
-
-
-</body>
-</html>
+</div></details>
+</article></main></body></html>
