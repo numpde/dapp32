@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Recover an interrupted release · dapp32</title><meta name="description" content="Resume retained deployment work, reconcile mined transactions and recover missing records without accidentally redeploying contracts."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../authoring/">Authoring</a><a href="../reference/cam/">CAM reference</a><a href="../examples/">Example apps</a><a href="../deployments/">Deployments</a><a href="./" aria-current="page">Deploy an app</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Recover an interrupted release</h1>
+<p>Keep the original instance directory. Find out what completed before approving another transaction. A failed terminal command does not mean every transaction failed.</p>
+<dl><dt>Run on</dt><dd>The release workstation, in the source checkout selected by the saved operation.</dd><dt>Requires</dt><dd>The whole private instance, its referenced configuration and chain access. Signing continuations also require the recorded approval image and authorized signer.</dd><dt>Changes</dt><dd>Read-only reconciliation writes evidence locally. Resuming an unfinished signing phase can submit the remaining transactions, with fresh approval.</dd><dt>Success</dt><dd>The selected operation has verified final artifacts, or an unresolved outcome is identified without creating a replacement deployment.</dd></dl>
+<nav aria-label="Guide sections"><a href="#choose">Choose the failure</a> · <a href="#inspect">Inspect</a> · <a href="#records">Finish records</a> · <a href="#resume">Resume</a> · <a href="#stop">Stop</a></nav>
+<h2 id="choose">Choose the failure, not a new deployment</h2>
+<table><thead><tr><th>What happened?</th><th>Next action</th></tr></thead><tbody>
+<tr><td>The command printed a bundle directory and stopped for its URL.</td><td>This is the <a href="new-instance.html">hosting pause</a>. Host those exact files, repeat the same command and select the saved work.</td></tr>
+<tr><td>A transaction hash exists but its outcome is unknown.</td><td>Inspect its chain receipt and retained broadcast/approval records. Do not approve a replacement creation merely because the RPC response was lost.</td></tr>
+<tr><td>Transactions succeeded but the final artifact is absent.</td><td>Use <a href="#records">keyless artifact completion</a>, not another deploy command.</td></tr>
+<tr><td>Some CAM changes succeeded and others remain.</td><td><a href="#resume">Resume the original intent</a>. A confirmed partial root is evidence for continuation, not permission to replay its creation.</td></tr>
+<tr><td>The saved approval image is missing.</td><td>Restore that exact image before signing. Read-only verification does not need it.</td></tr>
+<tr><td>Source verification failed after deployment.</td><td>Retry <code>release/source/publish</code>. This does not require contract replacement.</td></tr>
+<tr><td>Cleanup could not finish.</td><td>Keep the reported project identity, private inputs and logs. Restore access to that engine before attempting owned cleanup.</td></tr>
+</tbody></table>
+<h2 id="inspect">1. Inspect the retained operation</h2>
+<p>Use the same context and instance as the failed command. These examples use Pay-to-Play; substitute <code>escrow</code> or <code>bike-nft</code> for that app's commands.</p>
+<pre><code>CTX=your-local-context &amp;&amp;
+INSTANCE=/absolute/private/pay-to-play-instance &amp;&amp;
+make pay-to-play/release/verify DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>Select the relevant saved operation, not whichever directory looks newest. Verification does not sign, deploy or submit sources to an external service. It checks retained evidence against the chain. It does not establish current ownership, current balances or current pause state.</p>
+<p>Retain <code>instance.json</code>, <code>selection.json</code>, configurations, source inputs, broadcasts, approval audits and artifacts together. Editing today's default configuration does not alter a saved operation's selected source, approval image or intended handoffs. See the <a href="manual.html#release-records">record layout</a>.</p>
+<h2 id="records">2. Complete records without signing</h2>
+<p>Choose the command for the missing artifact. Each command offers retained work; it does not create replacement contracts or send missing initialization transactions.</p>
+<pre><code>make pay-to-play/release/contracts/artifact DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<pre><code>make pay-to-play/release/ui/artifact DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<pre><code>make pay-to-play/release/cam/artifact DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
+<p>Existing final artifacts are checked and kept unchanged. Saved evidence chooses the original sources. JavaScript dependencies must match that source's lockfile; <code>RELEASE_ARTIFACT_NODE_MODULES_DIR</code> can select a separately installed matching tree. A records-only machine can use protected read-only configurations at the paths referenced by the saved operation; no signing key must be staged for this step.</p>
+<p>Completing the selected pending publication can clear its pending reference. Verifying unrelated historical work does not switch the selected deployment. Do not delete an incomplete attempt simply because another attempt completed.</p>
+<h2 id="resume">3. Resume only what remains</h2>
+<p>Repeat the exact command that began the operation and choose <strong>Resume</strong>. A saved signing phase requires its selected source revision and approval image. Review the requested remaining transactions against the original intent before approving.</p>
+<p>For a hosting pause, upload or pin only the prepared <code>bundle/</code> contents. Preserve paths and exact bytes, check browser access, then repeat the same operation and supply the hosted manifest URL. Do not upload the instance or its credentials.</p>
+<p>A confirmed partial CAM attempt can retain <code>cam/artifact/cam-attempt.json</code>; its continuation is recorded under <code>cam/continuation/</code>. Already-accepted nominees remain accepted. An edited configuration cannot silently authorize a different handoff.</p>
+<p>When root creation has no confirmed outcome, investigate first. The workflow does not automatically replay it. An explicit separate attempt can create additional contracts; select that only after resolving the old outcome. A repaired CAM publication can reuse compatible saved business contracts and the prepared bundle.</p>
+<h2 id="stop">Stop or cancel</h2>
+<p>Ctrl-C, SIGHUP and SIGTERM initiate owned cleanup. Let it finish; closing the browser tab is not cleanup. A release removes its private ceremony resources, not a separately started shared local network. A successfully cleaned-up operation still retains its deployment evidence.</p>
+<p>SIGKILL, host loss or an inaccessible Docker daemon cannot guarantee cleanup. An unconfirmed cleanup must remain a failure, with its reported records retained. Do not delete arbitrary similarly named projects or weaken private-file permissions to get past the error.</p>
+<p>Inspect <a href="manual.html#progress-and-bounded-diagnostics">diagnostic logs</a> when the failing phase is unclear. For a deliberate new version rather than recovery, return to <a href="update.html">Update an existing app</a>.</p>
+<p>Implementation: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.py">instance selections and recovery</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.sh">instance command launcher</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/compose_cleanup.sh">owned Compose cleanup</a>.</p>
+</article></main></body></html>
