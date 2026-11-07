@@ -280,6 +280,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
             target.escrowTotal += amount;
             destination.balance += amount;
             _renew(destination, targetId, target.claimPeriod);
+            _restartWithdrawal(destination, targetId, target.claimPeriod);
         }
         emit Moved(msg.sender, sourceId, targetId, amount);
     }
