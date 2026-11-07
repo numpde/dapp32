@@ -1,0 +1,36 @@
+name: README checks
+
+on:
+  push:
+    paths:
+      - README.md
+      - tests/checks/test_readme.py
+      - tests/checks/common.py
+      - tools/json_policy.py
+      - .github/workflows/readme-checks.yml
+  pull_request:
+    paths:
+      - README.md
+      - tests/checks/test_readme.py
+      - tests/checks/common.py
+      - tools/json_policy.py
+      - .github/workflows/readme-checks.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readme:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check the root README without installing dependencies
+        run: python3 -B -m unittest -v tests.checks.test_readme
