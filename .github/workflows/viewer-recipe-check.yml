@@ -1,0 +1,103 @@
+name: Viewer recipe qualification
+
+on:
+  push:
+    paths:
+      - .github/workflows/viewer-recipe-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: viewer-recipe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  viewer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out the guide without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: site
+          persist-credentials: false
+      - name: Check out the source described by the guide
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 04a18763700bbaa25cad73b9806d236ab4d5e139
+          path: source
+          persist-credentials: false
+      - name: Extract the build, run and stop commands from the guide
+        shell: bash
+        run: |
+          python3 -B - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          import os
+
+          class Commands(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.section = None
+                  self.reading = False
+                  self.blocks = {}
+              def handle_starttag(self, tag, attrs):
+                  if tag == 'h2':
+                      self.section = dict(attrs).get('id')
+                  if tag == 'pre':
+                      self.reading = True
+                      self.blocks.setdefault(self.section, []).append('')
+              def handle_endtag(self, tag):
+                  if tag == 'pre':
+                      self.reading = False
+              def handle_data(self, text):
+                  if self.reading:
+                      self.blocks[self.section][-1] += text
+
+          parser = Commands()
+          parser.feed(Path('site/viewer/index.html').read_text())
+          directory = Path(os.environ['RUNNER_TEMP'])
+          for section in ('build', 'run', 'maintain'):
+              blocks = parser.blocks[section]
+              assert len(blocks) == 1, (section, 'expected one lifecycle block')
+              script = blocks[0]
+              script = script.replace('CTX=your-local-context', 'CTX=default')
+              script = script.replace('IMAGE="cam-viewer:$REV"', 'IMAGE="cam-docs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}:$REV"')
+              script = script.replace('VIEWER_COMPOSE_PROJECT_NAME=cam-viewer', 'VIEWER_COMPOSE_PROJECT_NAME="$PROJECT"')
+              (directory / f'viewer-{section}.sh').write_text(script + '\n')
+          PY
+      - name: Build, serve and retire the real viewer
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT="cam-docs-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            result=$?
+            trap - EXIT
+            if [[ -v IMAGE ]]; then
+              if ! make viewer/down DOCKER_CONTEXT=default VIEWER_IMAGE="$IMAGE" VIEWER_COMPOSE_PROJECT_NAME="$PROJECT"; then
+                result=1
+              fi
+              if docker --context default image inspect "$IMAGE" >/dev/null 2>&1; then
+                if ! docker --context default image rm "$IMAGE"; then result=1; fi
+              fi
+            fi
+            exit "$result"
+          }
+          trap cleanup EXIT
+          source "$RUNNER_TEMP/viewer-build.sh"
+          source "$RUNNER_TEMP/viewer-run.sh"
+          curl --fail --show-error http://127.0.0.1:8080/ --output "$RUNNER_TEMP/viewer-index.html"
+          python3 -B - <<'PY'
+          from pathlib import Path
+          import os
+          text = (Path(os.environ['RUNNER_TEMP']) / 'viewer-index.html').read_text()
+          assert '<div id="root"' in text and '<script' in text, 'not the built viewer document'
+          PY
+          source "$RUNNER_TEMP/viewer-maintain.sh"
+          test -z "$(docker --context default ps -aq --filter "label=com.docker.compose.project=$PROJECT")"
+          test -z "$(docker --context default network ls -q --filter "label=com.docker.compose.project=$PROJECT")"
+          printf 'Viewer recipe passed on source %s: build, loopback health, viewer document, stop and owned-resource removal. Public DNS/TLS and wallet actions were not exercised.\n' "$(git rev-parse HEAD)"
