@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
-import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, sha256, stringToBytes } from "viem"
+import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbiItem, toEventSelector, sha256, stringToBytes } from "viem"
 import type { Address, Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
@@ -15,6 +15,7 @@ import { requiredEnv } from "../input.ts"
 const roles = ["admin", "customer", "relayer", "payee"] as const
 type Role = typeof roles[number]
 const RECEIPT_TIMEOUT = 20_000
+const WITHDRAWAL_REQUESTED = parseAbiItem("event WithdrawalRequested(address indexed customer,uint256 indexed channelId,uint256 amount,uint256 readyAt)")
 
 async function main(): Promise<void> {
   const rpcURL = requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RPC_URL")
@@ -137,6 +138,22 @@ async function main(): Promise<void> {
     await session.navigate(prepared.call.then.function, prepared.call.then.args)
     process.stdout.write(`${JSON.stringify({ event: "write_ok", role, route, hash })}\n`)
     return { receipt, abi: prepared.call.abi }
+  }
+  async function assertFundingRestart(funded: Awaited<ReturnType<typeof write>>, requested: bigint, oldReady: bigint) {
+    const block = await publicClient.getBlock({ blockHash: funded.receipt.blockHash })
+    const ready = block.timestamp + BigInt(String(view().claimPeriod))
+    assert(ready > oldReady, "the fixture must distinguish a restart from the previous readiness")
+    assert.equal(BigInt(String(view().readyAt)), ready, "funding starts a full wait from its mined block")
+    assert.equal(BigInt(String(view().requestedAmount)), requested, "funding preserves the whole request")
+    const restarts = funded.receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase()
+      && log.topics[0] === toEventSelector(WITHDRAWAL_REQUESTED))
+    assert.equal(restarts.length, 1, "funding must publish the restarted request, not just Funded")
+    const event = decodeEventLog({ abi: [WITHDRAWAL_REQUESTED], data: restarts[0]!.data, topics: restarts[0]!.topics })
+    assert.equal(event.args.customer.toLowerCase(), accounts.customer.address.toLowerCase())
+    assert.equal(event.args.channelId, 1n)
+    assert.equal(event.args.amount, requested)
+    assert.equal(event.args.readyAt, ready)
+    return ready
   }
   async function mature() {
     const deadline = BigInt(String(view().readyAt))
@@ -279,9 +296,12 @@ async function main(): Promise<void> {
   await task("withdrawalForm")
   action("withdraw", true)
   action("move", true)
-  const renewedReady = view().readyAt
-  await write("customer", "fund", { fundAmount: "10" })
-  assert.equal(view().readyAt, renewedReady, "top-up preserves wait")
+  const beforeTopUp = BigInt(String(view().readyAt))
+  // Do not let same-timestamp funding make the old and new policies indistinguishable.
+  await localRpc(rpcURL, "evm_increaseTime", [10])
+  await localRpc(rpcURL, "evm_mine", [])
+  const topUp = await write("customer", "fund", { fundAmount: "10" })
+  const renewedReady = (await assertFundingRestart(topUp, 100n, beforeTopUp)).toString()
   const duringWait = await voucher(210n, 150n)
   await collect(duringWait, duringWait.cumulativeTotal)
   assert.equal(view().balance, "50")
@@ -347,8 +367,58 @@ async function main(): Promise<void> {
   }))
   assert.equal(merchantPosition.balance, 0n, "merchant earnings go to its wallet, not a shared spending position")
   assert.equal(await publicClient.getBalance({ address: payments }), 0n)
+  // End-to-end note 022 regression: old backing is fully collected while its request survives.
+  await position("customer", "1")
+  await write("customer", "fund", { fundAmount: "100" })
+  await write("customer", "requestWithdrawal", { withdrawAmount: "100" })
+  const oldBacking = await voucher(400n, 300n)
+  await collect(oldBacking, "100")
+  assert.equal(view().balance, "0")
+  assert.equal(view().requestedAmount, "100")
+  await mature()
+  await position("relayer", "1")
+  await task("withdrawalForm")
+  const staleWithdrawal = await session.dispatchAction(action("withdraw", false))
+  assert.equal(staleWithdrawal.type, "contractCall")
+  if (staleWithdrawal.type !== "contractCall") throw new Error("fixture expected a mature withdrawal call")
+  const oldReady = BigInt(String(view().readyAt))
+  const replenishment = await write("customer", "fund", { fundAmount: "100" })
+  const restarted = await assertFundingRestart(replenishment, 100n, oldReady)
+  assert.equal(view().balance, "100")
+  assert.equal(view().effectiveBalance, "0", "restarting time does not turn requested funds into free backing")
+  assert.equal(view().voucherPaid, "400")
+  assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase())
+  await task("withdrawalForm")
+  action("withdraw", true)
+  action("move", true)
+  await assert.rejects(() => simulateCamContractCall({ publicClient, account: accounts.relayer.address, call: staleWithdrawal.call }),
+    "the contract must reject the previously mature call after replenishment")
+  const nextPayment = await voucher(480n, 400n)
+  await collect(nextPayment, "80")
+  assert.equal(view().balance, "20")
+  assert.equal(view().readyAt, restarted.toString(), "collection does not postpone the new exit")
+  assert((await publicClient.getBlock()).timestamp < restarted - 1n, "collection must execute within the fresh window")
+  await localRpc(rpcURL, "evm_setNextBlockTimestamp", [Number(restarted - 1n)])
+  await localRpc(rpcURL, "evm_mine", [])
+  await position("customer", "1")
+  await task("withdrawalForm")
+  action("withdraw", true)
+  action("move", true)
+  await localRpc(rpcURL, "evm_setNextBlockTimestamp", [Number(restarted)])
+  await localRpc(rpcURL, "evm_mine", [])
+  await session.refresh()
+  action("withdraw", false)
+  action("move", false)
+  const customerBeforeExit = await publicClient.getBalance({ address: accounts.customer.address })
+  await write("relayer", "withdraw", {})
+  assert.equal(await publicClient.getBalance({ address: accounts.customer.address }), customerBeforeExit + 20n)
+  assert.equal(view().balance, "0")
+  assert.equal(view().requestedAmount, "0")
+  assert.equal(view().readyAt, "0")
+  assert.equal(view().voucherPaid, "480")
+  assert.equal(await publicClient.getBalance({ address: payments }), 0n)
   await assert.rejects(() => session.navigate("position", inert({ customer: accounts.customer.address, channelId: "999" })), "undefined channel must fail")
-  process.stdout.write(`${JSON.stringify({ event: "ok", host, payments, voucherPaid: "300", contractBalance: "0" })}\n`)
+  process.stdout.write(`${JSON.stringify({ event: "ok", host, payments, voucherPaid: "480", contractBalance: "0" })}\n`)
 }
 
 function object(value: unknown): Record<string, unknown> {
