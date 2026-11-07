@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choose an app check · dapp32</title><meta name="description" content="Distinguish offline checks, owned real-chain campaigns, read-only terminals and operator-supplied browser tests."><script src="../theme.js"></script>
+<link rel="stylesheet" href="../site.css"></head><body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<main id="main" class="shell document"><article class="narrow">
+<h1>Choose the check for the changed behavior</h1>
+<p>Run source Make targets from the repository root, after <a href="./">locked dependency setup</a>, adding <code>DOCKER_CONTEXT=your-local-context</code>. These are explicit application checks. Ordinary documentation edits do not start chains or wallet tests.</p>
+<h2 id="source">Source and generated resources</h2>
+<table><thead><tr><th>Target</th><th>Evidence or effect</th></tr></thead><tbody>
+<tr><td><code>cam/conformance/check</code></td><td>Manifest/resource integrity, ABI joins, route arguments, UI composition and typeflow.</td></tr>
+<tr><td><code>cam/abi/export</code></td><td>Writes manifest-declared ABIs and refreshes integrity pins. Inspect the Git diff; a second export should be unchanged.</td></tr>
+<tr><td><code>cam/integrity/refresh</code></td><td>Refreshes the explicitly admitted manifest/protocol outputs after authored changes.</td></tr>
+<tr><td><code>tests/checks</code>, <code>js/tests</code></td><td>Repository rules and JavaScript package/tool tests.</td></tr>
+<tr><td><code>dapps/build</code>, <code>dapps/scripts/build</code>, <code>dapps/tests</code></td><td>Solidity compilation, deterministic/fuzz tests and stateful invariants.</td></tr>
+<tr><td><code>tests</code></td><td>Full automatic campaigns, including disposable real-RPC scenarios and the networked dependency-egress check.</td></tr>
+</tbody></table>
+<p>For Escrow formatting and release-tool work, use <code>escrow/format</code>, <code>dapps/format/check</code> and <code>escrow/release/check</code> as applicable. Formatting and export targets can change source resources; they are not merely read-only assertions. Dependency installation stays a separate, explicit networked step.</p>
+<h2 id="payment">Pay-to-Play: actual settlement and recovery</h2>
+<pre><code>make pay-to-play/local/recovery/run DOCKER_CONTEXT=your-local-context</code></pre>
+<p>This first runs the payment scenario, then recovery on its owned disposable chain. Payment coverage includes canonical invoice hashes, on-chain v2 digests, substituted-reference rejection, partial collection, later-invoice-first allocation and merchant receipts. Recovery covers renewal, early closure, exact phase cutoffs, refund destinations, permissionless refund, reuse and multi-customer retirement.</p>
+<p>The campaign also exercises incoming-move discovery and the file-backed refund worker with bounded batches and journal persistence, including a confirmed transaction followed by a fatal journal-write failure. Neither campaign selects a real operator deployment. Use <code>pay-to-play/local/scenario/run</code> for payment only and <code>pay-to-play/refunds/check</code> for offline worker checks; invoice-helper tests run in <code>js/tests</code>.</p>
+<h2 id="escrow">Escrow: nine complete settlement paths</h2>
+<pre><code>make escrow/local/scenario/run DOCKER_CONTEXT=your-local-context</code></pre>
+<p>The deterministic campaign follows authored actions through preparation, simulation, submission, receipt and continuation—not direct business writes alone. It covers client cancellation, normal approval, acceptance/work/review timeouts, both arbitrator awards and both arbitration-timeout beneficiaries. Every path uses a fresh reference, switches the viewing actor, checks the terminal state and withdraws the complete credit.</p>
+<p>Solidity fuzzing separately checks action boundaries immediately before, at and after deadlines. Stateful tests cover concurrent agreements, liability conservation, complete settlement, event/storage agreement and terminal irreversibility. See <a href="../escrow/reference.html">the accounting and projection reference</a>.</p>
+<h2 id="bike">Bike: distinct actors before a random walk</h2>
+<pre><code>make bike-nft/local/integration/fuzz/fixture-writes/run DOCKER_CONTEXT=your-local-context</code></pre>
+<p>The deterministic seller/workshop/buyer sequence proves registration, scoped metadata access, transfer, loss of former authority and a buyer update. Its success marker is <code>bike_actor_ok</code>. The subsequent generic walker is single-account; it does not independently prove distinct-actor behavior. All keys and funds belong to the private disposable fixture.</p>
+<h2 id="terminal">Inspect Escrow without signing</h2>
+<pre><code>make escrow/local/demo/terminal/up \
+  DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-terminal</code></pre>
+<p>The terminal uses real fixture reads but only prepares writes. Use <code>account &lt;address&gt;</code> to inspect another role or <code>account none</code> for an anonymous view. It does not sign or submit. Let cleanup finish on exit; use <code>escrow/local/demo/terminal/down</code> with the same context/project if resources remain.</p>
+<h2 id="browser">Choose the live-browser boundary explicitly</h2>
+<p>Start the relevant disposable GUI and a dedicated loopback-CDP browser. Supply the entire printed viewer URL and the expected nonzero CAM commitment from the fixture you intend to test:</p>
+<pre><code>make escrow/live/browser/check \
+  DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo \
+  CDP_ORIGIN=http://127.0.0.1:9222 \
+  VIEWER_URL='the full printed GUI URL' \
+  EXPECTED_CAM_URI='the expected manifest URI' \
+  EXPECTED_CAM_HASH='the expected 0x-prefixed SHA-256'</code></pre>
+<table><thead><tr><th>Target</th><th>What it may change</th></tr></thead><tbody>
+<tr><td><code>escrow/live/browser/check</code></td><td>Owns a test tab; checks reads, navigation, integrity and layout. No wallet-signed writes.</td></tr>
+<tr><td><code>escrow/live/browser/fixture-writes/check</code></td><td>Owns test tabs and submits local transactions, including dispute/withdrawal and rejection or uncertain-response recovery.</td></tr>
+<tr><td><code>pay-to-play/live/browser/check</code></td><td>Submits local payment/withdrawal/refund transactions and tests voucher drafts, events, integrity and narrow layout.</td></tr>
+</tbody></table>
+<p>The signing lanes require chain 31337 and matching fixture resources; use only state you can discard. They close their own tabs but leave your existing browser and GUI services running. Their injected providers do not qualify a real wallet extension's confirmation interface or physical-pointer interaction.</p>
+<p>Payment browser coverage includes a separate zero-wait recovery channel, not every recovery operation; renewal and retirement also have contract, viewer and real-RPC coverage. A passing local campaign establishes local behavior, not delivered work or a public service's readiness.</p>
+<p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/Makefile">supported entrypoints</a>. For another repository's service tests, use <a href="payment-fixture.html">the fixture handoff</a>, not the manual browser launcher.</p>
+</article></main></body></html>
