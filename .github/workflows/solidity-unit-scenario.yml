@@ -1,0 +1,54 @@
+name: Solidity unit and fixture checks
+
+on:
+  push:
+    paths:
+      - .github/workflows/solidity-unit-scenario.yml
+      - Makefile
+      - compose/forge.yml
+      - compose/deps.yml
+      - dapps/**/*.sol
+      - dapps/**/test/**
+      - dapps/foundry.toml
+      - dapps/soldeer.lock
+      - dapps/remappings.txt
+      - dapps/dependency-checksums.txt
+      - tests/checks/test_repository_hygiene.py
+  pull_request:
+    paths:
+      - .github/workflows/solidity-unit-scenario.yml
+      - Makefile
+      - compose/forge.yml
+      - compose/deps.yml
+      - dapps/**/*.sol
+      - dapps/**/test/**
+      - dapps/foundry.toml
+      - dapps/soldeer.lock
+      - dapps/remappings.txt
+      - dapps/dependency-checksums.txt
+      - tests/checks/test_repository_hygiene.py
+
+permissions:
+  contents: read
+
+concurrency:
+  group: solidity-unit-scenario-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  forge-unit-scenario:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install locked Solidity dependencies
+        run: make dapps/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=solidity-unit-scenario
+      - name: Check formatting and all unit/scenario tests
+        run: |
+          make dapps/format/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=solidity-unit-scenario
+          make dapps/tests/unit-scenario DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=solidity-unit-scenario
+      - name: Requalify CAM refresh in isolation
+        run: make cam/local/refresh/check DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=solidity-unit-scenario
