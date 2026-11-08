@@ -205,7 +205,7 @@ release_cam_sources_cleanup
                 "SHELL := /bin/bash\ncheck:\n"
                 "\t@set -euo pipefail; \\\n"
                 f"\tCAM_RELEASE_SOURCE_COMMIT={saved}; source_commit={tooling}; output_dir={output}; \\\n"
-                '\trelease_review_tool_delta() { printf "%s\\n" "$1" "$2" "$3"; }; \\\n'
+                '\trelease_review_tool_delta() { printf "%s\\n" "$$1" "$$2" "$$3"; }; \\\n'
                 f"\t{review}\n"
                 f"\t{receipt}\n"
             )
