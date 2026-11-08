@@ -379,6 +379,58 @@ class ReleaseInstanceTest(unittest.TestCase):
             self.assertFalse(result)
             self.assertEqual("", output.getvalue())
 
+    def test_finish_verify_reports_followups_only_after_complete_publication(self):
+        original_path = instances.Path
+        for complete in (False, True):
+            with self.subTest(complete=complete), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                action = "deployments/confirmed"
+                request = {"operation": "deploy", "requestedOperation": "verify", "inputs": {}}
+                save(root, f"{action}/selection.json", {"operation": "deploy", "inputs": {}})
+                save(root, f"{action}/contracts/artifact/contract-deployment.json", {})
+                save(root, f"{action}/ui/artifact/ui-deployment.json", {})
+                if complete:
+                    save(root, f"{action}/cam/artifact/cam-publication.json", {
+                        "manifest": {"uri": "https://raw.githubusercontent.com/example/repo/refs/heads/main/dapps/cam/main.json",
+                                     "hash": "0x" + "0" * 64},
+                    })
+                instances.write_json(root / "instance.json", {"config": "config.json", "pending": action})
+                stage = root / "stage"
+                save(stage, "selection.json", {"request": request, "action": action})
+
+                def local_path(value):
+                    if value == "/instance":
+                        return root
+                    if value == "/out/selection.json":
+                        return stage / "selection.json"
+                    if value == "/out/source-artifacts":
+                        return stage / "source-artifacts"
+                    return original_path(value)
+
+                output = io.StringIO()
+                with (patch.object(instances, "Path", side_effect=local_path),
+                      patch.object(instances.sys, "argv", ["release_instance.py", "finish", APP, "verify", str(root)]),
+                      contextlib.redirect_stdout(output)):
+                    instances.main()
+                text = output.getvalue()
+                selected = instances.load_selection(root)
+                self.assertEqual(b"", (stage / "source-artifacts").read_bytes(),
+                                 "observation must never submit public source jobs automatically")
+                self.assertNotIn("Next: make escrow/release/verify", text)
+                if complete:
+                    self.assertIn("Verification complete", text)
+                    self.assertIn("make escrow/release/source/publish", text)
+                    self.assertIn("make viewer/release/up", text)
+                    self.assertIn("zero", text)
+                    self.assertIn("immutable URI", text)
+                    self.assertNotIn("pending", selected)
+                    self.assertEqual(f"{action}/cam/artifact/cam-publication.json", selected["publication"])
+                else:
+                    self.assertIn("no completed CAM publication", text)
+                    self.assertNotIn("Sourcify", text)
+                    self.assertNotIn("make viewer/release/up", text)
+                    self.assertEqual(action, selected["pending"])
+
     def test_ambiguous_choices_need_a_terminal_and_are_not_timestamp_selected(self):
         with patch.object(instances.sys.stdin, "isatty", return_value=False):
             with self.assertRaisesRegex(ValueError, "interactive"):
