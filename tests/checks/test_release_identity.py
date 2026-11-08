@@ -94,6 +94,11 @@ release_select_container_identity
 [[ "$RELEASE_CONTAINER_UID:$RELEASE_CONTAINER_GID" == 0:0 ]]
 release_with_mapped_owner bash -c '[[ "$LOCAL_UID:$LOCAL_GID" == "0:0" ]]'
 [[ "$LOCAL_UID:$LOCAL_GID" == "$(id -u):$(id -g)" ]]
+CAM_DOCKER_ENDPOINT=unix:///tmp/stale.sock
+status=0
+release_with_mapped_owner true || status=$?
+[[ "$status" == 2 ]]
+CAM_DOCKER_ENDPOINT=unix:///tmp/one.sock
 release_select_container_identity
 [[ "$(wc -l < "$CALLS")" -eq 1 ]]
 CAM_DOCKER_ENDPOINT=unix:///tmp/two.sock
@@ -112,6 +117,26 @@ release_with_mapped_owner true || status=$?
                                         env=env, cwd=Path(__file__).resolve().parents[2],
                                         capture_output=True, text=True, timeout=12)
             self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+
+
+    def test_release_configuration_private_mounts_use_the_mapped_identity(self):
+        from .common import rendered_compose_config
+        config = rendered_compose_config("compose/release/config.yml")
+        private_roots = ("/tmp/release-config-stage", "/tmp/release-config.json")
+        consumers = {}
+        for name, service in config["services"].items():
+            sources = [
+                mount["source"] for mount in service.get("volumes", ())
+                if mount["type"] == "bind"
+                and any(mount["source"] == root or mount["source"].startswith(root + "/")
+                        for root in private_roots)
+            ]
+            if sources:
+                consumers[name] = service.get("user")
+        self.assertEqual({"release-setup", "release-config", "release-instance"}, set(consumers))
+        for service, user in consumers.items():
+            with self.subTest(service=service):
+                self.assertEqual("1000:1000", user, "Private instance/configuration mounts need the mapped container user")
 
     def test_probe_only_maps_after_success(self):
         observed = SimpleNamespace(

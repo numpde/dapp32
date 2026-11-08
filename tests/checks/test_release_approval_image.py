@@ -56,6 +56,39 @@ class ReleaseApprovalImageTest(unittest.TestCase):
         self.assertIn("node --experimental-strip-types --test /source/containers/release-approval/prepare-context.test.mjs", context["command"][2])
         self.assertIn("node /source/containers/release-approval/prepare-context.mjs /source/js /dependencies /source/containers/release-approval /context", context["command"][2])
 
+    def test_all_approval_build_private_mount_consumers_use_the_mapped_identity(self) -> None:
+        # Synthetic operator-private roots, not actual host inputs exposed here.
+        private_roots = {
+            "/tmp/approval-image-manifests",
+            "/tmp/approval-image-source",
+            "/tmp/approval-image-context",
+        }
+        config = rendered_compose_config(
+            ("compose/package-deps.yml", "compose/release/approval-image.yml"),
+        )
+        consumers = {}
+        for name, service in config["services"].items():
+            private_mounts = [
+                mount["source"] for mount in service.get("volumes", ())
+                if mount["type"] == "bind" and any(
+                    mount["source"] == root or mount["source"].startswith(root + "/")
+                    for root in private_roots
+                )
+            ]
+            if private_mounts:
+                consumers[name] = service.get("user")
+        self.assertEqual(
+            {"package-stage", "release-approval-identity", "release-approval-context"},
+            set(consumers),
+            "Every new private approval mount requires an explicit identity review",
+        )
+        for service, user in consumers.items():
+            with self.subTest(service=service):
+                self.assertEqual(
+                    "1000:1000", user,
+                    "Private build services must consume the mapped Compose identity",
+                )
+
 
 class _ReleaseCommandHarness:
     """Run the real entrypoint and process helper with Bash function boundaries.
