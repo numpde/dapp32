@@ -1626,6 +1626,103 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             self.assertIn(f"OUTPUT_DIR={root / 'release/cam/continuation'}", calls[-1])
             self.assertEqual(1, len(list((root / "release/cam").glob("continuation-preparation-*/records/diagnostics"))))
 
+    def expired_cam_approval(self, records: Path, app: str, *, events: str = "expired") -> None:
+        import json
+
+        # One durable pending decision closed without approval or transmission.
+        # The fake phase exporter intentionally does not create a signed CAM
+        # artifact, so the next real action is a new approval, not verification.
+        (records / "partial").unlink(missing_ok=True)
+        reference = records / "approval-reference"
+        reference.mkdir(mode=0o700)
+        digest = "0x" + "a" * 64
+        sender = "0x" + "b" * 40
+        reference_file = reference / "reference.json"
+        reference_file.write_text(json.dumps({
+            "schema": "release-approval.cam-reference.v1", "app": app,
+            "snapshotSha256": digest, "expectedDeployer": sender,
+            "expectedChainId": 43113, "root": {"kind": "new"},
+        }))
+        reference_file.chmod(0o400)
+        audit_dir = records / "approval-audit"
+        audit_dir.mkdir(mode=0o700)
+        hash_value = "0x" + "c" * 64
+        pending = {"kind": "pending", "hash": hash_value, "sender": sender,
+                   "chainId": 43113, "nonce": 28,
+                   "referenceDigest": digest, "challenge": "fixture-challenge"}
+        closed = {"kind": "closed", "hash": hash_value, "reason": "approval expired"}
+        audit = [pending, closed]
+        if events == "approved":
+            audit.insert(1, {"kind": "approved", "hash": hash_value, "challenge": "fixture-challenge"})
+        elif events == "transmitting":
+            audit.insert(1, {"kind": "transmitting", "hash": hash_value})
+        elif events == "no-close":
+            audit.pop()
+        elif events == "wrong-reference":
+            pending["referenceDigest"] = "0x" + "d" * 64
+        elif events == "wrong-closure":
+            closed["hash"] = "0x" + "d" * 64
+        elif events == "wrong-app":
+            reference_file.chmod(0o600)
+            document = json.loads(reference_file.read_text())
+            document["app"] = "not-" + app
+            reference_file.write_text(json.dumps(document))
+            reference_file.chmod(0o400)
+        audit_file = audit_dir / "approval.jsonl"
+        audit_file.write_text("".join(json.dumps(item) + "\n" for item in audit))
+        audit_file.chmod(0o600)
+        if events == "truncated":
+            with audit_file.open("a") as stream:
+                stream.write('{"kind": "transmitt')
+        elif events == "symlink":
+            audit_file.unlink()
+            audit_file.symlink_to(reference_file)
+
+    def test_expired_untransmitted_cam_approval_can_be_retried_without_redeploying_components(self) -> None:
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                first, _ = self.invoke(root, app=app, operation="full", uri=True,
+                                       FAIL_TARGET=f"{app}/release/cam/publish")
+                self.assertEqual(23, first.returncode, first.stderr)
+                attempt = root / "release/cam"
+                self.expired_cam_approval(attempt, app)
+                resumed, calls = self.invoke(root, app=app, operation="full", uri=True)
+                self.assertEqual(0, resumed.returncode, resumed.stderr)
+                self.assertEqual(
+                    [f"{app}/release/{phase}" for phase in
+                     ("contracts/artifact", "ui/artifact", "cam/publish")],
+                    [call[0] for call in calls],
+                )
+                archived = list((root / "release").glob("cam-preparation-*/records"))
+                self.assertEqual(1, len(archived))
+                self.assertTrue((archived[0] / "approval-audit/approval.jsonl").is_file())
+                self.assertTrue((attempt / "artifact/cam-publication.json").is_file())
+                self.assertIn("no CAM transaction", resumed.stdout)
+
+    def test_cam_approval_recovery_refuses_uncertain_or_untrustworthy_audits(self) -> None:
+        for events in ("approved", "transmitting", "no-close", "wrong-reference",
+                       "wrong-closure", "wrong-app", "truncated", "symlink"):
+            with self.subTest(events=events), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                original, _ = self.invoke(root, app="pay-to-play", operation="full", uri=True,
+                                          FAIL_TARGET="pay-to-play/release/cam/publish")
+                self.assertEqual(23, original.returncode, original.stderr)
+                cam = root / "release/cam"
+                self.expired_cam_approval(cam, "pay-to-play", events=events)
+                resumed, calls = self.invoke(root, app="pay-to-play", operation="full", uri=True)
+                self.assertNotEqual(0, resumed.returncode)
+                self.assertEqual(
+                    ["pay-to-play/release/contracts/artifact", "pay-to-play/release/ui/artifact",
+                     "pay-to-play/release/cam/artifact"],
+                    [call[0] for call in calls],
+                )
+                self.assertTrue(cam.is_dir())
+                self.assertEqual([], list((root / "release").glob("cam-preparation-*/records")))
+                self.assertFalse((cam / "artifact/cam-publication.json").exists())
+
     def test_partial_publication_requires_new_invocation_and_only_continues_remaining_work(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
