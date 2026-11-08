@@ -14,6 +14,7 @@ on:
       - tests/checks/test_release_instance_launcher.py
       - tools/release_identity.py
       - tools/release_identity.sh
+      - tests/checks/test_release_identity.py
       - tools/release_approval_image_build.sh
       - tests/checks/test_release_approval_image.py
       - compose/release/approval-image.yml
@@ -34,6 +35,7 @@ on:
       - tests/checks/test_release_source_launcher.py
       - tools/release_identity.py
       - tools/release_identity.sh
+      - tests/checks/test_release_identity.py
       - tools/release_approval_image_build.sh
       - tests/checks/test_release_approval_image.py
       - compose/release/approval-image.yml
