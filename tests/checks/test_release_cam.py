@@ -75,6 +75,17 @@ release_cam_prepare_root_proof "$CASE_ROOT/publication"
         script = r'''
 source tools/release_tool_images.sh
 source tools/release_cam.sh
+source tools/release_identity.sh
+# Simulate one already-verified rootless mapping from the selected engine.
+# The fixture never contacts Docker or executes a user-namespace probe.
+LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)"
+RELEASE_CONTAINER_UID=0 RELEASE_CONTAINER_GID=0
+_release_identity_endpoint="$CAM_DOCKER_ENDPOINT"
+_release_identity_host="$LOCAL_UID:$LOCAL_GID"
+_release_identity_userns=default
+_release_identity_pair=0:0
+if [[ "$FAULT" == unmapped ]]; then unset _release_identity_pair; fi
+release_log_step() { shift 2; "$@"; }
 release_command_grace=15
 release_repository="$CASE_ROOT/repository"
 ceremony_root="$CASE_ROOT"
@@ -104,12 +115,13 @@ docker() { [[ "$1" == --host && "$2" == "$TEST_EXPECTED_DOCKER_ENDPOINT" ]] || r
     if [[ "$FAULT" == wrong-id ]]; then observed="$CHECKS_IMAGE"; fi
     printf '%s %s\n' "$observed" "$context"
   elif [[ "$1" == compose ]]; then
+    [[ "$LOCAL_UID:$LOCAL_GID" == 0:0 ]] || return 92
     printf '%s\n%s\n' "$CAM_COMPONENT_FOUNDRY_IMAGE" "$CAM_COMPONENT_CHECKS_IMAGE" > "$CASE_ROOT/executed-images"
   else return 90; fi
 }
 release_cam_export business "$SOURCE" source-contracts
 '''
-        for fault in ("none", "mutable-id", "wrong-context", "wrong-id"):
+        for fault in ("none", "mutable-id", "wrong-context", "wrong-id", "unmapped"):
             with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 (root / "repository/dapps/dependencies").mkdir(parents=True)
@@ -130,6 +142,45 @@ release_cam_export business "$SOURCE" source-contracts
                 else:
                     self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
                     self.assertFalse((root / "executed-images").exists())
+
+    def test_component_cleanup_uses_same_verified_mapped_identity(self):
+        script = r'''
+source tools/release_identity.sh
+source tools/release_cam.sh
+LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)"
+RELEASE_CONTAINER_UID=0 RELEASE_CONTAINER_GID=0
+_release_identity_endpoint="$CAM_DOCKER_ENDPOINT"
+_release_identity_host="$LOCAL_UID:$LOCAL_GID"
+_release_identity_userns=default
+_release_identity_pair=0:0
+if [[ "$FAULT" == unmapped ]]; then unset _release_identity_pair; fi
+release_command_grace=15
+RELEASE_SOURCE_DIR="$CASE_ROOT"
+release_cam_source_projects=(fixture)
+release_run_owned() { shift; "$@"; }
+docker() {
+  [[ "$1" == --host && "$2" == "$CAM_DOCKER_ENDPOINT" ]] || return 91
+  [[ "$LOCAL_UID:$LOCAL_GID" == 0:0 ]] || return 92
+  printf '%s\n' "$*" > "$CASE_ROOT/cleanup-call"
+}
+release_cam_sources_cleanup
+'''
+        for fault in ("none", "unmapped"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                result = subprocess.run(
+                    ["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
+                    env={**os.environ, "CASE_ROOT": str(root), "FAULT": fault,
+                         "CAM_DOCKER_ENDPOINT": "unix:///tmp/cam-source-fixture.sock"},
+                    capture_output=True, text=True, timeout=10,
+                )
+                if fault == "none":
+                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertIn("down --timeout 10 --volumes --remove-orphans",
+                                  (root / "cleanup-call").read_text())
+                else:
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertFalse((root / "cleanup-call").exists())
 
     def test_root_source_export_needs_only_its_native_source_file(self):
         script = r'''

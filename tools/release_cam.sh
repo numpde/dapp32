@@ -19,7 +19,7 @@ release_cam_select_root() {
 release_cam_sources_cleanup() {
   local project failed=0
   for project in "${release_cam_source_projects[@]}"; do
-    if ! COMPOSE_PROJECT_NAME="$project" ALLOW_UPDATE=0 release_run_owned "$release_command_grace" \
+    if ! COMPOSE_PROJECT_NAME="$project" ALLOW_UPDATE=0 release_with_mapped_owner release_run_owned "$release_command_grace" \
         docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -f "$RELEASE_SOURCE_DIR/compose/release/cam-source.yml" down --timeout 10 --volumes --remove-orphans >/dev/null; then failed=1; fi
   done
   return "$failed"
@@ -38,9 +38,12 @@ release_cam_export() {
   release_archive_source "$release_repository" "$commit" "$CAM_COMPONENT_SOURCE_DIR"
   cp -a -- "$release_repository/dapps/dependencies" "$CAM_COMPONENT_SOURCE_DIR/dapps/dependencies"
   release_cam_source_projects+=("$project")
-  COMPOSE_PROJECT_NAME="$project" ALLOW_UPDATE=0 release_run_owned "$release_command_grace" \
-    docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -f "$RELEASE_SOURCE_DIR/compose/release/cam-source.yml" run --rm release-cam-source \
-    > "$CAM_RELEASE_PREPARED_DIR/$class-compilation.log" 2>&1
+  # Archived sources and compiler outputs are operator-private. Reuse the
+  # selected engine mapping rather than the host's numeric UID/GID.
+  COMPOSE_PROJECT_NAME="$project" ALLOW_UPDATE=0 \
+    release_log_step "$CAM_RELEASE_PREPARED_DIR/$class-compilation.log" "Compiling original $class component" \
+      release_with_mapped_owner release_run_owned "$release_command_grace" \
+        docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -f "$RELEASE_SOURCE_DIR/compose/release/cam-source.yml" run --rm release-cam-source
 }
 
 release_cam_prepare_sources() {
