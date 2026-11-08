@@ -8,18 +8,18 @@
   <script src="../theme.js"></script>
 <link rel="stylesheet" href="../site.css">
   <style>
-    .deployment-list { display: grid; gap: 28px; margin-block: 24px 40px; }
+    .deployment-list { display: grid; gap: 24px; margin-block: 20px 32px; }
     .deployment { scroll-margin-top: 100px; }
-    .deployment h2 { margin: 0; }
-    .deployment h3 { margin: 28px 0 8px; }
-    .deployment-chooser { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-block: 16px 22px; }
-    .deployment-chooser label { color: var(--muted); font-weight: 650; }
-    .deployment-chooser select { max-width: 100%; min-width: min(18rem, 100%); padding: 8px 12px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; }
+    .deployment-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-bottom: 12px; }
+    .deployment-heading h2 { margin: 0; }
+    .deployment-heading select { flex: 0 1 17rem; }
+    .deployment .actions { margin-top: 16px; }
+    .deployment h3 { margin: 24px 0 8px; }
     .verification-link { display: block; margin-top: 6px; font-size: .85rem; }
     .network, .sources { color: var(--muted); }
     .deployment-jump { display: flex; flex-wrap: wrap; gap: 8px 24px; }
     .rpc-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 12px; }
-    .rpc-controls select, .rpc-controls input { box-sizing: border-box; max-width: 100%; min-width: 0; padding: 8px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; }
+    .deployment-heading select, .rpc-controls select, .rpc-controls input { box-sizing: border-box; max-width: 100%; min-width: 0; padding: 8px 10px; font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; }
     .rpc-controls input { flex: 1 1 18rem; }
     .rpc-controls input[aria-invalid="true"] { border-color: #b42318; }
     .contracts { margin: 0; }
