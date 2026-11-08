@@ -85,7 +85,11 @@ function deploymentCard(deployment, viewer, catalog, embedded = false) {
   if (!network) throw new Error(`Unknown network: ${deployment.network}.`);
   const card = element(embedded ? 'div' : 'article', undefined, embedded ? 'deployment-instance' : 'card deployment');
   card.id = deployment.id;
-  if (!embedded) card.append(element('h2', deployment.name));
+  if (!embedded) {
+    const heading = element('div', undefined, 'deployment-heading');
+    heading.append(element('h2', deployment.name));
+    card.append(heading);
+  }
   const mainnet = catalog[network.mainnet];
   card.append(element('p', `${network.name}${mainnet ? ` (${mainnet.name} testnet)` : ''} · Chain ${network.chainId}`, 'network'));
   const viewerURL = new URL(viewer);
@@ -284,19 +288,18 @@ async function load() {
       }
       const ordered = [...deployments].sort((a, b) => b.deployedAt.localeCompare(a.deployedAt));
       const group = element('article', undefined, 'card deployment');
-      group.append(element('h2', deployments[0].name));
-      const chooser = element('div', undefined, 'deployment-chooser');
-      const label = element('label', 'Deployment');
+      const heading = element('div', undefined, 'deployment-heading');
+      heading.append(element('h2', deployments[0].name));
       const select = element('select');
       select.id = `deployment-select-${deployments[0].appId}`;
-      label.htmlFor = select.id;
+      select.setAttribute('aria-label', `${deployments[0].name} deployment`);
       for (const [index, deployment] of ordered.entries()) {
         const option = element('option', `${deployment.deployedAt}${index === 0 ? ' · Latest' : ''}`);
         option.value = deployment.id;
         select.append(option);
       }
-      chooser.append(label, select);
-      group.append(chooser);
+      heading.append(select);
+      group.append(heading);
       const details = element('div');
       group.append(details);
       const jumpLink = link(`#${ordered[0].id}`, deployments[0].name);
