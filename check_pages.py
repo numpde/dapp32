@@ -460,7 +460,7 @@ def check_deployments(root: Path, repo_root: Path) -> None:
         assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", app_id)
         applications.setdefault(app_id, []).append(deployment)
         if "deployedAt" in deployment:
-            assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", deployment["deployedAt"])
+            assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", deployment["deployedAt"])
             import datetime
             datetime.date.fromisoformat(deployment["deployedAt"])
         assert deployment["name"] and deployment["network"] in catalog
