@@ -183,6 +183,40 @@ release_cam_sources_cleanup
                     self.assertFalse((root / "cleanup-call").exists())
 
 
+    def test_bundle_recovery_preserves_commit_values_after_gnu_make_expansion(self):
+        # Test the real recipe lines under GNU Make, not just the Bash helper.
+        # Extract only this side-effect-free boundary: the full release target
+        # can start containers and must never be executed by this check.
+        source = (ROOT / "Makefile").read_text()
+        bundle = source.split("\ndefine release_cam_bundle\n", 1)[1].split("\nendef", 1)[0]
+        def recipe_line(prefix):
+            lines = [line.strip() for line in bundle.splitlines()
+                     if line.strip().startswith(prefix)]
+            self.assertEqual(1, len(lines), (prefix, lines))
+            return lines[0]
+        review = recipe_line("release_review_tool_delta ")
+        receipt = recipe_line("printf '%s\\n' ")
+        saved, tooling = "a" * 40, "b" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / "inputs").mkdir()
+            makefile = output / "Makefile"
+            makefile.write_text(
+                "SHELL := /bin/bash\ncheck:\n"
+                "\t@set -euo pipefail; \\\n"
+                f"\tCAM_RELEASE_SOURCE_COMMIT={saved}; source_commit={tooling}; output_dir={output}; \\\n"
+                '\trelease_review_tool_delta() { printf "%s\\n" "$1" "$2" "$3"; }; \\\n'
+                f"\t{review}\n"
+                f"\t{receipt}\n"
+            )
+            result = subprocess.run(["make", "--no-print-directory", "-s",
+                                     "-f", str(makefile), "check"], cwd=ROOT,
+                                    capture_output=True, text=True, timeout=5)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual([str(ROOT), saved, tooling], result.stdout.splitlines())
+            self.assertEqual(tooling + "\n",
+                             (output / "inputs/preparation-tool-commit").read_text())
+
     def test_review_keyless_recovery_uses_explicit_accepted_tooling(self):
         import pty
 
