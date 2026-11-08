@@ -30,7 +30,8 @@
           }
         }
       ],
-      "hostSource": "https://github.com/numpde/dapp32/blob/5cd938b45fa2652422a14f95e1844307e7044f58/dapps/cam/src/CamRoot.sol"
+      "hostSource": "https://github.com/numpde/dapp32/blob/5cd938b45fa2652422a14f95e1844307e7044f58/dapps/cam/src/CamRoot.sol",
+      "appId": "bike-nft"
     },
     {
       "id": "pay-to-play-fuji",
@@ -54,7 +55,38 @@
           }
         }
       ],
-      "hostSource": "https://github.com/numpde/dapp32/blob/39336c8897acdc9ce2061562714220bc7996d6f3/dapps/cam/src/CamRoot.sol"
+      "hostSource": "https://github.com/numpde/dapp32/blob/39336c8897acdc9ce2061562714220bc7996d6f3/dapps/cam/src/CamRoot.sol",
+      "appId": "pay-to-play",
+      "deployedAt": "2026-10-30"
+    },
+    {
+      "id": "pay-to-play-fuji-2026-11-08",
+      "name": "Pay-to-Play",
+      "appId": "pay-to-play",
+      "deployedAt": "2026-11-08",
+      "guide": "../pay-to-play/",
+      "network": "avalanche-fuji",
+      "host": "0xaF64d347fAAC6aEC8a80F2fc8420681619A9FA49",
+      "contracts": [
+        {
+          "name": "PayToPlay",
+          "source": {
+            "address": "0xfD4daAfCae28b7037ccb87D54B89C657e79be19f",
+            "url": "https://github.com/numpde/dapp32/blob/0c33dceb4697fe5b7b5ba0d14d4bb0d61b6b3696/dapps/pay-to-play/src/PayToPlay.sol",
+            "verificationUrl": "https://repo.sourcify.dev/43113/0xfD4daAfCae28b7037ccb87D54B89C657e79be19f"
+          }
+        },
+        {
+          "name": "PayToPlayUI",
+          "source": {
+            "address": "0x3db3a1475034ca2c991ae8549b5452741a4f48f2",
+            "url": "https://github.com/numpde/dapp32/blob/0c33dceb4697fe5b7b5ba0d14d4bb0d61b6b3696/dapps/pay-to-play/src/PayToPlayUI.sol",
+            "verificationUrl": "https://repo.sourcify.dev/43113/0x3db3a1475034ca2c991ae8549b5452741a4f48f2"
+          }
+        }
+      ],
+      "hostSource": "https://github.com/numpde/dapp32/blob/0c33dceb4697fe5b7b5ba0d14d4bb0d61b6b3696/dapps/cam/src/CamRoot.sol",
+      "hostVerificationUrl": "https://repo.sourcify.dev/43113/0xaF64d347fAAC6aEC8a80F2fc8420681619A9FA49"
     }
   ]
 }

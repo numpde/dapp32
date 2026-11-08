@@ -5,6 +5,7 @@ on:
     paths:
       - '**/*.html'
       - check_pages.py
+      - 'deployments/deployments.json'
       - check_reference.py
       - theme.js
       - site.css
@@ -15,6 +16,7 @@ on:
     paths:
       - '**/*.html'
       - check_pages.py
+      - 'deployments/deployments.json'
       - check_reference.py
       - theme.js
       - site.css

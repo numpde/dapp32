@@ -80,12 +80,12 @@ function addressValue(address, name, explorer) {
   return value;
 }
 
-function deploymentCard(deployment, viewer, catalog) {
+function deploymentCard(deployment, viewer, catalog, embedded = false) {
   const network = catalog[deployment.network];
   if (!network) throw new Error(`Unknown network: ${deployment.network}.`);
-  const card = element('article', undefined, 'card deployment');
+  const card = element(embedded ? 'div' : 'article', undefined, embedded ? 'deployment-instance' : 'card deployment');
   card.id = deployment.id;
-  card.append(element('h2', deployment.name));
+  if (!embedded) card.append(element('h2', deployment.name));
   const mainnet = catalog[network.mainnet];
   card.append(element('p', `${network.name}${mainnet ? ` (${mainnet.name} testnet)` : ''} · Chain ${network.chainId}`, 'network'));
   const viewerURL = new URL(viewer);
@@ -96,16 +96,17 @@ function deploymentCard(deployment, viewer, catalog) {
   card.append(actions);
   card.append(element('h3', 'Contracts'));
   const contracts = element('dl', undefined, 'contracts');
-  function contractRow(name, address, source) {
+  function contractRow(name, address, source, verification) {
     const row = element('div');
     const value = element('dd');
     value.append(address === null ? element('span', 'Not bound') : addressValue(address, name, network.explorer));
+    if (verification) value.append(link(verification, 'Sourcify · exact match', 'verification-link'));
     const label = element('dt');
     label.append(source === undefined ? name : link(source, name));
     row.append(label, value);
     return row;
   }
-  contracts.append(contractRow('CAM root', deployment.host, deployment.hostSource));
+  contracts.append(contractRow('CAM root', deployment.host, deployment.hostSource, deployment.hostVerificationUrl));
   const rpcControls = element('div', undefined, 'rpc-controls');
   const rpcSelect = element('select');
   rpcSelect.setAttribute('aria-label', 'RPC endpoint');
@@ -145,7 +146,7 @@ function deploymentCard(deployment, viewer, catalog) {
     bindingStatus.hidden = true;
     retryBindings.hidden = true;
     customRPC.removeAttribute('aria-invalid');
-    contracts.replaceChildren(contractRow('CAM root', deployment.host, deployment.hostSource));
+    contracts.replaceChildren(contractRow('CAM root', deployment.host, deployment.hostSource, deployment.hostVerificationUrl));
   }
   async function loadBindings() {
     resetBindings();
@@ -168,8 +169,8 @@ function deploymentCard(deployment, viewer, catalog) {
         if (!/^0x0{24}[0-9a-fA-F]{40}$/.test(result)) throw new Error(`Invalid contract address returned for ${name}.`);
         const address = `0x${result.slice(-40)}`;
         const bound = /^0x0{40}$/.test(address) ? null : address;
-        const sourceURL = bound !== null && bound.toLowerCase() === source.address.toLowerCase() ? source.url : undefined;
-        return contractRow(name, bound, sourceURL);
+        const sourceMatches = bound !== null && bound.toLowerCase() === source.address.toLowerCase();
+        return contractRow(name, bound, sourceMatches ? source.url : undefined, sourceMatches ? source.verificationUrl : undefined);
       }));
       if (attempt.signal.aborted) return;
       contracts.append(...rows);
@@ -199,6 +200,7 @@ function deploymentCard(deployment, viewer, catalog) {
   retryBindings.addEventListener('click', () => { void loadBindings(); });
   card.append(rpcControls, contracts, bindingStatus, retryBindings);
   if (rpcSelect.value) void loadBindings();
+  card.cancelBindings = () => { clearTimeout(debounce); pendingRPC?.abort(); };
   return card;
 }
 
@@ -229,23 +231,102 @@ async function readJSON(url) {
   return response.json();
 }
 
+function groupDeployments(deployments) {
+  const groups = new Map();
+  for (const deployment of deployments) {
+    const key = deployment.appId || deployment.id;
+    if (!groups.has(key)) groups.set(key, []);
+    const group = groups.get(key);
+    if (group.length && group[0].name !== deployment.name) throw new Error(`Inconsistent application name: ${key}.`);
+    group.push(deployment);
+  }
+  return [...groups.values()];
+}
+
+let selectableGroups = [];
+function selectionFromHash() {
+  const id = decodeURIComponent(location.hash.slice(1));
+  for (const group of selectableGroups) {
+    if (group.ids.has(id)) {
+      group.show(id);
+      document.getElementById(id)?.scrollIntoView();
+      return;
+    }
+  }
+}
+window.addEventListener('hashchange', selectionFromHash);
+
 async function load() {
   retry.hidden = true;
   status.hidden = false;
   status.setAttribute('role', 'status');
   status.textContent = 'Loading deployments…';
+  selectableGroups.forEach(group => group.cancel());
+  selectableGroups = [];
   list.replaceChildren();
   const jump = document.querySelector('#deployment-jump');
   jump.replaceChildren();
   jump.hidden = true;
   try {
     const [data, catalog] = await Promise.all([readJSON('./deployments.json'), readJSON(catalogURL)]);
-    const cards = data.deployments.map(deployment => deploymentCard(deployment, data.viewer, catalog));
-    for (const card of cards) jump.append(link(`#${card.id}`, card.querySelector('h2').textContent));
-    jump.hidden = cards.length < 2;
-    list.append(...cards);
-    status.textContent = cards.length ? '' : 'No deployments are listed yet.';
-    status.hidden = cards.length > 0;
+    const groups = groupDeployments(data.deployments);
+    const requested = decodeURIComponent(location.hash.slice(1));
+    const rendered = [];
+    for (const deployments of groups) {
+      if (deployments.length === 1) {
+        const card = deploymentCard(deployments[0], data.viewer, catalog);
+        rendered.push(card);
+        jump.append(link(`#${card.id}`, deployments[0].name));
+        continue;
+      }
+      if (deployments.some(deployment => !/^\d{4}-\d{2}-\d{2}$/.test(deployment.deployedAt))) {
+        throw new Error(`Deployment dates are missing for ${deployments[0].name}.`);
+      }
+      const ordered = [...deployments].sort((a, b) => b.deployedAt.localeCompare(a.deployedAt));
+      const group = element('article', undefined, 'card deployment');
+      group.append(element('h2', deployments[0].name));
+      const chooser = element('div', undefined, 'deployment-chooser');
+      const label = element('label', 'Deployment');
+      const select = element('select');
+      select.id = `deployment-select-${deployments[0].appId}`;
+      label.htmlFor = select.id;
+      for (const [index, deployment] of ordered.entries()) {
+        const option = element('option', `${deployment.deployedAt}${index === 0 ? ' · Latest' : ''}`);
+        option.value = deployment.id;
+        select.append(option);
+      }
+      chooser.append(label, select);
+      group.append(chooser);
+      const details = element('div');
+      group.append(details);
+      const jumpLink = link(`#${ordered[0].id}`, deployments[0].name);
+      let active;
+      function show(id) {
+        if (active?.id === id) return;
+        const deployment = ordered.find(item => item.id === id);
+        if (!deployment) return;
+        active?.cancelBindings();
+        active = deploymentCard(deployment, data.viewer, catalog, true);
+        details.replaceChildren(active);
+        select.value = id;
+        jumpLink.href = `#${id}`;
+      }
+      select.addEventListener('change', () => {
+        show(select.value);
+        location.hash = select.value;
+      });
+      show(ordered.some(item => item.id === requested) ? requested : ordered[0].id);
+      selectableGroups.push({ ids: new Set(ordered.map(item => item.id)), show, cancel: () => active?.cancelBindings() });
+      jump.append(jumpLink);
+      rendered.push(group);
+    }
+    list.append(...rendered);
+    jump.hidden = rendered.length < 2;
+    status.textContent = rendered.length ? '' : 'No deployments are listed yet.';
+    status.hidden = rendered.length > 0;
+    if (requested && data.deployments.some(deployment => deployment.id === requested)) {
+      document.getElementById(requested)?.scrollIntoView();
+    }
   } catch (error) {
     status.setAttribute('role', 'alert');
     status.textContent = `Cannot load deployments: ${error.message}`;
