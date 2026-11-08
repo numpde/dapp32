@@ -16,6 +16,9 @@ on:
       - tools/release_identity.sh
       - tests/checks/test_release_identity.py
       - tools/release_approval_image_build.sh
+      - containers/release-approval/prepare-context.test.mjs
+      - containers/release-approval/prepare-context.mjs
+      - containers/release-approval/approval-inputs.mjs
       - tests/checks/test_release_approval_image.py
       - compose/release/approval-image.yml
       - compose/package-deps.yml
@@ -37,6 +40,9 @@ on:
       - tools/release_identity.sh
       - tests/checks/test_release_identity.py
       - tools/release_approval_image_build.sh
+      - containers/release-approval/prepare-context.test.mjs
+      - containers/release-approval/prepare-context.mjs
+      - containers/release-approval/approval-inputs.mjs
       - tests/checks/test_release_approval_image.py
       - compose/release/approval-image.yml
       - compose/package-deps.yml
@@ -76,3 +82,5 @@ jobs:
           npm run build:packages
           ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json
           node --test --experimental-strip-types tools/release-approval/source-publication.test.ts
+      - name: Qualify approval image host builder under non-root runner
+        run: node --experimental-strip-types --test containers/release-approval/prepare-context.test.mjs

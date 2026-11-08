@@ -9,6 +9,12 @@ import test from 'node:test'
 import { prepareContext, RUNTIME_SOURCES } from './prepare-context.mjs'
 import { approvalInputDigest } from './approval-inputs.mjs'
 
+// The approval-context container can legitimately run as UID 0 under a
+// rootless Docker engine. Host script tests belong on the non-root host;
+// runtime staging tests stay active inside the isolated container.
+const hostBuilderUnavailable = process.env.RELEASE_APPROVAL_TEST_SOURCE !== undefined || process.getuid() === 0
+const hostBuilderOptions = { skip: hostBuilderUnavailable ? 'host-only builder test requires a non-root host operator' : false }
+
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'approval-image-test-'))
   t.after(() => rm(root, { recursive: true, force: true }))
@@ -93,7 +99,7 @@ test('requires a fresh empty output directory', async t => {
   await assert.rejects(prepareContext(f), /empty/)
 })
 
-test('image artifact path must be a new normalized external directory without symlink ancestors', async t => {
+test('image artifact path must be a new normalized external directory without symlink ancestors', hostBuilderOptions, async t => {
   const root = await mkdtemp(join(tmpdir(), 'approval-output-test-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const real = join(root, 'real')
@@ -119,7 +125,7 @@ test('image artifact path must be a new normalized external directory without sy
   await assert.rejects(lstat(validPath), { code: 'ENOENT' })
 })
 
-test('image builder gives Compose a valid project name for mixed-case temporary paths', async t => {
+test('image builder gives Compose a valid project name for mixed-case temporary paths', hostBuilderOptions, async t => {
   const root = await mkdtemp(join(tmpdir(), 'approval-project-name-test-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const fixtureSource = join(root, 'source')
@@ -162,8 +168,11 @@ timeout() {
   "$@"
 }
 docker() {
+  [[ "$1" == --host && "$2" == "$CAM_DOCKER_ENDPOINT" ]] || return 92
+  shift 2
   printf '%s\\n' "$*" >> "$APPROVAL_TEST_DOCKER_LOG"
   if [[ "$1" == compose ]]; then
+    [[ "\${LOCAL_UID-}:\${LOCAL_GID-}" == "0:0" ]] || return 90
     local project
     while [[ "$1" != -p ]]; do shift; done
     project="$2"
@@ -226,12 +235,21 @@ mktemp() {
     /usr/bin/mktemp "$@"
   fi
 }
-export -f setsid timeout docker git mktemp
+python3() {
+  [[ "$1" == -I && "$2" == -S && "$3" == -B &&
+     "$4" == tools/release_identity.py &&
+     "$5" == --endpoint && "$6" == "$CAM_DOCKER_ENDPOINT" &&
+     "$7" == --image && "$8" == docker.io/library/python:3.13-alpine@sha256:* ]] || return 99
+  printf 'identity-probe %s mapped=0:0\\n' "$CAM_DOCKER_ENDPOINT" >> "$APPROVAL_TEST_DOCKER_LOG"
+  printf '0:0\\n'
+}
+export -f setsid timeout docker git mktemp python3
 exec bash "$@"
 `
   const testEnv = {
     ...process.env,
     APPROVAL_TEST_DOCKER_LOG: log,
+    CAM_DOCKER_ENDPOINT: 'unix:///tmp/approval-project-test.sock',
     APPROVAL_TEST_IMAGE_ID: imageId,
     APPROVAL_TEST_SOURCE_COMMIT: sourceCommit,
     APPROVAL_TEST_SOURCE: fixtureSource,
@@ -243,6 +261,10 @@ exec bash "$@"
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   const composeCalls = (await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('compose '))
+  const allCalls = (await readFile(log, 'utf8')).split('\n')
+  const probe = allCalls.findIndex(call => call.startsWith('identity-probe '))
+  const firstCompose = allCalls.findIndex(call => call.startsWith('compose '))
+  assert.ok(probe >= 0 && probe < firstCompose, 'the selected engine is probed before private Compose use')
   const prerequisite = composeCalls.findIndex(call => call.includes('config --images'))
   const identity = composeCalls.findIndex(call => call.includes(' run ') && call.includes('release-approval-identity'))
   assert.ok(prerequisite >= 0, 'prerequisites are resolved before starting the identity container')
