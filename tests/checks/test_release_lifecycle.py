@@ -245,6 +245,34 @@ release_approval_run "$CASE_ROOT/output"
                 if failure == "approval": self.assertLess(events.index("sync"), events.index(approval))
                 self.assertFalse(any(event.endswith(" deploy-release") for event in events))
 
+    def test_failed_cam_keyless_completion_preserves_evidence_without_self_retry_advice(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = r'''
+source tools/release_approval_deploy.sh
+CAM_RELEASE_APP=pay-to-play
+compose_release() {
+  printf '%s\n' 'fixture: verification dependency stage failed' >&2
+  return 17
+}
+release_materialize_cam "$CASE_ROOT"
+'''
+            result = subprocess.run(
+                ["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
+                env={**os.environ, "CASE_ROOT": str(root)},
+                capture_output=True, text=True, timeout=5,
+            )
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            self.assertIn("could not establish a completed publication", result.stderr)
+            self.assertIn("earlier approval", result.stderr)
+            self.assertIn("approval-audit/approval.jsonl", result.stderr)
+            self.assertNotIn("Complete records keylessly: make", result.stderr)
+            self.assertNotIn("Resume with fresh approval", result.stderr)
+            logs = list(root.glob("cam-verification-*/verification.log"))
+            self.assertEqual(1, len(logs))
+            self.assertIn("verification dependency stage failed", logs[0].read_text())
+            self.assertFalse((root / "artifact/cam-attempt.json").exists())
+
     def test_cam_without_transactions_retains_preparation_until_materialization_succeeds(self):
         for success in (False, True):
             with self.subTest(success=success), tempfile.TemporaryDirectory() as directory:

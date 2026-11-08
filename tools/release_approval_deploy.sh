@@ -366,12 +366,11 @@ release_materialize_cam() {
     fi
     return 3
   fi
-  printf 'CAM root records are incomplete. Verification sent no transactions. Diagnostics: %s\n' "$log" >&2
-  if [[ -n "${RELEASE_INSTANCE_ROOT-}" ]]; then
-    printf 'Complete records keylessly: make %q INSTANCE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$RELEASE_INSTANCE_ROOT" >&2
-  else
-    printf 'Complete records keylessly: make %q CONFIG=%q CAM_RECORDS=%q CAM_BUNDLE=%q\n' "$CAM_RELEASE_APP/release/cam/artifact" "$CONFIG" "$output" "$CAM_RELEASE_PREPARED_DIR" >&2
-  fi
+  printf 'CAM verification could not establish a completed publication or a usable partial CAM attempt. Keyless verification sent no transactions. Diagnostics: %s\n' "$log" >&2
+  printf '%s\n' 'An earlier approval session could still have transmitted a CAM transaction; absence of an attempt artifact does not establish that it did not.' >&2
+  printf '%s\n' 'Review the retained verification log and approval audit before deciding whether CAM publication needs to resume or restart.' >&2
+  printf 'Approval audit (if created): %s/approval-audit/approval.jsonl\n' "$output" >&2
+  printf '%s\n' 'Repeating the same keyless artifact command without resolving the recorded failure will not repair it. Business, UI and CAM records remain intact.' >&2
   return 1
 }
 

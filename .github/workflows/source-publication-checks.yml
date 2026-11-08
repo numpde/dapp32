@@ -84,7 +84,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run focused source publication tests
-        run: python3 -m unittest -v tests.checks.test_release_source tests.checks.test_release_identity tests.checks.test_release_approval_image tests.checks.test_release_approval_diagnostics tests.checks.test_release_cam tests.checks.test_release_source_launcher tests.checks.test_release_instance_launcher tests.checks.test_release_lifecycle.ReleaseFullCompositionTests
+        run: python3 -m unittest -v tests.checks.test_release_source tests.checks.test_release_identity tests.checks.test_release_approval_image tests.checks.test_release_approval_diagnostics tests.checks.test_release_cam tests.checks.test_release_source_launcher tests.checks.test_release_instance_launcher tests.checks.test_release_lifecycle.ReleaseFullCompositionTests tests.checks.test_release_lifecycle.ReleaseLifecycleTest.test_failed_cam_keyless_completion_preserves_evidence_without_self_retry_advice
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
