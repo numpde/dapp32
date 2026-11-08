@@ -401,7 +401,8 @@ release_approval_run() {
   # The plan already ran to produce the reference. Never restart a completed
   # predecessor or an approval service that the operator has cancelled.
   compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-rpc-proxy
-  release_approval_end_preparation "$output" || return
+  # Retain the preparation marker while the operator decides to start.
+  # No signer can run merely because the approval gate was started.
   compose_release up -d --no-build --no-deps release-approval
   gate_id="$(release_approval_service_id release-approval)" || return
   release_approval_show_startup "$gate_id"
@@ -438,6 +439,9 @@ release_approval_run() {
   # docker attach disables output postprocessing as well as input editing.
   # Host progress needs newline translation; approval keys must remain raw.
   stty opost onlcr
+  # The next command can dispatch the on-chain signer. Keep unstarted
+  # approval attempts identifiable, but persist this boundary first.
+  release_approval_end_preparation "$output" || return
   compose_release up -d --no-build --no-deps deploy-release
   forge_id="$(release_approval_service_id deploy-release)" || return
 

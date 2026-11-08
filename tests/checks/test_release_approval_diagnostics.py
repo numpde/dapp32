@@ -48,6 +48,76 @@ if release_approval_wait_service release-reference-prepare 720; then exit 9; fi
             self.assertIn(str(diagnostic), result.stderr)
             self.assertNotIn("current binding differs", result.stderr)
 
+    def test_unstarted_approval_stays_in_preparation_until_signer_dispatch(self) -> None:
+        import socket
+
+        # Exercise the actual approval launcher against a fake Docker engine:
+        # neither case has a signing key, RPC service, or executable signer.
+        for socket_ready in (False, True):
+            with self.subTest(socket_ready=socket_ready), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "socket").mkdir()
+                (root / "preparation-only").write_text("", encoding="utf-8")
+                fixture_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                try:
+                    if socket_ready:
+                        fixture_socket.bind(str(root / "socket" / "rpc.sock"))
+                    script = r'''
+set -euo pipefail
+source tools/release_approval_deploy.sh
+release_operation=contracts
+RELEASE_APPROVAL_SOCKET_DIR="$CASE_ROOT/socket"
+release_process_signal=0
+release_process_spawning=0
+release_approval_show_startup() { :; }
+release_approval_service_id() {
+  if [[ "$1" == release-approval ]]; then printf 'fixture-gate\n'; return; fi
+  if [[ "$1" == deploy-release ]]; then return 71; fi
+  return 72
+}
+compose_release() {
+  printf '%s\n' "$*" >> "$CASE_ROOT/compose-calls"
+  return 0
+}
+docker() {
+  [[ "$1" == --host && "$2" == "$CAM_DOCKER_ENDPOINT" ]] || return 73
+  shift 2
+  if [[ "$1" == attach ]]; then sleep 5; return; fi
+  if [[ "$1" == inspect ]]; then
+    if [[ "$*" == *State.Health.Status* ]]; then printf 'healthy\n'
+    else printf 'false\n'; fi
+    return
+  fi
+  return 74
+}
+stty() { if [[ "$1" == -g ]]; then printf 'fixture-tty\n'; fi; }
+result=0
+release_approval_run "$CASE_ROOT" || result=$?
+if [[ -n "${release_approval_attach_pid-}" ]]; then
+  kill "$release_approval_attach_pid" 2>/dev/null || :
+  wait "$release_approval_attach_pid" 2>/dev/null || :
+fi
+[[ "$result" != 0 ]]
+if [[ "$GATE_READY" == 1 ]]; then
+  [[ ! -e "$CASE_ROOT/preparation-only" ]]
+  grep -q 'up -d --no-build --no-deps deploy-release' "$CASE_ROOT/compose-calls"
+else
+  [[ -f "$CASE_ROOT/preparation-only" ]]
+  ! grep -q 'up -d --no-build --no-deps deploy-release' "$CASE_ROOT/compose-calls"
+fi
+'''
+                    result = subprocess.run(
+                        ["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
+                        env={**os.environ, "CASE_ROOT": str(root),
+                             "CAM_DOCKER_ENDPOINT": "unix:///tmp/approval-fixture.sock",
+                             "GATE_READY": "1" if socket_ready else "0"},
+                        capture_output=True, text=True, timeout=10,
+                    )
+                    self.assertEqual(0, result.returncode,
+                                     result.stdout + result.stderr)
+                finally:
+                    fixture_socket.close()
+
     def test_live_private_logs_and_prompts_survive_chunk_boundaries_and_tail_eviction(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "approval-pty.log"

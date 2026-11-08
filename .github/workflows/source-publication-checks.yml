@@ -16,6 +16,8 @@ on:
       - tools/release_identity.sh
       - tests/checks/test_release_identity.py
       - tools/release_approval_image_build.sh
+      - tools/release_approval_deploy.sh
+      - tests/checks/test_release_approval_diagnostics.py
       - containers/release-approval/prepare-context.test.mjs
       - containers/release-approval/prepare-context.mjs
       - containers/release-approval/approval-inputs.mjs
@@ -40,6 +42,8 @@ on:
       - tools/release_identity.sh
       - tests/checks/test_release_identity.py
       - tools/release_approval_image_build.sh
+      - tools/release_approval_deploy.sh
+      - tests/checks/test_release_approval_diagnostics.py
       - containers/release-approval/prepare-context.test.mjs
       - containers/release-approval/prepare-context.mjs
       - containers/release-approval/approval-inputs.mjs
@@ -68,7 +72,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run focused source publication tests
-        run: python3 -m unittest -v tests.checks.test_release_source tests.checks.test_release_identity tests.checks.test_release_approval_image tests.checks.test_release_source_launcher tests.checks.test_release_instance_launcher
+        run: python3 -m unittest -v tests.checks.test_release_source tests.checks.test_release_identity tests.checks.test_release_approval_image tests.checks.test_release_approval_diagnostics tests.checks.test_release_source_launcher tests.checks.test_release_instance_launcher
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
