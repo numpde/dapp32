@@ -170,6 +170,23 @@ try {
   ])
   assert.equal(await evaluate('document.querySelector("#deployment-select-fixture-app").value'), 'fixture-new')
   assert.equal(await evaluate('document.querySelector(".deployment-instance").id'), 'fixture-new')
+  assert.equal(await evaluate('document.querySelector(".deployment-heading select").getAttribute("aria-label")'), 'Bicycle component registry deployment')
+  assert.equal(await evaluate('document.querySelectorAll(".deployment-chooser").length'), 0, 'No separate chooser row')
+  for (const width of [1280, 320]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false })
+    const layout = await evaluate(`(() => {
+      const heading = document.querySelector('.deployment-heading h2').getBoundingClientRect()
+      const picker = document.querySelector('.deployment-heading select').getBoundingClientRect()
+      return {
+        inline: picker.left >= heading.right + 8 && Math.abs((picker.top + picker.bottom) - (heading.top + heading.bottom)) < 12,
+        wrapped: picker.top >= heading.bottom,
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+      }
+    })()`)
+    assert(!layout.overflow, `Deployment heading overflows at ${width}px`)
+    assert(width === 1280 ? layout.inline : layout.wrapped, `Deployment selector layout at ${width}px: ${JSON.stringify(layout)}`)
+  }
+  await call('Emulation.clearDeviceMetricsOverride')
   assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a").href).searchParams.get("host")'), host)
   observed = []
   await evaluate('document.querySelector("#deployment-select-fixture-app").value="fixture-old";document.querySelector("#deployment-select-fixture-app").dispatchEvent(new Event("change"))')
