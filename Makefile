@@ -2122,7 +2122,9 @@ rpc/indexer/up:
 	case "$$RPC_URL_FILE" in */./*|*/../*|*//*) printf '%s\n' 'RPC_URL_FILE must be a normalized absolute path.' >&2; exit 2 ;; esac; \
 	case "$$RPC_URL_FILE" in "$$(pwd -P)"/*) printf '%s\n' 'RPC_URL_FILE must be outside the repository.' >&2; exit 2 ;; esac; \
 	if [[ "$$(stat -c %u -- "$$RPC_URL_FILE")" != "$(LOCAL_UID)" ]]; then printf '%s\n' 'RPC_URL_FILE must be owned by LOCAL_UID so the proxy can read it.' >&2; exit 2; fi; \
-	$(RPC_INDEXER_COMPOSE_ENV) RPC_URL_FILE="$$RPC_URL_FILE" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/rpc-indexer.yml up --build -d --wait --wait-timeout 30 rpc-proxy; \
+	$(select_host_output_identity); \
+	LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing verified container UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing verified container GID}" \
+	  $(RPC_INDEXER_COMPOSE_ENV) RPC_URL_FILE="$$RPC_URL_FILE" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/rpc-indexer.yml up --build -d --wait --wait-timeout 30 rpc-proxy; \
 	printf 'Client network: %s_rpc_internal\nRPC URL: http://%s-rpc:8080\n' "$(RPC_INDEXER_COMPOSE_PROJECT_NAME)" "$(RPC_INDEXER_COMPOSE_PROJECT_NAME)"
 
 rpc/indexer/logs:
@@ -2515,7 +2517,9 @@ endef
 
 pay-to-play/refunds/plan:
 	@$(refund_input_guards); \
-	env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_PLAN_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+	$(select_host_output_identity); \
+	LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing verified container UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing verified container GID}" \
+	  env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_PLAN_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
 
 pay-to-play/refunds/run:
 	@$(refund_input_guards); \
@@ -2526,7 +2530,9 @@ pay-to-play/refunds/run:
 	reject_release_path_symlinks "$$state" REFUND_STATE_DIR; \
 	if [[ ! -d "$$state" || "$$(stat -c %a -- "$$state")" != 700 || "$$(stat -c %u -- "$$state")" != "$(LOCAL_UID)" ]]; then printf '%s\n' 'Pre-create REFUND_STATE_DIR owned by LOCAL_UID with mode 0700.' >&2; exit 2; fi; \
 	case "$$state" in "$$(pwd -P)"|"$$(pwd -P)"/*) printf '%s\n' 'REFUND_STATE_DIR must be outside the repository.' >&2; exit 2 ;; esac; \
-	env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_EXECUTE_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+	$(select_host_output_identity); \
+	LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing verified container UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing verified container GID}" \
+	  env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_EXECUTE_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
 
 # Reuse the maintained fixture lifecycle and its existing account grants. The
 # overlay replaces only the scenario command; no live RPC or signing key mounts.

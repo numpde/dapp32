@@ -64,6 +64,7 @@ release_select_container_identity() {
             "PATH": f"{repo_path('tests/fixtures/docker-context')}:{os.environ['PATH']}",
             "TRACE": os.devnull, "ENDPOINT": "unix:///tmp/context-fixture.sock", "FAKE_MODE": "",
             "DOCKER_DELEGATE": str(self.stub),
+            "TEST_ENGINE": "rootful",
         })
         if overrides is None:
             overrides = ()
@@ -291,6 +292,54 @@ release_select_container_identity() {
         self.assertIn("rpc-base-sepolia_rpc_internal", result.stdout)
         self.assertIn("http://rpc-base-sepolia-rpc:8080", result.stdout)
         self.assertNotIn("fixture-secret", result.stdout + result.stderr + self.calls.read_text())
+
+    def test_indexer_private_upstream_uses_measured_engine_identity(self) -> None:
+        for engine in ("rootless", "rootful", "unavailable"):
+            with self.subTest(engine=engine):
+                self.calls.unlink(missing_ok=True)
+                result = self.make("rpc/indexer/up", self.upstream,
+                                   extra_environment={"TEST_ENGINE": engine})
+                if engine == "unavailable":
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertFalse(self.calls.exists(), result.stderr)
+                else:
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    actual = self.calls.read_text().splitlines()
+                    self.assertIn(f"uid={0 if engine == 'rootless' else os.getuid()}", actual)
+                    self.assertIn(f"gid={0 if engine == 'rootless' else os.getgid()}", actual)
+
+    def test_refund_plan_and_execution_map_operator_private_inputs(self) -> None:
+        (self.checkout / "js/node_modules").mkdir()
+        (self.checkout / "js/package-lock.json").write_text("{}")
+        config = self.directory / "refund-config"
+        config.write_text("{}")
+        config.chmod(0o600)
+        key = self.directory / "refund-key"
+        key.write_text("fixture")
+        key.chmod(0o600)
+        state = self.directory / "refund-state"
+        state.mkdir(mode=0o700)
+        for engine in ("rootless", "rootful", "unavailable"):
+            for operation in ("plan", "run"):
+                with self.subTest(engine=engine, operation=operation):
+                    self.calls.unlink(missing_ok=True)
+                    result = self.make("pay-to-play/refunds/" + operation, self.upstream,
+                        extra_environment={"TEST_ENGINE": engine,
+                                           "REFUND_CONFIG_FILE": str(config),
+                                           "REFUND_PRIVATE_KEY_FILE": str(key),
+                                           "REFUND_STATE_DIR": str(state),
+                                           "CONFIRM_PAY_TO_PLAY_REFUNDS": "YES"})
+                    if engine == "unavailable":
+                        self.assertNotEqual(0, result.returncode)
+                        self.assertFalse(self.calls.exists(), result.stderr)
+                    else:
+                        self.assertEqual(0, result.returncode, result.stderr)
+                        calls = self.calls.read_text().splitlines()
+                        self.assertIn(f"uid={0 if engine == 'rootless' else os.getuid()}", calls)
+                        self.assertIn(f"gid={0 if engine == 'rootless' else os.getgid()}", calls)
+        self.assertEqual(0o700, state.stat().st_mode & 0o777)
+        self.assertEqual(0o600, key.stat().st_mode & 0o777)
+        self.assertEqual(os.getuid(), state.stat().st_uid)
 
     def test_unsafe_upstream_paths_fail_before_compose(self) -> None:
         public_file = self.directory / "public-url"
