@@ -29,11 +29,11 @@ function addressValue(address, name, explorer) {
   const addressLink = link(explorerAddress(explorer, address));
   const code = element('code');
   code.title = address;
-  const middle = element('span', address.slice(6, -4), 'hex-middle');
+  const middle = element('span', address.slice(8, -6), 'hex-middle');
   const ellipsis = element('span', undefined, 'hex-ellipsis');
   ellipsis.setAttribute('aria-hidden', 'true');
   middle.append(ellipsis);
-  code.append(element('span', address.slice(0, 6)), middle, element('span', address.slice(-4)));
+  code.append(element('span', address.slice(0, 8)), middle, element('span', address.slice(-6)));
   addressLink.append(code);
   addressLink.setAttribute('aria-label', `${name}: ${address}, view on explorer`);
   const copy = element('button', undefined, 'copy-address');
@@ -91,26 +91,37 @@ function deploymentCard(deployment, viewer, catalog, embedded = false) {
     card.append(heading);
   }
   const mainnet = catalog[network.mainnet];
-  card.append(element('p', `${network.name}${mainnet ? ` (${mainnet.name} testnet)` : ''} · Chain ${network.chainId}`, 'network'));
+  const overview = element('div', undefined, 'deployment-overview');
+  overview.append(element('p', `${network.name}${mainnet ? ` (${mainnet.name} testnet)` : ''} · Chain ${network.chainId}`, 'network'));
   const viewerURL = new URL(viewer);
   viewerURL.searchParams.set('chainId', `eip155:${network.chainId}`);
   viewerURL.searchParams.set('host', deployment.host);
   const actions = element('div', undefined, 'actions');
-  actions.append(link(viewerURL, 'Open app →', 'button primary'), link(deployment.guide, 'App guide', 'button'));
-  card.append(actions);
+  actions.append(link(viewerURL, 'Open app →', 'button primary'), link(deployment.guide, 'App guide'));
+  overview.append(actions);
+  card.append(overview);
   card.append(element('h3', 'Contracts'));
   const contracts = element('dl', undefined, 'contracts');
   function contractRow(name, address, source, verification) {
     const row = element('div');
-    const value = element('dd');
-    value.append(address === null ? element('span', 'Not bound') : addressValue(address, name, network.explorer));
-    if (verification) value.append(link(verification, 'Sourcify · exact match', 'verification-link'));
     const label = element('dt');
     label.append(source === undefined ? name : link(source, name));
+    const value = element('dd', undefined, 'contract-address');
+    value.append(address === null ? element('span', 'Not bound') : addressValue(address, name, network.explorer));
     row.append(label, value);
+    if (verification) {
+      const proof = element('dd', undefined, 'contract-verification');
+      const verified = link(verification, 'Verified', 'verification-link');
+      verified.title = 'View the recorded exact creation and runtime bytecode match on Sourcify';
+      verified.setAttribute('aria-label', `${name}: view exact-match source verification on Sourcify`);
+      proof.append(verified);
+      row.append(proof);
+    }
     return row;
   }
   contracts.append(contractRow('CAM root', deployment.host, deployment.hostSource, deployment.hostVerificationUrl));
+  const rpcSettings = element('details', undefined, 'rpc-settings');
+  rpcSettings.append(element('summary', 'RPC connection'));
   const rpcControls = element('div', undefined, 'rpc-controls');
   const rpcSelect = element('select');
   rpcSelect.setAttribute('aria-label', 'RPC endpoint');
@@ -134,12 +145,14 @@ function deploymentCard(deployment, viewer, catalog, embedded = false) {
   customRPC.hidden = rpcSelect.value !== '';
   const working = element('span');
   working.setAttribute('role', 'status');
-  const bindingStatus = element('p', '', 'network');
+  const bindingStatus = element('p', '', 'binding-status');
   bindingStatus.setAttribute('role', 'status');
   const retryBindings = element('button', 'Retry contract lookup', 'button');
   retryBindings.type = 'button';
   retryBindings.hidden = true;
   rpcControls.append(rpcSelect, customRPC, working);
+  rpcSettings.append(rpcControls);
+  rpcSettings.open = !rpcSelect.value;
   let pendingRPC;
   let debounce;
   function resetBindings() {
@@ -187,6 +200,7 @@ function deploymentCard(deployment, viewer, catalog, embedded = false) {
       bindingStatus.textContent = `Cannot load contract addresses: ${error.message}`;
       if (!rpcSelect.value) customRPC.setAttribute('aria-invalid', 'true');
       retryBindings.hidden = false;
+      rpcSettings.open = true;
     }
   }
   rpcSelect.addEventListener('change', () => {
@@ -202,7 +216,7 @@ function deploymentCard(deployment, viewer, catalog, embedded = false) {
     if (event.key === 'Enter') { event.preventDefault(); void loadBindings(); }
   });
   retryBindings.addEventListener('click', () => { void loadBindings(); });
-  card.append(rpcControls, contracts, bindingStatus, retryBindings);
+  card.append(contracts, bindingStatus, retryBindings, rpcSettings);
   if (rpcSelect.value) void loadBindings();
   card.cancelBindings = () => { clearTimeout(debounce); pendingRPC?.abort(); };
   return card;
@@ -251,9 +265,10 @@ let selectableGroups = [];
 function selectionFromHash() {
   const id = decodeURIComponent(location.hash.slice(1));
   for (const group of selectableGroups) {
+    if (!id) group.show(group.latest);
     if (group.ids.has(id)) {
       group.show(id);
-      document.getElementById(id)?.scrollIntoView();
+      document.getElementById(id)?.closest('.deployment')?.scrollIntoView();
       return;
     }
   }
@@ -316,10 +331,12 @@ async function load() {
       }
       select.addEventListener('change', () => {
         show(select.value);
-        location.hash = select.value;
+        // Changing this control should not scroll its own heading out of view.
+        const fragment = `#${select.value}`;
+        if (location.hash !== fragment) history.pushState(null, '', fragment);
       });
       show(ordered.some(item => item.id === requested) ? requested : ordered[0].id);
-      selectableGroups.push({ ids: new Set(ordered.map(item => item.id)), show, cancel: () => active?.cancelBindings() });
+      selectableGroups.push({ ids: new Set(ordered.map(item => item.id)), latest: ordered[0].id, show, cancel: () => active?.cancelBindings() });
       jump.append(jumpLink);
       rendered.push(group);
     }
@@ -328,7 +345,7 @@ async function load() {
     status.textContent = rendered.length ? '' : 'No deployments are listed yet.';
     status.hidden = rendered.length > 0;
     if (requested && data.deployments.some(deployment => deployment.id === requested)) {
-      document.getElementById(requested)?.scrollIntoView();
+      document.getElementById(requested)?.closest('.deployment')?.scrollIntoView();
     }
   } catch (error) {
     status.setAttribute('role', 'alert');

@@ -21,6 +21,10 @@ const fixture = { viewer: production.viewer, deployments: [{ ...production.deplo
   { name: 'UI', source: { address: '0x' + '3'.repeat(40), url: 'https://source.fixture.test/UI.sol' } },
   { name: 'Unbound', source: { address: '0x' + '4'.repeat(40), url: 'https://source.fixture.test/Unbound.sol' } },
 ] }] }
+fixture.deployments[0].hostVerificationUrl = `https://repo.sourcify.dev/31337/${host}`
+for (const contract of fixture.deployments[0].contracts) {
+  contract.source.verificationUrl = `https://repo.sourcify.dev/31337/${contract.source.address}`
+}
 const publicRPC = 'https://rpc.fixture.test/'
 const customRPC = 'https://custom.fixture.test/'
 const catalog = { fixture: { name: 'Fixture', chainId: 31337, services: { public: publicRPC, keyed: 'https://rpc.fixture.test/{API_KEY}' }, explorer: 'https://explorer.fixture.test' } }
@@ -109,24 +113,55 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
-  assert.equal(await evaluate('document.querySelectorAll(".deployment-chooser").length'), 0, 'A single deployment needs no selector')
+  assert.equal(await evaluate('document.querySelectorAll(".deployment-heading select").length'), 0, 'A single deployment needs no selector')
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
-  const links = await evaluate(`[...document.querySelectorAll('.contracts > div')].map(row=>({name:row.querySelector('dt').textContent,source:row.querySelector('dt a')?.href,address:row.querySelector('dd a')?.href}))`)
+  const links = await evaluate(`[...document.querySelectorAll('.contracts > div')].map(row=>({name:row.querySelector('dt').textContent,source:row.querySelector('dt a')?.href,address:row.querySelector('dd a')?.href,verification:row.querySelector('.verification-link')?.href}))`)
   assert.equal(links[0].source, fixture.deployments[0].hostSource, 'CAM root links to its source')
   assert.equal(links[1].source, 'https://source.fixture.test/Registry.sol', 'a matching binding links to its source')
   assert.equal(links[2].source, undefined, 'a changed binding must not link to an unrelated source')
   assert.equal(links[3].source, undefined, 'an unbound name has no source claim')
+  assert.deepEqual(links.map(row => row.verification), [
+    fixture.deployments[0].hostVerificationUrl, fixture.deployments[0].contracts[0].source.verificationUrl, undefined, undefined,
+  ], 'Verification links require matching recorded addresses; changed and unbound names have none')
+  assert.equal(await evaluate('document.querySelector(".rpc-settings").open'), false, 'Healthy RPC settings are secondary')
+  await evaluate('document.querySelector(".rpc-settings summary").focus()')
+  for (const type of ['keyDown', 'keyUp']) await call('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+  await until('document.querySelector(".rpc-settings").open')
+  assert(await evaluate('document.querySelector(".rpc-controls select").getBoundingClientRect().height > 0'), 'Keyboard disclosure exposes the endpoint')
+  await evaluate('document.querySelector(".rpc-settings summary").click()')
   for (const [index, address] of [host, ...addresses].entries()) assert.equal(links[index].address, `https://explorer.fixture.test/address/${address}`)
   assert.match(await evaluate('document.querySelector(".contracts").textContent'), /Not bound/)
   assert.equal(await evaluate('document.querySelector(".rpc-controls select").options.length'), 2, 'Key templates must not be selectable')
   assert.equal(await evaluate('document.querySelector(".rpc-controls select").selectedOptions[0].textContent'), 'rpc.fixture.test')
-  for (const width of [1280, 320]) {
+  for (const width of [1280, 900, 800, 600, 390, 320]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false })
     assert(await evaluate('document.documentElement.scrollWidth<=document.documentElement.clientWidth'), `Overflow at ${width}`)
+    const layout = await evaluate(`(() => {
+      const row = document.querySelector('.contracts > div')
+      const label = row.querySelector('dt').getBoundingClientRect()
+      const address = row.querySelector('.address-controls').getBoundingClientRect()
+      const proof = row.querySelector('.verification-link').getBoundingClientRect()
+      const font = parseFloat(getComputedStyle(row).fontSize)
+      const aligned = (a, b) => Math.abs((a.top + a.bottom) - (b.top + b.bottom)) < font
+      return {
+        adjacent: address.left >= label.right && address.left - label.right < 4 * font,
+        inline: aligned(address, proof),
+        mobile: aligned(label, proof) && address.top >= label.bottom,
+        contained: [...row.querySelectorAll('dt, dd, a, button')].every(node => node.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1),
+      }
+    })()`)
+    assert(layout.contained, `Contract actions escape their row at ${width}px`)
+    if (width === 1280) assert(layout.adjacent && layout.inline, 'Desktop names, addresses and verification must read as one compact row')
+    if (width === 320) assert(layout.mobile, 'Narrow rows pair the name with verification above the address and copy control')
   }
+  await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false })
+  await evaluate('document.documentElement.style.fontSize="200%"')
+  assert(await evaluate('document.documentElement.scrollWidth<=document.documentElement.clientWidth'), 'Enlarged text must reflow without horizontal scrolling')
+  await evaluate('document.documentElement.style.removeProperty("font-size")')
   for (mode of ['fail', 'wrong-chain', 'malformed']) {
     observed = []; await navigate(); await until('document.querySelector(".deployment [role=alert]")')
     assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 1, 'No stale or partial binding rows')
+    assert(await evaluate('document.querySelector(".rpc-settings").open'), 'Connection failures expose their recovery controls')
     assert(await evaluate('[...document.querySelectorAll(".deployment a")].some(a=>a.textContent==="Open app →")'))
     if (mode === 'wrong-chain') assert.deepEqual(observed.map(request => request.method), ['eth_chainId'])
   }
@@ -153,12 +188,13 @@ try {
   // No catalog endpoint: render the app/root and allow a custom endpoint without a failed automatic request.
   catalog.fixture.services = {}; observed = []; await navigate()
   assert.equal(await evaluate('document.querySelector(".rpc-controls input").hidden'), false)
+  assert(await evaluate('document.querySelector(".rpc-settings").open'), 'No endpoint: expose custom RPC entry immediately')
   assert.equal(observed.length, 0)
   await evaluate(`document.querySelector('.rpc-controls input').value=${JSON.stringify(customRPC)};document.querySelector('.rpc-controls input').dispatchEvent(new Event('input'))`); await until(working)
   // The same application has two independent immutable roots. A selector must preserve each one.
   const olderHost = '0x' + '7'.repeat(40)
   fixture.deployments = [
-    { ...fixture.deployments[0], id: 'fixture-old', appId: 'fixture-app', deployedAt: '2026-10-30', host: olderHost },
+    { ...fixture.deployments[0], id: 'fixture-old', appId: 'fixture-app', deployedAt: '2026-10-30', host: olderHost, hostVerificationUrl: `https://repo.sourcify.dev/31337/${olderHost}` },
     { ...fixture.deployments[0], id: 'fixture-new', appId: 'fixture-app', deployedAt: '2026-11-08', host },
   ]
   catalog.fixture.services = { public: publicRPC }
@@ -171,7 +207,6 @@ try {
   assert.equal(await evaluate('document.querySelector("#deployment-select-fixture-app").value'), 'fixture-new')
   assert.equal(await evaluate('document.querySelector(".deployment-instance").id'), 'fixture-new')
   assert.equal(await evaluate('document.querySelector(".deployment-heading select").getAttribute("aria-label")'), 'Bicycle component registry deployment')
-  assert.equal(await evaluate('document.querySelectorAll(".deployment-chooser").length'), 0, 'No separate chooser row')
   for (const width of [1280, 320]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false })
     const layout = await evaluate(`(() => {
@@ -189,11 +224,19 @@ try {
   await call('Emulation.clearDeviceMetricsOverride')
   assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a").href).searchParams.get("host")'), host)
   observed = []
+  await evaluate('document.querySelector("#deployment-select-fixture-app").focus()')
+  const selectionScroll = await evaluate('scrollY')
   await evaluate('document.querySelector("#deployment-select-fixture-app").value="fixture-old";document.querySelector("#deployment-select-fixture-app").dispatchEvent(new Event("change"))')
   await until('document.querySelector("#fixture-old .rpc-controls [role=status]")?.textContent === "✓"')
   assert.equal(await evaluate('location.hash'), '#fixture-old')
   assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a").href).searchParams.get("host")'), olderHost)
   assert(observed.some(request => request.method === 'eth_call' && request.params[0].to === olderHost), 'Selected root must receive RPC reads')
+  assert(await evaluate('document.activeElement === document.querySelector("#deployment-select-fixture-app")'), 'Release switching retains keyboard focus')
+  assert(Math.abs(await evaluate('scrollY') - selectionScroll) < 1, 'Selecting a release must not jump past its heading')
+  await evaluate('history.back()')
+  await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-new" && !location.hash')
+  await evaluate('history.forward()')
+  await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old" && location.hash === "#fixture-old"')
   await call('Page.navigate', { url: page + '?history#fixture-old' })
   await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
   await evaluate('document.querySelector("#deployment-select-fixture-app").value="fixture-new";document.querySelector("#deployment-select-fixture-app").dispatchEvent(new Event("change"))')
@@ -201,7 +244,7 @@ try {
   await evaluate('history.back()')
   await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
   assert.equal(await evaluate('location.hash'), '#fixture-old', 'Back restores the older release URL and selection')
-  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 320], mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true }))
+  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 900, 800, 600, 390, 320], compactRows: true, responsiveVerification: true, enlargedText: true, rpcDisclosure: true, selectionKeepsFocusAndScroll: true, mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true }))
   if (process.env.LIVE_RPC === '1') {
     live = true; await navigate()
     const appCount = new Set(production.deployments.map(deployment => deployment.appId)).size
