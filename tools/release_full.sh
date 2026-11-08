@@ -40,6 +40,94 @@ release_config.write_private(Path("/out/cam-uri-ready"), b"0\n" if settings.get(
   fi
 }
 
+# The approval owner fsyncs "transmitting" before calling the RPC sender.
+# Only a complete, matching, expired *preapproval* audit proves that a new CAM
+# root attempt cannot duplicate one from this saved approval session.
+release_full_cam_expired_before_send() {
+  local records="$1" app="$2"
+  local audit="$records/approval-audit/approval.jsonl"
+  local reference="$records/approval-reference/reference.json"
+  if [[ ! -d "$records" || -L "$records" ||
+        -e "$records/artifact/cam-attempt.json" || -L "$records/artifact/cam-attempt.json" ||
+        -e "$records/artifact/cam-publication.json" || -L "$records/artifact/cam-publication.json" ||
+        ! -f "$audit" || ! -f "$reference" ]]; then return 1; fi
+  reject_release_path_symlinks "$audit" 'CAM approval audit' || return 1
+  reject_release_path_symlinks "$reference" 'CAM approval reference' || return 1
+  python3 -I -S -B - "$audit" "$reference" "$app" <<'PY'
+import json
+import os
+import re
+import stat
+import sys
+from pathlib import Path
+
+audit, reference = (Path(path) for path in sys.argv[1:3])
+app = sys.argv[3]
+
+def private_file(path, limit):
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        raise ValueError("not an owner-only regular file")
+    if not 0 < info.st_size <= limit:
+        raise ValueError("invalid evidence size")
+    return path.read_bytes()
+
+def unique_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate evidence key")
+        result[key] = value
+    return result
+
+def read_json(data):
+    return json.loads(data.decode("utf-8"), object_pairs_hook=unique_keys)
+
+try:
+    snapshot = read_json(private_file(reference, 1024 * 1024))
+    contents = private_file(audit, 16 * 1024)
+    if not contents.endswith(b"\n"):
+        raise ValueError("incomplete approval audit")
+    lines = contents.splitlines()
+    if len(lines) != 2:
+        raise ValueError("approval audit must contain one request and one closure")
+    pending, closed = (read_json(line) for line in lines)
+    if not all(isinstance(item, dict) for item in (snapshot, pending, closed)):
+        raise ValueError("malformed approval evidence")
+    digest = snapshot.get("snapshotSha256")
+    chain = snapshot.get("expectedChainId")
+    sender = snapshot.get("expectedDeployer")
+    tx_hash = pending.get("hash")
+    if (snapshot.get("schema") != "release-approval.cam-reference.v1"
+            or snapshot.get("app") != app
+            or not isinstance(snapshot.get("root"), dict)
+            or snapshot["root"].get("kind") != "new"
+            or not isinstance(digest, str)
+            or re.fullmatch(r"0x[0-9a-fA-F]{64}", digest) is None
+            or not isinstance(chain, int) or isinstance(chain, bool) or chain <= 0
+            or not isinstance(sender, str)
+            or re.fullmatch(r"0x[0-9a-fA-F]{40}", sender) is None
+            or not isinstance(tx_hash, str)
+            or re.fullmatch(r"0x[0-9a-fA-F]{64}", tx_hash) is None):
+        raise ValueError("approval reference does not identify a valid new-root attempt")
+    if (pending.get("kind") != "pending"
+            or pending.get("referenceDigest", "").lower() != digest.lower()
+            or pending.get("sender", "").lower() != sender.lower()
+            or pending.get("chainId") != chain
+            or not isinstance(pending.get("nonce"), int)
+            or isinstance(pending["nonce"], bool) or pending["nonce"] < 0
+            or not isinstance(pending.get("challenge"), str)
+            or not pending["challenge"]
+            or closed.get("kind") != "closed"
+            or closed.get("hash") != tx_hash
+            or closed.get("reason") != "approval expired"):
+        raise ValueError("approval audit does not prove expiration before authorization")
+except (OSError, UnicodeError, ValueError, TypeError, AttributeError, KeyError) as error:
+    print(f"Cannot prove CAM non-transmission from retained approval evidence: {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
 release_full_cam() {
   local app="$1" config="$2" prepared="$3" records="$4" operation="$5"
   shift 5
@@ -58,7 +146,16 @@ release_full_cam() {
     records="$continuation"
   done
 
-  if [[ "$operation" != verify ]]; then release_full_retry_preparation "$records" || return; fi
+  if [[ "$operation" != verify ]]; then
+    release_full_retry_preparation "$records" || return
+    if release_full_cam_expired_before_send "$records" "$app"; then
+      local previous
+      previous=$(mktemp -d -- "$records-preparation-XXXXXXXX") || return
+      mv -T -- "$records" "$previous/records" || return
+      printf 'CAM approval expired before authorization; no CAM transaction was transmitted through this approval session. Previous records retained: %s/records\n' "$previous"
+      printf '%s\n' 'The existing business and UI deployments remain selected. Starting a fresh CAM-only approval; every transaction still requires your approval.'
+    fi
+  fi
   if [[ "$operation" == verify || -e "$records/artifact/cam-publication.json" || -L "$records/artifact/cam-publication.json" ]]; then
     release_full_make "$app/release/cam/artifact" "CONFIG=$config" "CAM_RECORDS=$records" "CAM_BUNDLE=$prepared" || return
   elif [[ ! -e "$records" && ! -L "$records" ]]; then
