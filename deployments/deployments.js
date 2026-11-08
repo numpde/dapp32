@@ -279,7 +279,7 @@ async function load() {
         jump.append(link(`#${card.id}`, deployments[0].name));
         continue;
       }
-      if (deployments.some(deployment => !/^\\d{4}-\\d{2}-\\d{2}$/.test(deployment.deployedAt))) {
+      if (deployments.some(deployment => !/^\d{4}-\d{2}-\d{2}$/.test(deployment.deployedAt))) {
         throw new Error(`Deployment dates are missing for ${deployments[0].name}.`);
       }
       const ordered = [...deployments].sort((a, b) => b.deployedAt.localeCompare(a.deployedAt));
