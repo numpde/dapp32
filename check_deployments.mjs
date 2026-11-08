@@ -64,7 +64,7 @@ async function intercept(request) {
   else if (message.method === 'eth_blockNumber') response.result = '0x123'
   else {
     assert.equal(message.method, 'eth_call', 'Page must never send writes')
-    assert.equal(message.params[0].to, host)
+    assert(fixture.deployments.some(deployment => deployment.host === message.params[0].to), 'Read must use one listed CAM root')
     assert.equal(message.params[1], '0x123', 'All bindings must use the captured block')
     const bytes = Buffer.from(message.params[0].data.slice(2), 'hex')
     assert.equal(bytes.subarray(0, 4).toString('hex'), '1eb726af')
@@ -109,6 +109,7 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
+  assert.equal(await evaluate('document.querySelectorAll(".deployment-chooser").length'), 0, 'A single deployment needs no selector')
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
   const links = await evaluate(`[...document.querySelectorAll('.contracts > div')].map(row=>({name:row.querySelector('dt').textContent,source:row.querySelector('dt a')?.href,address:row.querySelector('dd a')?.href}))`)
   assert.equal(links[0].source, fixture.deployments[0].hostSource, 'CAM root links to its source')
@@ -154,11 +155,45 @@ try {
   assert.equal(await evaluate('document.querySelector(".rpc-controls input").hidden'), false)
   assert.equal(observed.length, 0)
   await evaluate(`document.querySelector('.rpc-controls input').value=${JSON.stringify(customRPC)};document.querySelector('.rpc-controls input').dispatchEvent(new Event('input'))`); await until(working)
-  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 320], mockCopy: true, nativeClipboardTested: false }))
+  // The same application has two independent immutable roots. A selector must preserve each one.
+  const olderHost = '0x' + '7'.repeat(40)
+  fixture.deployments = [
+    { ...fixture.deployments[0], id: 'fixture-old', appId: 'fixture-app', deployedAt: '2026-10-30', host: olderHost },
+    { ...fixture.deployments[0], id: 'fixture-new', appId: 'fixture-app', deployedAt: '2026-11-08', host },
+  ]
+  catalog.fixture.services = { public: publicRPC }
+  observed = []; await navigate(); await until(working)
+  assert.equal(await evaluate('document.querySelectorAll(".deployment").length'), 1, 'One card per application')
+  assert.deepEqual(await evaluate('[...document.querySelector("#deployment-select-fixture-app").options].map(option=>({id:option.value,text:option.textContent}))'), [
+    { id: 'fixture-new', text: '2026-11-08 · Latest' },
+    { id: 'fixture-old', text: '2026-10-30' },
+  ])
+  assert.equal(await evaluate('document.querySelector("#deployment-select-fixture-app").value'), 'fixture-new')
+  assert.equal(await evaluate('document.querySelector(".deployment-instance").id'), 'fixture-new')
+  assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a").href).searchParams.get("host")'), host)
+  observed = []
+  await evaluate('document.querySelector("#deployment-select-fixture-app").value="fixture-old";document.querySelector("#deployment-select-fixture-app").dispatchEvent(new Event("change"))')
+  await until('document.querySelector("#fixture-old .rpc-controls [role=status]")?.textContent === "✓"')
+  assert.equal(await evaluate('location.hash'), '#fixture-old')
+  assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a").href).searchParams.get("host")'), olderHost)
+  assert(observed.some(request => request.method === 'eth_call' && request.params[0].to === olderHost), 'Selected root must receive RPC reads')
+  await call('Page.navigate', { url: page + '?history#fixture-old' })
+  await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
+  await evaluate('document.querySelector("#deployment-select-fixture-app").value="fixture-new";document.querySelector("#deployment-select-fixture-app").dispatchEvent(new Event("change"))')
+  await until('location.hash === "#fixture-new"')
+  await evaluate('history.back()')
+  await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
+  assert.equal(await evaluate('location.hash'), '#fixture-old', 'Back restores the older release URL and selection')
+  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 320], mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true }))
   if (process.env.LIVE_RPC === '1') {
     live = true; await navigate()
-    await until(`[...document.querySelectorAll('.deployment')].length===${production.deployments.length}&&[...document.querySelectorAll('.deployment')].every(card=>card.querySelector('.rpc-controls [role=status]')?.textContent==='✓')`)
+    const appCount = new Set(production.deployments.map(deployment => deployment.appId)).size
+    await until(`[...document.querySelectorAll('.deployment')].length===${appCount}&&[...document.querySelectorAll('.deployment')].every(card=>card.querySelector('.rpc-controls [role=status]')?.textContent==='✓')`)
     for (const deployment of production.deployments) {
+      if (production.deployments.some(item => item.appId === deployment.appId && item.id !== deployment.id)) {
+        await evaluate(`document.querySelector(${JSON.stringify('#deployment-select-'+deployment.appId)}).value=${JSON.stringify(deployment.id)};document.querySelector(${JSON.stringify('#deployment-select-'+deployment.appId)}).dispatchEvent(new Event('change'))`)
+        await until(`document.querySelector(${JSON.stringify('#'+deployment.id+' .rpc-controls [role=status]')})?.textContent==='✓'`)
+      }
       const rows = await evaluate(`[...document.querySelectorAll(${JSON.stringify('#'+deployment.id+' .contracts > div')})].map(row=>({name:row.querySelector('dt').textContent,source:row.querySelector('dt a')?.href,address:row.querySelector('dd code')?.title,explorer:row.querySelector('dd a')?.href}))`)
       assert.equal(rows[0].source, deployment.hostSource, `${deployment.id} root source`)
       assert.equal(rows[0].address.toLowerCase(), deployment.host.toLowerCase())
