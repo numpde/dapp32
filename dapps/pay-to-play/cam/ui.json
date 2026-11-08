@@ -2352,7 +2352,7 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "A positive deposit or incoming move can renew recovery and independently restarts the ordinary withdrawal wait when a request is pending, even if the recovery deadline does not change. Zero deposits, collection, and relayer calls do not postpone either deadline."
+                    "text": "A positive deposit or incoming move can extend recovery; it also restarts any pending ordinary withdrawal wait for the credited position, even when the recovery deadline does not extend. Zero deposits, collection, and relayer calls postpone neither deadline."
                   }
                 },
                 {
