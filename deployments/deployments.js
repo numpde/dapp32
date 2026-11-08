@@ -97,7 +97,7 @@ function deploymentCard(deployment, viewer, catalog, embedded = false) {
   viewerURL.searchParams.set('chainId', `eip155:${network.chainId}`);
   viewerURL.searchParams.set('host', deployment.host);
   const actions = element('div', undefined, 'actions');
-  actions.append(link(viewerURL, 'Open app →', 'button primary'), link(deployment.guide, 'App guide'));
+  actions.append(link(viewerURL, 'Open app'), link(deployment.guide, 'App guide'));
   overview.append(actions);
   card.append(overview);
   card.append(element('h3', 'Contracts'));

@@ -113,6 +113,8 @@ try {
   await call('Network.setCacheDisabled', { cacheDisabled: true })
   await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(".deployment .actions a")].map(a=>a.textContent)'), ['Open app', 'App guide'], 'App actions are plain labels without arrows')
+  assert.equal(await evaluate('document.querySelectorAll(".deployment .actions .button").length'), 0, 'Navigation links do not use button styling')
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
   assert.equal(await evaluate('document.querySelectorAll(".deployment-heading select").length'), 0, 'A single deployment needs no selector')
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
@@ -165,7 +167,7 @@ try {
     observed = []; await navigate(); await until('document.querySelector(".deployment [role=alert]")')
     assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 1, 'No stale or partial binding rows')
     assert(await evaluate('document.querySelector(".rpc-settings").open'), 'Connection failures expose their recovery controls')
-    assert(await evaluate('[...document.querySelectorAll(".deployment a")].some(a=>a.textContent==="Open app →")'))
+    assert(await evaluate('[...document.querySelectorAll(".deployment a")].some(a=>a.textContent==="Open app")'))
     if (mode === 'wrong-chain') assert.deepEqual(observed.map(request => request.method), ['eth_chainId'])
   }
   mode = 'success'; await evaluate('[...document.querySelectorAll(".deployment button")].find(b=>b.textContent==="Retry contract lookup").click()'); await until(working)
