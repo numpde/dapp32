@@ -657,10 +657,10 @@ $(release_config_compose); \
 source_commit="$$(git rev-parse HEAD)"; \
 if [[ ! -v CONFIG || -z "$$CONFIG" ]]; then printf '%s\n' 'CAM bundle preparation requires read-only CONFIG.' >&2; exit 2; fi; \
 load_release_config $(patsubst %/release/cam/bundle,%,$@) cam-bundle; \
-source_commit="$$CAM_RELEASE_SOURCE_COMMIT"; \
 require_release_file "$${CONTRACT_ARTIFACT:?Set CONTRACT_ARTIFACT}" CONTRACT_ARTIFACT; \
 require_release_file "$${UI_ARTIFACT:?Set UI_ARTIFACT}" UI_ARTIFACT; \
 source tools/release_cam.sh; release_cam_select_root; \
+release_review_tool_delta "$(CURDIR)" "$CAM_RELEASE_SOURCE_COMMIT" "$source_commit"; \
 export CAM_RELEASE_BUSINESS_ARTIFACT_FILE="$$CONTRACT_ARTIFACT" CAM_RELEASE_UI_ARTIFACT_FILE="$$UI_ARTIFACT"; \
 output_dir="$$CAM_RELEASE_OUTPUT_DIR"; validate_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
 require_release_rpc_input; \
@@ -675,6 +675,7 @@ $(release_prepare_snapshot); \
 recheck_new_release_output "$$output_dir" CAM_RELEASE_OUTPUT_DIR; \
 mkdir --mode=0700 -- "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/inputs" "$$output_dir/sources" "$$output_dir/compiler" "$$output_dir/bundle" "$$output_dir/artifact"; \
+printf '%s\n' "$source_commit" > "$output_dir/inputs/preparation-tool-commit"; \
 release_config_retain "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/compiler/business" "$$output_dir/compiler/ui" "$$output_dir/compiler/root"; \
 export CAM_RELEASE_PREPARED_DIR="$$output_dir" RELEASE_SOURCE_DIR="$$ceremony_source"; \

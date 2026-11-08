@@ -182,6 +182,66 @@ release_cam_sources_cleanup
                     self.assertNotEqual(0, result.returncode)
                     self.assertFalse((root / "cleanup-call").exists())
 
+
+    def test_review_keyless_recovery_uses_explicit_accepted_tooling(self):
+        import pty
+
+        with tempfile.TemporaryDirectory() as temp:
+            repository = Path(temp) / "repo"
+            repository.mkdir()
+            subprocess.run(["git", "init", "-q", str(repository)], check=True)
+            (repository / "tools").mkdir()
+            source = repository / "tools/release_cam.sh"
+            source.write_text("before\n")
+            subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+            make_commit = ["git", "-C", str(repository), "-c", "user.name=Test",
+                           "-c", "user.email=test@example.invalid", "commit", "-q"]
+            subprocess.run([*make_commit, "-m", "old"], check=True)
+            old = subprocess.check_output(["git", "-C", str(repository), "rev-parse", "HEAD"], text=True).strip()
+            source.write_text("after\n")
+            subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+            subprocess.run([*make_commit, "-m", "new"], check=True)
+            new = subprocess.check_output(["git", "-C", str(repository), "rev-parse", "HEAD"], text=True).strip()
+            cmd = ["bash", "-euo", "pipefail", "-c",
+                   'source tools/release_source_files.sh\n'
+                   'release_review_tool_delta "$REVIEW_REPO" "$REVIEW_OLD" "$REVIEW_NEW"\n'
+                   'echo accepted']
+            env = {**os.environ, "REVIEW_REPO": str(repository), "REVIEW_OLD": old, "REVIEW_NEW": new}
+            same = subprocess.run(cmd, cwd=ROOT, env={**env, "REVIEW_NEW": old},
+                                  capture_output=True, text=True, timeout=5)
+            self.assertEqual(0, same.returncode, same.stderr)
+            self.assertIn("accepted", same.stdout)
+            no_terminal = subprocess.run(cmd, cwd=ROOT, env=env, input="proceed\n",
+                                         capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(0, no_terminal.returncode)
+            self.assertNotIn("accepted", no_terminal.stdout)
+            self.assertIn("tools/release_cam.sh", no_terminal.stdout)
+            master, slave = pty.openpty()
+            try:
+                child = subprocess.Popen(cmd, cwd=ROOT, env=env, stdin=slave, stdout=slave, stderr=slave)
+                os.close(slave)
+                slave = -1
+                os.write(master, b"diff\nproceed\n")
+                self.assertEqual(0, child.wait(timeout=8))
+                chunks = []
+                while True:
+                    try:
+                        data = os.read(master, 65536)
+                    except OSError:
+                        break
+                    if not data:
+                        break
+                    chunks.append(data)
+                transcript = b"".join(chunks)
+                self.assertIn(b"accepted", transcript)
+                self.assertIn(b"tools/release_cam.sh", transcript)
+                self.assertIn(b"before", transcript)
+                self.assertIn(b"after", transcript)
+            finally:
+                if slave != -1:
+                    os.close(slave)
+                os.close(master)
+
     def test_root_source_export_needs_only_its_native_source_file(self):
         script = r'''
 forge() { printf '%s\0' "$@" > "$TRACE"; return 41; }
