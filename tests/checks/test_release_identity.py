@@ -93,6 +93,11 @@ release_with_mapped_owner true || status=$?
 release_select_container_identity
 [[ "$RELEASE_CONTAINER_UID:$RELEASE_CONTAINER_GID" == 0:0 ]]
 release_with_mapped_owner bash -c '[[ "$LOCAL_UID:$LOCAL_GID" == "0:0" ]]'
+# Simulate an EXIT trap reentering while the mapped child scope is active.
+LOCAL_UID=0 LOCAL_GID=0 release_with_mapped_owner bash -c '[[ "$LOCAL_UID:$LOCAL_GID" == "0:0" ]]'
+status=0
+LOCAL_UID=42 LOCAL_GID=42 release_with_mapped_owner true || status=$?
+[[ "$status" == 2 ]]
 [[ "$LOCAL_UID:$LOCAL_GID" == "$(id -u):$(id -g)" ]]
 CAM_DOCKER_ENDPOINT=unix:///tmp/stale.sock
 status=0
