@@ -105,6 +105,7 @@ async function until(expression) {
 }
 async function navigate() { await call('Page.navigate', { url: `${page}?check=${Date.now()}` }); await until('document.querySelector(".rpc-controls")') }
 const working = 'document.querySelector(".rpc-controls [role=status]")?.textContent === "✓"'
+const newTabActions = '[...document.querySelectorAll(".deployment .actions a")].every(a=>a.target==="_blank" && a.relList.contains("noopener") && a.relList.contains("noreferrer"))'
 try {
   ;({ targetId } = await call('Target.createTarget', { url: 'about:blank', background: true }))
   ;({ sessionId } = await call('Target.attachToTarget', { targetId, flatten: true }, undefined))
@@ -115,6 +116,8 @@ try {
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".deployment .actions a")].map(a=>a.textContent)'), ['Open app', 'App guide'], 'App actions are plain labels without arrows')
   assert.equal(await evaluate('document.querySelectorAll(".deployment .actions .button").length'), 0, 'Navigation links do not use button styling')
+  assert(await evaluate(newTabActions), 'Both app actions open isolated new tabs')
+  assert.equal(await evaluate('document.querySelectorAll(".deployment a[target=_blank]").length'), 2, 'Other deployment links keep their existing navigation behavior')
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
   assert.equal(await evaluate('document.querySelectorAll(".deployment-heading select").length'), 0, 'A single deployment needs no selector')
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
@@ -235,6 +238,7 @@ try {
   await until('document.querySelector("#fixture-old .rpc-controls [role=status]")?.textContent === "✓"')
   assert.equal(await evaluate('location.hash'), '#fixture-old')
   assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a").href).searchParams.get("host")'), olderHost)
+  assert(await evaluate(newTabActions), 'Rebuilt actions retain isolated new tabs after switching deployments')
   assert(observed.some(request => request.method === 'eth_call' && request.params[0].to === olderHost), 'Selected root must receive RPC reads')
   assert(await evaluate('document.activeElement === document.querySelector("#deployment-select-fixture-app")'), 'Release switching retains keyboard focus')
   assert(Math.abs(await evaluate('scrollY') - selectionScroll) < 1, 'Selecting a release must not jump past its heading')
