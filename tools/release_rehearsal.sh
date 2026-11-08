@@ -60,12 +60,12 @@ cleanup() {
     cleanup_failed=1
   fi
   release_progress_phase='removing rehearsal containers and networks'
-  if [[ "$planner_started" == 1 ]] && ! release_run_owned 60 bash tools/compose_cleanup.sh "$project-planner" --rmi local -- "${planner_compose[@]}" >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
+  if [[ "$planner_started" == 1 ]] && ! release_with_mapped_owner release_run_owned 60 bash tools/compose_cleanup.sh "$project-planner" --rmi local -- "${planner_compose[@]}" >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
     printf 'Planner test teardown failed; inspect %s/planner-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
     if (( status == 0 )); then status=1; fi
     cleanup_failed=1
   fi
-  if [[ "$infrastructure_started" == 1 ]] && ! release_run_owned 60 bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >"$RELEASE_REHEARSAL_DIR/cleanup.log" 2>&1; then
+  if [[ "$infrastructure_started" == 1 ]] && ! release_with_mapped_owner release_run_owned 60 bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >"$RELEASE_REHEARSAL_DIR/cleanup.log" 2>&1; then
     printf 'Rehearsal teardown failed; inspect %s/cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
     if (( status == 0 )); then status=1; fi
     cleanup_failed=1
@@ -205,7 +205,7 @@ run_logged() {
 }
 
 verify_handoffs() {
-  run_logged handoffs.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-accept
+  release_with_mapped_owner run_logged handoffs.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-accept
   run_logged verification.log make DOCKER_CONTEXT= "CAM_DOCKER_ENDPOINT=$CAM_DOCKER_ENDPOINT" "$app/release/verify" "CONFIG=$RELEASE_REHEARSAL_DIR/artifact-recovery.json"
   printf 'Release rehearsal passed: %s\n' "$app"
 }
@@ -213,8 +213,8 @@ verify_handoffs() {
 rehearse_success() {
   REHEARSAL_PUBLICATION_STAGE=components release_run_owned 330 timeout --foreground --kill-after=330s 900 \
     python3 tools/release_approval_pty_check.py "$app" success
-  run_logged host-selection.log "${compose[@]}" run --build --rm --no-deps -T -e REHEARSAL_ACTION=host rehearsal-prepare
-  run_logged host-bundle.log "${compose[@]}" -f "$RELEASE_REHEARSAL_DIR/control/cam-host.json" \
+  release_with_mapped_owner run_logged host-selection.log "${compose[@]}" run --build --rm --no-deps -T -e REHEARSAL_ACTION=host rehearsal-prepare
+  release_with_mapped_owner run_logged host-bundle.log "${compose[@]}" -f "$RELEASE_REHEARSAL_DIR/control/cam-host.json" \
     up --no-deps --force-recreate --wait --wait-timeout 30 release-cam
   REHEARSAL_PUBLICATION_STAGE=cam release_run_owned 330 timeout --foreground --kill-after=330s 900 \
     python3 tools/release_approval_pty_check.py "$app" success
@@ -248,9 +248,14 @@ config = {"schemaVersion": 3, "app": sys.argv[1], "sourceCommit": sys.argv[2],
   verify_handoffs
 }
 
+# Confirm this engine's mapping before any private rehearsal mount.
+# Host archive operations and recursive Make retain the host identity.
+source tools/release_identity.sh
+release_select_container_identity
+
 infrastructure_started=1
-run_logged infrastructure.log "${compose[@]}" up --build --wait --wait-timeout 90 release-anvil release-cam
-run_logged prepare.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-prepare
+release_with_mapped_owner run_logged infrastructure.log "${compose[@]}" up --build --wait --wait-timeout 90 release-anvil release-cam
+release_with_mapped_owner run_logged prepare.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-prepare
 # This file is emitted by the checked-in fixture client into our private output directory.
 set -a
 source "$RELEASE_REHEARSAL_DIR/control/inputs.env"
@@ -272,7 +277,7 @@ if [[ ! -v RELEASE_APPROVAL_IMAGE || -z "$RELEASE_APPROVAL_IMAGE" ]]; then
     "$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json")"
   export RELEASE_APPROVAL_IMAGE
 fi
-run_logged configure.log "${compose[@]}" run --build --rm --no-deps -T \
+release_with_mapped_owner run_logged configure.log "${compose[@]}" run --build --rm --no-deps -T \
   -e REHEARSAL_ACTION=configure -e "REHEARSAL_SOURCE_COMMIT=$(git rev-parse HEAD)" \
   -e "RELEASE_APPROVAL_IMAGE=$RELEASE_APPROVAL_IMAGE" -e "RELEASE_REHEARSAL_NETWORK=$RELEASE_REHEARSAL_NETWORK" rehearsal-prepare
 if [[ "$action" == approval-pty ]]; then
@@ -295,18 +300,18 @@ planner_started=1
 mkdir --mode=0700 -- "$RELEASE_REHEARSAL_DIR/control/planner-config"
 RELEASE_CONFIG_STAGE_DIR="$RELEASE_REHEARSAL_DIR/control/planner-config" \
   RELEASE_CONFIG_FILE="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_CREDENTIAL_CONFIG="$RELEASE_REHEARSAL_DIR/control/release.json" RELEASE_LOCAL_NETWORK="$RELEASE_REHEARSAL_NETWORK" \
-  run_logged planner-config.log docker --host "$CAM_DOCKER_ENDPOINT" compose --project-name "$project-planner" -f compose/release/config.yml run --rm --no-deps -T release-config \
+  release_with_mapped_owner run_logged planner-config.log docker --host "$CAM_DOCKER_ENDPOINT" compose --project-name "$project-planner" -f compose/release/config.yml run --rm --no-deps -T release-config \
   contracts-deploy "$app" "$(git rev-parse HEAD)"
 mapfile -d '' -t planner_inputs < "$RELEASE_REHEARSAL_DIR/control/planner-config/inputs"
 export "${planner_inputs[@]}"
-anvil_id="$("${compose[@]}" ps --quiet release-anvil)"
+anvil_id="$(release_with_mapped_owner "${compose[@]}" ps --quiet release-anvil)"
 if [[ ! "$anvil_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Cannot identify the fixture node.' >&2; exit 1; fi
 anvil_ip="$(docker --host "$CAM_DOCKER_ENDPOINT" inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$anvil_id")"
-run_logged planner-boundaries.log "${planner_compose[@]}" run --build --rm --no-deps -T release-plan \
+release_with_mapped_owner run_logged planner-boundaries.log "${planner_compose[@]}" run --build --rm --no-deps -T release-plan \
   timeout --signal=TERM --kill-after=10s 300s run-js-workspace node --experimental-strip-types tools/release-rehearsal/planner-check.ts "$app" "$anvil_ip"
 
 # Malformed business settings fail inside the ordinary offline planner before a plan is published.
-if release_run_owned 15 timeout --foreground --kill-after=10s 360 "${planner_compose[@]}" run --build --rm --no-deps -T \
+if release_with_mapped_owner release_run_owned 15 timeout --foreground --kill-after=10s 360 "${planner_compose[@]}" run --build --rm --no-deps -T \
     -e CONTRACT_RELEASE_SETTINGS_JSON='[]' release-plan >"$RELEASE_REHEARSAL_DIR/planner-rejection.log" 2>&1; then
   printf '%s\n' 'Malformed business settings incorrectly passed planning.' >&2; exit 1
 fi
@@ -318,7 +323,7 @@ if [[ -e "$RELEASE_OUTPUT_DIR/plan/release-plan.json" ]]; then
   printf '%s\n' 'The rejected settings left a published plan.' >&2; exit 1
 fi
 for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release release-artifact; do
-  container_id="$("${planner_compose[@]}" ps --all --quiet "$service")"
+  container_id="$(release_with_mapped_owner "${planner_compose[@]}" ps --all --quiet "$service")"
   if [[ -n "$container_id" ]]; then
     if [[ ! "$container_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Unexpected planner test container identity.' >&2; exit 1; fi
     if [[ "$(docker --host "$CAM_DOCKER_ENDPOINT" inspect --format '{{.State.StartedAt}}' "$container_id")" != 0001-01-01T00:00:00Z ]]; then
@@ -326,7 +331,7 @@ for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release relea
     fi
   fi
 done
-release_run_owned 60 timeout -k 15s 60s bash tools/compose_cleanup.sh "$project-planner" --rmi local -- "${planner_compose[@]}" >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
+release_with_mapped_owner release_run_owned 60 timeout -k 15s 60s bash tools/compose_cleanup.sh "$project-planner" --rmi local -- "${planner_compose[@]}" >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
 planner_started=0
 unset RELEASE_OUTPUT_DIR RELEASE_SOURCE_DIR
 

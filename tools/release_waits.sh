@@ -9,6 +9,9 @@ mode="${2:?Pass waits or ipc-waits}"
 if [[ "$mode" != waits && "$mode" != ipc-waits ]]; then
   printf '%s\n' 'Unsupported release wait mode.' >&2; exit 2
 fi
+# This child Bash process must independently verify the selected engine.
+source tools/release_identity.sh
+release_select_container_identity
 export RELEASE_WAIT_CASE=delay-10
 export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/waits-plan"
 export RELEASE_WAIT_EVIDENCE_DIR="$RELEASE_REHEARSAL_DIR/waits-plan/evidence"
@@ -28,7 +31,7 @@ infrastructure=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not sel
 cleanup() {
   status="$?"
   trap - EXIT
-  if ! timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1; then
+  if ! release_with_mapped_owner timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1; then
     printf 'Wait fixture teardown failed; inspect %s/waits-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
     # The parent retains mounted inputs when this fixture reports exit 2.
     exit 2
@@ -36,13 +39,13 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
-timeout --foreground 360 "${compose[@]}" run --build --rm --no-deps -T release-plan >"$RELEASE_REHEARSAL_DIR/waits-plan.log" 2>&1
+release_with_mapped_owner timeout --foreground 360 "${compose[@]}" run --build --rm --no-deps -T release-plan >"$RELEASE_REHEARSAL_DIR/waits-plan.log" 2>&1
 plan="$RELEASE_OUTPUT_DIR/plan/release-plan.json"
 setup_case() {
-  timeout --foreground 120 "${infrastructure[@]}" up --no-deps --force-recreate --wait --wait-timeout 90 release-anvil >"$RELEASE_OUTPUT_DIR/reset.log" 2>&1 || return 2
-  timeout --foreground 180 "${infrastructure[@]}" run --build --rm --no-deps -T -e REHEARSAL_ACTION=fund rehearsal-prepare >>"$RELEASE_OUTPUT_DIR/reset.log" 2>&1 || return 2
-  "${compose[@]}" config --format json >"$RELEASE_OUTPUT_DIR/compose.json" || return 2
-  timeout --foreground 120 "${compose[@]}" up --build --no-deps --detach --wait --wait-timeout 30 release-rpc-proxy >"$RELEASE_OUTPUT_DIR/proxy.log" 2>&1 || return 2
+  release_with_mapped_owner timeout --foreground 120 "${infrastructure[@]}" up --no-deps --force-recreate --wait --wait-timeout 90 release-anvil >"$RELEASE_OUTPUT_DIR/reset.log" 2>&1 || return 2
+  release_with_mapped_owner timeout --foreground 180 "${infrastructure[@]}" run --build --rm --no-deps -T -e REHEARSAL_ACTION=fund rehearsal-prepare >>"$RELEASE_OUTPUT_DIR/reset.log" 2>&1 || return 2
+  release_with_mapped_owner "${compose[@]}" config --format json >"$RELEASE_OUTPUT_DIR/compose.json" || return 2
+  release_with_mapped_owner timeout --foreground 120 "${compose[@]}" up --build --no-deps --detach --wait --wait-timeout 30 release-rpc-proxy >"$RELEASE_OUTPUT_DIR/proxy.log" 2>&1 || return 2
 }
 result=0
 cases=(delay-10 delay-50 delay-120 receipt reject drop)
@@ -59,10 +62,10 @@ for case_name in "${cases[@]}"; do
   if setup_case; then
     forge_status=0
     if [[ "$case_name" == same-socket ]]; then
-      timeout --foreground 15 "${compose[@]}" exec -T release-rpc-proxy python3 /rehearsal/ipc_probe.py same-socket >"$RELEASE_OUTPUT_DIR/client.log" 2>&1 || forge_status="$?"
+      release_with_mapped_owner timeout --foreground 15 "${compose[@]}" exec -T release-rpc-proxy python3 /rehearsal/ipc_probe.py same-socket >"$RELEASE_OUTPUT_DIR/client.log" 2>&1 || forge_status="$?"
       signer_inspected=1
     else
-      timeout --foreground 360 "${compose[@]}" run --build --no-deps -T --name "$project-$case_name-signer" deploy-release >"$RELEASE_OUTPUT_DIR/forge.log" 2>&1 || forge_status="$?"
+      release_with_mapped_owner timeout --foreground 360 "${compose[@]}" run --build --no-deps -T --name "$project-$case_name-signer" deploy-release >"$RELEASE_OUTPUT_DIR/forge.log" 2>&1 || forge_status="$?"
       signer_inspected=0
       if docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" inspect --format '{{.Id}} {{.Image}} {{json .Config.Cmd}}' "$project-$case_name-signer" >"$RELEASE_OUTPUT_DIR/signer-identity.txt"; then signer_inspected=1; fi
     fi
@@ -70,7 +73,7 @@ for case_name in "${cases[@]}"; do
       case_status=0
       checker=/rehearsal/wait_probe.py
       if [[ "$mode" == ipc-waits ]]; then checker=/rehearsal/ipc_probe.py; fi
-      timeout --foreground 180 "${compose[@]}" exec -T release-rpc-proxy python3 "$checker" check "$forge_status" >"$RELEASE_OUTPUT_DIR/result.log" 2>&1 || case_status="$?"
+      release_with_mapped_owner timeout --foreground 180 "${compose[@]}" exec -T release-rpc-proxy python3 "$checker" check "$forge_status" >"$RELEASE_OUTPUT_DIR/result.log" 2>&1 || case_status="$?"
       cat "$RELEASE_OUTPUT_DIR/result.log"
     fi
   fi
@@ -78,11 +81,11 @@ for case_name in "${cases[@]}"; do
     printf '{"case":"%s","outcome":"inconclusive","reason":"Fixture setup, inspection or checker failed; inspect case logs"}\n' "$case_name" | tee "$RELEASE_WAIT_EVIDENCE_DIR/infrastructure-failure.json"
   fi
   if [[ "$case_status" != 0 ]]; then result=1; fi
-  if ! "${compose[@]}" logs --no-color release-rpc-proxy >"$RELEASE_OUTPUT_DIR/proxy-events.log" 2>&1; then
+  if ! release_with_mapped_owner "${compose[@]}" logs --no-color release-rpc-proxy >"$RELEASE_OUTPUT_DIR/proxy-events.log" 2>&1; then
     printf 'Could not capture proxy logs for %s.\n' "$case_name" >&2
     result=1
   fi
-  timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1
+  release_with_mapped_owner timeout -k 15s 60s bash tools/compose_cleanup.sh "$project" --rmi local -- "${compose[@]}" >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1
   if [[ "$mode" == ipc-waits && "$case_name" == smoke && "$case_status" != 0 ]]; then
     printf '%s\n' 'Ordinary IPC release failed; later wait cases cannot qualify this transport.' >&2
     break
