@@ -451,10 +451,18 @@ def check_deployments(root: Path, repo_root: Path) -> None:
     catalog = json.loads((repo_root / "js/packages/cam-viewer/src/rpc-catalog.json").read_text())
     assert isinstance(data["deployments"], list)
     identifiers = set()
+    applications = {}
     for deployment in data["deployments"]:
         identifier = deployment["id"]
         assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", identifier) and identifier not in identifiers
         identifiers.add(identifier)
+        app_id = deployment["appId"]
+        assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", app_id)
+        applications.setdefault(app_id, []).append(deployment)
+        if "deployedAt" in deployment:
+            assert re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", deployment["deployedAt"])
+            import datetime
+            datetime.date.fromisoformat(deployment["deployedAt"])
         assert deployment["name"] and deployment["network"] in catalog
         guide = (page / deployment["guide"] / "index.html").resolve()
         assert guide.is_relative_to(root.resolve()) and guide.is_file()
@@ -462,6 +470,12 @@ def check_deployments(root: Path, repo_root: Path) -> None:
         assert re.fullmatch(r"0x[0-9a-fA-F]{40}", address) and int(address, 16) != 0
         source_pattern = r"https://github\.com/numpde/dapp32/blob/[0-9a-f]{40}/dapps/[A-Za-z0-9_/-]+\.sol"
         assert re.fullmatch(source_pattern, deployment["hostSource"])
+        chain_id = catalog[deployment["network"]]["chainId"]
+        def verification_link(url: str, contract_address: str) -> None:
+            expected = f"https://repo.sourcify.dev/{chain_id}/{contract_address}"
+            assert url.lower() == expected.lower(), f"Sourcify verification must address the published contract: {url}"
+        if "hostVerificationUrl" in deployment:
+            verification_link(deployment["hostVerificationUrl"], address)
         contracts = deployment["contracts"]
         assert isinstance(contracts, list)
         names = set()
@@ -471,9 +485,19 @@ def check_deployments(root: Path, repo_root: Path) -> None:
             names.add(name)
             assert re.fullmatch(r"0x[0-9a-fA-F]{40}", source["address"]) and int(source["address"], 16) != 0
             assert re.fullmatch(source_pattern, source["url"])
+            if "verificationUrl" in source:
+                verification_link(source["verificationUrl"], source["address"])
         if "rpcUrl" in deployment:
             rpc = urlsplit(deployment["rpcUrl"])
             assert rpc.scheme in {"http", "https"} and rpc.hostname and not rpc.username and not rpc.password
+    for app_id, releases in applications.items():
+        if len(releases) < 2:
+            continue
+        dates = [release.get("deployedAt") for release in releases]
+        assert all(dates) and len(dates) == len(set(dates)), f"Deployment dates must uniquely identify releases of {app_id}"
+        assert len({release["host"].lower() for release in releases}) == len(releases), f"Repeated CAM root in {app_id}"
+        assert len({release["name"] for release in releases}) == 1, f"Inconsistent display name in {app_id}"
+        assert len({release["guide"] for release in releases}) == 1, f"Inconsistent app guide in {app_id}"
 
 
 if __name__ == "__main__":
