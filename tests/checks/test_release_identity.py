@@ -143,6 +143,52 @@ release_with_mapped_owner true || status=$?
             with self.subTest(service=service):
                 self.assertEqual("1000:1000", user, "Private instance/configuration mounts need the mapped container user")
 
+
+    def test_standard_release_compositions_map_every_operator_private_bind(self):
+        from .common import ROOT, rendered_compose_config
+
+        # The real Makefile composes these layers for contracts, UI, CAM,
+        # artifact completion and CAM bundle preparation. Point all retained
+        # source binds at a synthetic private root, not the checkout.
+        configurations = (
+            ("compose/release/config.yml",),
+            ("compose/package-deps.yml", "compose/release/approval-image.yml"),
+            ("compose/release/deploy.yml", "compose/release/artifact.yml",
+             "compose/release/contracts-artifact.yml", "compose/release/contracts.yml",
+             "compose/release/approval.yml"),
+            ("compose/release/deploy.yml", "compose/release/artifact.yml",
+             "compose/release/ui-artifact.yml", "compose/release/ui.yml",
+             "compose/release/approval.yml"),
+            ("compose/release/deploy.yml", "compose/release/artifact.yml",
+             "compose/release/cam-artifact.yml", "compose/release/approval.yml"),
+            ("compose/release/artifact.yml", "compose/release/contracts-artifact.yml"),
+            ("compose/release/artifact.yml", "compose/release/ui-artifact.yml"),
+            ("compose/release/artifact.yml", "compose/release/cam-artifact.yml"),
+            ("compose/release/cam-bundle.yml",),
+        )
+        for files in configurations:
+            with self.subTest(files=files):
+                config = rendered_compose_config(
+                    files, env={"RELEASE_SOURCE_DIR": "/tmp/private-release-snapshot"},
+                )
+                consumers = {}
+                for name, service in config["services"].items():
+                    private = [
+                        mount["source"] for mount in service.get("volumes", ())
+                        if mount["type"] == "bind"
+                        and not Path(mount["source"]).is_relative_to(ROOT)
+                    ]
+                    if private:
+                        consumers[name] = (service.get("user"), private)
+                self.assertTrue(consumers, "This release composition must exercise private bind mounts")
+                for name, (user, sources) in consumers.items():
+                    with self.subTest(service=name, sources=sources):
+                        self.assertEqual(
+                            "1000:1000", user,
+                            "Operator-private release mounts require the mapped Compose UID/GID; "
+                            "fixed or absent identities need an explicit boundary review",
+                        )
+
     def test_probe_only_maps_after_success(self):
         observed = SimpleNamespace(
             uid_map=SimpleNamespace(translate_inverse=lambda value: 0 if value == 1000 else -1),
