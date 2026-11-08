@@ -49,3 +49,20 @@ release_select_container_identity() {
   _release_identity_pair="$selected"
   export RELEASE_CONTAINER_UID="$uid" RELEASE_CONTAINER_GID="$gid"
 }
+
+# Scope Docker Compose's legacy LOCAL_UID/GID parameters to the verified
+# container identity. The caller's LOCAL_UID/GID continue to mean host IDs.
+# Only a selection made in THIS shell for THIS engine is sufficient.
+release_with_mapped_owner() {
+  if [[ $# -eq 0 ||
+        "${_release_identity_endpoint-}" != "${CAM_DOCKER_ENDPOINT-}" ||
+        "${_release_identity_host-}" != "$(id -u):$(id -g)" ||
+        "${LOCAL_UID-}:${LOCAL_GID-}" != "$(id -u):$(id -g)" ||
+        "${_release_identity_userns-}" != default ||
+        -z "${_release_identity_pair-}" ||
+        "${_release_identity_pair-}" != "${RELEASE_CONTAINER_UID-}:${RELEASE_CONTAINER_GID-}" ]]; then
+    printf '%s\n' 'Private bind mount requires a verified container identity for the selected local Docker engine.' >&2
+    return 2
+  fi
+  LOCAL_UID="$RELEASE_CONTAINER_UID" LOCAL_GID="$RELEASE_CONTAINER_GID" "$@"
+}

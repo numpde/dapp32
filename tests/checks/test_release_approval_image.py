@@ -68,6 +68,7 @@ class _ReleaseCommandHarness:
     def __init__(
         self, kind: str, *, block: str, hold_down: bool,
         down_status: int, child_status: int, build_directory: Path | None = None,
+        container_identity: str = "0:0", probe_status: int = 0,
     ) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="release-cancel-test-")
         self.root = Path(self.temp.name)
@@ -91,7 +92,7 @@ class _ReleaseCommandHarness:
         if kind in ("image", "image-target"):
             self.work.mkdir()
         self.events.touch()
-        for name in ("release_approval_image_build.sh", "release_approval_images.sh", "release_rehearsal.sh", "release_process.sh", "release_tool_images.sh", "compose_cleanup.sh"):
+        for name in ("release_approval_image_build.sh", "release_approval_images.sh", "release_rehearsal.sh", "release_process.sh", "release_tool_images.sh", "release_identity.sh", "compose_cleanup.sh"):
             destination = self.repo / "tools" / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / "tools" / name, destination)
@@ -241,7 +242,7 @@ docker() {
     if [[ "$previous" == -p || "$previous" == --project-name ]]; then project=$argument; fi
     previous=$argument
   done
-  event "compose $project $*"
+  event "compose $project $* mapped-user=${LOCAL_UID-unset}:${LOCAL_GID-unset}"
   case " $* " in
     *" config --images"*) printf 'docker.io/library/fixture@sha256:%064d\n' 1; return 0 ;;
     *" down "*)
@@ -284,6 +285,12 @@ fixture_image_build() {
   fi
 }
 python3() {
+  if [[ "${1-}" == -I && "${2-}" == -S && "${3-}" == -B && "${4-}" == tools/release_identity.py ]]; then
+    event "identity-selected engine=$CAM_DOCKER_ENDPOINT host=$(id -u):$(id -g)"
+    if [[ "$TEST_IDENTITY_PROBE_STATUS" != 0 ]]; then return "$TEST_IDENTITY_PROBE_STATUS"; fi
+    printf '%s\n' "$TEST_CONTAINER_IDENTITY"
+    return
+  fi
   if [[ "$1" == -I ]]; then command "$TEST_PYTHON" "$@"; return; fi
   if [[ "$1" == -c ]]; then printf '%s\n' "$TEST_STAMP"; return; fi
   if [[ "$1" != tools/release_approval_pty_check.py ]]; then
@@ -325,8 +332,10 @@ python3() {
             "TEST_HOLD_DOWN": str(int(hold_down)),
             "TEST_DOWN_STATUS": str(down_status),
             "TEST_CHILD_STATUS": str(child_status),
-            "LOCAL_UID": "1000",
-            "LOCAL_GID": "1000",
+            "LOCAL_UID": str(os.getuid()),
+            "LOCAL_GID": str(os.getgid()),
+            "TEST_CONTAINER_IDENTITY": container_identity,
+            "TEST_IDENTITY_PROBE_STATUS": str(probe_status),
             "RELEASE_APPROVAL_SIMULATION": "normal",
             "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.build),
         })
@@ -499,6 +508,38 @@ class ReleaseApprovalImageCancellationTest(unittest.TestCase):
             self.assertTrue((run.work / "source/js/package.json").is_file())
             self.assertTrue((run.work / "context").is_dir())
             self.assertIn(str(run.work), run.log.read_text(encoding="utf-8"))
+
+    def test_image_builder_uses_selected_engine_mapping_for_all_private_compose_phases(self) -> None:
+        # The rootless case deliberately maps host ownership to container 0:0.
+        for mapped in ("0:0", f"{os.getuid()}:{os.getgid()}"):
+            with self.subTest(mapped=mapped), _ReleaseCommandHarness(
+                "image", block="none", hold_down=False, down_status=0,
+                child_status=0, container_identity=mapped,
+            ) as run:
+                self.assertEqual(0, run.finish(), run.log.read_text(encoding="utf-8"))
+                run.assert_owned_cleanup(self)
+                events = run.lines()
+                probe = [index for index, line in enumerate(events) if line.startswith("identity-selected ")]
+                self.assertEqual(1, len(probe), events)
+                compose = [line for line in events if line.startswith("compose ")]
+                self.assertTrue(compose, events)
+                self.assertTrue(all(line.endswith(f"mapped-user={mapped}") for line in compose), compose)
+                first_private_run = next(index for index, line in enumerate(events)
+                                         if " release-approval-identity " in line and " run " in line)
+                self.assertLess(probe[0], first_private_run)
+                self.assertFalse(run.work.exists())
+
+    def test_image_builder_refuses_missing_or_invalid_mapping_before_private_compose(self) -> None:
+        for mapped, status in (("not-an-identity", 0), ("0:0", 3)):
+            with self.subTest(mapped=mapped, status=status), _ReleaseCommandHarness(
+                "image", block="none", hold_down=False, down_status=0,
+                child_status=0, container_identity=mapped, probe_status=status,
+            ) as run:
+                self.assertNotEqual(0, run.finish())
+                events = run.lines()
+                self.assertEqual([], [line for line in events if line.startswith("compose ")], events)
+                self.assertFalse(run.output.exists())
+                self.assertFalse(run.work.exists())
 
     def test_success_keeps_published_image_provenance(self) -> None:
         with _ReleaseCommandHarness(

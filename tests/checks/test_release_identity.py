@@ -85,8 +85,15 @@ python3() {
     command python3 "$@"
   fi
 }
+# Raw inherited numbers are not authority without the selected-shell receipt.
+RELEASE_CONTAINER_UID=0 RELEASE_CONTAINER_GID=0
+status=0
+release_with_mapped_owner true || status=$?
+[[ "$status" == 2 ]]
 release_select_container_identity
 [[ "$RELEASE_CONTAINER_UID:$RELEASE_CONTAINER_GID" == 0:0 ]]
+release_with_mapped_owner bash -c '[[ "$LOCAL_UID:$LOCAL_GID" == "0:0" ]]'
+[[ "$LOCAL_UID:$LOCAL_GID" == "$(id -u):$(id -g)" ]]
 release_select_container_identity
 [[ "$(wc -l < "$CALLS")" -eq 1 ]]
 CAM_DOCKER_ENDPOINT=unix:///tmp/two.sock
@@ -94,6 +101,9 @@ status=0
 release_select_container_identity || status=$?
 [[ "$status" == 3 ]]
 [[ ! -v RELEASE_CONTAINER_UID && ! -v RELEASE_CONTAINER_GID ]]
+status=0
+release_with_mapped_owner true || status=$?
+[[ "$status" == 2 ]]
 [[ "$(wc -l < "$CALLS")" -eq 2 ]]
 '''
             env = {**os.environ, "LOCAL_UID": str(os.getuid()), "LOCAL_GID": str(os.getgid()),

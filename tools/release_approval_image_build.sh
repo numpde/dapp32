@@ -76,13 +76,13 @@ cleanup() {
     status=1
     cleanup_failed=1
   fi
-  if [[ $identity_started == 1 ]] && ! release_run_owned 60 "${identity_compose[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
+  if [[ $identity_started == 1 ]] && ! release_with_mapped_owner release_run_owned 60 "${identity_compose[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
     printf 'Approval identity cleanup failed; inspect project %s-identity.\n' "$project_name" >&2
     status=1
     cleanup_failed=1
   fi
   if [[ $stage_started == 1 ]]; then
-    if ! release_run_owned 60 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
+    if ! release_with_mapped_owner release_run_owned 60 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
       printf 'Approval image teardown failed; inspect project %s. Mounted inputs retained at %s.\n' "$project_name" "$work_dir" >&2
       status=1
       cleanup_failed=1
@@ -134,14 +134,18 @@ for manifest in "$source_dir"/js/packages/*/package.json "$source_dir"/js/apps/*
   cp "$manifest" "$manifest_dir/$relative"
 done
 
-export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) ALLOW_UPDATE=0
+# The host owner and the selected container identity are distinct under
+# rootless Docker. Only the verified container mapping may read our 0700 archive.
+export LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" ALLOW_UPDATE=0
+source "$repo_root/tools/release_identity.sh"
+release_select_container_identity
 export PACKAGE_INPUT_DIR=$manifest_dir
 export RELEASE_APPROVAL_SOURCE_DIR=$source_dir RELEASE_APPROVAL_CONTEXT_DIR=$context_dir
 
 identity_compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose --env-file /dev/null -p "$project_name-identity" -f "$repo_root/compose/release/approval-image.yml")
-release_acquire_compose_images "${identity_compose[@]}"
+release_with_mapped_owner release_acquire_compose_images "${identity_compose[@]}"
 identity_started=1
-release_run_owned 15 "${identity_compose[@]}" run --pull never --rm --no-deps -T release-approval-identity > "$work_dir/input-digest"
+release_with_mapped_owner release_run_owned 15 "${identity_compose[@]}" run --pull never --rm --no-deps -T release-approval-identity > "$work_dir/input-digest"
 input_digest=$(<"$work_dir/input-digest")
 if [[ ! "$input_digest" =~ ^[0-9a-f]{64}$ ]]; then
   printf '%s\n' 'Approval-input identification returned an invalid digest.' >&2
@@ -165,9 +169,9 @@ if [[ -z "$image_id" ]]; then
 
   # The npm stage sees manifests through the registry-only proxy, not repository source.
   stage_started=1
-  release_log_step "$release_preparation_log" 'Preparing approval build tools' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
-  release_log_step "$release_preparation_log" 'Installing locked approval dependencies' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
-  release_log_step "$release_preparation_log" 'Checking and staging approval runtime' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
+  release_with_mapped_owner release_log_step "$release_preparation_log" 'Preparing approval build tools' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
+  release_with_mapped_owner release_log_step "$release_preparation_log" 'Installing locked approval dependencies' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
+  release_with_mapped_owner release_log_step "$release_preparation_log" 'Checking and staging approval runtime' release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
 
   release_run_owned 15 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" build --network=none --pull=false --tag "$cache_tag" \
   --label "org.opencontainers.image.revision=$source_commit" \
