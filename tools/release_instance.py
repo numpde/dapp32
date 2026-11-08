@@ -502,6 +502,44 @@ def finish(root, request, action):
     write_json(root / "instance.json", selection)
 
 
+
+def show_verified_publication_followups(root, request, action, app, host_root):
+    """Suggest optional work only after a completed publication was verified."""
+    original = request["operation"]
+    if original not in ("deploy", "ui/update", "cam/publish"):
+        return False
+    for phase in OPERATIONS[original][1]:
+        record = phase_records(root, request, action, phase) / "artifact" / PHASE_ARTIFACTS[phase]
+        if not record.is_file():
+            return False
+    publication = publication_for(action)
+    if not publication.is_file():
+        return False
+
+    import shlex
+    instance_arg = f"INSTANCE={shlex.quote(host_root)}"
+    print("Verification complete: the saved CAM publication and its required deployment records passed keyless checks.")
+    print("No additional deployment or verification transaction is required.")
+    print("Optional next steps:")
+    print("  1. Check or publish the original contract sources on Sourcify (keyless):")
+    print(f"     make {app}/release/source/publish {instance_arg}")
+    print("     Source publication may already have been attempted on deployment completion.")
+    print("  2. Inspect the verified application in the viewer (no contract deployment):")
+    print(f"     make viewer/release/up {instance_arg}")
+    print("  3. Check CAM manifest hosting and integrity before public use.")
+    manifest = read_json(publication).get("manifest")
+    if isinstance(manifest, dict):
+        uri, digest = manifest.get("uri"), manifest.get("hash")
+        if isinstance(uri, str) and ("/refs/heads/" in uri or "/raw/heads/" in uri):
+            print("     Warning: the recorded CAM URI follows a mutable Git branch.")
+        if isinstance(digest, str) and digest.lower() == "0x" + "0" * 64:
+            print("     Warning: the recorded CAM SHA-256 is zero; remote bytes are not integrity-verified.")
+    print("     If needed, host the exact prepared CAM bundle at an immutable URI and")
+    print("     update the existing CAM root with a separate, approved transaction.")
+    print("     Do not redeploy the business or UI contracts for this.")
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("prepare", "finish"))
@@ -535,6 +573,14 @@ def main():
     if options.mode == "finish":
         chosen = read_json(Path("/out/selection.json"))
         if options.operation == "source/publish":
+            return
+        if options.operation == "verify":
+            request = chosen["request"]
+            action = instance_path(root, chosen["action"])
+            if show_verified_publication_followups(root, request, action, app, options.host_root):
+                return
+            print("Verified available saved records; this operation has no completed CAM publication.")
+            print("Review its retained records before continuing the saved operation.")
             return
         if options.operation == "setup":
             next_operation = {"deployment": "deploy", "contracts": "contracts/deploy", "ui": "ui/deploy", "cam": "cam/bundle"}[chosen["request"]["purpose"]]

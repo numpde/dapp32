@@ -312,6 +312,73 @@ class ReleaseInstanceTest(unittest.TestCase):
             instances.write_json(root / "instance.json", {"business": backing.relative_to(root).as_posix()})
             self.assertEqual(backing.relative_to(root).as_posix(), instances.business_for_publication(root, instances.inventory(root, APP), publication.relative_to(root).as_posix()))
 
+    def test_completed_verification_suggests_sourcify_viewer_and_cam_integrity_for_each_app(self):
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                request = {"operation": "deploy", "inputs": {}}
+                action = root / "deployments/confirmed"
+                for phase, name in (("contracts", "contract-deployment.json"),
+                                    ("ui", "ui-deployment.json")):
+                    save(root, f"deployments/confirmed/{phase}/artifact/{name}", {})
+                save(root, "deployments/confirmed/cam/artifact/cam-publication.json", {
+                    "manifest": {"uri": "https://raw.githubusercontent.com/example/repo/refs/heads/main/dapps/app/cam/main.json",
+                                 "hash": "0x" + "0" * 64},
+                })
+                host_root = "/tmp/operator's release instance"
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    complete = instances.show_verified_publication_followups(
+                        root, request, action, app, host_root,
+                    )
+                message = output.getvalue()
+                self.assertTrue(complete)
+                self.assertIn("Verification complete", message)
+                self.assertIn(f"make {app}/release/source/publish", message)
+                self.assertIn("make viewer/release/up", message)
+                self.assertIn("Sourcify", message)
+                self.assertIn("mutable Git branch", message)
+                self.assertIn("SHA-256 is zero", message)
+                self.assertIn("separate, approved transaction", message)
+                self.assertIn("INSTANCE='/tmp/operator'\"'\"'s release instance'", message)
+                self.assertNotIn("Next: make", message)
+                self.assertNotIn("make " + app + "/release/verify", message)
+
+    def test_post_verification_guidance_requires_complete_publication_for_each_phase(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            action = root / "deployments/incomplete"
+            request = {"operation": "deploy", "inputs": {}}
+            save(root, "deployments/incomplete/contracts/artifact/contract-deployment.json", {})
+            save(root, "deployments/incomplete/cam/artifact/cam-publication.json", {
+                "manifest": {"uri": "ipfs://immutable", "hash": "0x" + "a" * 64},
+            })
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertFalse(instances.show_verified_publication_followups(
+                    root, request, action, APP, str(root),
+                ))
+            self.assertEqual("", output.getvalue())
+            save(root, "deployments/incomplete/ui/artifact/ui-deployment.json", {})
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                self.assertTrue(instances.show_verified_publication_followups(
+                    root, request, action, APP, str(root),
+                ))
+            self.assertNotIn("Warning:", output.getvalue())
+
+    def test_verifying_a_ui_only_record_is_not_reported_as_completed_cam_publication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            action = root / "updates/ui-only"
+            save(root, "updates/ui-only/ui/artifact/ui-deployment.json", {})
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                result = instances.show_verified_publication_followups(
+                    root, {"operation": "ui/deploy", "inputs": {}}, action, APP, str(root),
+                )
+            self.assertFalse(result)
+            self.assertEqual("", output.getvalue())
+
     def test_ambiguous_choices_need_a_terminal_and_are_not_timestamp_selected(self):
         with patch.object(instances.sys.stdin, "isatty", return_value=False):
             with self.assertRaisesRegex(ValueError, "interactive"):
