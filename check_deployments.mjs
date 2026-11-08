@@ -109,6 +109,7 @@ try {
   ;({ targetId } = await call('Target.createTarget', { url: 'about:blank', background: true }))
   ;({ sessionId } = await call('Target.attachToTarget', { targetId, flatten: true }, undefined))
   await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable')
+  await call('Emulation.setFocusEmulationEnabled', { enabled: true })
   await call('Network.setCacheDisabled', { cacheDisabled: true })
   await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
@@ -125,7 +126,9 @@ try {
   ], 'Verification links require matching recorded addresses; changed and unbound names have none')
   assert.equal(await evaluate('document.querySelector(".rpc-settings").open'), false, 'Healthy RPC settings are secondary')
   await evaluate('document.querySelector(".rpc-settings summary").focus()')
-  for (const type of ['keyDown', 'keyUp']) await call('Input.dispatchKeyEvent', { type, key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+  // Native summary activation consumes Enter's character event as well as its key events.
+  await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' })
+  await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
   await until('document.querySelector(".rpc-settings").open')
   assert(await evaluate('document.querySelector(".rpc-controls select").getBoundingClientRect().height > 0'), 'Keyboard disclosure exposes the endpoint')
   await evaluate('document.querySelector(".rpc-settings summary").click()')
