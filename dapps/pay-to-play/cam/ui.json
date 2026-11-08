@@ -179,7 +179,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "A withdrawal request is not a reservation. Voucher collection can still reduce the balance before withdrawal, and the requested amount cannot be cancelled."
+            "text": "A withdrawal request is not a reservation. Voucher collection can still reduce the balance before withdrawal, and the requested amount cannot be cancelled. A positive deposit or incoming move restarts the full waiting period for an outstanding request, even if it was already ready, without changing its amount. Zero credits do not. The new ready time does not guarantee voucher payment."
           }
         }
       ]
@@ -261,7 +261,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance. Use either amount box; fees are separate. It neither signs a voucher nor restarts an active withdrawal wait."
+            "text": "New funding stops when settlement begins. A positive deposit restarts the full withdrawal wait for any outstanding request, even if it was already ready; its requested amount stays the same. A zero deposit leaves the wait unchanged. Recovery deadlines are separate: use Recovery to inspect or renew the funding cycle, or return a due balance. Use either amount box; fees are separate."
           }
         },
         {
@@ -328,7 +328,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. This channel’s full wait starts when the request transaction is included in a block. Replacing a request restarts the full wait. Requests cannot be cancelled."
+            "text": "Only the owner can start or replace a request. The amount must be positive and no greater than the current balance. The full channel wait starts when the request transaction is included in a block; replacing the request restarts it. A positive deposit or incoming move into this position also restarts the full wait of an outstanding request without changing its amount, even if it was already ready. Zero credits leave it unchanged. Requests cannot be cancelled."
           }
         },
         {
@@ -396,7 +396,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Later deposits require a new request and full wait. Refresh re-reads all displayed values and available actions from the latest block."
+            "text": "When the chain reaches the ready time, anyone can submit a withdrawal back to the owner. Only the owner can move funds to another channel for that same owner. Both transfer the smaller of the requested amount and current remaining balance, then clear the request—even if zero. Once a request is consumed, a later deposit needs a new request and full wait before withdrawal. Refresh re-reads all displayed values and available actions from the latest block."
           }
         },
         {
@@ -833,7 +833,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "A deposit adds funds to this owner's selected channel; it does not pay the payee. The recovery deadline may be renewed, but an existing withdrawal request retains its ready time under the current contract."
+            "text": "A deposit adds funds to this owner's selected channel; it does not pay the payee. A positive deposit restarts the full channel wait for an outstanding withdrawal request without changing its amount; a zero deposit does not. The separate recovery deadline may also be renewed. Neither change reserves funds for voucher collection."
           }
         }
       ]
@@ -2125,7 +2125,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Choose one duration for both the withdrawal wait and the collector’s final claim window. Customers wait it after a withdrawal request; a closing funding cycle uses it before refunds become available. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window."
+            "text": "Choose one duration for both the withdrawal wait and the collector’s final claim window. Customers wait it after a withdrawal request; a positive deposit or incoming move restarts that wait if the credited position has a pending request. Zero credits do not. A closing funding cycle uses the same duration before refunds become available. Collection stops when that window ends. The duration cannot change after channel creation and must be at most 30 days. Zero makes withdrawals immediately ready and leaves no final claim window."
           }
         },
         {
@@ -2352,7 +2352,7 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery."
+                    "text": "A positive deposit or incoming move can extend recovery; it also restarts any pending ordinary withdrawal wait for the credited position, even when the recovery deadline does not extend. Zero deposits, collection, and relayer calls postpone neither deadline."
                   }
                 },
                 {
