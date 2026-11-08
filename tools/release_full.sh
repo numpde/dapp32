@@ -98,7 +98,7 @@ release_full() {
   if [[ -v CAM_CONFIG && -n "$CAM_CONFIG" ]]; then cam_config="$CAM_CONFIG"; fi
   local contracts="$output/contracts" ui="$output/ui" prepared="$output/cam-bundle" cam="$output/cam"
   if [[ -v CAM_BUNDLE && -n "$CAM_BUNDLE" ]]; then prepared="$CAM_BUNDLE"; fi
-  local business_artifact ui_artifact legacy_records
+  local business_artifact ui_artifact legacy_records business_phase_status ui_phase_status
   local prepared_before=0
   if [[ -f "$prepared/artifact/cam-bundle.json" ]]; then prepared_before=1; fi
   local -a root_selection
@@ -205,19 +205,26 @@ release_full() {
     release_full_retry_preparation "$contracts" || return
     if [[ -e "$contracts" || -L "$contracts" ]]; then
       release_full_make "$app/release/contracts/artifact" "CONFIG=$main_config" "CONTRACT_RECORDS=$contracts" || return
+      business_phase_status='reused; keyless verification passed for retained deployment; no business deployment transaction submitted in this invocation'
     else
       release_full_make "$app/release/contracts/deploy" "CONFIG=$main_config" "OUTPUT_DIR=$contracts" || return
+      business_phase_status='deployed in this invocation'
     fi
     require_release_file "$business_artifact" 'Verified business artifact'
+  else
+    business_phase_status='reused selected existing artifact; no business deployment in this invocation'
   fi
   if [[ "$operation" == update && -n "${UI_ARTIFACT-}" ]]; then
     ui_artifact="$UI_ARTIFACT"
+    ui_phase_status='reused selected existing artifact; no UI deployment in this invocation'
   else
     release_full_retry_preparation "$ui" || return
     if [[ -e "$ui" || -L "$ui" ]]; then
       release_full_make "$app/release/ui/artifact" "CONFIG=$ui_config" "UI_RECORDS=$ui" || return
+      ui_phase_status='reused; keyless verification passed for retained deployment; no UI deployment transaction submitted in this invocation'
     else
       release_full_make "$app/release/ui/deploy" "CONFIG=$ui_config" "CONTRACT_ARTIFACT=$business_artifact" "OUTPUT_DIR=$ui" || return
+      ui_phase_status='deployed in this invocation'
     fi
     ui_artifact="$ui/artifact/ui-deployment.json"
   fi
@@ -254,6 +261,19 @@ release_full() {
       return 2
     fi
   fi
+
+  # Describe what actually ran. This is printed only after both selected
+  # components and the prepared bundle have passed their ordinary checks.
+  # Do not mistake the next phase's "Transaction 1" for a new full deployment.
+  printf '\n%s\n' 'Release phase status (this invocation):'
+  printf '  Business contracts: %s\n' "$business_phase_status"
+  printf '  UI contract: %s\n' "$ui_phase_status"
+  if [[ ! -e "$cam" && ! -L "$cam" ]]; then
+    printf '%s\n' '  CAM publication: pending; the next approval concerns only the CAM root and its address bindings.'
+  else
+    printf '%s\n' '  CAM publication: retained records selected for verification or completion; only CAM transactions may still require approval.'
+  fi
+  printf '%s\n' '  Approval numbering: "Transaction 1" starts the current CAM approval session, not the first transaction of the full deployment.'
 
   if [[ ! -e "$cam" && ! -L "$cam" ]]; then
     release_full_read_uri_presence "$cam_config" "$app" || return
