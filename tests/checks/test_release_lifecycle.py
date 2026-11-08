@@ -1498,6 +1498,44 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
                                   ("contracts/artifact", "ui/artifact", "cam/artifact")], [call[0] for call in calls])
                 self.assertEqual(original, (root / "release/cam/artifact/cam-publication.json").read_bytes())
 
+    def test_resumed_full_release_reports_reuse_and_cam_only_approval_for_all_apps(self) -> None:
+        for app in ("bike-nft", "escrow", "pay-to-play"):
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(root)
+                initial, calls = self.invoke(root, app=app, operation="full", uri=False)
+                self.assertEqual(0, initial.returncode, initial.stderr)
+                self.assertEqual([f"{app}/release/{phase}" for phase in
+                                 ("contracts/deploy", "ui/deploy", "cam/bundle")],
+                                 [call[0] for call in calls])
+                resumed, calls = self.invoke(root, app=app, operation="full", uri=False)
+                self.assertEqual(0, resumed.returncode, resumed.stderr)
+                self.assertEqual([f"{app}/release/{phase}" for phase in
+                                  ("contracts/artifact", "ui/artifact", "cam/publish")],
+                                 [call[0] for call in calls])
+                self.assertIn("Business contracts: reused", resumed.stdout)
+                self.assertIn("UI contract: reused", resumed.stdout)
+                self.assertIn("keyless verification passed", resumed.stdout)
+                self.assertIn("CAM publication", resumed.stdout)
+                self.assertIn("Transaction 1", resumed.stdout)
+                self.assertIn("not the first transaction of the full deployment", resumed.stdout)
+                self.assertNotIn("Business contracts: reused", initial.stdout)
+                self.assertNotIn("UI contract: reused", initial.stdout)
+
+    def test_prepublication_summary_does_not_claim_reuse_when_deployed_in_this_run(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            run, calls = self.invoke(root, app="pay-to-play", operation="full", uri=True)
+            self.assertEqual(0, run.returncode, run.stderr)
+            self.assertEqual(["contracts/deploy", "ui/deploy"], [
+                call[0].removeprefix("pay-to-play/release/") for call in calls[:2]
+            ])
+            self.assertIn("Business contracts: deployed in this invocation", run.stdout)
+            self.assertIn("UI contract: deployed in this invocation", run.stdout)
+            self.assertNotIn("Business contracts: reused", run.stdout)
+            self.assertNotIn("UI contract: reused", run.stdout)
+
     def test_preparation_failures_resume_all_apps_without_discarding_records(self) -> None:
         for app in ("bike-nft", "escrow", "pay-to-play"):
             for phase, records in (("contracts/deploy", "contracts"), ("ui/deploy", "ui"), ("cam/publish", "cam")):
