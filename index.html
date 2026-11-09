@@ -1,15 +1,69 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Contract-defined workflows · dapp32</title><meta name="description" content="Understand, try, use, build or deploy contract-defined workflows."><script src="./theme.js"></script>
-<link rel="stylesheet" href="./site.css"></head><body>
+<link rel="stylesheet" href="./site.css"><style>
+  .gallery-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 28px; }
+  .gallery-kicker { margin: 0 0 10px; color: var(--muted); font-size: .78rem; font-weight: 700; letter-spacing: .1em; }
+  .gallery-header h1 { max-width: none; font-size: clamp(2.4rem, 6vw, 4rem); line-height: 1.08; }
+  .gallery-header .lede { max-width: 42rem; margin-top: 14px; }
+  .gallery-header > a { margin-bottom: 5px; }
+  .gallery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+  .app-tile { display: flex; flex-direction: column; gap: 12px; padding: 24px; min-width: 0; }
+  .app-tile .gallery-label { margin: 0; color: var(--muted); font-size: .85rem; }
+  .app-tile-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+  .app-tile-heading h2 { margin: 0; font-size: 1.55rem; line-height: 1.25; }
+  .app-tile-heading select { max-width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); color: var(--ink); font: inherit; font-size: .85rem; }
+  .app-tile > p { margin: 0; }
+  .gallery-links { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-top: auto; padding-top: 8px; }
+  .home-guide { margin-top: 42px; }
+  .home-guide > section:first-child { margin-top: 0; }
+  .home-guide > section:first-child > h2 { margin-bottom: 10px; }
+  @media (max-width: 680px) {
+    .gallery-grid { grid-template-columns: minmax(0, 1fr); }
+    .app-tile { padding: 20px; }
+    .home-guide { margin-top: 36px; }
+  }
+</style></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="./">dapp32</a><nav aria-label="Primary"><a href="./start/">Start</a><a href="./use/">Use</a><a href="./authoring/">Build</a><a href="./deployment/">Deploy</a><a href="./reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
-<h1>Contract-defined workflows</h1>
-<p>A contract publishes a workflow description. A generic viewer or agent interprets it; business contracts enforce the rules. Start with the task you need—not with deployment internals.</p>
+<main id="main" class="shell document">
+<section id="gallery" aria-labelledby="gallery-title">
+  <div class="gallery-header">
+    <div>
+      <p class="gallery-kicker">AVALANCHE FUJI · TESTNET</p>
+      <h1 id="gallery-title">Deployed apps</h1>
+      <p class="lede">Choose an app and open its deployed instance directly. The Pages viewer is a newer preview; the stand-alone viewer is deployed separately.</p>
+    </div>
+    <a href="deployments/">All deployments</a>
+  </div>
+  <div class="gallery-grid">
+    <article class="card app-tile" data-gallery-app="pay-to-play">
+      <p class="gallery-label">PAYMENTS · FUJI TESTNET</p>
+      <div class="app-tile-heading"><h2>Pay-to-Play</h2></div>
+      <p>Fund payment channels and settle cumulative vouchers.</p>
+      <div class="gallery-links">
+        <a data-gallery-details href="deployments/#pay-to-play-fuji-2026-11-08">Deployment details</a>
+        <a href="pay-to-play/">Guide</a>
+      </div>
+    </article>
+    <article class="card app-tile" data-gallery-app="bike-nft">
+      <p class="gallery-label">REGISTRY · FUJI TESTNET</p>
+      <div class="app-tile-heading"><h2>Bicycle component registry</h2></div>
+      <p>Register bicycle components, inspect records and manage permitted updates.</p>
+      <div class="gallery-links">
+        <a data-gallery-details href="deployments/#bike-nft-fuji">Deployment details</a>
+        <a href="bike-nft/">Guide</a>
+      </div>
+    </article>
+  </div>
+  <p id="gallery-status" role="status" hidden></p>
+</section>
+<article class="narrow home-guide">
 <section id="documentation">
+<h2>Documentation</h2>
+<p>A contract publishes a workflow description. A generic viewer or agent interprets it; business contracts enforce the rules. Start with the task you need—not with deployment internals.</p>
 <div class="grid two">
 <section class="card"><h2><a href="start/">Start</a></h2><p>Understand <a href="start/">what runs where</a>, then <a href="start/local-wallet.html">try Pay-to-Play with a local test wallet</a>.</p></section>
-<section class="card"><h2><a href="use/">Use</a></h2><p><a href="use/">Open an existing app</a> in the <a href="https://app.dapp32.com/">stand-alone viewer</a> or <a href="viewer/">Pages preview</a>. The <a href="deployments/">instance directory</a> lists published coordinates.</p></section>
+<section class="card"><h2><a href="use/">Use</a></h2><p>Open an app from the gallery above, or <a href="deployments/">browse all deployments</a>. For an unlisted app, <a href="use/">enter its CAM host manually</a>.</p></section>
 <section class="card"><h2><a href="authoring/">Build</a></h2><p><a href="authoring/">Edit and validate a workflow</a>, or <a href="authoring/headless.html">integrate without a browser</a>. Begin with <a href="development/">source setup</a>.</p></section>
 <section class="card"><h2><a href="deployment/">Deploy</a></h2><p><a href="viewer/deploy.html">Host the stand-alone viewer</a>, <a href="deployment/new-instance.html">deploy a new app</a>, or <a href="deployment/update.html">update an existing publication</a>. These are different tasks.</p></section>
 <section class="card"><h2><a href="reference/cam/">Reference</a></h2><p><a href="reference/cam/1.4.0/">CAM 1.4.0 / UI 1.1.0</a>, with precise resource, route and execution rules. Older specifications are historical.</p></section>
@@ -22,4 +76,4 @@
 <p id="status"><span id="roadmap"></span>Current format support and historical references are listed in the <a href="reference/cam/">reference index</a>. A working fixture does not qualify a public deployment.</p>
 <p id="related">For protocol boundaries and related implementation evidence, use the <a href="reference/cam/1.4.0/#provenance">current reference's provenance section</a>.</p>
 <p id="archive">The <a href="https://github.com/numpde/dapp32/tree/archive/poc-2026-05-20">historical proof of concept</a> is archived. Use the current source and these task guides for new work.</p>
-</article></main></body></html>
+</article></main><script type="module" src="./gallery.js"></script></body></html>
