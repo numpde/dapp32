@@ -1,67 +1,53 @@
-name: Published documentation checks
-
+name: Generated Pages checks
 on:
-  push:
-    paths:
-      - '**/*.html'
-      - check_pages.py
-      - 'gallery/deployments.json'
-      - check_reference.py
-      - theme.js
-      - docs_nav.py
-      - site.css
-      - Makefile
-      - .github/workflows/pages-check.yml
   pull_request:
     branches: [gh-pages]
     paths:
       - '**/*.html'
-      - check_pages.py
-      - 'gallery/deployments.json'
-      - check_reference.py
-      - theme.js
-      - docs_nav.py
-      - site.css
-      - Makefile
-      - .github/workflows/pages-check.yml
-
+      - 'assets/**'
+      - 'gallery/**'
+      - 'docs-publication.json'
+      - '.github/workflows/pages-check.yml'
+  push:
+    branches: [gh-pages]
+    paths:
+      - '**/*.html'
+      - 'assets/**'
+      - 'gallery/**'
+      - 'docs-publication.json'
+      - '.github/workflows/pages-check.yml'
 permissions:
   contents: read
-
 concurrency:
-  group: pages-check-${{ github.ref }}
+  group: generated-pages-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  pages:
+  verify:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
-      - name: Check out the documentation candidate
+      - name: Check out generated site without credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           path: site
           persist-credentials: false
-      - name: Check out the source used by documentation examples
+      - name: Read exact source revision from publication manifest
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(python3 -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_sha"])' site/docs-publication.json)"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          printf 'sha=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Check out qualified source without credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: main
+          ref: ${{ steps.source.outputs.sha }}
           path: source
           persist-credentials: false
-      - name: Run the maintained offline documentation check
-        env:
-          DOCKER_CONTEXT: default
-        run: make -C site pages/check SOURCE_REPO="$GITHUB_WORKSPACE/source"
-      - name: Retain committed inputs for independent review
+      - name: Verify generated inventory, immutable references and viewer boundary
+        shell: bash
         run: |
-          mkdir -p "$RUNNER_TEMP/documentation-review"
-          git -C site archive --format=tar.gz --output="$RUNNER_TEMP/documentation-review/site.tar.gz" HEAD
-          git -C source archive --format=tar.gz --output="$RUNNER_TEMP/documentation-review/source.tar.gz" HEAD
-          printf 'site %s\nsource %s\n' "$(git -C site rev-parse HEAD)" "$(git -C source rev-parse HEAD)" > "$RUNNER_TEMP/documentation-review/revisions.txt"
-      - name: Upload documentation review inputs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: documentation-review
-          path: ${{ runner.temp }}/documentation-review
-          retention-days: 1
-          if-no-files-found: error
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "${{ steps.source.outputs.sha }}"
+          python3 -B source/tools/docs_site.py check-published source/docs site
