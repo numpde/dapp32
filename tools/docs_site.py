@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+from urllib.parse import unquote, urljoin, urlsplit
 
 
 VERSIONS = ("1.1.0", "1.2.0", "1.3.0", "1.4.0")
@@ -48,6 +49,60 @@ class Navigation(HTMLParser):
             self.active_sections.append(str(attributes.get("href", "")))
         if tag == "nav" and attributes.get("aria-label") == "Breadcrumb":
             self.breadcrumb = True
+
+
+class Links(HTMLParser):
+    """Gather real links and DOM anchors from generated HTML."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.hrefs: list[str] = []
+        self.anchors: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if values.get("id"):
+            self.anchors.add(str(values["id"]))
+        if tag == "a" and values.get("href"):
+            self.hrefs.append(str(values["href"]))
+
+
+def check_links(site: Path, pages: list[tuple[str, str]], retired: dict[str, str]) -> None:
+    """No authored guide may link to a missing page, anchor or obsolete alias."""
+    aliases = {html_path(original).as_posix() for original, canonical in pages
+               if original != canonical} | {html_path(original).as_posix() for original in retired}
+    cached: dict[str, Links] = {}
+
+    def parsed(relative: str) -> Links:
+        if relative not in cached:
+            result = Links()
+            result.feed((site / relative).read_text(encoding="utf-8"))
+            cached[relative] = result
+        return cached[relative]
+
+    for _, canonical in [("index.md", "index.md"), *pages]:
+        original_html = html_path(canonical).as_posix()
+        base = "https://numpde.github.io/dapp32/" + original_html
+        for href in parsed(original_html).hrefs:
+            target = urlsplit(urljoin(base, href))
+            if (target.scheme != "https" or target.netloc != "numpde.github.io"
+                    or not target.path.startswith("/dapp32/")):
+                continue
+            relative = unquote(target.path.removeprefix("/dapp32/"))
+            if not relative or relative.endswith("/"):
+                relative += "index.html"
+            if relative.startswith("viewer/") and relative != "viewer/deploy.html":
+                # The separately published viewer has its own build lifecycle.
+                continue
+            if relative in aliases:
+                raise ValueError(f"Page {original_html} still links to old guide URL: {href}")
+            resolved = site / relative
+            if not resolved.is_file():
+                raise ValueError(f"Broken guide link from {original_html}: {href}")
+            if target.fragment and resolved.suffix == ".html":
+                anchor = unquote(target.fragment)
+                if anchor not in parsed(relative).anchors:
+                    raise ValueError(f"Broken section link from {original_html}: {href}")
 
 
 def safe_files(root: Path, *, checkout: bool) -> list[Path]:
@@ -178,6 +233,7 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
             raise ValueError(f"Page {page} is missing interactive DOM mounts {ids - parser.found}")
     if not any((site / "assets").glob("*.js")):
         raise ValueError("No compiled JavaScript assets")
+    check_links(site, pages, retired)
     return files
 
 

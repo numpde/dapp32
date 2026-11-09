@@ -140,6 +140,21 @@ class DocsPublishedTests(unittest.TestCase):
                         self.assertIn("/dapp32/" + route_url(new),
                                       (site / html_path(old)).read_text())
 
+    def test_internal_links_and_anchors_are_validated(self) -> None:
+        for href, error in (
+            ("/dapp32/not-a-guide/", "Broken guide link"),
+            ("/dapp32/authoring/", "old guide URL"),
+            ("/dapp32/use/#nonexistent-section", "Broken section link"),
+        ):
+            with self.subTest(href=href), tempfile.TemporaryDirectory() as directory:
+                site = artifact_fixture(Path(directory))
+                index = site / "index.html"
+                html = index.read_text(encoding="utf-8")
+                index.write_text(html.replace("</body>", f'<a href="{href}">Broken</a></body>'),
+                                 encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, error):
+                    check(DOCS, site, published=False)
+
     def test_published_asset_mutation_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
