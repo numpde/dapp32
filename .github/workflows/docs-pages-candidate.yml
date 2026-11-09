@@ -27,8 +27,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: docs-pages-candidate
-  cancel-in-progress: false
+  group: docs-pages-candidate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   qualify:
