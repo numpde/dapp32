@@ -305,10 +305,14 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             with self.subTest(path=path):
                 source = (ROOT / path).read_text(encoding="utf-8")
                 publishing_job = source.split(f"  {lane}:\n", 1)[1]
-                self.assertIn(
-                    "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
-                    publishing_job,
-                )
+                if branch == "docs/vitepress-pages-candidate":
+                    self.assertIn("if: github.ref == 'refs/heads/main'", publishing_job)
+                    self.assertIn("workflow_dispatch:", source)
+                else:
+                    self.assertIn(
+                        "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+                        publishing_job,
+                    )
                 self.assertIn(f'branch="{branch}"', publishing_job)
                 self.assertIn("git ls-remote --heads origin", publishing_job)
                 self.assertNotRegex(publishing_job, r'branch="[^"\n]*\$GITHUB_RUN_')

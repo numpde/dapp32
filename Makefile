@@ -1699,10 +1699,12 @@ cam/abi/export: dapps/deps/verify
 # private, newly created stage, which Make publishes after successful export.
 # A unique Compose project keeps the RAM volume mounted while its one-shot
 # builder/exporter run; cleanup stops the holder and verifies removal.
-include tools/make/docs.mk
+# Standalone Makefile copies used by unrelated checks need not contain docs.mk.
+# The docs target nevertheless refuses an incomplete checkout explicitly.
+-include tools/make/docs.mk
 .PHONY: docs/build
 docs/build:
-	$(docs_build_impl)
+	$(if $(value docs_build_impl),$(docs_build_impl),$(error Missing tools/make/docs.mk; cannot build docs))
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status
 viewer/image/build:
