@@ -17,6 +17,8 @@ export function allowedHosts(env = process.env) {
 }
 
 export default defineConfig({
+  // One bundle works at the stand-alone root and under /dapp32/viewer/ on Pages.
+  base: "./",
   plugins: [react()],
   server: {
     host: "0.0.0.0",
