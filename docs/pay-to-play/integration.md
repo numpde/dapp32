@@ -20,14 +20,20 @@ outline: false
 <p>Keep immutable invoice/terms documents separate from mutable acceptance, fulfillment, cancellation and refund records. The helper validates structure and caller-supplied context; it does not authenticate an invoice issuer, reserve backing, lock a database row or deliver a service.</p>
 <h2 id="sign">3. Sign with the confirmed permanent key</h2>
 <p>Read the position's confirmed nonzero <code>voucherKey</code>. That key signs; <code>customer</code> remains the balance owner even when the addresses differ.</p>
-<pre><code>Domain:
+
+
+```text
+Domain:
   name: "PayToPlay"
   version: "2"
   chainId: the deployment chain
   verifyingContract: the bound PayToPlay address
 
 Voucher(address customer,uint256 channelId,
-        uint256 cumulativeTotal,bytes32 invoiceHash)</code></pre>
+        uint256 cumulativeTotal,bytes32 invoiceHash)
+```
+
+
 <p>Use canonical 65-byte <code>r,s,v</code> ECDSA with low s and v equal to 27 or 28. Compare the typed-data digest with <code>voucherDigest(customer, channelId, cumulativeTotal, invoiceHash)</code>. Do not personal-message-sign that digest or substitute the owner's current ERC-1271 approval. The signing-details screen supplies comparison data, not a signature or commercial acceptance.</p>
 <p>Preserve every disclosed signature as potential exposure, including signatures attached to rejected or expired invoices. Acceptance expiry, cancellation, failed delivery and a commercial refund do <strong>not</strong> revoke the voucher or rewind its cumulative stream. A refunded open position can later be funded again; its old unpaid authority remains relevant.</p>
 <h2 id="backing">4. Decide whether to accept work</h2>

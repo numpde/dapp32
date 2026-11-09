@@ -118,6 +118,16 @@ class DocsPortTests(unittest.TestCase):
                 with self.subTest(page=page, href=href):
                     self.assertTrue(source.is_file(), f"link has no owned source: {source}")
 
+    def test_raw_code_blocks_do_not_span_markdown_paragraph_breaks(self) -> None:
+        # A blank line inside a hand-written HTML pre/code block ends the
+        # Markdown HTML block, making Vue parse the remainder as broken tags.
+        raw_code = re.compile(r"<pre><code>(.*?)</code></pre>", re.DOTALL)
+        for source in DOCS.rglob("*.md"):
+            content = source.read_text(encoding="utf-8")
+            for block in raw_code.finditer(content):
+                with self.subTest(page=source.relative_to(DOCS)):
+                    self.assertNotRegex(block.group(1), r"\n[ \t]*\n")
+
     def test_versioned_cam_references_are_not_converted_or_duplicated(self) -> None:
         for version in REFERENCE_VERSIONS:
             with self.subTest(version=version):
@@ -127,10 +137,15 @@ class DocsPortTests(unittest.TestCase):
                 self.assertFalse(reference.with_suffix(".md").exists())
         compose = (ROOT / "compose/docs.yml").read_text(encoding="utf-8")
         self.assertIn("public/reference/cam", compose)
-        self.assertIn('cp -a "/work/js/docs/reference/cam/$version"', compose)
+        self.assertIn('cp -a "/work/js/docs/reference/cam/$$version"', compose)
 
     def test_gallery_uses_one_catalog_and_page_mounts(self) -> None:
         self.assertTrue((DOCS / "public/gallery/deployments.json").is_file())
+        gallery_source = (DOCS / "gallery/index.md").read_text(encoding="utf-8")
+        for node_id in ("load-status", "retry", "deployments"):
+            node_lines = [line for line in gallery_source.splitlines() if f'id="{node_id}"' in line]
+            self.assertEqual(1, len(node_lines), node_id)
+            self.assertFalse(node_lines[0].startswith("    "), "HTML mount is indented as Markdown code")
         self.assertTrue((DOCS / "public/deployments/index.html").is_file())
         for page, script, mount in (
             ("gallery/index.md", "gallery/deployments.js", "mountGallery"),

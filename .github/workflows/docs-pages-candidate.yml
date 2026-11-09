@@ -1,4 +1,4 @@
-name: Docs Pages candidate
+name: Documentation qualification and automatic publication
 
 on:
   push:
@@ -14,6 +14,9 @@ on:
       - Makefile
       - tests/checks/test_docs_port.py
       - tests/checks/test_docs_build_lifecycle.py
+      - tests/checks/test_docs_site.py
+      - tools/make/docs.mk
+      - tools/docs_site.py
   pull_request:
     paths:
       - .github/workflows/docs-pages-candidate.yml
@@ -21,14 +24,20 @@ on:
       - compose/docs.yml
       - js/package.json
       - js/package-lock.json
+      - Makefile
+      - tools/make/docs.mk
+      - tools/docs_site.py
+      - tests/checks/test_docs_port.py
+      - tests/checks/test_docs_build_lifecycle.py
+      - tests/checks/test_docs_site.py
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: docs-pages-candidate
-  cancel-in-progress: false
+  group: docs-pages-candidate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   qualify:
@@ -47,7 +56,8 @@ jobs:
           set -euo pipefail
           base="$(awk '$1 == "FROM" { print $2 }' source/containers/node-deps/Dockerfile)"
           test -n "$base"
-          docker --context default pull "$base"
+          CAM_DOCKER_ENDPOINT="$(bash source/tools/docker_context.sh "command line" default undefined "" 0)"
+          docker --host "$CAM_DOCKER_ENDPOINT" pull "$base"
 
       - name: Install existing checksum-locked dependencies
         shell: bash
@@ -61,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           cd source
-          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle
+          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle tests.checks.test_docs_site
 
       - name: Build docs with confined Docker Compose
         shell: bash
@@ -71,41 +81,11 @@ jobs:
           make -C source docs/build DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=docs-pages-candidate \
             DOCS_OUTPUT_DIR="$GITHUB_WORKSPACE/docs-output"
 
-      - name: Verify built routes and protocol bytes
+      - name: Verify complete generated-site routes and immutable resources
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import json
-
-          source = Path('source/docs')
-          output = Path('docs-output/site')
-          routes = (
-              'index.html', 'start/index.html', 'gallery/index.html',
-              'use/index.html', 'authoring/index.html', 'deployment/index.html',
-              'reference/index.html', 'reference/cam/index.html',
-              'pay-to-play/index.html', 'escrow/index.html', 'bike-nft/index.html',
-              'development/index.html', 'deployment/networks/index.html',
-              'viewer/deploy.html', 'deployments/index.html',
-          )
-          for name in routes:
-              file = output / name
-              assert file.is_file() and file.stat().st_size > 100, f'missing route: {name}'
-          for version in ('1.1.0', '1.2.0', '1.3.0', '1.4.0'):
-              original = source / f'reference/cam/{version}/index.html'
-              published = output / f'reference/cam/{version}/index.html'
-              assert published.read_bytes() == original.read_bytes(), f'protocol bytes differ: {version}'
-          gallery = json.loads((output / 'gallery/deployments.json').read_text())
-          assert gallery['deployments'], 'Gallery has no published deployments'
-          for entry in output.rglob('*'):
-              relative = entry.relative_to(output)
-              assert not entry.is_symlink(), f'generated symlink is forbidden: {relative}'
-              assert '.git' not in relative.parts, f'git metadata is forbidden: {relative}'
-          assert (output / 'assets').is_dir(), 'VitePress assets missing'
-          assert any((output / 'assets').glob('*.js')), 'VitePress JS entry missing'
-          print('Qualified route set, byte-identical CAM references and Gallery data.')
-          PY
+          python3 -B source/tools/docs_site.py check source/docs docs-output/site
 
       - name: Retain exact qualified site
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -116,88 +96,131 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
-  propose:
-    if: github.event_name != 'pull_request'
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: qualify
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
-      pull-requests: write
+      pages: write
     steps:
-      - name: Check out published site for a reviewed update
+      - name: Check out qualified source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Check out independent Pages publication branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: gh-pages
           path: site
           persist-credentials: true
 
-      - name: Download immutable qualified site
+      - name: Download the exact qualified artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: docs-pages-candidate
           path: qualified
 
-      - name: Propose Docs update without changing viewer publication
+      - name: Verify the configured Pages source before modifying gh-pages
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test -s qualified/index.html
-          test -s qualified/gallery/index.html
-          test -s qualified/reference/cam/1.4.0/index.html
-          # The read-only job validated these, but check again in the writer.
-          if find qualified -type l -print -quit | grep -q .; then
-            echo 'Cannot publish a symlink-bearing artifact.' >&2
+          gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/pages-settings.json"
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          settings = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-settings.json").read_text())
+          origin = settings.get("source") or {}
+          if (settings.get("build_type") != "legacy" or origin.get("branch") != "gh-pages"
+                  or origin.get("path") != "/"):
+              raise SystemExit("Pages must publish gh-pages / in branch mode")
+          PY
+
+      - name: Validate, stage and update gh-pages without touching the viewer
+        id: publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$GITHUB_SHA"
+
+          # Never publish a superseded source revision.
+          current="$(git -C site ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$current" != "$GITHUB_SHA" ]]; then
+            echo "::error::A newer source revision exists; refuse stale documentation publication." >&2
             exit 2
           fi
-          if find qualified -name .git -print -quit | grep -q .; then
-            echo 'Cannot publish an artifact containing Git metadata.' >&2
-            exit 2
-          fi
-          # Merge docs output; do not delete the independently published viewer.
-          cp -a qualified/. site/
-          touch site/.nojekyll
+          python3 -B source/tools/docs_site.py check source/docs qualified
+          python3 -B source/tools/docs_site.py stage source/docs qualified site "$GITHUB_SHA" "$GITHUB_RUN_ID"
           cd site
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A -- .
+          if git diff --cached --name-only -- viewer/ | grep -v '^viewer/deploy\.html$' | grep -q .; then
+            echo "Documentation publisher must not modify viewer application files." >&2
+            exit 2
+          fi
           if git diff --cached --quiet; then
-            echo 'Published Pages site already matches the qualified docs.'
+            echo 'Published branch already matches the qualified documentation.'
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # The viewer hosting guide is documentation; the viewer bundle is not.
-          if git diff --cached --name-only | grep '^viewer/' | grep -v '^viewer/deploy\.html
-          git commit -m "Build VitePress docs from $GITHUB_SHA"
-          branch="docs/vitepress-pages-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git push origin "HEAD:refs/heads/$branch"
-          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" \
-            --title "Publish VitePress docs $(printf %s "$GITHUB_SHA" | cut -c1-12)" \
-            --body "Qualified VitePress build from main@$GITHUB_SHA. Replaces the static guide pages, keeps exact CAM protocol bytes, retains the independent viewer and requires review before publication."; then
-            echo "::warning::Qualified docs candidate pushed; open a PR manually."
-            {
-              echo '### VitePress docs await review'
-              echo "Source: main@$GITHUB_SHA"
-              echo "Candidate branch: $branch"
-              echo "Review: https://github.com/$GITHUB_REPOSITORY/compare/gh-pages...$branch?expand=1"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-; then
-            echo 'Documentation update must not modify the viewer application bundle.' >&2
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Publish qualified docs from $GITHUB_SHA (run $GITHUB_RUN_ID)"
+          # Check again immediately before the update. git push is non-forced,
+          # and therefore refuses concurrent gh-pages publication.
+          current="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$current" != "$GITHUB_SHA" ]]; then
+            echo "::error::Source main changed during staging; refuse stale publication." >&2
             exit 2
           fi
-          git commit -m "Build VitePress docs from $GITHUB_SHA"
-          branch="docs/vitepress-pages-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          git push origin "HEAD:refs/heads/$branch"
-          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" \
-            --title "Publish VitePress docs $(printf %s "$GITHUB_SHA" | cut -c1-12)" \
-            --body "Qualified VitePress build from main@$GITHUB_SHA. Replaces the static guide pages, keeps exact CAM protocol bytes, retains the independent viewer and requires review before publication."; then
-            echo "::warning::Qualified docs candidate pushed; open a PR manually."
-            {
-              echo '### VitePress docs await review'
-              echo "Source: main@$GITHUB_SHA"
-              echo "Candidate branch: $branch"
-              echo "Review: https://github.com/$GITHUB_REPOSITORY/compare/gh-pages...$branch?expand=1"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
+          git push origin HEAD:refs/heads/gh-pages
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+          echo "published_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # A GITHUB_TOKEN git push does not by itself trigger a Pages branch build.
+      - name: Request and verify Pages deployment from gh-pages
+        if: steps.publication.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED_SHA: ${{ steps.publication.outputs.published_sha }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" > "$RUNNER_TEMP/pages-request.json"
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          request = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-request.json").read_text())
+          if request.get("status") != "queued":
+              raise SystemExit(f"Unexpected Pages build request: {request!r}")
+          PY
+
+          for attempt in {1..48}; do
+            gh api "repos/$GITHUB_REPOSITORY/pages/builds/latest" > "$RUNNER_TEMP/pages-result.json"
+            if python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          build = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-result.json").read_text())
+          if build.get("commit") != os.environ["PUBLISHED_SHA"]:
+              raise SystemExit(1)
+          if build.get("status") == "built":
+              print("GitHub Pages confirmed this exact published commit.")
+              raise SystemExit(0)
+          if build.get("status") in ("errored", "failed", "canceled"):
+              raise SystemExit(f"GitHub Pages build failed: {build.get('error')}")
+          raise SystemExit(1)
+          PY
+            then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Pages did not confirm the published commit $PUBLISHED_SHA." >&2
+          exit 2

@@ -2,8 +2,26 @@ name: Full offline CI
 
 on:
   pull_request:
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!compose/docs.yml'
+      - '!tools/make/docs.mk'
+      - '!tools/docs_site.py'
+      - '!tests/checks/test_docs_*.py'
+      - '!.github/workflows/docs-pages-candidate.yml'
+      - '!.github/workflows/docs-publish.yml'
   push:
     branches: [main]
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!compose/docs.yml'
+      - '!tools/make/docs.mk'
+      - '!tools/docs_site.py'
+      - '!tests/checks/test_docs_*.py'
+      - '!.github/workflows/docs-pages-candidate.yml'
+      - '!.github/workflows/docs-publish.yml'
 
 permissions:
   contents: read

@@ -37,13 +37,39 @@ with (root / "calls.jsonl").open("a") as stream:
 if args[0] == "compose":
     project_option = "-p" if "-p" in args else "--project-name"
     project = args[args.index(project_option) + 1]
-    if "run" in args:
+    if "build" in args:
+        assert state["project"] in (None, project)
+        assert args[-1] == "docs-build"
+        state["project"] = project
+        state["phases"].append("image-build")
+        state_file.write_text(json.dumps(state))
+        if state["mode"] == "image-build-fail":
+            print("fake image build failed", file=sys.stderr)
+            sys.exit(21)
+    elif "up" in args:
+        assert state["project"] == project
+        assert state["phases"] == ["image-build"]
+        assert "--no-build" in args and "--no-deps" in args
+        assert "-d" in args and "--wait" in args
+        assert args[-1] == "docs-hold"
+        state["volume"] = f"{project}_docs-artifact"
+        state["phases"].append("hold-start")
+        state_file.write_text(json.dumps(state))
+        if state["mode"] == "holder-start-fail":
+            print("fake holder startup failed", file=sys.stderr)
+            sys.exit(22)
+        state["held"] = True
+    elif "run" in args:
+        assert state["project"] == project
+        assert state["held"]
+        assert "--rm" in args and "--no-deps" in args and "-T" in args
         assert state["project"] in (None, project)
         state["project"] = project
         if state["volume"] is None:
             state["volume"] = f"{project}_docs-artifact"
         service = args[-1]
         state["services"].append(service)
+        state["phases"].append(service)
         state_file.write_text(json.dumps(state))
 
         assert os.environ["LOCAL_UID"] == "0" and os.environ["LOCAL_GID"] == "0"
@@ -73,6 +99,8 @@ if args[0] == "compose":
             raise AssertionError("unexpected docs service: " + service)
     elif "down" in args:
         assert project == state["project"]
+        state["phases"].append("down")
+        state["held"] = False
         assert "--volumes" in args and "--remove-orphans" in args
         assert args[args.index("--rmi") + 1] == "all"
         assert os.environ["LOCAL_UID"] == "0" and os.environ["LOCAL_GID"] == "0"
@@ -95,7 +123,7 @@ state_file.write_text(json.dumps(state))
 
 
 class DocsBuildLifecycleTests(unittest.TestCase):
-    def test_both_services_are_offline_read_only_and_capability_free(self) -> None:
+    def test_all_services_are_offline_read_only_and_capability_free(self) -> None:
         config = rendered_compose_config("compose/docs.yml", env={
             "LOCAL_UID": "1000",
             "LOCAL_GID": "1000",
@@ -111,7 +139,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "o": "size=512m,uid=1000,gid=1000,mode=0700,nosuid,nodev,noexec",
         }, artifact["driver_opts"])
 
-        for name in ("docs-build", "docs-export"):
+        for name in ("docs-build", "docs-hold", "docs-export"):
             with self.subTest(service=name):
                 service = config["services"][name]
                 self.assertEqual("none", service["network_mode"])
@@ -121,15 +149,29 @@ class DocsBuildLifecycleTests(unittest.TestCase):
                 self.assertIn("no-new-privileges:true", service["security_opt"])
                 self.assertNotEqual("host", service.get("pid"))
                 self.assertNotEqual("host", service.get("ipc"))
-                self.assertFalse(service.get("privileged", False))
+                self.assertFalse(service.get("privileged"))
                 self.assertFalse(service.get("ports"))
                 self.assertFalse(service.get("devices"))
-                self.assertFalse(service.get("use_api_socket", False))
+                self.assertFalse(service.get("use_api_socket"))
 
         builder = config["services"]["docs-build"]
+        holder = config["services"]["docs-hold"]
         exporter = config["services"]["docs-export"]
         self.assertEqual("dapp32-docs-builder:docs-confinement-test", builder["image"])
+        self.assertEqual(builder["image"], holder["image"])
         self.assertEqual(builder["image"], exporter["image"])
+        self.assertEqual("never", builder["pull_policy"])
+        self.assertEqual("never", holder["pull_policy"])
+        self.assertFalse(holder.get("build"))
+        self.assertFalse(holder.get("environment"))
+        self.assertFalse(holder.get("tmpfs"))
+        self.assertEqual(["sleep", "infinity"], holder["command"])
+        self.assertEqual(16, holder["pids_limit"])
+        self.assertEqual(1, len(holder["volumes"]))
+        held_mount = compose_volume(holder, "/artifact")
+        self.assertEqual("docs-artifact", held_mount["source"])
+        self.assertTrue(held_mount["read_only"])
+        self.assertTrue(held_mount["volume"]["nocopy"])
         self.assertEqual("none", builder["build"]["network"])
         self.assertEqual(128, builder["pids_limit"])
         self.assertEqual(32, exporter["pids_limit"])
@@ -151,7 +193,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertEqual("docs-artifact", compose_volume(builder, "/out")["source"])
         self.assertTrue(compose_volume(builder, "/out")["volume"]["nocopy"])
         self.assertTrue(compose_volume(builder, "/input/docs")["read_only"])
-        self.assertTrue(compose_volume(builder, "/work/js/node_modules")["read_only"])
+        self.assertTrue(compose_volume(builder, "/input/node_modules")["read_only"])
+        self.assertNotIn("/work/js/node_modules", [mount["target"] for mount in builder["volumes"]])
 
         artifact_mount = compose_volume(exporter, "/artifact")
         self.assertEqual("docs-artifact", artifact_mount["source"])
@@ -159,16 +202,19 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertTrue(artifact_mount["volume"]["nocopy"])
         stage_mount = compose_volume(exporter, "/export")
         self.assertEqual("/tmp/dapp32-docs-stage-test", stage_mount["source"])
-        self.assertFalse(stage_mount.get("read_only", False))
-        self.assertFalse(stage_mount["bind"]["create_host_path"])
+        self.assertFalse(stage_mount.get("read_only"))
+        self.assertFalse(stage_mount["bind"].get("create_host_path"))
+        self.assertIn("bind: { create_host_path: false }", (ROOT / "compose/docs.yml").read_text(encoding="utf-8"))
         self.assertEqual(2, len(exporter["volumes"]))
         self.assertNotIn("/export", [mount["target"] for mount in builder["volumes"]])
 
         builder_command = " ".join(str(item) for item in builder["command"])
+        self.assertIn("mkdir /work/js/node_modules", builder_command)
+        self.assertIn("ln -s", builder_command)
         self.assertIn("exec node node_modules/.bin/vitepress", builder_command)
         self.assertNotIn("exec node_modules/.bin/vitepress", builder_command)
 
-    def run_operation(self, root: Path, mode: str, *, existing_site: bool = False) -> tuple[subprocess.CompletedProcess[str], list[dict], dict]:
+    def run_operation(self, root: Path, mode: str, *, existing_site: bool) -> tuple[subprocess.CompletedProcess[str], list[dict], dict]:
         (root / "output").mkdir()
         if existing_site:
             (root / "output/site").mkdir()
@@ -178,6 +224,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "project": None,
             "volume": None,
             "services": [],
+            "phases": [],
+            "held": False,
         }))
         docker = root / "docker"
         docker.write_text(
@@ -230,10 +278,12 @@ class DocsBuildLifecycleTests(unittest.TestCase):
     def test_success_publishes_and_cleans_the_private_stage_and_tmpfs_volume(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            result, calls, state = self.run_operation(root, "success")
+            result, calls, state = self.run_operation(root, "success", existing_site=False)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("built", (root / "output/site/index.html").read_text())
             self.assertEqual(["docs-build", "docs-export"], state["services"])
+            self.assertEqual(["image-build", "hold-start", "docs-build", "docs-export", "down"], state["phases"])
+            self.assertFalse(state["held"])
             self.assertIsNone(state["volume"])
             self.assertEqual(1, len(self.down_calls(calls)))
             self.assertTrue(all(call["uid"] == "0" and call["gid"] == "0"
@@ -241,12 +291,59 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertEqual(1, len({call["stage"] for call in calls if call["args"][0] == "compose"}))
             image_tags = {call["image_tag"] for call in calls if call["args"][0] == "compose"}
             self.assertEqual(1, len(image_tags))
-            self.assertEqual(24, len(next(iter(image_tags))))
+            image_tag = next(iter(image_tags))
+            self.assertEqual(24, len(image_tag))
+            self.assertTrue(state["project"].endswith(f"-docs-{image_tag}"))
             self.assertFalse(any(call["args"][:2] in (["volume", "create"], ["volume", "rm"])
                                  for call in calls))
 
+    def test_docs_publish_automatically_from_main_without_candidate_branches(self) -> None:
+        source = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")
+        publisher = source.split("  publish:\n", 1)[1]
+        self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main'", publisher)
+        self.assertIn("needs: qualify", publisher)
+        self.assertIn("pages: write", publisher)
+        self.assertIn("actions/download-artifact@", publisher)
+        self.assertIn("source/tools/docs_site.py stage", publisher)
+        self.assertIn("git push origin HEAD:refs/heads/gh-pages", publisher)
+        self.assertIn("gh api -X POST", publisher)
+        self.assertLess(publisher.index("Verify the configured Pages source"),
+                        publisher.index("git push origin HEAD:refs/heads/gh-pages"))
+        self.assertIn("git ls-remote origin refs/heads/main", publisher)
+        self.assertIn("pages/builds/latest", publisher)
+        self.assertNotIn("gh pr create", publisher)
+        self.assertNotIn('branch="docs/', publisher)
+        self.assertFalse((ROOT / ".github/workflows/docs-publish.yml").exists())
+
+        viewer = (ROOT / ".github/workflows/viewer-pages-preview.yml").read_text(encoding="utf-8")
+        viewer_publisher = viewer.split("  publish:\n", 1)[1]
+        self.assertIn("if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+                      viewer_publisher)
+        self.assertIn('branch="docs/viewer-preview-candidate"', viewer_publisher)
+
+    def test_each_operation_owns_a_distinct_project_and_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            projects: set[str] = set()
+            for name in ("first", "second"):
+                root = Path(directory) / name
+                root.mkdir()
+                result, calls, state = self.run_operation(root, "success", existing_site=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(1, len(self.down_calls(calls)))
+                projects.add(state["project"])
+            self.assertEqual(2, len(projects))
+
+    def test_publisher_rejects_unowned_viewer_assets_before_transfer(self) -> None:
+        workflow = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")
+        self.assertIn("source/tools/docs_site.py check", workflow)
+        self.assertIn("source/tools/docs_site.py stage", workflow)
+        self.assertIn("git diff --cached --name-only -- viewer/", workflow)
+        self.assertIn("Download the exact qualified artifact", workflow)
+
     def test_failures_remove_the_stage_and_volume_before_publication(self) -> None:
         for mode, expected, services in (
+            ("image-build-fail", 21, []),
+            ("holder-start-fail", 22, []),
             ("build-fail", 17, ["docs-build"]),
             ("export-fail", 18, ["docs-build", "docs-export"]),
             ("export-partial-fail", 18, ["docs-build", "docs-export"]),
@@ -254,17 +351,18 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         ):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                result, calls, state = self.run_operation(root, mode)
+                result, calls, state = self.run_operation(root, mode, existing_site=False)
                 self.assertEqual(expected, result.returncode, result.stderr)
                 self.assertEqual(services, state["services"])
                 self.assertIsNone(state["volume"])
                 self.assertEqual(1, len(self.down_calls(calls)))
+                self.assertFalse(state["held"])
                 self.assertFalse((root / "output/site").exists())
 
     def test_concurrent_publication_cannot_replace_an_existing_site(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            result, calls, state = self.run_operation(root, "publish-race")
+            result, calls, state = self.run_operation(root, "publish-race", existing_site=False)
             self.assertNotEqual(0, result.returncode)
             self.assertEqual("competitor", (root / "output/site/index.html").read_text())
             self.assertIsNone(state["volume"])
@@ -274,7 +372,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         for mode in ("down-fail", "volume-residue"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                result, calls, state = self.run_operation(root, mode)
+                result, calls, state = self.run_operation(root, mode, existing_site=False)
                 self.assertNotEqual(0, result.returncode)
                 self.assertIsNotNone(state["volume"])
                 self.assertIn("Docs project/volume cleanup failed", result.stderr)

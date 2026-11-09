@@ -15,7 +15,10 @@ outline: false
 <p>Include chain ID and escrow address when storing an external identity. The hash identifies the client's exact reference on that contract, not all agreement terms. A completed reference is not reusable.</p>
 <p>Each terms, submission or dispute reference is <code>{ string uri; bytes32 sha256Digest; }</code>. The digest commits to exact content bytes; the URI is a retrieval hint. The contract neither fetches nor canonicalizes content. Use <a href="documents.html">document preparation</a> for current hashing transports and bounds.</p>
 <h2 id="accounting">Value changes category before it leaves the contract</h2>
-<pre><code>Creation (amount &gt; 0, msg.value == amount):
+
+
+```text
+Creation (amount > 0, msg.value == amount):
   totalEscrowed += amount
 
 Terminal settlement:
@@ -26,7 +29,10 @@ Terminal settlement:
 Successful withdrawal:
   withdrawable[caller] = 0
   totalWithdrawable -= caller's complete credit
-  send that credit to the chosen recipient</code></pre>
+  send that credit to the chosen recipient
+```
+
+
 <p>The public liability surface exposes <code>withdrawable(account)</code>, <code>totalEscrowed()</code>, <code>totalWithdrawable()</code> and <code>totalLiabilities()</code>. Solvency requires <code>totalLiabilities() &lt;= address(escrow).balance</code>. Forced surplus is inert: there is no owner or sweep path.</p>
 <p><code>withdrawTo</code> is the sole native-value send path, using checks-effects-interactions and a reentrancy guard. Credit aggregates across agreements on this contract. Only its owner can withdraw the complete current credit; viewing it grants no authority. A rejected transfer reverts and preserves credit. Direct transfers and unknown selectors revert.</p>
 <h2 id="actions">The core owns action availability</h2>

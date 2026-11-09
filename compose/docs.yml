@@ -11,7 +11,8 @@ services:
     # Give each operation its own image so concurrent builds cannot replace it.
     image: dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}
     # Build this local image rather than fetching a tagged image.
-    pull_policy: build
+    # Only the explicit Make build step may create this local image.
+    pull_policy: never
     # Build the image from the existing Node tools; no new Dockerfile.
     build:
       # Supply the repository's existing Node image build context.
@@ -49,8 +50,8 @@ services:
       - type: bind
         # Reuse the existing workspace's installed dependencies.
         source: ../js/node_modules
-        # Let the VitePress executable resolve from the working directory.
-        target: /work/js/node_modules
+        # Keep dependencies immutable; build-time module links live on tmpfs.
+        target: /input/node_modules
         # Prevent VitePress and plugins from altering installed packages.
         read_only: true
         # Fail instead of creating an empty dependency directory.
@@ -73,17 +74,49 @@ services:
       - -c
       # Multi-line shell script; there is no npm install in this service.
       - |
+        # Keep dependencies read-only while allowing Vite's temporary config
+        # outside those packages, in the disposable workspace node_modules.
+        mkdir /work/js/node_modules
+        for package in /input/node_modules/* /input/node_modules/.[!.]*; do
+          if [ -e "$$package" ] || [ -L "$$package" ]; then
+            ln -s "$$package" "/work/js/node_modules/$${package##*/}"
+          fi
+        done
         # Stage read-only source in writable, noexec tmpfs.
         cp -a /input/docs /work/js/docs
         # CAM protocol references are also published as exact-byte resources.
         # Copy them unchanged into VitePress public assets, never re-render them.
         mkdir -p /work/js/docs/public/reference/cam
         for version in 1.1.0 1.2.0 1.3.0 1.4.0; do
-          test -f "/work/js/docs/reference/cam/$version/index.html"
-          cp -a "/work/js/docs/reference/cam/$version" /work/js/docs/public/reference/cam/
+          test -f "/work/js/docs/reference/cam/$$version/index.html"
+          cp -a "/work/js/docs/reference/cam/$$version" /work/js/docs/public/reference/cam/
         done
         # Build GitHub Pages paths into the disposable artifact volume.
         exec node node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
+
+  # Keep the RAM-backed volume mounted across the two sequential jobs.
+  # A tmpfs-backed local volume is emptied when its final mount disappears.
+  docs-hold:
+    extends:
+      file: fragments/node-workspace.yml
+      service: offline-node-workspace
+    image: dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}
+    pull_policy: never
+    build: !reset null
+    environment: !reset null
+    tmpfs: !reset []
+    working_dir: /
+    pids_limit: 16
+    mem_limit: 64m
+    memswap_limit: 64m
+    shm_size: 1m
+    volumes:
+      - type: volume
+        source: docs-artifact
+        target: /artifact
+        read_only: true
+        volume: { nocopy: true }
+    command: ["sleep", "infinity"]
 
   # Copy completed files to the host only after docs-build exits successfully.
   docs-export:
@@ -146,8 +179,9 @@ services:
         # Copy only into the disposable stage; Make publishes it afterward.
         cp -a /artifact/site /export/site
 
-# The uniquely named Compose project creates this shared, RAM-backed volume.
-# Make removes its project and volumes after export or failure.
+# The unique Compose project owns a RAM-backed local volume. Its read-only
+# holder mount keeps the tmpfs alive until both one-shot jobs complete;
+# Make removes the holder, project and volume after export or any failure.
 volumes:
   docs-artifact:
     driver: local
