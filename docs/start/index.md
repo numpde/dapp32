@@ -1,0 +1,48 @@
+---
+title: "Understand what runs where"
+description: "Separate the browser viewer, hosted workflow files, on-chain host and business contracts before choosing a task."
+outline: false
+---
+
+# What runs where?
+
+<div class="ported-guide">
+
+
+<p>An app author describes a workflow in JSON. A contract publishes where to find it. A generic viewer reads that description and displays the app; a compatible agent can interpret it without drawing a screen. Business contracts, not the description, enforce the rules.</p>
+<p>To open a public testnet app without setting up a local environment, go to the <a href="../gallery/">Gallery</a>. To learn the system, continue below or <a href="local-wallet.html">try the local-wallet walkthrough</a>.</p>
+<h2>Four parts, not one deployment</h2>
+<table><thead><tr><th>Part</th><th>Location</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td>Viewer</td><td>JavaScript in the user's browser; static assets on a web server</td><td>Discover, render, prepare reads/writes, and ask a wallet to authorize.</td></tr>
+<tr><td>CAM bundle</td><td>Hosted files</td><td><code>main.json</code> describes routes; UI, ABI and protocol resources provide their definitions.</td></tr>
+<tr><td>CAM host, often <code>CamRoot</code></td><td>Blockchain</td><td>Advertise the manifest URI/hash and resolve named contract addresses.</td></tr>
+<tr><td>Business contracts</td><td>Blockchain</td><td>Hold application state and enforce balances, permissions and lifecycle rules.</td></tr>
+</tbody></table>
+<p><strong>Browser → RPC → CAM host → manifest/resources → screen.</strong><br><strong>Approved action → wallet → RPC → business contract → receipt → next read.</strong></p>
+<p>RPC gives access to a selected chain. The wallet authorizes transactions. Neither is supplied merely by hosting the viewer. The browser also needs permission and network access to fetch the app's resources.</p>
+<h2>Follow one deposit</h2>
+<ol>
+<li>You choose the network and CAM host. The viewer reads its publication through RPC and loads the declared files.</li>
+<li>You open a balance. A read returns the owner's state and the viewing account's available actions.</li>
+<li>You enter 100 wei. The UI stores a local draft; no money has moved.</li>
+<li>You review the action. The viewer prepares the destination, arguments and native value and can simulate them.</li>
+<li>Your wallet authorizes submission. The business contract checks the real sender, value and current state.</li>
+<li>A successful receipt establishes execution. The next read shows the new balance.</li>
+</ol>
+<p>A simulation can become stale. A transaction hash alone is not success. Viewing an account is not authority to spend from it.</p>
+<h2>“UI” can mean three different things</h2>
+<p>The <strong>browser viewer</strong> is software you host. The <strong>CAM UI description</strong> is the JSON defining screens and controls. A <strong>Solidity projection contract</strong> is an optional read-only helper that assembles screen data. Replacing one does not automatically replace the others.</p>
+<h2>Choose the operation that matches your intent</h2>
+<table><thead><tr><th>I need to…</th><th>Start here</th><th>What changes</th></tr></thead><tbody>
+<tr><td>Explore an app safely</td><td><a href="../examples/#local-demos">Local demos</a></td><td>Disposable local state.</td></tr>
+<tr><td>Open a hosted viewer</td><td><a href="https://app.dapp32.com/">Stand-alone viewer</a> · <a href="../viewer/">Pages preview</a></td><td>Existing contracts; the preview may change sooner.</td></tr>
+<tr><td>Provide a viewer website</td><td><a href="../viewer/deploy.html">Deploy the viewer</a></td><td>Server software, not contracts.</td></tr>
+<tr><td>Change screens or navigation</td><td><a href="../authoring/">Build a workflow</a>, then <a href="../deployment/#publish-prepared-cam">publish its bundle</a></td><td>Files and an approved publication update.</td></tr>
+<tr><td>Create a new on-chain app</td><td><a href="../deployment/">Deploy an instance</a></td><td>Contracts and publication, through separately approved transactions.</td></tr>
+<tr><td>Use contracts already deployed</td><td><a href="../gallery/">Gallery of deployed apps</a></td><td>Nothing until you authorize an action.</td></tr>
+</tbody></table>
+<h2>What hashes do—and do not—tell you</h2>
+<p>The current format uses SHA-256 over exact manifest and resource bytes. Matching hashes can connect files to a selected host's publication; they do not establish that the publisher, workflow, RPC or deployed code is trustworthy. Address bindings can change separately.</p>
+<p>The browser viewer can continue after an integrity warning. Treat that as a warning, not a successful authentication. Before authorizing, check the actual chain, destination, arguments and value. The <a href="../reference/cam/1.4.0/#security">protocol trust-boundary reference</a> gives the precise rules.</p>
+
+</div>
