@@ -159,7 +159,7 @@ try {
   await call('Emulation.setScriptExecutionDisabled', { value: true })
   const staticHeader = await visit('/deployment/networks/')
   assert.equal(staticHeader.visible, false, 'A nonfunctional theme control stays hidden without JavaScript')
-  assert(staticHeader.fit && staticHeader.labels.length === 5, 'Navigation remains usable without JavaScript')
+  assert(staticHeader.fit && staticHeader.labels.length === 6, 'Navigation remains usable without JavaScript')
   assert.equal(await evaluate('document.querySelector("#theme-toggle").hidden'), true)
   await followTask('gallery/')
   await followTask('use/')
