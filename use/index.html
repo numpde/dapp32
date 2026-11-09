@@ -3,12 +3,7 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="./" aria-current="page">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><span aria-current="page">Use an app</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Use</summary><nav class="docs-section-links" aria-label="In Use"><a href="./" aria-current="page">Use an app</a><details class="docs-subsection"><summary>Pay-to-Play</summary><div class="docs-subsection-links"><a href="../pay-to-play/">Pay-to-Play</a><a href="../pay-to-play/local-payment.html">Try a voucher payment</a><a href="../pay-to-play/integration.html">Integrate payments</a></div></details><details class="docs-subsection"><summary>Escrow</summary><div class="docs-subsection-links"><a href="../escrow/">Escrow</a><a href="../escrow/documents.html">Prepare documents</a><a href="../escrow/reference.html">Contract behavior</a></div></details><details class="docs-subsection"><summary>Bike NFT</summary><div class="docs-subsection-links"><a href="../bike-nft/">Bike NFT</a><a href="../bike-nft/ownership.html">Ownership and workshops</a><a href="../bike-nft/metadata.html">Metadata</a></div></details></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<main id="main" class="shell document"><article class="narrow">
 <h1>Use an app</h1>
 <p class="lede"><a href="../gallery/">Browse deployed apps</a> to choose an instance and open it directly. No address copying or contract deployment is needed.</p>
 <h2 id="apps">Choose your app guide</h2>
@@ -44,7 +39,4 @@ make viewer/release/up \
 <h2 id="navigation">Refresh, Back and account changes</h2>
 <p>Refresh rereads state and invalidates a prepared transaction. Back can restore compatible drafts from session history while rereading state. Reloading or switching accounts can clear drafts. In Pay-to-Play, the inspected owner/channel stays fixed across actor changes; check both identities rather than assuming the viewed balance belongs to your connected wallet.</p>
 <p>For exact verification and execution rules, use the <a href="../reference/cam/1.4.0/#security">current protocol reference</a>. Runtime baseline: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/apps/cam-web/src/app-setup.tsx">viewer setup at 04a18763</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>

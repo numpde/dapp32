@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/" aria-current="location">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="local-wallet.html">Try Pay-to-Play locally</a></li><li><span aria-current="page">Connect the test wallet</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Start</summary><nav class="docs-section-links" aria-label="In Start"><a href="./">What runs where</a><a href="local-wallet.html">Try Pay-to-Play locally</a><a href="fixture-wallet.html" aria-current="page">Connect the test wallet</a><a href="../examples/">Local demos</a></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#browser">1. Open a dedicated browser</a><a href="#attach">2. Attach to the matching tab</a><a href="#send">3. Connect, choose a role and confirm in the browser</a><a href="#refresh">After editing or reloading</a><a href="#stop">4. Detach, then stop the demo</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../">Home</a></li><li><a href="local-wallet.html">Try Pay-to-Play with a local wallet</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Attach a local test wallet</h1>
 <p>Use the demo's public test accounts without installing a wallet extension. The attachment targets one existing demo tab; it starts no blockchain, app or browser.</p>
 <dl><dt>Run on</dt><dd>The workstation running the local demo, from its source checkout.</dd><dt>Requires</dt><dd>A running GUI fixture on chain 31337, its complete printed URL and a separate Chrome/Chromium profile.</dd><dt>Changes</dt><dd>An injected wallet and role selector in that tab. Confirmed sends submit local test transactions immediately.</dd><dt>Success</dt><dd>The app connects to the selected fixture account and a permitted transaction reaches a successful receipt.</dd></dl>
@@ -44,7 +40,4 @@
 <p>Stop the app's GUI launcher separately and let cleanup finish. Its matching <code>local/demo/gui/down</code> target removes the owned demo when necessary. Close the dedicated browser when finished; its profile remains on disk. Never use these public keys for real funds.</p>
 <p><strong>No matching tab:</strong> check the complete printed URL and matching context/project. <strong>Existing provider:</strong> use the dedicated profile. <strong>Unavailable action:</strong> inspect the account, loaded object and current contract state. Do not weaken attachment checks to bypass a mismatch.</p>
 <p>Implementation: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/browser-fixture-wallet.mjs#L243-L254">browser confirmation and submission</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/browser-fixture-wallet-attach.mjs">attachment identity checks</a>. Continue with <a href="local-wallet.html">Pay-to-Play's first deposit</a>, <a href="../escrow/">Escrow</a> or <a href="../bike-nft/">Bike NFT</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>

@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/" aria-current="location">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="../deployment/">Deploy</a></li><li><span aria-current="page">Host the stand-alone viewer</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Deploy</summary><nav class="docs-section-links" aria-label="In Deploy"><a href="../deployment/">Deploy</a><a href="../deployment/new-instance.html">Deploy a new instance</a><a href="deploy.html" aria-current="page">Host the stand-alone viewer</a><a href="../deployment/update.html">Update an instance</a><a href="../deployment/recovery.html">Recover a release</a><a href="../deployment/source-verification.html">Verify contract sources</a><a href="../deployment/practice.html">Rehearse a release</a><details class="docs-subsection"><summary>App settings</summary><div class="docs-subsection-links"><a href="../deployment/bike-nft/">Bike NFT settings</a><a href="../deployment/escrow/">Escrow settings</a><a href="../deployment/pay-to-play/">Pay-to-Play settings</a></div></details><details class="docs-subsection"><summary>Older bookmarks</summary><div class="docs-subsection-links"><a href="../deployment/manual.html">Legacy manual index</a></div></details></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../">Home</a></li><li><a href="../deployment/">Deploy</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Deploy the stand-alone viewer</h1>
 <p>Two hosted versions are available: <a href="https://app.dapp32.com/">the stand-alone viewer</a>, deployed independently, and the <a href="./">Pages preview</a>, built from recent reviewed source and updated ahead of the stand-alone release. The preview is for early testing and may change sooner; inspect all contract details before authorizing transactions. Each origin requires its own wallet permission and browser-accessible RPC/resources.</p>
 <p>Serve the generic browser application at your own HTTPS hostname. This hosts <strong>viewer software only</strong>: no blockchain, CAM bundle, contract deployment, wallet or private instance directory is created.</p>
@@ -64,7 +60,4 @@ curl --fail --show-error https://viewer.example.org/healthz</code></pre>
 <tr><td>Viewer loads; app does not</td><td>Check browser console/network errors, chain/host coordinates, browser RPC access, resource CORS and Download scope.</td></tr>
 </tbody></table>
 <p>Implementation baseline: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/viewer_image_build.sh">image builder</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/compose/viewer.yml">portable runtime</a> and the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/Makefile">viewer Make targets</a>. Hosting CAM resources and deploying contracts are <a href="../deployment/">separate tasks</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>
