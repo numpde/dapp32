@@ -1,0 +1,103 @@
+/* Gallery layout from gh-pages/gallery/index.html; VitePress owns page chrome. */
+.vp-doc .gallery-content {
+  --ink: var(--vp-c-text-1);
+  --muted: var(--vp-c-text-2);
+  --panel: var(--vp-c-bg-soft);
+  --line: var(--vp-c-divider);
+  --green: var(--vp-c-brand-1);
+  --rust: #c05b48;
+  --code: var(--vp-c-bg-alt);
+}
+
+    .deployment-page { max-width: 54rem; }
+    .deployment-list { display: grid; gap: 24px; margin-block: 20px 32px; }
+    .deployment { container: deployment / inline-size; padding: 24px; scroll-margin-top: 24px; }
+    .deployment-heading, .deployment-overview, .rpc-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 20px;
+    }
+    .deployment-heading { margin-bottom: 12px; }
+    .deployment-heading h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+    .deployment-overview { justify-content: space-between; }
+    .deployment .network { margin: 0; font-size: .9rem; }
+    .deployment .actions { margin: 0; align-items: center; gap: 16px; }
+    .deployment h3 { margin: 24px 0 8px; }
+    .deployment :is(select, input) {
+      max-width: 100%;
+      min-width: 0;
+      padding: 8px 10px;
+      font: inherit;
+      color: var(--ink);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 5px;
+    }
+    .deployment-heading select { font-size: .9rem; }
+    .network, .sources, .rpc-settings { color: var(--muted); }
+    .contracts {
+      display: grid;
+      grid-template-columns: fit-content(17rem) minmax(0, max-content) minmax(0, 1fr);
+      column-gap: 24px;
+      margin: 0;
+    }
+    .contracts > div {
+      display: grid;
+      grid-template-columns: subgrid;
+      grid-column: 1 / -1;
+      align-items: center;
+      padding-block: 8px;
+      border-top: 1px solid var(--line);
+    }
+    .contracts dt { overflow-wrap: anywhere; }
+    .contracts dt a { color: var(--ink); text-decoration-color: var(--line); }
+    .contracts dd { margin: 0; min-width: 0; }
+    .address-value { display: inline-grid; min-width: 0; max-width: 100%; }
+    .address-controls { display: inline-flex; align-items: center; gap: 4px; }
+    .address-controls a { color: var(--ink); text-decoration: none; }
+    .address-controls code { padding: 0; background: none; white-space: nowrap; }
+    .copy-address {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      padding: 6px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .copy-address:is(:hover, :focus-visible) { background: var(--code); color: var(--ink); }
+    .copy-address svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+    .copy-address:disabled { cursor: progress; }
+    .verification-link { font-size: .85rem; text-decoration: none; }
+    .verification-link::before { content: "✓"; margin-inline-end: 5px; }
+    .deployment a:hover { text-decoration: underline; }
+    .copy-recovery { display: block; max-width: 28rem; margin-top: 8px; }
+    .copy-recovery input { display: block; width: 100%; font: .85rem monospace; }
+    .binding-status { margin: 8px 0; color: var(--muted); font-size: .9rem; }
+    .binding-status[role="alert"] { color: var(--rust); }
+    .rpc-settings { margin-top: 16px; font-size: .85rem; }
+    .rpc-settings summary { width: fit-content; cursor: pointer; }
+    .rpc-controls { margin-top: 12px; gap: 8px; }
+    .rpc-controls input { flex: 1 1 18rem; }
+    .rpc-controls input[aria-invalid="true"] { border-color: var(--rust); }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    :focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+    @container deployment (max-width: 48rem) {
+      .hex-middle { display: inline-block; inline-size: 1ch; overflow: hidden; position: relative; text-indent: -9999px; vertical-align: bottom; }
+      .hex-ellipsis::after { content: "…"; position: absolute; inset-inline-start: 0; text-indent: 0; }
+    }
+    @container deployment (max-width: 34rem) {
+      .contracts { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; }
+      .contracts > div { row-gap: 4px; }
+      .contract-address { grid-column: 1 / -1; }
+      .contract-verification { grid-column: 2; grid-row: 1; }
+    }
+    @media (max-width: 600px) { .deployment { padding: 20px 16px; } }
+    @media (pointer: coarse) { .copy-address { width: 44px; height: 44px; } }
+  
