@@ -248,6 +248,24 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertFalse(any(call["args"][:2] in (["volume", "create"], ["volume", "rm"])
                                  for call in calls))
 
+    def test_each_operation_owns_a_distinct_project_and_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            projects: set[str] = set()
+            for name in ("first", "second"):
+                root = Path(directory) / name
+                root.mkdir()
+                result, calls, state = self.run_operation(root, "success", existing_site=False)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(1, len(self.down_calls(calls)))
+                projects.add(state["project"])
+            self.assertEqual(2, len(projects))
+
+    def test_publisher_rejects_unowned_viewer_assets_before_transfer(self) -> None:
+        workflow = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")
+        self.assertLess(workflow.index("find qualified/viewer -type f"),
+                        workflow.index("cp -a qualified/. site/"))
+        self.assertIn("git diff --cached --name-only -- viewer/", workflow)
+
     def test_failures_remove_the_stage_and_volume_before_publication(self) -> None:
         for mode, expected, services in (
             ("build-fail", 17, ["docs-build"]),
