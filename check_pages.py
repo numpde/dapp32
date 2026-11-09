@@ -336,11 +336,14 @@ class PageParser(HTMLParser):
         self.example_text: list[str] = []
         self.primary_links: list[str] = []
         self.app_guide_links: list[str] = []
+        self.gallery_apps: list[str] = []
         self.in_primary_nav = False
         self.in_app_guides = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
+        if attributes.get("data-gallery-app"):
+            self.gallery_apps.append(attributes["data-gallery-app"])
         if tag == "nav" and attributes.get("aria-label") == "Primary":
             self.in_primary_nav = True
         if tag == "section" and attributes.get("id") == "apps":
@@ -464,6 +467,12 @@ def check_deployments(root: Path, repo_root: Path) -> None:
     assert not preview.username and not preview.password and not preview.query and not preview.fragment
     catalog = json.loads((repo_root / "js/packages/cam-viewer/src/rpc-catalog.json").read_text())
     assert isinstance(data["deployments"], list)
+    homepage = PageParser()
+    homepage.feed((root / "index.html").read_text())
+    gallery_apps = homepage.gallery_apps
+    published_apps = {deployment["appId"] for deployment in data["deployments"]}
+    assert len(gallery_apps) == len(set(gallery_apps)), "Duplicate app in homepage gallery"
+    assert set(gallery_apps) == published_apps, f"Homepage gallery must cover every published app: {published_apps - set(gallery_apps)}"
     identifiers = set()
     applications = {}
     for deployment in data["deployments"]:
