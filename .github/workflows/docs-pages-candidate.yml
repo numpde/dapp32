@@ -14,6 +14,7 @@ on:
       - Makefile
       - tests/checks/test_docs_port.py
       - tests/checks/test_docs_build_lifecycle.py
+      - tests/checks/test_docs_site.py
       - tools/make/docs.mk
       - tools/docs_site.py
       - .github/workflows/docs-publish.yml
@@ -29,6 +30,7 @@ on:
       - tools/docs_site.py
       - tests/checks/test_docs_port.py
       - tests/checks/test_docs_build_lifecycle.py
+      - tests/checks/test_docs_site.py
       - .github/workflows/docs-publish.yml
   workflow_dispatch:
 
@@ -81,59 +83,11 @@ jobs:
           make -C source docs/build DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=docs-pages-candidate \
             DOCS_OUTPUT_DIR="$GITHUB_WORKSPACE/docs-output"
 
-      - name: Verify built routes and protocol bytes
+      - name: Verify complete generated-site routes and immutable resources
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import json
-
-          source = Path('source/docs')
-          output = Path('docs-output/site')
-          routes = (
-              'index.html', 'start/index.html', 'gallery/index.html',
-              'use/index.html', 'authoring/index.html', 'deployment/index.html',
-              'reference/index.html', 'reference/cam/index.html',
-              'pay-to-play/index.html', 'escrow/index.html', 'bike-nft/index.html',
-              'development/index.html', 'deployment/networks/index.html',
-              'viewer/deploy.html', 'deployments/index.html',
-          )
-          for name in routes:
-              file = output / name
-              assert file.is_file() and file.stat().st_size > 100, f'missing route: {name}'
-          for version in ('1.1.0', '1.2.0', '1.3.0', '1.4.0'):
-              original = source / f'reference/cam/{version}/index.html'
-              published = output / f'reference/cam/{version}/index.html'
-              assert published.read_bytes() == original.read_bytes(), f'protocol bytes differ: {version}'
-          gallery = json.loads((output / 'gallery/deployments.json').read_text())
-          assert gallery['deployments'], 'Gallery has no published deployments'
-          # Interactive page targets must be real server-rendered elements,
-          # not escaped HTML inside an accidentally indented Markdown block.
-          from html.parser import HTMLParser
-          class PageIds(HTMLParser):
-              def __init__(self):
-                  super().__init__()
-                  self.ids = set()
-              def handle_starttag(self, tag, attrs):
-                  attributes = dict(attrs)
-                  if attributes.get('id'):
-                      self.ids.add(attributes['id'])
-          for route, required in (
-              ('gallery/index.html', {'load-status', 'retry', 'deployments'}),
-              ('deployment/networks/index.html', {'load-status', 'reference', 'networks', 'network-jump'}),
-          ):
-              parser = PageIds()
-              parser.feed((output / route).read_text(encoding='utf-8'))
-              assert required <= parser.ids, f'{route}: missing DOM mount IDs {required - parser.ids}'
-          for entry in output.rglob('*'):
-              relative = entry.relative_to(output)
-              assert not entry.is_symlink(), f'generated symlink is forbidden: {relative}'
-              assert '.git' not in relative.parts, f'git metadata is forbidden: {relative}'
-          assert (output / 'assets').is_dir(), 'VitePress assets missing'
-          assert any((output / 'assets').glob('*.js')), 'VitePress JS entry missing'
-          print('Qualified route set, byte-identical CAM references and Gallery data.')
-          PY
+          python3 -B source/tools/docs_site.py check source/docs docs-output/site
 
       - name: Retain exact qualified site
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -144,85 +98,3 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
-  propose:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: qualify
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Check out published site for a reviewed update
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: gh-pages
-          path: site
-          persist-credentials: true
-
-      - name: Download immutable qualified site
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: docs-pages-candidate
-          path: qualified
-
-      - name: Propose Docs update without changing viewer publication
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          test -s qualified/index.html
-          test -s qualified/gallery/index.html
-          test -s qualified/reference/cam/1.4.0/index.html
-          # The read-only job validated these, but check again in the writer.
-          if find qualified -type l -print -quit | grep -q .; then
-            echo 'Cannot publish a symlink-bearing artifact.' >&2
-            exit 2
-          fi
-          if find qualified -name .git -print -quit | grep -q .; then
-            echo 'Cannot publish an artifact containing Git metadata.' >&2
-            exit 2
-          fi
-          # Reject any artifact that attempts to own the independently deployed viewer.
-          if find qualified/viewer -type f ! -path qualified/viewer/deploy.html -print -quit | grep -q .; then
-            echo 'Documentation artifact must not contain viewer application files.' >&2
-            exit 2
-          fi
-          # Merge docs output; do not delete the independently published viewer.
-          cp -a qualified/. site/
-          touch site/.nojekyll
-          cd site
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A -- .
-          if git diff --cached --quiet; then
-            echo 'Published Pages site already matches the qualified docs.'
-            exit 0
-          fi
-          if git diff --cached --name-only -- viewer/ | grep -v '^viewer/deploy\.html$' | grep -q .; then
-            echo 'Documentation update must not modify the viewer application bundle.' >&2
-            exit 2
-          fi
-          git commit -m "Build VitePress docs from $GITHUB_SHA"
-          # One outstanding docs publication candidate at a time. Every push
-          # qualifies and retains an artifact; only an explicit manual run
-          # creates a branch that somebody must review and merge.
-          branch="docs/vitepress-pages-candidate"
-          existing="$(git ls-remote --heads origin "refs/heads/$branch")"
-          if [[ -n "$existing" ]]; then
-            echo "::error::Review or retire the existing docs candidate before proposing another: $branch" >&2
-            exit 2
-          fi
-          git push origin "HEAD:refs/heads/$branch"
-          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" \
-            --title "Publish VitePress docs $(printf %s "$GITHUB_SHA" | cut -c1-12)" \
-            --body "Qualified VitePress build from main@$GITHUB_SHA. Replaces the static guide pages, keeps exact CAM protocol bytes, retains the independent viewer and requires review before publication."; then
-            echo "::warning::Qualified docs candidate pushed; open a PR manually."
-            {
-              echo '### VitePress docs await review'
-              echo "Source: main@$GITHUB_SHA"
-              echo "Candidate branch: $branch"
-              echo "Review: https://github.com/$GITHUB_REPOSITORY/compare/gh-pages...$branch?expand=1"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi

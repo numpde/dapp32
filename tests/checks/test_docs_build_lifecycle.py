@@ -299,7 +299,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
 
     def test_pages_workflows_do_not_create_unbounded_candidate_branches(self) -> None:
         for path, branch, lane in (
-            (".github/workflows/docs-pages-candidate.yml", "docs/vitepress-pages-candidate", "propose"),
+            (".github/workflows/docs-publish.yml", "docs/vitepress-pages-candidate", "propose"),
             (".github/workflows/viewer-pages-preview.yml", "docs/viewer-preview-candidate", "publish"),
         ):
             with self.subTest(path=path):
@@ -312,7 +312,11 @@ class DocsBuildLifecycleTests(unittest.TestCase):
                 self.assertIn(f'branch="{branch}"', publishing_job)
                 self.assertIn("git ls-remote --heads origin", publishing_job)
                 self.assertNotRegex(publishing_job, r'branch="[^"\n]*\$GITHUB_RUN_')
-                self.assertIn("needs: ", publishing_job)
+                if branch == "docs/vitepress-pages-candidate":
+                    self.assertIn("run-id: ", publishing_job)
+                    self.assertIn("source/tools/docs_site.py stage", publishing_job)
+                else:
+                    self.assertIn("needs: ", publishing_job)
 
     def test_each_operation_owns_a_distinct_project_and_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -327,10 +331,11 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertEqual(2, len(projects))
 
     def test_publisher_rejects_unowned_viewer_assets_before_transfer(self) -> None:
-        workflow = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")
-        self.assertLess(workflow.index("find qualified/viewer -type f"),
-                        workflow.index("cp -a qualified/. site/"))
+        workflow = (ROOT / ".github/workflows/docs-publish.yml").read_text(encoding="utf-8")
+        self.assertIn("source/tools/docs_site.py check", workflow)
+        self.assertIn("source/tools/docs_site.py stage", workflow)
         self.assertIn("git diff --cached --name-only -- viewer/", workflow)
+        self.assertIn("previously qualified output without rebuilding", workflow.lower())
 
     def test_failures_remove_the_stage_and_volume_before_publication(self) -> None:
         for mode, expected, services in (
