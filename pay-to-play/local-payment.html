@@ -1,18 +1,22 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Collect a local test voucher · dapp32</title><meta name="description" content="Continue the first-deposit tutorial with permanent-key registration, invoice hashing, local signing and verified collection."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/" aria-current="location">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="../use/">Use</a></li><li><a href="./">Pay-to-Play</a></li><li><span aria-current="page">Collect a local test voucher</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Use</summary><nav class="docs-section-links" aria-label="In Use"><a href="../use/">Use an app</a><details class="docs-subsection" open><summary>Pay-to-Play</summary><div class="docs-subsection-links"><a href="./">Overview</a><a href="local-payment.html" aria-current="page">Try a voucher payment</a><a href="integration.html">Integrate payments</a></div></details><details class="docs-subsection"><summary>Escrow</summary><div class="docs-subsection-links"><a href="../escrow/">Overview</a><a href="../escrow/documents.html">Prepare documents</a><a href="../escrow/reference.html">Contract behavior</a></div></details><details class="docs-subsection"><summary>Bike NFT</summary><div class="docs-subsection-links"><a href="../bike-nft/">Overview</a><a href="../bike-nft/ownership.html">Ownership and workshops</a><a href="../bike-nft/metadata.html">Metadata</a></div></details></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#1-register-the-fixture-customer-as-the-permanent-key">1. Register the fixture customer as the permanent key</a><a href="#2-prepare-the-exact-invoice-commitment">2. Prepare the exact invoice commitment</a><a href="#3-sign-locally-then-compare-the-signing-details">3. Sign locally, then compare the signing details</a><a href="#4-collect-using-the-actual-configured-collector">4. Collect using the actual configured collector</a><a href="#finish-the-exercise">Finish the exercise</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Collect a local test voucher</h1>
 <p>Continue <a href="../start/local-wallet.html">the 100-wei deposit tutorial</a> before stopping its fixture. You need its running GUI and attached test wallet, a nonzero channel and the customer's funded position. This exercise submits transactions on disposable chain 31337, not a public deployment.</p>
-<h2>1. Register the fixture customer as the permanent key</h2>
+<h2 id="1-register-the-fixture-customer-as-the-permanent-key">1. Register the fixture customer as the permanent key</h2>
 <p>Connect <strong>customer</strong>, open its position and choose <strong>Vouchers</strong>. Register the customer's displayed address as the key. Wait for a successful receipt and reread the confirmed key. The offline signer below uses that fixed fixture customer; it cannot sign for a different registered key.</p>
 <p>Registration is permanent even in this experiment. To start again with a different key, use a new position or a fresh disposable fixture—not an assumed reset.</p>
-<h2>2. Prepare the exact invoice commitment</h2>
+<h2 id="2-prepare-the-exact-invoice-commitment">2. Prepare the exact invoice commitment</h2>
 <p>Construct a synthetic invoice for this chain, payment address, owner, channel and desired cumulative total. Use the agreed <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/pay-to-play-vouchers/README.md">invoice codec and helper</a> to obtain its 32-byte hash. Do not hash a URL or arbitrary JSON formatting. The on-chain contract treats the hash as opaque; it does not validate the invoice for you.</p>
-<h2>3. Sign locally, then compare the signing details</h2>
+<h2 id="3-sign-locally-then-compare-the-signing-details">3. Sign locally, then compare the signing details</h2>
 <p>In another terminal from the source checkout, replace every placeholder with the actual fixture values. Use the payment address from the loaded signing domain/binding, not the CAM host:</p>
 <pre><code>make pay-to-play/local/voucher/sign \
   DOCKER_CONTEXT=your-local-context \
@@ -22,10 +26,13 @@
   PAY_TO_PLAY_INVOICE_HASH=0x...</code></pre>
 <p>The total is a lifetime cumulative amount in wei. The hash must be exactly 32 bytes. This offline helper neither registers the key nor validates the invoice or backing. Keep signature output out of commits and shared logs.</p>
 <p>Enter the same total and hash in <strong>Vouchers</strong> and inspect signing details. Compare PayToPlay/2, chain 31337, payment address and digest with the helper output. Back returns to the voucher task and compatible drafts. A matching digest is still not a collection receipt.</p>
-<h2>4. Collect using the actual configured collector</h2>
+<h2 id="4-collect-using-the-actual-configured-collector">4. Collect using the actual configured collector</h2>
 <p>The prerequisite tutorial chose <strong>admin</strong> as both payee and collector. Switch to that account, wait for the refresh, and keep the customer's owner/channel selected. Account changes clear account-bound drafts; re-enter the total, hash, signature and a 100-wei collection cap before review.</p>
 <p>Review <strong>Collect voucher payment</strong>, send and confirm in the browser. Check the actual <code>VoucherCollected</code> amount, payee, cumulative paid total and invoice hash. With the original 100-wei backing and no prior payments, collection should pay 100 and leave zero balance. Gas is separate. A zero-payment replay can succeed without a collection event.</p>
 <p>The role selector's label does not grant collection permission. For a differently configured channel, use its real collector; zero pauses collection.</p>
-<h2>Finish the exercise</h2>
+<h2 id="finish-the-exercise">Finish the exercise</h2>
 <p>Detach the wallet and <a href="../start/local-wallet.html#stop">stop the owned demo</a>. For the service responsibilities that this experiment does not implement—durable acceptance, allocation, delivery and uncertain outcomes—read <a href="integration.html">the integration guide</a>. Automated coverage is in <a href="../development/app-checks.html#payment">app checks</a>.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

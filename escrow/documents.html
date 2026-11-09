@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Prepare Escrow documents · dapp32</title><meta name="description" content="Publish or embed the exact terms, work or dispute document and supply its SHA-256 commitment."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/" aria-current="location">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="../use/">Use</a></li><li><a href="./">Escrow</a></li><li><span aria-current="page">Prepare Escrow documents</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Use</summary><nav class="docs-section-links" aria-label="In Use"><a href="../use/">Use an app</a><details class="docs-subsection"><summary>Pay-to-Play</summary><div class="docs-subsection-links"><a href="../pay-to-play/">Overview</a><a href="../pay-to-play/local-payment.html">Try a voucher payment</a><a href="../pay-to-play/integration.html">Integrate payments</a></div></details><details class="docs-subsection" open><summary>Escrow</summary><div class="docs-subsection-links"><a href="./">Overview</a><a href="documents.html" aria-current="page">Prepare documents</a><a href="reference.html">Contract behavior</a></div></details><details class="docs-subsection"><summary>Bike NFT</summary><div class="docs-subsection-links"><a href="../bike-nft/">Overview</a><a href="../bike-nft/ownership.html">Ownership and workshops</a><a href="../bike-nft/metadata.html">Metadata</a></div></details></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Prepare Escrow documents</h1>
 <p>Terms, work evidence and dispute evidence each contain a public URI and a nonzero SHA-256 digest. Agree on the exact file before committing it. The contract stores the reference; it does not download, decrypt or judge the document.</p>
 <h2 id="prepare">1. Choose the bytes and their location</h2>
@@ -26,4 +30,7 @@
 <p>Calculation produces a new digest. It does not compare downloaded bytes with an existing expected commitment. To verify stored evidence, retrieve the intended bytes independently, hash them and compare with the digest recorded on the contract. A URL calculation describes today's response, not a promise that a mutable URL will keep serving it.</p>
 <p>The contract checks a nonempty URI within its byte limit and a nonzero digest, not document truth or availability. The parties remain responsible for retaining and checking the agreed content. Return to <a href="./#create">create and fund</a>, <a href="./#work">submit work</a> or <a href="./#dispute">open a dispute</a>.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/apps/cam-web/src/document-hash.ts#L7-L64">calculation transports and limits</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/apps/cam-web/src/components.tsx#L417-L456">field controls</a>, and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrow.sol#L497-L503">contract document validation</a>.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

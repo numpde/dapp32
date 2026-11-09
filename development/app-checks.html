@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choose an app check · dapp32</title><meta name="description" content="Distinguish offline checks, owned real-chain campaigns, read-only terminals and operator-supplied browser tests."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/" aria-current="location">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="../authoring/">Build</a></li><li><span aria-current="page">Choose the check for the changed behavior</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Build</summary><nav class="docs-section-links" aria-label="In Build"><a href="../authoring/">Build a workflow</a><a href="../authoring/headless.html">Headless integration</a><a href="./">Source setup</a><a href="app-checks.html" aria-current="page">App checks</a><a href="payment-fixture.html">Payment fixture</a></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#source">Source and generated resources</a><a href="#payment">Pay-to-Play: actual settlement and recovery</a><a href="#escrow">Escrow: nine complete settlement paths</a><a href="#bike">Bike: distinct actors before a random walk</a><a href="#terminal">Inspect Escrow without signing</a><a href="#browser">Choose the live-browser boundary explicitly</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Choose the check for the changed behavior</h1>
 <p>Run source Make targets from the repository root, after <a href="./">locked dependency setup</a>, adding <code>DOCKER_CONTEXT=your-local-context</code>. These are explicit application checks. Ordinary documentation edits do not start chains or wallet tests.</p>
 <h2 id="source">Source and generated resources</h2>
@@ -48,4 +52,7 @@
 <p>The signing lanes require chain 31337 and matching fixture resources; use only state you can discard. They close their own tabs but leave your existing browser and GUI services running. Their injected providers do not qualify a real wallet extension's confirmation interface or physical-pointer interaction.</p>
 <p>Payment browser coverage includes a separate zero-wait recovery channel, not every recovery operation; renewal and retirement also have contract, viewer and real-RPC coverage. A passing local campaign establishes local behavior, not delivered work or a public service's readiness.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/Makefile">supported entrypoints</a>. For another repository's service tests, use <a href="payment-fixture.html">the fixture handoff</a>, not the manual browser launcher.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>
