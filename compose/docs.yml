@@ -22,7 +22,7 @@ services:
       network: none
     # Reap subprocesses started by the build tool.
     init: true
-    # Deny swap-backed memory and limit worker proliferation.
+    # Disable this container's swap allowance and bound worker proliferation.
     memswap_limit: 1g
     pids_limit: 128
     shm_size: 16m
@@ -33,7 +33,7 @@ services:
       - /work/js:rw,nosuid,nodev,noexec,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=0700
     # Run VitePress with an immutable Node binary, not a script on writable tmpfs.
     working_dir: /work/js
-    # These are the only service-specific mounts; base tmpfs mounts are inherited.
+    # These mounts supplement the explicitly confined writable tmpfs above.
     volumes:
       # Read documentation sources, never modify them.
       - type: bind
@@ -80,7 +80,7 @@ services:
 
   # Copy completed files to the host only after docs-build exits successfully.
   docs-export:
-    # Use the same non-root, offline security posture as docs-build.
+    # Reuse the builder's isolated namespace and verified host-owner mapping.
     extends:
       # Share the Node container policy without duplicating it.
       file: fragments/node-workspace.yml
@@ -136,7 +136,7 @@ services:
         test -f /artifact/site/index.html && test ! -L /artifact/site/index.html
         # Never overwrite an existing or dangling-symlink output.
         test ! -e /export/site && test ! -L /export/site
-        # Copy the complete static site into the caller's output directory.
+        # Copy only into the disposable stage; Make publishes it afterward.
         cp -a /artifact/site /export/site
 
 # The uniquely named Compose project creates this shared, RAM-backed volume.
