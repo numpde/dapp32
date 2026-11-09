@@ -9,6 +9,7 @@ on:
       - check_pages.py
       - check_navigation.mjs
       - check_deployments.mjs
+      - viewer/deploy.html
       - 'deployments/**'
       - Makefile
       - .github/workflows/pages-navigation.yml
@@ -21,6 +22,7 @@ on:
       - check_pages.py
       - check_navigation.mjs
       - check_deployments.mjs
+      - viewer/deploy.html
       - 'deployments/**'
       - Makefile
       - .github/workflows/pages-navigation.yml
