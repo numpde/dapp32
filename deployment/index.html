@@ -6,24 +6,42 @@
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="./" aria-current="page">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
 <main id="main" class="shell document"><article class="narrow">
 <h1>Choose a deployment task</h1>
-<p id="scope">Hosting the viewer, hosting workflow files and deploying contracts are separate operations. Read <a href="../start/">what runs where</a> before choosing which one to change.</p>
-<h2>Provide or open a viewer</h2>
-<p>Use the <a href="https://app.dapp32.com/">stand-alone viewer</a> or the newer <a href="../viewer/">Pages preview</a> to open an existing publication. To serve your own website, <a href="../viewer/deploy.html">deploy the stand-alone viewer</a>. <span id="view-cam-publication"></span><a href="../use/#local-publication">Open a saved publication locally</a> to inspect existing contracts. None of these tasks creates business contracts.</p>
-<h2 id="deploy-to-the-selected-chain"><span id="prepare"></span>Deploy a new app</h2>
-<p>Follow <a href="new-instance.html">the new-instance procedure</a>: choose authorities, approve deployment, host the prepared files, then approve CAM publication. Start with your app's settings: <a href="bike-nft/">Bike NFT</a>, <a href="escrow/">Escrow</a> or <a href="pay-to-play/">Pay-to-Play</a>.</p>
-<h2>Change an existing app</h2>
-<p id="publish-prepared-cam"><span id="host-the-prepared-bundle"></span>For compatible screens and navigation, use <a href="update.html#cam-only">the CAM-only update</a>. Preparation does not upload files; host them before publication approval.</p>
-<p id="update-an-existing-ui">For a new read-only Solidity helper, use <a href="update.html#projection">projection replacement</a>. Business-contract replacement needs a separate <a href="update.html#migration">migration decision</a>, not a UI refresh.</p>
-<h2 id="complete-deployment-records"><span id="complete-component-records"></span>Recover or verify</h2>
-<p><a href="recovery.html">Recover an interrupted release</a> before starting another creation. <span id="cancel-a-release-or-rehearsal"></span>Its <a href="recovery.html#stop">cancellation section</a> explains owned cleanup and uncertain outcomes.</p>
-<p id="source-publication"><span id="source-publication-recovery"></span><a href="source-verification.html">Publish or recheck original compiler sources</a> with Sourcify. External verification failure does not undo a deployment or require a replacement contract.</p>
-<h2 id="rehearse-the-release-locally">Practice without public funds</h2>
-<p id="start-a-local-network-then-deploy-manually"><span id="view-an-existing-local-release"></span><a href="practice.html#persistent">Keep a local release chain between commands</a>, or run an <a href="practice.html#isolated">isolated automatic rehearsal</a>. These differ from the simple <a href="../start/local-wallet.html">browser demo</a>.</p>
-<p id="rehearse-approval-startup-and-rejection"><span id="rehearse-a-successful-approval"></span><a href="practice.html#approval">Test a reviewed approval image</a> with explicit fixture-only rejection or success checks.</p>
-<h2>Look up operational details</h2>
-<p id="independent-components"><span id="release-records"></span><span id="ui-signing-configuration"></span><a href="../reference/operations.html">Private instances, saved configuration, phase records and approval images</a>.</p>
-<p id="docker-identity"><a href="../reference/operations.html#identity">Qualify private-file access on the selected local Docker engine</a>; do not fix access errors by weakening instance permissions.</p>
-<p id="accept-the-selected-authorities"><a href="../reference/operations.html#handoffs">Nominees accept authorities separately</a>. Historical verification is not current acceptance.</p>
-<p id="progress-and-bounded-diagnostics"><span id="explicit-simulation-comparison"></span><a href="../reference/diagnostics.html">Read bounded logs and diagnose the failing boundary</a>. Simulation experiments are isolated tests, not production fallbacks.</p>
-<p><a href="networks/">Networks</a> · <a href="rpc/">RPC services</a> · <a href="../development/">Source setup</a>. Transport selection does not establish contract identity or signing authority.</p>
+<p id="scope">Hosting viewer software, publishing workflow files and deploying contracts are different jobs. Choose the outcome below; each procedure states its prerequisites and what it changes.</p>
+<p>To open an app that is already deployed, use the <a href="../gallery/">Gallery</a>. None of the operator procedures below is needed just to browse.</p>
+
+<h2 id="deploy-to-the-selected-chain">Create or host<span id="prepare"></span></h2>
+<dl class="task-routes">
+<dt><a href="new-instance.html">Deploy a new app instance</a></dt>
+<dd>Create contracts and a CAM publication through separately approved transactions, with an explicit pause to host the files.</dd>
+<dt><a href="../viewer/deploy.html">Host the stand-alone viewer</a></dt>
+<dd>Serve browser software at your own HTTPS hostname. This creates no contracts or CAM publication.</dd>
+<dt id="view-cam-publication"><a href="../use/#local-publication">Open a saved publication locally</a></dt>
+<dd>Inspect existing contracts using the retained instance and a browser-accessible RPC.</dd>
+</dl>
+
+<h2 id="publish-prepared-cam">Maintain an existing instance<span id="host-the-prepared-bundle"></span></h2>
+<dl class="task-routes">
+<dt id="update-an-existing-ui"><a href="update.html">Update a published app</a></dt>
+<dd>Choose a compatible CAM-only change, projection replacement or an explicit business-contract migration. Preparation does not publish.</dd>
+<dt id="complete-deployment-records"><span id="complete-component-records"></span><a href="recovery.html">Recover an interrupted release</a></dt>
+<dd>Inspect retained evidence and resume only what remains. Do not start another deployment to repair incomplete records. <span id="cancel-a-release-or-rehearsal"></span>See its <a href="recovery.html#stop">stop and cancellation procedure</a> for uncertain outcomes.</dd>
+<dt id="source-publication"><span id="source-publication-recovery"></span><a href="source-verification.html">Publish or recheck contract sources</a></dt>
+<dd>Verify the original compiler inputs with Sourcify. A failed verification request does not undo a deployment.</dd>
+</dl>
+
+<h2 id="rehearse-the-release-locally">Practice and prepare</h2>
+<dl class="task-routes">
+<dt id="start-a-local-network-then-deploy-manually"><span id="view-an-existing-local-release"></span><a href="practice.html">Rehearse the release workflow</a></dt>
+<dd>Use a retained local chain or an isolated approval/publication rehearsal, without public funds.</dd>
+<dt id="rehearse-approval-startup-and-rejection"><span id="rehearse-a-successful-approval"></span><a href="practice.html#approval">Test an approval image</a></dt>
+<dd>Exercise the reviewed approval input and fixture-only acceptance or rejection. For a simpler first experience, follow the <a href="../start/local-wallet.html">local-wallet tutorial</a>.</dd>
+</dl>
+
+<h2 id="app-settings">App-specific settings</h2>
+<p>Choose the business contract's authorities and configuration before starting the shared deployment procedure:</p>
+<p><a href="bike-nft/">Bike NFT</a> · <a href="escrow/">Escrow</a> · <a href="pay-to-play/">Pay-to-Play</a>.</p>
+
+<h2 id="independent-components">Operational reference<span id="release-records"></span><span id="ui-signing-configuration"></span></h2>
+<p>For the underlying evidence, authority and runtime boundaries, consult the <a href="../reference/operations.html">operations reference</a>. <span id="docker-identity"></span>Its <a href="../reference/operations.html#identity">Docker identity</a> section covers private-file access, while <span id="accept-the-selected-authorities"></span><a href="../reference/operations.html#handoffs">handoffs</a> explains separate nominee acceptance.</p>
+<p id="progress-and-bounded-diagnostics"><span id="explicit-simulation-comparison"></span>For failed operations, use <a href="../reference/diagnostics.html">bounded diagnostics</a>. For transport choices, use <a href="networks/">Networks</a> and <a href="rpc/">RPC services</a>. Catalog entries do not authenticate contracts.</p>
 </article></main></body></html>
