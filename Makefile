@@ -1710,7 +1710,8 @@ docs/build:
 	$(select_host_output_identity); \
 	run_dir="$$(mktemp -d -t dapp32-docs-XXXXXXXX)"; \
 	run_digest="$$(printf '%s' "$$run_dir" | sha256sum)"; \
-	run_project="$(COMPOSE_PROJECT_NAME)-docs-$${run_digest:0:24}"; \
+	run_project="$(COMPOSE_PROJECT_NAME)-docs-${run_digest:0:24}"; \
+	export DOCS_IMAGE_TAG="${run_digest:0:24}"; \
 	stage_dir=""; \
 	compose_attempted=0; \
 	published=0; \
@@ -1719,7 +1720,7 @@ docs/build:
 	  trap - EXIT; \
 	  trap '' INT TERM HUP; \
 	  if [[ "$$compose_attempted" == 1 ]]; then \
-	    if ! release_with_mapped_owner $(call disposable_cleanup_command,$$run_project,-f $(COMPOSE_DIR)/docs.yml); then \
+	    if ! release_with_mapped_owner $(call disposable_cleanup_command,$run_project,-f $(COMPOSE_DIR)/docs.yml,--rmi all); then \
 	      printf 'Docs project/volume cleanup failed: %s\n' "$$run_project" >&2; \
 	      if [[ "$$status" == 0 ]]; then status=1; fi; \
 	    fi; \
