@@ -12,10 +12,23 @@ for (const [url, path, type] of [
   [page, 'gallery/index.html', 'text/html'],
   [page + 'deployments.js', 'gallery/deployments.js', 'text/javascript'],
   [page + 'deployments.json', 'gallery/deployments.json', 'application/json'],
-  [legacy, 'deployments/index.html', 'text/html'],
   ['https://numpde.github.io/dapp32/theme.js', 'theme.js', 'text/javascript'],
   ['https://numpde.github.io/dapp32/site.css', 'site.css', 'text/css'],
 ]) files.set(url, { body: await readFile(`${site}/${path}`), type })
+// Check the executable redirect from the legacy route, including historical
+// deep links, without aborting unrelated in-flight CDP RPC interceptions.
+const redirectHTML = await readFile(`${site}/deployments/index.html`, 'utf8')
+const redirectScript = redirectHTML.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1]
+assert(redirectScript, 'Legacy deployment route must contain a redirect script')
+function redirectedURL(search, hash) {
+  let redirected
+  const window = { location: { search, hash, replace(target) { redirected = new URL(target, legacy).href } } }
+  new Function('window', redirectScript)(window)
+  return redirected
+}
+assert.equal(redirectedURL('?source=bookmark', '#pay-to-play-fuji'), page + '?source=bookmark#pay-to-play-fuji')
+assert.equal(redirectedURL('', '#pay-to-play-fuji-2026-11-08'), page + '#pay-to-play-fuji-2026-11-08')
+assert.equal(redirectedURL('', ''), page)
 const production = JSON.parse(files.get(page + 'deployments.json').body)
 const host = production.deployments[0].host
 const fixture = { viewer: production.viewer, previewViewer: production.previewViewer, deployments: [{ ...production.deployments[0], network: 'fixture', contracts: [
@@ -114,7 +127,7 @@ try {
   await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable')
   await call('Emulation.setFocusEmulationEnabled', { enabled: true })
   await call('Network.setCacheDisabled', { cacheDisabled: true })
-  await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: legacy + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
+  await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".deployment .actions a")].map(a=>a.textContent)'), ['Open app', 'Pages preview', 'App guide'], 'Both viewers and the app guide use plain labels')
   assert.equal(await evaluate('document.querySelectorAll(".deployment .actions .button").length'), 0, 'Navigation links do not use button styling')
@@ -257,13 +270,7 @@ try {
   await evaluate('history.back()')
   await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
   assert.equal(await evaluate('location.hash'), '#fixture-old', 'Back restores the older release URL and selection')
-  await until('document.querySelector("#fixture-old .rpc-controls [role=status]")?.textContent === "✓"')
-  // Historical bookmarked URLs must open the *same* Gallery instance, without
-  // losing the selected old release or its query parameters.
-  await call('Page.navigate', { url: legacy + '?source=bookmark#fixture-old' })
-  await until(`location.pathname === '/dapp32/gallery/' && location.search === '?source=bookmark' && location.hash === '#fixture-old' && document.querySelector('#deployment-select-fixture-app')?.value === 'fixture-old'`)
-  assert.equal(await evaluate('document.querySelectorAll(".deployment").length'), 1, 'Legacy alias must resolve to one Gallery instance')
-  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 900, 800, 600, 390, 320], compactRows: true, responsiveVerification: true, enlargedText: true, rpcDisclosure: true, selectionKeepsFocusAndScroll: true, mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true }))
+  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 900, 800, 600, 390, 320], compactRows: true, responsiveVerification: true, enlargedText: true, rpcDisclosure: true, selectionKeepsFocusAndScroll: true, mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true, legacyDeepLinks: true }))
   if (process.env.LIVE_RPC === '1') {
     live = true; await navigate()
     const appCount = new Set(production.deployments.map(deployment => deployment.appId)).size
