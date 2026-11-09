@@ -1699,7 +1699,6 @@ cam/abi/export: dapps/deps/verify
 # private, newly created stage, which Make publishes after successful export.
 # A unique Compose project owns the RAM-backed volume; cleanup verifies removal.
 .PHONY: docs/build
-docs/build: export DOCS_OUTPUT_DIR := $(DOCS_OUTPUT_DIR)
 docs/build:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
 	: "$${DOCS_OUTPUT_DIR:?Set DOCS_OUTPUT_DIR to an existing absolute output directory}"; \
@@ -1710,8 +1709,8 @@ docs/build:
 	$(select_host_output_identity); \
 	run_dir="$$(mktemp -d -t dapp32-docs-XXXXXXXX)"; \
 	run_digest="$$(printf '%s' "$$run_dir" | sha256sum)"; \
-	run_project="$(COMPOSE_PROJECT_NAME)-docs-${run_digest:0:24}"; \
-	export DOCS_IMAGE_TAG="${run_digest:0:24}"; \
+	run_project="$(COMPOSE_PROJECT_NAME)-docs-$${run_digest:0:24}"; \
+	export DOCS_IMAGE_TAG="$${run_digest:0:24}"; \
 	stage_dir=""; \
 	compose_attempted=0; \
 	published=0; \
