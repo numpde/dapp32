@@ -1,122 +1,25 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Gallery · dapp32</title>
-  <meta name="description" content="Open deployed dapp32 apps and inspect their contract addresses on a block explorer.">
-  <script src="../theme.js"></script>
-<link rel="stylesheet" href="../site.css">
-  <style>
-    .deployment-page { max-width: 54rem; }
-    .deployment-list { display: grid; gap: 24px; margin-block: 20px 32px; }
-    .deployment { container: deployment / inline-size; padding: 24px; scroll-margin-top: 24px; }
-    .deployment-heading, .deployment-overview, .rpc-controls {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 12px 20px;
-    }
-    .deployment-heading { margin-bottom: 12px; }
-    .deployment-heading h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
-    .deployment-overview { justify-content: space-between; }
-    .deployment .network { margin: 0; font-size: .9rem; }
-    .deployment .actions { margin: 0; align-items: center; gap: 16px; }
-    .deployment h3 { margin: 24px 0 8px; }
-    .deployment :is(select, input) {
-      max-width: 100%;
-      min-width: 0;
-      padding: 8px 10px;
-      font: inherit;
-      color: var(--ink);
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 5px;
-    }
-    .deployment-heading select { font-size: .9rem; }
-    .network, .sources, .rpc-settings { color: var(--muted); }
-    .contracts {
-      display: grid;
-      grid-template-columns: fit-content(17rem) minmax(0, max-content) minmax(0, 1fr);
-      column-gap: 24px;
-      margin: 0;
-    }
-    .contracts > div {
-      display: grid;
-      grid-template-columns: subgrid;
-      grid-column: 1 / -1;
-      align-items: center;
-      padding-block: 8px;
-      border-top: 1px solid var(--line);
-    }
-    .contracts dt { overflow-wrap: anywhere; }
-    .contracts dt a { color: var(--ink); text-decoration-color: var(--line); }
-    .contracts dd { margin: 0; min-width: 0; }
-    .address-value { display: inline-grid; min-width: 0; max-width: 100%; }
-    .address-controls { display: inline-flex; align-items: center; gap: 4px; }
-    .address-controls a { color: var(--ink); text-decoration: none; }
-    .address-controls code { padding: 0; background: none; white-space: nowrap; }
-    .copy-address {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      width: 32px;
-      height: 32px;
-      padding: 6px;
-      border: 1px solid transparent;
-      border-radius: 5px;
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-    }
-    .copy-address:is(:hover, :focus-visible) { background: var(--code); color: var(--ink); }
-    .copy-address svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; }
-    .copy-address:disabled { cursor: progress; }
-    .verification-link { font-size: .85rem; text-decoration: none; }
-    .verification-link::before { content: "✓"; margin-inline-end: 5px; }
-    .deployment a:hover { text-decoration: underline; }
-    .copy-recovery { display: block; max-width: 28rem; margin-top: 8px; }
-    .copy-recovery input { display: block; width: 100%; font: .85rem monospace; }
-    .binding-status { margin: 8px 0; color: var(--muted); font-size: .9rem; }
-    .binding-status[role="alert"] { color: var(--rust); }
-    .rpc-settings { margin-top: 16px; font-size: .85rem; }
-    .rpc-settings summary { width: fit-content; cursor: pointer; }
-    .rpc-controls { margin-top: 12px; gap: 8px; }
-    .rpc-controls input { flex: 1 1 18rem; }
-    .rpc-controls input[aria-invalid="true"] { border-color: var(--rust); }
-    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    :focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
-    @container deployment (max-width: 48rem) {
-      .hex-middle { display: inline-block; inline-size: 1ch; overflow: hidden; position: relative; text-indent: -9999px; vertical-align: bottom; }
-      .hex-ellipsis::after { content: "…"; position: absolute; inset-inline-start: 0; text-indent: 0; }
-    }
-    @container deployment (max-width: 34rem) {
-      .contracts { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; }
-      .contracts > div { row-gap: 4px; }
-      .contract-address { grid-column: 1 / -1; }
-      .contract-verification { grid-column: 2; grid-row: 1; }
-    }
-    @media (max-width: 600px) { .deployment { padding: 20px 16px; } }
-    @media (pointer: coarse) { .copy-address { width: 44px; height: 44px; } }
-  </style>
-
-</head>
-<body>
-<a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="./" aria-current="page">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-  <main id="main" class="shell document deployment-page">
-    <header class="document-header">
-      <h1>Gallery</h1>
-      <p class="lede">Browse deployed apps. Select a release and open it in the stand-alone viewer or the newer Pages preview. These public instances run on test networks.</p>
-    </header>
-    <p id="load-status" role="status">Loading deployments…</p>
-    <button id="retry" class="button" type="button" hidden>Retry loading</button>
-    <div id="deployments" class="deployment-list"></div>
-    <noscript><p>Enable JavaScript to show the deployments, or open the <a href="deployments.json">deployment data</a>.</p></noscript>
-    <p class="sources">Sources: <a href="deployments.json">deployment data</a> · <a href="../deployment/networks/">RPC network catalog</a>.</p>
-  </main>
-  <script type="module" src="deployments.js"></script>
-
-</body>
+<!DOCTYPE html>
+<html lang="en-US" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Gallery | dapp32</title>
+    <meta name="description" content="Browse deployed apps, choose a release, and open its viewer.">
+    <meta name="generator" content="VitePress v2.0.0-alpha.21">
+    
+    <link rel="preload stylesheet" href="/dapp32/assets/style.pzj02vmC.css" as="style">
+    <script type="module" src="/dapp32/assets/chunks/metadata.553e29d5.js"></script>
+    <script type="module" src="/dapp32/assets/app.DBQa4LpS.js"></script>
+    <link rel="preload" href="/dapp32/assets/inter-roman-latin.BGqfVNJZ.woff2" as="font" type="font/woff2" crossorigin="">
+    <link rel="modulepreload" href="/dapp32/assets/chunks/framework.fhiXEbOi.js">
+    <link rel="modulepreload" href="/dapp32/assets/chunks/theme.QbGe1b-u.js">
+    <link rel="modulepreload" href="/dapp32/assets/gallery_index.md.Ch8jGL96.lean.js">
+    <script id="check-dark-mode">(()=>{let e=localStorage.getItem(`vitepress-theme-appearance`)||`auto`,t=window.matchMedia(`(prefers-color-scheme: dark)`).matches;(!e||e===`auto`?t:e===`dark`)&&document.documentElement.classList.add(`dark`)})();</script>
+    <script id="check-mac-os">document.documentElement.classList.toggle(`mac`,/Mac|iPhone|iPod|iPad/i.test(navigator.platform));</script>
+  </head>
+  <body>
+    <div id="app"><div class="Layout" data-v-354c48e7><!--[--><!--]--><!--[--><span tabindex="-1" data-v-d13c19bd></span><a href="#VPContent" class="VPSkipLink visually-hidden" data-v-d13c19bd>Skip to content</a><!--]--><!----><header class="VPNav" data-v-354c48e7 data-v-80fb6587><div class="VPNavBar top" data-v-80fb6587 data-v-a6c11189><div class="wrapper" data-v-a6c11189><div class="container" data-v-a6c11189><div class="title" data-v-a6c11189><div class="VPNavBarTitle" data-v-a6c11189 data-v-70929235><a class="title" href="/dapp32/" title="dapp32" data-v-70929235><!--[--><!--]--><!----><span dir="auto" data-v-70929235>dapp32</span><!--[--><!--]--></a></div></div><div class="content" data-v-a6c11189><div class="content-body" data-v-a6c11189><!--[--><!--]--><div class="VPNavBarSearch search" data-v-a6c11189 data-v-c8b6bdd3><!--[--><button type="button" class="VPNavBarSearchButton" aria-label="Search" aria-keyshortcuts="/ control+k meta+k" data-v-c8b6bdd3 data-v-46a20065><span class="vpi-search" aria-hidden="true" data-v-46a20065></span><span class="text" data-v-46a20065>Search</span><span class="keys" aria-hidden="true" data-v-46a20065><kbd class="key-mod" data-v-46a20065></kbd><kbd class="key-k" data-v-46a20065></kbd></span></button><!----><!--]--></div><nav aria-label="Main Navigation" class="VPNavMenu VPNavBarMenu menu" data-v-a6c11189 data-v-395de99a><ul class="list" data-v-395de99a><!--[--><li class="" data-v-395de99a><a class="VPLink link VPNavMenuLink VPNavBarMenuLink" href="/dapp32/start/" data-v-395de99a data-v-9ae92bff data-v-9e2e9c13><!--[--><span dir="auto" data-v-9ae92bff>Start</span><!--]--></a></li><li class="" data-v-395de99a><a class="VPLink link VPNavMenuLink VPNavBarMenuLink active" href="/dapp32/gallery/" aria-current="page" data-v-395de99a data-v-9ae92bff data-v-9e2e9c13><!--[--><span dir="auto" data-v-9ae92bff>Gallery</span><!--]--></a></li><li class="" data-v-395de99a><a class="VPLink link VPNavMenuLink VPNavBarMenuLink" href="/dapp32/use/" data-v-395de99a data-v-9ae92bff data-v-9e2e9c13><!--[--><span dir="auto" data-v-9ae92bff>Use</span><!--]--></a></li><li class="" data-v-395de99a><a class="VPLink link VPNavMenuLink VPNavBarMenuLink" href="/dapp32/authoring/" data-v-395de99a data-v-9ae92bff data-v-9e2e9c13><!--[--><span dir="auto" data-v-9ae92bff>Build</span><!--]--></a></li><li class="" data-v-395de99a><a class="VPLink link VPNavMenuLink VPNavBarMenuLink" href="/dapp32/deployment/" data-v-395de99a data-v-9ae92bff data-v-9e2e9c13><!--[--><span dir="auto" data-v-9ae92bff>Deploy</span><!--]--></a></li><li class="" data-v-395de99a><a class="VPLink link VPNavMenuLink VPNavBarMenuLink" href="/dapp32/reference/" data-v-395de99a data-v-9ae92bff data-v-9e2e9c13><!--[--><span dir="auto" data-v-9ae92bff>Reference</span><!--]--></a></li><!--]--></ul></nav><!----><div class="VPNavAppearance VPNavBarAppearance appearance" data-v-a6c11189 data-v-458f94a8><!----><button class="VPSwitch VPSwitchAppearance" type="button" role="switch" title aria-label="Appearance" aria-checked="false" data-v-458f94a8 data-v-4d561622 data-v-eb958bee><span class="check" data-v-eb958bee><span class="icon" data-v-eb958bee><!--[--><span class="vpi-sun sun" aria-hidden="true" data-v-4d561622></span><span class="vpi-moon moon" aria-hidden="true" data-v-4d561622></span><!--]--></span></span></button></div><!----><!----><!--[--><!--]--><button type="button" class="VPNavBarHamburger hamburger" aria-label="Menu" aria-expanded="false" data-v-a6c11189 data-v-e3640094><span class="container" aria-hidden="true" data-v-e3640094><span class="top" data-v-e3640094></span><span class="middle" data-v-e3640094></span><span class="bottom" data-v-e3640094></span></span></button></div></div></div></div><div class="divider" data-v-a6c11189><div class="divider-line" data-v-a6c11189></div></div></div><!----></header><div class="VPLocalNav empty fixed" data-v-354c48e7 data-v-f1bff9ee><div class="container" data-v-f1bff9ee><!----><div class="VPLocalNavOutlineDropdown" style="--vp-vh:0px;" data-allow-mismatch="style" data-v-f1bff9ee data-v-10aab24e><button type="button" data-v-10aab24e>Return to top</button><!----></div></div></div><!----><div class="VPContent" id="VPContent" data-v-354c48e7 data-v-ee0ff201><div class="VPDoc has-aside" data-v-ee0ff201 data-v-bca0f332><!--[--><!--]--><div class="container" data-v-bca0f332><div class="aside" data-v-bca0f332><div class="aside-curtain" data-v-bca0f332></div><div class="aside-container" data-v-bca0f332><div class="aside-content" data-v-bca0f332><div class="VPDocAside" data-v-bca0f332 data-v-8fd001fd><!--[--><!--]--><!--[--><!--]--><nav aria-labelledby="doc-outline-aria-label" class="VPDocAsideOutline" data-v-8fd001fd data-v-6129ee03><div class="content" data-v-6129ee03><div class="outline-marker" data-v-6129ee03></div><div aria-level="2" class="outline-title" id="doc-outline-aria-label" role="heading" data-v-6129ee03>On this page</div><ul class="VPDocOutlineItem root" data-v-6129ee03 data-v-5a7d7957><!--[--><!--]--></ul></div></nav><!--[--><!--]--><div class="spacer" data-v-8fd001fd></div><!--[--><!--]--><!----><!--[--><!--]--><!--[--><!--]--></div></div></div></div><div class="content" data-v-bca0f332><div class="content-container" data-v-bca0f332><!--[--><!--]--><main class="main" data-v-bca0f332><div style="position:relative;" class="vp-doc _dapp32_gallery_" data-v-bca0f332><div><h1 id="gallery" tabindex="-1">Gallery <a class="header-anchor" href="#gallery" aria-label="Permalink to “Gallery”">​</a></h1><div class="ported-guide gallery-content"><p class="lede">Browse deployed apps. Select a release and open it in the stand-alone viewer or the newer Pages preview. These public instances run on test networks.</p><p id="load-status" role="status">Loading deployments…</p><button id="retry" class="button" type="button" hidden>Retry loading</button><div id="deployments" class="deployment-list"></div><noscript><p>Enable JavaScript to show the deployments, or open the <a href="deployments.json">deployment data</a>.</p></noscript><p class="sources">Sources: <a href="deployments.json">deployment data</a> · <a href="../deployment/networks/">RPC network catalog</a>.</p></div></div></div></main><footer class="VPDocFooter" data-v-bca0f332 data-v-d648cdea><!--[--><!--]--><div class="edit-info" data-v-d648cdea><div class="edit-link" data-v-d648cdea><a class="VPLink link vp-external-link-icon no-icon edit-link-button" href="https://github.com/numpde/dapp32/edit/main/docs/gallery/index.md" target="_blank" rel="noreferrer" data-v-d648cdea data-v-9e2e9c13><!--[--><span class="vpi-square-pen edit-link-icon" data-v-d648cdea></span> Edit this page on GitHub<!--]--></a></div><!----></div><!----></footer><!--[--><!--]--></div></div></div><!--[--><!--]--></div></div><!----><!--[--><!--]--></div></div>
+    
+    
+  </body>
 </html>
