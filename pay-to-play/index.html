@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Use Pay-to-Play · dapp32</title><meta name="description" content="Understand the balance, voucher, withdrawal and recovery tasks in the current Pay-to-Play workflow."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/" aria-current="location">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="../use/">Use</a></li><li><span aria-current="page">Pay-to-Play</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Use</summary><nav class="docs-section-links" aria-label="In Use"><a href="../use/">Use an app</a><details class="docs-subsection" open><summary>Pay-to-Play</summary><div class="docs-subsection-links"><a href="./" aria-current="page">Overview</a><a href="local-payment.html">Try a voucher payment</a><a href="integration.html">Integrate payments</a></div></details><details class="docs-subsection"><summary>Escrow</summary><div class="docs-subsection-links"><a href="../escrow/">Overview</a><a href="../escrow/documents.html">Prepare documents</a><a href="../escrow/reference.html">Contract behavior</a></div></details><details class="docs-subsection"><summary>Bike NFT</summary><div class="docs-subsection-links"><a href="../bike-nft/">Overview</a><a href="../bike-nft/ownership.html">Ownership and workshops</a><a href="../bike-nft/metadata.html">Metadata</a></div></details></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Use Pay-to-Play</h1>
 <p>Deposit into your position, authorize cumulative payments with a registered key, and recover unused funds. A position is one <strong>balance owner + channel ID</strong>; the account viewing it can be someone else.</p>
 <p>This guide describes source <a href="https://github.com/numpde/dapp32/tree/2c8f962c8b0c34eced55a60bc421952ebe445d9c">2c8f962c</a>, including invoice-bound v2 vouchers, collector-gated payments and positive-credit withdrawal restarts. An older non-upgradeable deployment retains its original behavior; verify the deployed contract before relying on these instructions.</p>
@@ -63,4 +67,7 @@
 <p>Start with <a href="../start/local-wallet.html">a local wallet and 100-wei deposit</a>, then <a href="local-payment.html">sign and collect a test voucher</a>. The shared wallet guide owns browser setup and cleanup; use public fixture keys only on disposable local state.</p>
 <h3 id="verify">Verification for contributors</h3>
 <p><a href="../development/app-checks.html#payment">Choose the payment or recovery campaign</a>, or <a href="../development/payment-fixture.html">hand an isolated deployment to another repository's test runner</a>. Live signing checks require disposable state. A passing fixture does not establish production readiness or delivered work.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Deployment records and authority · dapp32</title><meta name="description" content="Reference for private instances, saved operation inputs, phase artifacts, approval images and local Docker identity."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/" aria-current="location">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Reference</a></li><li><span aria-current="page">Deployment records and authority</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Reference</summary><nav class="docs-section-links" aria-label="In Reference"><a href="./">Reference overview</a><a href="cam/">CAM specifications</a><a href="operations.html" aria-current="page">Operational records</a><a href="diagnostics.html">Diagnostics</a><a href="../deployment/networks/">Networks</a><a href="../deployment/rpc/">RPC services</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Deployment records and authority</h1>
 <p>For a first release, follow <a href="../deployment/new-instance.html">Deploy a new instance</a>. This page explains what its retained files mean and what must remain private.</p>
 <nav aria-label="Reference sections"><a href="#instance">Instance</a> · <a href="#artifacts">Artifacts</a> · <a href="#approval">Approval images</a> · <a href="#identity">Docker identity</a> · <a href="#handoffs">Handoffs</a></nav>
@@ -44,4 +48,7 @@
 <p>Business administration and CAM publication ownership can belong to different accounts. Each nominee accepts on the specific contract identified by its phase artifact. Bike Components and Manager administrator transfers also observe their configured chain-time delays. Until acceptance, the current authority remains in control.</p>
 <p>CAM ownership changes use <code>transferOwnership(newOwner)</code> followed by the nominee's <code>acceptOwnership()</code>. A proposed owner cannot publish before accepting. Editing a configuration or verifying a historical nomination changes no deployed authority.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.py#L111-L190">artifact selection and configuration ownership</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.py#L444-L503">publication completion</a>, and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_identity.py">identity mapping</a>. Use <a href="../deployment/recovery.html">Recover an interrupted release</a> for the decision procedure.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

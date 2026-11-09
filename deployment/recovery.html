@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Recover an interrupted release · dapp32</title><meta name="description" content="Resume retained deployment work, reconcile mined transactions and recover missing records without accidentally redeploying contracts."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/" aria-current="location">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Deploy</a></li><li><span aria-current="page">Recover an interrupted release</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Deploy</summary><nav class="docs-section-links" aria-label="In Deploy"><a href="./">Choose a deployment task</a><a href="new-instance.html">Deploy a new instance</a><a href="../viewer/deploy.html">Host the stand-alone viewer</a><a href="update.html">Update an instance</a><a href="recovery.html" aria-current="page">Recover a release</a><a href="source-verification.html">Verify contract sources</a><a href="practice.html">Rehearse a release</a><details class="docs-subsection"><summary>App settings</summary><div class="docs-subsection-links"><a href="bike-nft/">Bike NFT</a><a href="escrow/">Escrow</a><a href="pay-to-play/">Pay-to-Play</a></div></details><details class="docs-subsection"><summary>Older bookmarks</summary><div class="docs-subsection-links"><a href="manual.html">Legacy manual index</a></div></details></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Recover an interrupted release</h1>
 <p>Keep the original instance directory. Find out what completed before approving another transaction. A failed terminal command does not mean every transaction failed.</p>
 <dl><dt>Run on</dt><dd>The release workstation, in the source checkout selected by the saved operation.</dd><dt>Requires</dt><dd>The whole private instance, its referenced configuration and chain access. Signing continuations also require the recorded approval image and authorized signer.</dd><dt>Changes</dt><dd>Read-only reconciliation writes evidence locally. Resuming an unfinished signing phase can submit the remaining transactions, with fresh approval.</dd><dt>Success</dt><dd>The selected operation has verified final artifacts, or an unresolved outcome is identified without creating a replacement deployment.</dd></dl>
@@ -43,4 +47,7 @@ make pay-to-play/release/verify DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code
 <p>SIGKILL, host loss or an inaccessible Docker daemon cannot guarantee cleanup. An unconfirmed cleanup must remain a failure, with its reported records retained. Do not delete arbitrary similarly named projects or weaken private-file permissions to get past the error.</p>
 <p>Inspect <a href="manual.html#progress-and-bounded-diagnostics">diagnostic logs</a> when the failing phase is unclear. For a deliberate new version rather than recovery, return to <a href="update.html">Update an existing app</a>.</p>
 <p>Implementation: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.py">instance selections and recovery</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.sh">instance command launcher</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/compose_cleanup.sh">owned Compose cleanup</a>.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

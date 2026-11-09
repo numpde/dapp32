@@ -1,20 +1,24 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Publish contract sources · dapp32</title><meta name="description" content="Verify original deployed compiler sources with Sourcify without redeploying contracts or changing CAM bindings."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/" aria-current="location">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Deploy</a></li><li><span aria-current="page">Publish contract sources</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Deploy</summary><nav class="docs-section-links" aria-label="In Deploy"><a href="./">Choose a deployment task</a><a href="new-instance.html">Deploy a new instance</a><a href="../viewer/deploy.html">Host the stand-alone viewer</a><a href="update.html">Update an instance</a><a href="recovery.html">Recover a release</a><a href="source-verification.html" aria-current="page">Verify contract sources</a><a href="practice.html">Rehearse a release</a><details class="docs-subsection"><summary>App settings</summary><div class="docs-subsection-links"><a href="bike-nft/">Bike NFT</a><a href="escrow/">Escrow</a><a href="pay-to-play/">Pay-to-Play</a></div></details><details class="docs-subsection"><summary>Older bookmarks</summary><div class="docs-subsection-links"><a href="manual.html">Legacy manual index</a></div></details></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#1-select-contracts-from-retained-evidence">1. Select contracts from retained evidence</a><a href="#2-keep-original-compiler-identity">2. Keep original compiler identity</a><a href="#evidence">3. Inspect the result</a><a href="#retry">Retry without redeploying</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Publish contract sources</h1>
 <p>Submit a deployment's original compiler sources to Sourcify and recheck its public verification. This is separate from hosting CAM files or publishing their on-chain reference.</p>
 <dl><dt>Run on</dt><dd>The operator workstation with the retained private instance and matching source/dependency history.</dd><dt>Requires</dt><dd>Original deployment artifacts, Forge compiler output including <code>rawMetadata</code>, and a chain supported by Sourcify.</dd><dt>Changes</dt><dd>Public source-verification submissions and local request/job records. No contract creation, binding change or signed transaction.</dd><dt>Success</dt><dd>The selected contract's public bytecode matches and original compiler metadata satisfy the publisher's checks.</dd></dl>
-<h2>1. Select contracts from retained evidence</h2>
+<h2 id="1-select-contracts-from-retained-evidence">1. Select contracts from retained evidence</h2>
 <pre><code>make pay-to-play/release/source/publish \
   DOCKER_CONTEXT=your-local-context \
   INSTANCE=/absolute/private/pay-to-play-instance</code></pre>
 <p>Use <code>escrow</code> or <code>bike-nft</code> instead for those instances. The menu lists contracts across saved records, deduplicated by chain and address. Check the network, address, recorded source revision and creation transaction before selecting.</p>
 <p>Enter selects all contracts in the deployment selected by <code>instance.json</code>. Numbers or comma-separated numbers can select individual contracts, including an old projection that has since been replaced. Membership comes from saved CAM evidence, not today's live bindings. An unavailable service lookup is reported as unknown, not as verified.</p>
-<h2>2. Keep original compiler identity</h2>
+<h2 id="2-keep-original-compiler-identity">2. Keep original compiler identity</h2>
 <p>The publisher uses the deployment's retained compiler artifacts and Git revision, not today's source files. Installed dependency sources must match the compiler metadata hashes. Restore matching source history, artifacts or dependencies when absent; do not substitute a fresh build and call it the original deployment.</p>
 <p>Only metadata-listed source files and compiler settings are sent to Sourcify. The submission does not use the private signing RPC or a signing key. Completed instance deployments also attempt source publication after their deployment cleanup; a service failure does not undo the deployed contracts. Rehearsals do not submit public sources.</p>
 <h2 id="evidence">3. Inspect the result</h2>
@@ -30,4 +34,7 @@
 <p><strong>Service unavailable:</strong> retain the records and retry later. <strong>Metadata differs:</strong> inspect the recorded difference and original artifact before resubmitting. <strong>History or dependencies missing:</strong> restore those inputs. None of these failures is a reason to create a new business contract.</p>
 <p><code>release/verify</code> checks deployment evidence against the chain and submits nothing to Sourcify. Public source verification does not prove current ownership, service behavior, wallet decoding or an ERC-7730 description. See <a href="recovery.html">release recovery</a> for incomplete transaction/artifact work.</p>
 <p>Implementation: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_source.py#L147-L253">public rechecks, metadata comparison and job resumption</a>.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

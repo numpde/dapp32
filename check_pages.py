@@ -5,6 +5,10 @@ import os
 import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
+from runpy import run_path
+
+_DOC_NAV = run_path(str(Path(__file__).with_name("docs_nav.py")))
+guide_html, guide_locations = _DOC_NAV["guide_html"], _DOC_NAV["guide_locations"]
 
 
 SOURCE_ARCHIVE_ROOT: Path | None = None
@@ -35,10 +39,12 @@ def navigation_pages(root: Path):
 def shell_html(root: Path, page: Path) -> str:
     prefix = os.path.relpath(root, page.parent)
     links = []
+    record = guide_locations().get(page.relative_to(root).as_posix())
     for destination, label in PRIMARY_NAVIGATION:
         current = page == root / destination / "index.html"
+        within = record is not None and record[0][1] == destination + "index.html"
         href = "./" if current else f"{prefix}/{destination}"
-        attribute = ' aria-current="page"' if current else ""
+        attribute = ' aria-current="page"' if current else ' aria-current="location"' if within else ""
         links.append(f'<a href="{href}"{attribute}>{label}</a>')
     return (
         '<a class="skip-link" href="#main">Skip to content</a>\n'
@@ -75,8 +81,9 @@ def shell_updates(root: Path):
             raise AssertionError(f"expected one shared stylesheet: {page}")
         style = styles[0]
         prefix = os.path.relpath(root, page.parent)
-        resources = theme_script(root, page) + f'\n<script defer src="{prefix}/docs-nav.js"></script>' + f'\n<link rel="stylesheet" href="{prefix}/site.css">'
+        resources = theme_script(root, page) + f'\n<link rel="stylesheet" href="{prefix}/site.css">'
         updated = updated[:style.start()] + resources + updated[style.end():]
+        updated = guide_html(root, page, updated)
         if updated != text:
             yield page, updated
 
@@ -86,16 +93,24 @@ def check_navigation(root: Path) -> None:
 
     stale = [str(page.relative_to(root)) for page, _ in shell_updates(root)]
     if stale:
-        raise AssertionError(f"site header differs; run make pages/navigation/update: {', '.join(stale)}")
+        raise AssertionError(f"site header or static guide navigation differs; run make pages/navigation/update: {', '.join(stale)}")
+    guides = guide_locations()
+    known = {p.relative_to(root).as_posix() for p in navigation_pages(root)}
+    if (root / "gallery/index.html").is_file() and (root / "deployment/index.html").is_file():
+        assert known - {"index.html", "gallery/index.html"} == set(guides), "Guide map must cover every maintained guide exactly once"
     for page in navigation_pages(root):
         text = page.read_text(encoding="utf-8")
         scripts = re.findall(r'<script\b[^>]*>.*?</script>', text, re.DOTALL)
         expected = theme_script(root, page)
         if scripts.count(expected) != 1 or text.index(expected) > text.index('rel="stylesheet"'):
             raise AssertionError(f"expected one blocking shared theme script before styles: {page}")
-        nav_script = f'<script defer src="{os.path.relpath(root, page.parent)}/docs-nav.js"></script>'
-        if scripts.count(nav_script) != 1 or text.index(nav_script) > text.index('rel="stylesheet"'):
-            raise AssertionError(f"expected one shared progressive docs navigation script: {page}")
+        if any("docs-nav.js" in script for script in scripts):
+            raise AssertionError(f"guide navigation must be pre-rendered: {page}")
+        if page.relative_to(root).as_posix() in guides:
+            if text.count("<!-- docs-layout:start -->") != 1 or text.count("<!-- docs-layout:end -->") != 1:
+                raise AssertionError(f"missing static guide layout: {page}")
+            if text.count('<nav class="docs-breadcrumb shell"') != 1 or text.count('<aside class="docs-rail"') != 1:
+                raise AssertionError(f"missing static breadcrumb or menu: {page}")
         if any('dapp32-theme' in script for script in scripts):
             raise AssertionError(f"inline theme implementation duplicates theme.js: {page}")
         for style in re.findall(r'<style\b[^>]*>(.*?)</style>', text, re.DOTALL):
@@ -109,14 +124,13 @@ def check_shell_witnesses() -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         page = root / "index.html"
-        canonical = '<head>' + theme_script(root, page) + '\n<script defer src="./docs-nav.js"></script>\n<link rel="stylesheet" href="./site.css"></head><body>\n' + shell_html(root, page) + '<main id="main"></main></body>'
+        canonical = '<head>' + theme_script(root, page) + '\n<link rel="stylesheet" href="./site.css"></head><body>\n' + shell_html(root, page) + '<main id="main"></main></body>'
         page.write_text(canonical, encoding="utf-8")
         check_navigation(root)
         for broken in (
             canonical.replace('id="theme-toggle"', 'id="missing-toggle"'),
             canonical.replace('Skip to content', 'Skip somewhere else'),
             canonical.replace(theme_script(root, page), ''),
-            canonical.replace('<script defer src="./docs-nav.js"></script>', ''),
             canonical.replace('</head>', theme_script(root, page) + '</head>'),
             canonical.replace('</head>', '<style>.topbar { color: red }</style></head>'),
             canonical.replace('</body>', '<script>localStorage.getItem("dapp32-theme")</script></body>'),

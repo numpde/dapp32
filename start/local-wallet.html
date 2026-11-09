@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Try Pay-to-Play with a local wallet · dapp32</title><meta name="description" content="Create a local test channel, deposit 100 wei and remove the disposable fixture."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/" aria-current="location">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Start</a></li><li><span aria-current="page">Try Pay-to-Play with a local wallet</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Start</summary><nav class="docs-section-links" aria-label="In Start"><a href="./">What runs where</a><a href="local-wallet.html" aria-current="page">Try Pay-to-Play locally</a><a href="fixture-wallet.html">Connect the test wallet</a><a href="../examples/">Local demos</a></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#launch">1. Start the app — terminal A</a><a href="#wallet">2. Open the test browser and attach — terminals B and C</a><a href="#channel">3. Create a channel as admin</a><a href="#deposit">4. Deposit as customer</a><a href="#stop">5. Stop what you started</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Try Pay-to-Play with a local wallet</h1>
 <p>Create a test channel and deposit 100 wei. You will use public fixture accounts on a disposable local blockchain, not your real wallet.</p>
 <dl><dt>Run on</dt><dd>Your workstation, from the source checkout.</dd><dt>Requires</dt><dd><a href="../development/">Development prerequisites</a>, a local Docker context and Chrome or Chromium.</dd><dt>Changes</dt><dd>Local containers, temporary chain state and a dedicated browser profile. No public-chain transaction.</dd><dt>Success</dt><dd>A successful deposit receipt and a 100-wei balance in the selected test position.</dd></dl>
@@ -35,4 +39,7 @@ make pay-to-play/local/demo/gui/up \
   DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo</code></pre>
 <p>Close the dedicated browser. Its profile remains on disk; the fixture's chain state is disposable. Closing a tab alone does not stop the app. For wallet/role mismatches, use the <a href="fixture-wallet.html">shared attachment guide</a>; for a persistent website, use <a href="../viewer/deploy.html">Deploy the viewer</a>.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/pay-to-play/README.md#run-the-disposable-local-demo">demo startup</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/browser-fixture-wallet.mjs#L243-L254">fixture send confirmation</a>.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

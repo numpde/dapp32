@@ -1,13 +1,17 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Set up a source checkout · dapp32</title><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/" aria-current="location">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="../authoring/">Build</a></li><li><span aria-current="page">Set up a source checkout</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Build</summary><nav class="docs-section-links" aria-label="In Build"><a href="../authoring/">Build a workflow</a><a href="../authoring/headless.html">Headless integration</a><a href="./" aria-current="page">Source setup</a><a href="app-checks.html">App checks</a><a href="payment-fixture.html">Payment fixture</a></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#install-the-locked-dependencies">Install the locked dependencies</a><a href="#choose-the-relevant-validation">Choose the relevant validation</a><a href="#host-prerequisites-and-private-files">Host prerequisites and private files</a><a href="#source-and-documentation-ownership">Source and documentation ownership</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Set up a source checkout</h1>
 <p>Use a non-root account with Git, Bash, Make, Docker and Compose. The workflows select a <strong>local Linux Docker engine</strong>; do not substitute a remote context for a server login.</p>
-<h2>Install the locked dependencies</h2>
+<h2 id="install-the-locked-dependencies">Install the locked dependencies</h2>
 <pre><code>git clone https://github.com/numpde/dapp32.git
 cd dapp32
 docker context ls
@@ -16,7 +20,7 @@ make js/deps/install DOCKER_CONTEXT=your-local-context
 make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <p>Replace <code>your-local-context</code> with the engine you intend to use. Omit the argument only when you want the interactive chooser. Noninteractive commands need the context on the Make command line. Each operation resolves that engine once and uses the same endpoint for child operations and cleanup.</p>
 <p>Dependency installation is explicitly networked. The offline checks do not install missing dependencies for you. For the standalone viewer, only JavaScript dependencies are needed; its <a href="../viewer/deploy.html#build">build guide</a> also acquires its pinned base images explicitly.</p>
-<h2>Choose the relevant validation</h2>
+<h2 id="choose-the-relevant-validation">Choose the relevant validation</h2>
 <table><thead><tr><th>Change</th><th>Validation</th></tr></thead><tbody>
 <tr><td>Authored CAM files</td><td><code>make cam/conformance/check</code>; refresh resource pins after edits.</td></tr>
 <tr><td>Repository/tooling</td><td><code>make tests/checks</code>; relevant integration tests for changed behavior.</td></tr>
@@ -25,10 +29,13 @@ make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <tr><td>Published guide</td><td>The documentation branch's <code>make pages/check SOURCE_REPO=...</code>; browser checks for navigation/style changes.</td></tr>
 </tbody></table>
 <p>Add your context to source Make commands. Run <code>make help</code> for prerequisites and current target options. README-only CI uses its lightweight length check, not application integration.</p>
-<h2>Host prerequisites and private files</h2>
+<h2 id="host-prerequisites-and-private-files">Host prerequisites and private files</h2>
 <p>Isolated Compose services disable Multipath TCP, so the kernel must expose the per-network-namespace <code>net.mptcp.enabled</code> setting. Host-network browser tools instead share the host's settings.</p>
 <p>Release tools also need host Python 3.11+ and the maintained identity probe. Follow <a href="../deployment/#docker-identity">private-file qualification</a> before using an operator instance on a different engine. Do not repair access failures by loosening the instance's permissions or changing its owner.</p>
-<h2>Source and documentation ownership</h2>
+<h2 id="source-and-documentation-ownership">Source and documentation ownership</h2>
 <p><code>main</code> owns implementation, fixtures and protocol-reference sources. <code>gh-pages</code> owns these task guides. Keep versioned protocol copies byte-identical to their source; current readers use CAM 1.4.0 / UI 1.1.0. Historical specifications are not compatibility promises.</p>
 <p>For a release or published example, record the reviewed source commit. Do not mix an older deployment's ABI and signing rules with today's guide. The <a href="https://github.com/numpde/dapp32/tree/archive/poc-2026-05-20">archived proof of concept</a> is historical, not the starting point for current work.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>

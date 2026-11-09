@@ -1,10 +1,14 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Build a workflow · dapp32</title><meta name="description" content="Make one visible change to a complete CAM workflow, validate it and run it locally."><script src="../theme.js"></script>
-<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="./" aria-current="page">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<main id="main" class="shell document"><article class="narrow">
+<!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><span aria-current="page">Build</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Build</summary><nav class="docs-section-links" aria-label="In Build"><a href="./" aria-current="page">Build a workflow</a><a href="headless.html">Headless integration</a><a href="../development/">Source setup</a><a href="../development/app-checks.html">App checks</a><a href="../development/payment-fixture.html">Payment fixture</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main"><article class="narrow">
 <h1>Build a workflow</h1>
 <p>Start by changing one screen in the complete Escrow example. You will see the change in the generic viewer without editing its React code or changing contract permissions.</p>
 <dl><dt>Run on</dt><dd>Your workstation, in a source checkout.</dd><dt>Requires</dt><dd><a href="../#development">Docker, Compose, Make and the locked dependencies</a>.</dd><dt>Changes</dt><dd>Local CAM files and a disposable chain. No public deployment.</dd><dt>Success</dt><dd>The local creation form shows your new label; CAM conformance passes.</dd></dl>
@@ -63,4 +67,7 @@ git diff -- dapps/escrow/cam</code></pre>
 <h2>Reference, not another tutorial</h2>
 <p>Use the current reference for <a href="../reference/cam/1.4.0/#expressions">expressions</a>, <a href="../reference/cam/1.4.0/#ui">UI fields and composition</a>, <a href="../reference/cam/1.4.0/#execution">execution outcomes</a> and <a href="../reference/cam/1.4.0/#security">trust boundaries</a>. In particular, the viewer can continue after an integrity warning; rendering a screen does not prove its authenticity.</p>
 <p>Source baseline: <code>04a18763</code>. The included route is checked against committed source by the documentation tests.</p>
-</article></main></body></html>
+</article></main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end --></body></html>
