@@ -291,9 +291,6 @@ async function load() {
   selectableGroups.forEach(group => group.cancel());
   selectableGroups = [];
   list.replaceChildren();
-  const jump = document.querySelector('#deployment-jump');
-  jump.replaceChildren();
-  jump.hidden = true;
   try {
     const [data, catalog] = await Promise.all([readJSON('./deployments.json'), readJSON(catalogURL)]);
     const groups = groupDeployments(data.deployments);
@@ -303,7 +300,6 @@ async function load() {
       if (deployments.length === 1) {
         const card = deploymentCard(deployments[0], data.viewer, data.previewViewer, catalog);
         rendered.push(card);
-        jump.append(link(`#${card.id}`, deployments[0].name));
         continue;
       }
       if (deployments.some(deployment => !/^\d{4}-\d{2}-\d{2}$/.test(deployment.deployedAt))) {
@@ -325,7 +321,6 @@ async function load() {
       group.append(heading);
       const details = element('div');
       group.append(details);
-      const jumpLink = link(`#${ordered[0].id}`, deployments[0].name);
       let active;
       function show(id) {
         if (active?.id === id) return;
@@ -335,7 +330,6 @@ async function load() {
         active = deploymentCard(deployment, data.viewer, data.previewViewer, catalog, true);
         details.replaceChildren(active);
         select.value = id;
-        jumpLink.href = `#${id}`;
       }
       select.addEventListener('change', () => {
         show(select.value);
@@ -345,11 +339,9 @@ async function load() {
       });
       show(ordered.some(item => item.id === requested) ? requested : ordered[0].id);
       selectableGroups.push({ ids: new Set(ordered.map(item => item.id)), latest: ordered[0].id, show, cancel: () => active?.cancelBindings() });
-      jump.append(jumpLink);
       rendered.push(group);
     }
     list.append(...rendered);
-    jump.hidden = rendered.length < 2;
     status.textContent = rendered.length ? '' : 'No deployments are listed yet.';
     status.hidden = rendered.length > 0;
     if (requested && data.deployments.some(deployment => deployment.id === requested)) {

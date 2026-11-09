@@ -107,6 +107,11 @@ try {
   assert.equal(await evaluate('document.querySelector("main h1")?.textContent'), 'Contract-defined workflows')
   assert.deepEqual(await evaluate('[...document.querySelectorAll("nav[aria-label=Primary] a")].map(a=>a.textContent)'), ['Start', 'Gallery', 'Use', 'Build', 'Deploy', 'Reference'])
   assert(await evaluate('[...document.querySelectorAll("main a")].filter(a=>a.getAttribute("href")==="gallery/").length >= 3'), 'Gallery is prominent within the original homepage layout')
+  await visit('/gallery/')
+  const galleryFrame = await evaluate('(() => ({ heading: document.querySelector("main h1")?.textContent, frame: !!document.querySelector(".docs-layout > main.docs-main.deployment-page"), breadcrumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelector(".docs-section-links a[aria-current=page]")?.textContent, apps: [...document.querySelectorAll(".docs-section-links a")].filter(a=>a.hash).map(a=>a.hash), duplicate: !!document.querySelector("#deployment-jump"), late: !!document.querySelector("script[src*=docs-nav]") }))()')
+  assert(galleryFrame.heading === 'Gallery' && galleryFrame.frame && galleryFrame.breadcrumb && galleryFrame.active === 'All deployed apps', 'Gallery has the same pre-rendered section frame as other pages')
+  assert.deepEqual(galleryFrame.apps, ['#bike-nft-fuji', '#pay-to-play-fuji-2026-11-08'], 'The Gallery menu follows the published catalog')
+  assert(!galleryFrame.duplicate && !galleryFrame.late, 'Gallery must not create a second runtime menu')
   await visit('/use/')
   assert(await evaluate('!!document.querySelector(\'main a[href="../gallery/"]\')'), 'Use guide must open the Gallery directly')
   const useOrientation = await evaluate('(() => ({ breadcrumb: document.querySelector(".docs-breadcrumb")?.textContent, current: [...document.querySelectorAll(".docs-section-links a[aria-current=page]")].map(a=>a.textContent), groups: [...document.querySelectorAll(".docs-subsection > summary")].map(x=>x.textContent), toc: !!document.querySelector(".docs-toc"), layout: !!document.querySelector(".docs-layout > .docs-main") }))()')
@@ -159,7 +164,7 @@ try {
         if (reference === undefined) reference = style
         else assert.deepEqual(style, reference, `Header style differs: ${file} (${color}, ${width}px)`)
         const guidePath = file.slice(root.length).replace(/\/index\.html$/, '/')
-        const appPage = guidePath === '/' || guidePath === '/gallery/'
+        const appPage = guidePath === '/'
         const orientation = await evaluate('(() => ({ rail: !!document.querySelector(".docs-rail"), crumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelectorAll(".docs-section-links a[aria-current=page]").length, overflow: document.documentElement.scrollWidth>innerWidth }))()')
         assert(!orientation.overflow, 'Page overflows at ' + width + 'px: ' + file)
         if (!appPage) {
@@ -199,6 +204,8 @@ try {
   const staticHeader = await visit('/deployment/networks/')
   assert.equal(staticHeader.visible, false, 'A nonfunctional theme control stays hidden without JavaScript')
   assert(staticHeader.fit && staticHeader.labels.length === 6, 'Navigation remains usable without JavaScript')
+  await visit('/gallery/')
+  assert(await evaluate(`!!document.querySelector('.docs-rail') && !!document.querySelector('.docs-breadcrumb') && !!document.querySelector('main.docs-main')`), 'Gallery menu is already present with JavaScript disabled')
   await visit('/use/')
   assert(await evaluate(`document.querySelector('.docs-rail') !== null && !!document.querySelector('main a[href="../gallery/"]')`), 'No-JS docs include the pre-rendered menu and original task links')
   assert(await evaluate(`!!document.querySelector('.docs-breadcrumb') && !!document.querySelector('.docs-layout > .docs-main') && !document.querySelector('script[src*="docs-nav.js"]')`), 'No-JS document has its complete layout on the first render')

@@ -35,7 +35,6 @@
     }
     .deployment-heading select { font-size: .9rem; }
     .network, .sources, .rpc-settings { color: var(--muted); }
-    .deployment-jump { display: flex; flex-wrap: wrap; gap: 8px 24px; }
     .contracts {
       display: grid;
       grid-template-columns: fit-content(17rem) minmax(0, max-content) minmax(0, 1fr);
@@ -106,18 +105,25 @@
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="./" aria-current="page">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-  <header class="shell document-header deployment-page">
-    <h1>Gallery</h1>
-    <p class="lede">Browse deployed apps. Select a release and open it in the stand-alone viewer or the newer Pages preview. These public instances run on test networks.</p>
-  </header>
-  <main id="main" class="shell document deployment-page">
-    <nav id="deployment-jump" class="deployment-jump" aria-label="Listed deployments" hidden></nav>
+  <!-- docs-layout:start -->
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><span aria-current="page">Gallery</span></li></ol></nav>
+<div class="docs-layout shell">
+<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Gallery</summary><nav class="docs-section-links" aria-label="In Gallery"><a href="./" aria-current="page">All deployed apps</a><a href="./#bike-nft-fuji">Bicycle component registry</a><a href="./#pay-to-play-fuji-2026-11-08">Pay-to-Play</a></nav></details></aside>
+<!-- docs-layout:before-main -->
+<main id="main" class="document docs-main deployment-page">
+    <header class="document-header">
+      <h1>Gallery</h1>
+      <p class="lede">Browse deployed apps. Select a release and open it in the stand-alone viewer or the newer Pages preview. These public instances run on test networks.</p>
+    </header>
     <p id="load-status" role="status">Loading deployments…</p>
     <button id="retry" class="button" type="button" hidden>Retry loading</button>
     <div id="deployments" class="deployment-list"></div>
     <noscript><p>Enable JavaScript to show the deployments, or open the <a href="deployments.json">deployment data</a>.</p></noscript>
     <p class="sources">Sources: <a href="deployments.json">deployment data</a> · <a href="../deployment/networks/">RPC network catalog</a>.</p>
   </main>
+<!-- docs-layout:after-main -->
+</div>
+<!-- docs-layout:end -->
   <script type="module" src="deployments.js"></script>
 
 </body>
