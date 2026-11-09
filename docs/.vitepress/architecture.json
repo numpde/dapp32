@@ -1,0 +1,315 @@
+{
+  "version": 1,
+  "sections": [
+    {
+      "id": "start",
+      "label": "Start",
+      "groups": [
+        {
+          "title": "Get oriented",
+          "pages": [
+            {
+              "source": "start/index.md",
+              "route": "start/index.md",
+              "text": "How it works"
+            },
+            {
+              "source": "start/local-wallet.md",
+              "route": "start/local-wallet.md",
+              "text": "Try with a test wallet"
+            },
+            {
+              "source": "start/fixture-wallet.md",
+              "route": "start/fixture-wallet.md",
+              "text": "Attach the test wallet"
+            }
+          ]
+        },
+        {
+          "title": "Practice",
+          "pages": [
+            {
+              "source": "examples/index.md",
+              "route": "start/examples/index.md",
+              "text": "Local demos"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gallery",
+      "label": "Gallery",
+      "groups": [
+        {
+          "title": "Published applications",
+          "pages": [
+            {
+              "source": "gallery/index.md",
+              "route": "gallery/index.md",
+              "text": "Browse deployments"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "use",
+      "label": "Use",
+      "groups": [
+        {
+          "title": "Open an app",
+          "pages": [
+            {
+              "source": "use/index.md",
+              "route": "use/index.md",
+              "text": "Choose an app or host"
+            }
+          ]
+        },
+        {
+          "title": "Pay-to-Play",
+          "parent": "pay-to-play/index.md",
+          "pages": [
+            {
+              "source": "pay-to-play/index.md",
+              "route": "use/pay-to-play/index.md",
+              "text": "Using Pay-to-Play"
+            },
+            {
+              "source": "pay-to-play/local-payment.md",
+              "route": "use/pay-to-play/local-payment.md",
+              "text": "Collect a test voucher"
+            }
+          ]
+        },
+        {
+          "title": "Escrow",
+          "parent": "escrow/index.md",
+          "pages": [
+            {
+              "source": "escrow/index.md",
+              "route": "use/escrow/index.md",
+              "text": "Using Escrow"
+            },
+            {
+              "source": "escrow/documents.md",
+              "route": "use/escrow/documents.md",
+              "text": "Prepare documents"
+            }
+          ]
+        },
+        {
+          "title": "Bike NFT",
+          "parent": "bike-nft/index.md",
+          "pages": [
+            {
+              "source": "bike-nft/index.md",
+              "route": "use/bike-nft/index.md",
+              "text": "Using Bike NFT"
+            },
+            {
+              "source": "bike-nft/metadata.md",
+              "route": "use/bike-nft/metadata.md",
+              "text": "Prepare metadata"
+            },
+            {
+              "source": "bike-nft/ownership.md",
+              "route": "use/bike-nft/ownership.md",
+              "text": "Ownership and workshop access"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "build",
+      "label": "Build",
+      "groups": [
+        {
+          "title": "Author a workflow",
+          "parent": "authoring/index.md",
+          "pages": [
+            {
+              "source": "authoring/index.md",
+              "route": "build/index.md",
+              "text": "Edit a workflow"
+            },
+            {
+              "source": "authoring/headless.md",
+              "route": "build/headless.md",
+              "text": "Headless integration"
+            }
+          ]
+        },
+        {
+          "title": "Develop and test",
+          "parent": "development/index.md",
+          "pages": [
+            {
+              "source": "development/index.md",
+              "route": "build/setup.md",
+              "text": "Set up the source"
+            },
+            {
+              "source": "development/app-checks.md",
+              "route": "build/checks.md",
+              "text": "Choose validation checks"
+            },
+            {
+              "source": "development/payment-fixture.md",
+              "route": "build/payment-fixture.md",
+              "text": "Payment fixture"
+            }
+          ]
+        },
+        {
+          "title": "Service integration",
+          "pages": [
+            {
+              "source": "pay-to-play/integration.md",
+              "route": "build/pay-to-play-integration.md",
+              "text": "Integrate Pay-to-Play"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deploy",
+      "label": "Deploy",
+      "groups": [
+        {
+          "title": "Release lifecycle",
+          "pages": [
+            {
+              "source": "deployment/index.md",
+              "route": "deploy/index.md",
+              "text": "Choose a deployment task"
+            },
+            {
+              "source": "deployment/new-instance.md",
+              "route": "deploy/new-instance.md",
+              "text": "Deploy a new instance"
+            },
+            {
+              "source": "deployment/update.md",
+              "route": "deploy/update.md",
+              "text": "Update a publication"
+            }
+          ]
+        },
+        {
+          "title": "Operate and recover",
+          "pages": [
+            {
+              "source": "deployment/recovery.md",
+              "route": "deploy/recovery.md",
+              "text": "Recover a release"
+            },
+            {
+              "source": "deployment/source-verification.md",
+              "route": "deploy/source-verification.md",
+              "text": "Verify contract sources"
+            },
+            {
+              "source": "deployment/practice.md",
+              "route": "deploy/practice.md",
+              "text": "Rehearse a release"
+            }
+          ]
+        },
+        {
+          "title": "Hosting and networks",
+          "pages": [
+            {
+              "source": "viewer/deploy.md",
+              "route": "deploy/viewer.md",
+              "text": "Host the viewer"
+            },
+            {
+              "source": "deployment/networks/index.md",
+              "route": "deploy/networks/index.md",
+              "text": "EVM network catalog"
+            },
+            {
+              "source": "deployment/rpc/index.md",
+              "route": "deploy/rpc/index.md",
+              "text": "RPC services"
+            }
+          ]
+        },
+        {
+          "title": "App configuration",
+          "collapsed": true,
+          "pages": [
+            {
+              "source": "deployment/pay-to-play/index.md",
+              "route": "deploy/pay-to-play/index.md",
+              "text": "Pay-to-Play"
+            },
+            {
+              "source": "deployment/escrow/index.md",
+              "route": "deploy/escrow/index.md",
+              "text": "Escrow"
+            },
+            {
+              "source": "deployment/bike-nft/index.md",
+              "route": "deploy/bike-nft/index.md",
+              "text": "Bike NFT"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reference",
+      "label": "Reference",
+      "groups": [
+        {
+          "title": "Protocol",
+          "pages": [
+            {
+              "source": "reference/index.md",
+              "route": "reference/index.md",
+              "text": "Reference index"
+            },
+            {
+              "source": "reference/cam/index.md",
+              "route": "reference/cam/index.md",
+              "text": "CAM specifications"
+            }
+          ]
+        },
+        {
+          "title": "Operational internals",
+          "pages": [
+            {
+              "source": "reference/operations.md",
+              "route": "reference/operations.md",
+              "text": "Records and authority"
+            },
+            {
+              "source": "reference/diagnostics.md",
+              "route": "reference/diagnostics.md",
+              "text": "Diagnostics"
+            }
+          ]
+        },
+        {
+          "title": "App internals",
+          "pages": [
+            {
+              "source": "escrow/reference.md",
+              "route": "reference/escrow.md",
+              "text": "Escrow model"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "retired": {
+    "deployment/manual.md": "deploy/"
+  }
+}

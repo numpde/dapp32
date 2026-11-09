@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-from tools.docs_site import check, check_published, stage
+from tools.docs_site import check, check_published, stage, canonical_pages, html_path, route_url
 
 from .common import ROOT
 
@@ -18,20 +18,29 @@ DOCS = ROOT / "docs"
 def artifact_fixture(root: Path) -> Path:
     artifact = root / "built"
     artifact.mkdir()
-    for page in DOCS.rglob("*.md"):
-        relative = page.relative_to(DOCS)
-        output = relative.parent / ("index.html" if relative.name == "index.md"
-                                    else relative.stem + ".html")
+    pages, retired = canonical_pages(DOCS)
+    for original, canonical in [("index.md", "index.md"), *pages]:
+        output = html_path(canonical)
         target = artifact / output
         target.parent.mkdir(parents=True, exist_ok=True)
         ids = ""
         if output == Path("gallery/index.html"):
             ids = '<div id="load-status"></div><button id="retry"></button><div id="deployments"></div>'
-        if output == Path("deployment/networks/index.html"):
+        if output == Path("deploy/networks/index.html"):
             ids = ''.join(f'<div id="{name}"></div>'
                           for name in ("load-status", "reference", "networks", "network-jump"))
         target.write_text("<!doctype html><html><body>" + ids + ("document " * 30)
                           + "</body></html>", encoding="utf-8")
+    for original, canonical in pages:
+        if original == canonical:
+            continue
+        redirect = artifact / html_path(original)
+        redirect.parent.mkdir(parents=True, exist_ok=True)
+        redirect.write_text('<link rel="canonical" href="/dapp32/' + route_url(canonical) + '">')
+    for original, destination in retired.items():
+        redirect = artifact / html_path(original)
+        redirect.parent.mkdir(parents=True, exist_ok=True)
+        redirect.write_text('<link rel="canonical" href="/dapp32/' + destination + '">')
     for version in ("1.1.0", "1.2.0", "1.3.0", "1.4.0"):
         path = Path("reference/cam") / version / "index.html"
         destination = artifact / path
@@ -111,6 +120,20 @@ class DocsPublishedTests(unittest.TestCase):
                 stage(DOCS, artifact_fixture(root), site, "e" * 40, "15")
             self.assertEqual("obsolete verifier", verifier.read_text())
             self.assertTrue((site / "site.css").is_file())
+
+    def test_legacy_and_canonical_pages_have_exactly_one_target(self) -> None:
+        pages, retired = canonical_pages(DOCS)
+        self.assertEqual(36, len(pages))
+        self.assertEqual(1, len(retired))
+        with tempfile.TemporaryDirectory() as directory:
+            site = artifact_fixture(Path(directory))
+            check(DOCS, site, published=False)
+            for old, new in pages:
+                with self.subTest(old=old):
+                    self.assertTrue((site / html_path(new)).is_file())
+                    if old != new:
+                        self.assertIn("/dapp32/" + route_url(new),
+                                      (site / html_path(old)).read_text())
 
     def test_published_asset_mutation_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

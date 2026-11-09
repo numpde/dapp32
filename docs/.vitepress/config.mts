@@ -1,4 +1,36 @@
 import { defineConfig } from 'vitepress'
+import architecture from './architecture.json'
+
+type Page = { source: string; route: string; text: string }
+type Group = { title: string; collapsed?: boolean; parent?: string; pages: Page[] }
+type Section = { id: string; label: string; groups: Group[] }
+const sections = architecture.sections as Section[]
+
+const pageLink = (route: string): string => route.endsWith('/index.md')
+  ? '/' + route.slice(0, -'index.md'.length)
+  : '/' + route.replace(/\.md$/, '.html')
+
+const rewrites = Object.fromEntries(
+  sections.flatMap(section => section.groups.flatMap(group => group.pages))
+    .filter(page => page.source !== page.route)
+    .map(page => [page.source, page.route])
+)
+
+const nav = sections.map(section => ({
+  text: section.label,
+  link: '/' + section.id + '/',
+}))
+
+// Each canonical URL belongs to exactly one section. Sidebar groups are
+// navigational clusters, not additional parent pages or competing trees.
+const sidebar = Object.fromEntries(sections.filter(section => section.id !== 'gallery').map(section => [
+  '/' + section.id + '/',
+  section.groups.map(group => ({
+    text: group.title,
+    collapsed: group.collapsed ?? false,
+    items: group.pages.map(page => ({ text: page.text, link: pageLink(page.route) })),
+  })),
+]))
 
 export default defineConfig({
   lang: 'en-US',
@@ -7,102 +39,11 @@ export default defineConfig({
   base: '/dapp32/',
   cleanUrls: false,
   lastUpdated: false,
+  rewrites,
   themeConfig: {
     siteTitle: 'dapp32',
-    nav: [
-      { text: 'Start', link: '/start/' },
-      { text: 'Gallery', link: '/gallery/' },
-      { text: 'Use', link: '/use/' },
-      { text: 'Build', link: '/authoring/' },
-      { text: 'Deploy', link: '/deployment/' },
-      { text: 'Reference', link: '/reference/' },
-    ],
-    sidebar: {
-      '/start/': [
-        { text: 'Start here', items: [
-          { text: 'How it works', link: '/start/' },
-          { text: 'Try a local wallet', link: '/start/local-wallet.html' },
-          { text: 'Attach the fixture wallet', link: '/start/fixture-wallet.html' },
-          { text: 'Examples and demos', link: '/examples/' },
-        ] },
-      ],
-      '/use/': [
-        { text: 'Use an app', items: [
-          { text: 'Open an app', link: '/use/' },
-          { text: 'Pay-to-Play', link: '/pay-to-play/' },
-          { text: 'Escrow', link: '/escrow/' },
-          { text: 'Bike NFT', link: '/bike-nft/' },
-        ] },
-      ],
-      '/authoring/': [
-        { text: 'Build a workflow', items: [
-          { text: 'Authoring', link: '/authoring/' },
-          { text: 'Headless integration', link: '/authoring/headless.html' },
-          { text: 'Development setup', link: '/development/' },
-          { text: 'Checks', link: '/development/app-checks.html' },
-        ] },
-      ],
-      '/development/': [
-        { text: 'Development', items: [
-          { text: 'Setup', link: '/development/' },
-          { text: 'App checks', link: '/development/app-checks.html' },
-          { text: 'Payment fixture', link: '/development/payment-fixture.html' },
-        ] },
-      ],
-      '/deployment/': [
-        { text: 'Deploy', items: [
-          { text: 'Choose a deployment task', link: '/deployment/' },
-          { text: 'New app instance', link: '/deployment/new-instance.html' },
-          { text: 'Update a publication', link: '/deployment/update.html' },
-          { text: 'Recovery and cancellation', link: '/deployment/recovery.html' },
-          { text: 'Source verification', link: '/deployment/source-verification.html' },
-          { text: 'Practice and rehearsal', link: '/deployment/practice.html' },
-          { text: 'Manual reference', link: '/deployment/manual.html' },
-          { text: 'Deploy a viewer', link: '/viewer/deploy.html' },
-        ] },
-        { text: 'Per-application settings', items: [
-          { text: 'Pay-to-Play', link: '/deployment/pay-to-play/' },
-          { text: 'Escrow', link: '/deployment/escrow/' },
-          { text: 'Bike NFT', link: '/deployment/bike-nft/' },
-        ] },
-        { text: 'Networks', items: [
-          { text: 'EVM networks', link: '/deployment/networks/' },
-          { text: 'RPC services', link: '/deployment/rpc/' },
-        ] },
-      ],
-      '/reference/': [
-        { text: 'Reference', items: [
-          { text: 'Index', link: '/reference/' },
-          { text: 'CAM specification versions', link: '/reference/cam/' },
-          { text: 'Operations', link: '/reference/operations.html' },
-          { text: 'Diagnostics', link: '/reference/diagnostics.html' },
-        ] },
-      ],
-      '/pay-to-play/': [
-        { text: 'Pay-to-Play', items: [
-          { text: 'Overview', link: '/pay-to-play/' },
-          { text: 'Integrate', link: '/pay-to-play/integration.html' },
-          { text: 'Local payment', link: '/pay-to-play/local-payment.html' },
-          { text: 'Deployment', link: '/deployment/pay-to-play/' },
-        ] },
-      ],
-      '/escrow/': [
-        { text: 'Escrow', items: [
-          { text: 'Overview', link: '/escrow/' },
-          { text: 'Documents', link: '/escrow/documents.html' },
-          { text: 'Reference', link: '/escrow/reference.html' },
-          { text: 'Deployment', link: '/deployment/escrow/' },
-        ] },
-      ],
-      '/bike-nft/': [
-        { text: 'Bike NFT', items: [
-          { text: 'Overview', link: '/bike-nft/' },
-          { text: 'Metadata', link: '/bike-nft/metadata.html' },
-          { text: 'Ownership', link: '/bike-nft/ownership.html' },
-          { text: 'Deployment', link: '/deployment/bike-nft/' },
-        ] },
-      ],
-    },
+    nav,
+    sidebar,
     search: { provider: 'local' },
     outline: { level: [2, 3] },
     editLink: {

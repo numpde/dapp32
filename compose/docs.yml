@@ -84,6 +84,9 @@ services:
         done
         # Stage read-only source in writable, noexec tmpfs.
         cp -a /input/docs /work/js/docs
+        # Rewrite only the disposable source copy. The canonical route inventory
+        # generates compatible legacy redirects and fixes moved-page links.
+        node /work/js/docs/.vitepress/prepare-navigation.mjs /work/js/docs
         # CAM protocol references are also published as exact-byte resources.
         # Copy them unchanged into VitePress public assets, never re-render them.
         mkdir -p /work/js/docs/public/reference/cam

@@ -55,6 +55,59 @@ def safe_files(root: Path, *, checkout: bool) -> list[Path]:
     return sorted(files)
 
 
+def canonical_pages(source: Path) -> tuple[list[tuple[str, str]], dict[str, str]]:
+    """A guide has one source, one canonical output and one navigation owner."""
+    architecture = json.loads((source / ".vitepress/architecture.json").read_text(encoding="utf-8"))
+    sections = architecture["sections"]
+    if [section["id"] for section in sections] != [
+        "start", "gallery", "use", "build", "deploy", "reference"
+    ]:
+        raise ValueError("Unexpected top-level documentation hierarchy")
+
+    mapped = []
+    sources = set()
+    targets = set()
+    for section in sections:
+        root = section["id"] + "/index.md"
+        members = [page for group in section["groups"] for page in group["pages"]]
+        if sum(page["route"] == root for page in members) != 1:
+            raise ValueError(f"Section {section['id']} has no unique entry page")
+        for group in section["groups"]:
+            parent = group.get("parent")
+            if parent and parent not in {page["source"] for page in group["pages"]}:
+                raise ValueError(f"Breadcrumb group has no real parent page: {parent}")
+        for page in members:
+            original = page["source"]
+            canonical = page["route"]
+            if original in sources or canonical in targets or not canonical.startswith(section["id"] + "/"):
+                raise ValueError(f"Duplicate or misplaced guide: {original}")
+            if not (source / original).is_file():
+                raise ValueError(f"Navigation points to missing guide: {original}")
+            sources.add(original)
+            targets.add(canonical)
+            mapped.append((original, canonical))
+
+    retired = architecture["retired"]
+    observed = {path.relative_to(source).as_posix() for path in source.rglob("*.md")}
+    expected = sources | set(retired) | {"index.md"}
+    if observed != expected or len(mapped) != 36:
+        raise ValueError(f"Documentation inventory differs from routes: "
+                         f"missing={sorted(expected - observed)}, unowned={sorted(observed - expected)}")
+    if any(name in sources for name in retired):
+        raise ValueError("A retired page cannot have a canonical route")
+    return mapped, retired
+
+
+def html_path(markdown: str) -> Path:
+    return Path(markdown).with_suffix(".html")
+
+
+def route_url(markdown: str) -> str:
+    if markdown.endswith("/index.md"):
+        return markdown.removesuffix("index.md")
+    return markdown.removesuffix(".md") + ".html"
+
+
 def check(source: Path, site: Path, *, published: bool) -> list[Path]:
     files = safe_files(site, checkout=published)
     if not published and (
@@ -62,15 +115,21 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         or (site / "viewer/index.html").exists() or (site / "viewer/assets").exists()
     ):
         raise ValueError("Build artifact attempts to publish control files or viewer")
-    pages = sorted(source.rglob("*.md"))
-    if len(pages) < 30:
-        raise ValueError("Unexpectedly incomplete source documentation")
-    for page in pages:
-        relative = page.relative_to(source)
-        output = relative.parent / ("index.html" if relative.name == "index.md"
-                                    else relative.stem + ".html")
+    pages, retired = canonical_pages(source)
+    for original, canonical in [("index.md", "index.md"), *pages]:
+        output = html_path(canonical)
         if not (site / output).is_file() or (site / output).stat().st_size < 100:
             raise ValueError(f"Missing generated page: {output}")
+
+        if original != canonical:
+            alias = site / html_path(original)
+            destination = "/dapp32/" + route_url(canonical)
+            if not alias.is_file() or destination not in alias.read_text(encoding="utf-8"):
+                raise ValueError(f"Missing legacy link redirect: {original} -> {canonical}")
+    for original, destination in retired.items():
+        alias = site / html_path(original)
+        if not alias.is_file() or "/dapp32/" + destination not in alias.read_text(encoding="utf-8"):
+            raise ValueError(f"Missing retired-guide redirect: {original}")
     for version in VERSIONS:
         path = Path("reference/cam") / version / "index.html"
         if (source / path).read_bytes() != (site / path).read_bytes():
@@ -83,7 +142,7 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         raise ValueError("Gallery is missing deployments")
     for page, ids in (
         ("gallery/index.html", {"load-status", "retry", "deployments"}),
-        ("deployment/networks/index.html", {"load-status", "reference", "networks", "network-jump"}),
+        ("deploy/networks/index.html", {"load-status", "reference", "networks", "network-jump"}),
     ):
         parser = Ids()
         parser.feed((site / page).read_text())

@@ -15,6 +15,7 @@ on:
       - tests/checks/test_docs_port.py
       - tests/checks/test_docs_build_lifecycle.py
       - tests/checks/test_docs_site.py
+      - tests/checks/test_docs_navigation.py
       - tools/make/docs.mk
       - tools/docs_site.py
   pull_request:
@@ -30,6 +31,7 @@ on:
       - tests/checks/test_docs_port.py
       - tests/checks/test_docs_build_lifecycle.py
       - tests/checks/test_docs_site.py
+      - tests/checks/test_docs_navigation.py
   workflow_dispatch:
 
 permissions:
@@ -71,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           cd source
-          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle tests.checks.test_docs_site
+          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle tests.checks.test_docs_site tests.checks.test_docs_navigation
 
       - name: Build docs with confined Docker Compose
         shell: bash

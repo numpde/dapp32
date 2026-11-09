@@ -211,6 +211,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         builder_command = " ".join(str(item) for item in builder["command"])
         self.assertIn("mkdir /work/js/node_modules", builder_command)
         self.assertIn("ln -s", builder_command)
+        self.assertIn("prepare-navigation.mjs /work/js/docs", builder_command)
         self.assertIn("exec node node_modules/.bin/vitepress", builder_command)
         self.assertNotIn("exec node_modules/.bin/vitepress", builder_command)
 
