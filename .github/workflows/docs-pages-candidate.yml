@@ -73,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           cd source
-          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle
+          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle tests.checks.test_docs_site
 
       - name: Build docs with confined Docker Compose
         shell: bash
