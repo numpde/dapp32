@@ -78,6 +78,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "CDP_ORIGIN": "http://127.0.0.1:9222",
     "COMPOSE_PROJECT_NAME": "dapps-check",
     "DOCS_OUTPUT_DIR": "/tmp/dapp32-docs-fixture",
+    "DOCS_STAGE_DIR": "/tmp/dapp32-docs-stage-fixture",
     "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
     "DAPP": "pay-to-play",
     "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
