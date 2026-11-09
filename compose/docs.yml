@@ -24,27 +24,15 @@ services:
         target: /work/js/node_modules
         read_only: true
         bind: { create_host_path: false }
-      - type: volume
-        source: docs-output
+      # Supply an existing, dedicated empty directory for the build output.
+      - type: bind
+        source: ${DOCS_OUTPUT_DIR:?missing_DOCS_OUTPUT_DIR}
         target: /out
+        bind: { create_host_path: false }
     command:
       - sh
       - -eu
       - -c
       - |
-        if [ ! -x node_modules/.bin/vitepress ]; then
-          echo 'VitePress 2 is missing from the prepared js/node_modules' >&2
-          exit 2
-        fi
-        node -e 'const v = require("./node_modules/vitepress/package.json").version; if (!v.startsWith("2.")) { console.error(`Expected VitePress 2; found ${v}`); process.exit(2) }'
-        if find /input/docs -type l -print -quit | grep -q .; then
-          echo 'Documentation source must not contain symlinks' >&2
-          exit 2
-        fi
-        mkdir -p docs
-        cp -a /input/docs/. docs/
-        rm -rf /out/site
-        node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
-
-volumes:
-  docs-output: {}
+        cp -a /input/docs /work/js/docs
+        exec node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out
