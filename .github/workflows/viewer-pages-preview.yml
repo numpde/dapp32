@@ -22,8 +22,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: viewer-pages-preview
@@ -44,7 +43,7 @@ jobs:
         with:
           ref: gh-pages
           path: site
-          persist-credentials: ${{ github.event_name != 'pull_request' }}
+          persist-credentials: false
       - name: Acquire the exact viewer build and runtime bases
         shell: bash
         run: |
@@ -112,22 +111,44 @@ jobs:
             site/viewer/assets/
           retention-days: 1
           if-no-files-found: error
-      - name: Propose preview update against gh-pages
-        if: github.event_name != 'pull_request'
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out Pages for a reviewable change
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: gh-pages
+          path: site
+          persist-credentials: true
+      - name: Retrieve the qualified static files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: viewer-pages-preview
+          path: site/viewer
+      - name: Propose the preview update against gh-pages
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          test -s site/viewer/deploy.html
+          test -s site/viewer/index.html
+          test -d site/viewer/assets
           cd site
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A -- viewer/index.html viewer/assets
           if git diff --cached --quiet; then
-            echo 'Pages viewer already matches this build.'
+            echo 'Pages viewer already matches the qualified build.'
             exit 0
           fi
-          source_revision="$(git -C ../source rev-parse HEAD)"
+          source_revision="$GITHUB_SHA"
           git commit -m "Build Pages viewer preview from $source_revision"
           branch="docs/viewer-preview-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           git push origin "HEAD:refs/heads/$branch"
