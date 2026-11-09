@@ -85,7 +85,12 @@
   if (!main) return;
   const article = main.querySelector(':scope > article.narrow');
   const title = (article || main).querySelector('h1')?.textContent?.trim() || section.name;
-  const urlFor = item => new URL(item.endsWith('/index.html') ? item.slice(0, -10) : item, root).href;
+  const urlFor = item => {
+    const hash = item.indexOf('#');
+    const pathname = hash < 0 ? item : item.slice(0, hash);
+    const fragment = hash < 0 ? '' : item.slice(hash);
+    return new URL((pathname.endsWith('/index.html') ? pathname.slice(0, -10) : pathname) + fragment, root).href;
+  };
   const anchor = (href, label, active = false) => {
     const link = document.createElement('a');
     link.href = href;
