@@ -418,8 +418,15 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
                 destination /= "index.html"
             if not destination.is_relative_to(root.resolve()) or not destination.is_file():
                 raise AssertionError(f"missing or out-of-site local link: {page}: {href}")
-            if target.fragment and target.fragment not in pages[destination].ids:
-                raise AssertionError(f"missing fragment target: {page}: {href}")
+            if target.fragment:
+                # Deployment cards are rendered from checked catalog IDs at runtime.
+                if destination == (root / "deployments" / "index.html").resolve():
+                    data = json.loads((root / "deployments" / "deployments.json").read_text())
+                    allowed = {entry["id"] for entry in data["deployments"]}
+                else:
+                    allowed = pages[destination].ids
+                if target.fragment not in allowed:
+                    raise AssertionError(f"missing fragment target: {page}: {href}")
 
         for owner, text in parser.examples:
             dapp, name = owner.split(":", 1)
