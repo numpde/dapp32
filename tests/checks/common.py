@@ -77,7 +77,6 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "FIXTURE_BROADCAST_VOLUME": "dapps-check-pay-to-play-viewer-gui_pay-to-play_broadcast",
     "CDP_ORIGIN": "http://127.0.0.1:9222",
     "COMPOSE_PROJECT_NAME": "dapps-check",
-    "DOCS_ARTIFACT_VOLUME": "dapps-check-docs-artifact-fixture",
     "DOCS_OUTPUT_DIR": "/tmp/dapp32-docs-fixture",
     "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
     "DAPP": "pay-to-play",
