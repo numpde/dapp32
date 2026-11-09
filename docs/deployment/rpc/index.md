@@ -46,7 +46,10 @@ RPC URL: http://contract-base-sepolia-rpc:8080</code></pre>
 <p>Health checks local request handling, not provider reachability or chain identity. Configure and verify the expected chain in the indexer. Choose a different project and private URL file for another chain or provider.</p>
 <h3 id="attach-an-indexer">Attach only the networks the indexer needs</h3>
 <p>This is a network fragment, not a complete indexer deployment. Combine it with your pinned indexer/database configuration and use the printed RPC address:</p>
-<pre><code>services:
+
+
+```yaml
+services:
   rindexer:
     networks: [base_sepolia_rpc, indexer_database]
   postgres:
@@ -57,7 +60,10 @@ networks:
     external: true
     name: contract-base-sepolia_rpc_internal
   indexer_database:
-    internal: true</code></pre>
+    internal: true
+```
+
+
 <p>Do not add a default/egress network or share the proxy's network namespace: those can create an unintended internet route. Give the indexer its own database role; keep provider credentials and signing keys out of it. The proxy needs no database access.</p>
 <h3 id="indexing-capacity">Use bounded polling and handle refusal</h3>
 <table><thead><tr><th>Indexing profile</th><th>Limit</th></tr></thead><tbody>

@@ -118,6 +118,16 @@ class DocsPortTests(unittest.TestCase):
                 with self.subTest(page=page, href=href):
                     self.assertTrue(source.is_file(), f"link has no owned source: {source}")
 
+    def test_raw_code_blocks_do_not_span_markdown_paragraph_breaks(self) -> None:
+        # A blank line inside a hand-written HTML pre/code block ends the
+        # Markdown HTML block, making Vue parse the remainder as broken tags.
+        raw_code = re.compile(r"<pre><code>(.*?)</code></pre>", re.DOTALL)
+        for source in DOCS.rglob("*.md"):
+            content = source.read_text(encoding="utf-8")
+            for block in raw_code.finditer(content):
+                with self.subTest(page=source.relative_to(DOCS)):
+                    self.assertNotRegex(block.group(1), r"\n[ \t]*\n")
+
     def test_versioned_cam_references_are_not_converted_or_duplicated(self) -> None:
         for version in REFERENCE_VERSIONS:
             with self.subTest(version=version):
