@@ -1695,8 +1695,8 @@ cam/abi/export: dapps/deps/verify
 	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm --user "$$cam_user" forge-abi; \
 	$(call cam_integrity_refresh,$(ABI_EXPORT_COMPOSE_ENV))
 
-# One build owns exactly one disposable Compose project and its named artifact volume.
-# The builder sees no writable host output. Only the exporter can copy /out/site.
+# Each invocation creates one unique Docker artifact volume and removes it itself.
+# Compose only mounts this externally managed volume; it never owns its lifetime.
 .PHONY: docs/build
 docs/build: export DOCS_OUTPUT_DIR := $(DOCS_OUTPUT_DIR)
 docs/build:
@@ -1709,11 +1709,26 @@ docs/build:
 	run_dir="$$(mktemp -d -t dapp32-docs-XXXXXXXX)"; \
 	run_digest="$$(printf '%s' "$$run_dir" | sha256sum)"; \
 	run_project="$(COMPOSE_PROJECT_NAME)-docs-$${run_digest:0:24}"; \
+	artifact_volume="$$run_project-artifact"; \
+	export DOCS_ARTIFACT_VOLUME="$$artifact_volume"; \
+	volume_created=0; \
 	cleanup() { \
 	  status="$$?"; \
 	  trap - EXIT; \
+	  trap '' INT TERM HUP; \
 	  if ! $(call disposable_cleanup_command,$$run_project,-f $(COMPOSE_DIR)/docs.yml); then \
+	    printf 'Docs Compose cleanup failed: %s\n' "$$run_project" >&2; \
 	    if [[ "$$status" == 0 ]]; then status=1; fi; \
+	  fi; \
+	  if [[ "$$volume_created" == 1 ]]; then \
+	    if ! timeout -k 15s 60s docker --host "$$CAM_DOCKER_ENDPOINT" volume rm "$$artifact_volume"; then \
+	      printf 'Docs artifact volume removal failed: %s\n' "$$artifact_volume" >&2; \
+	      if [[ "$$status" == 0 ]]; then status=1; fi; \
+	    fi; \
+	    if docker --host "$$CAM_DOCKER_ENDPOINT" volume inspect "$$artifact_volume" >/dev/null 2>&1; then \
+	      printf 'Docs artifact volume still exists: %s\n' "$$artifact_volume" >&2; \
+	      status=1; \
+	    fi; \
 	  fi; \
 	  rm -rf -- "$$run_dir" || { \
 	    if [[ "$$status" == 0 ]]; then status=1; fi; \
@@ -1721,6 +1736,15 @@ docs/build:
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
+	trap 'exit 130' INT; \
+	trap 'exit 143' TERM; \
+	trap 'exit 129' HUP; \
+	if docker --host "$$CAM_DOCKER_ENDPOINT" volume inspect "$$artifact_volume" >/dev/null 2>&1; then \
+	  printf 'Refusing to reuse an existing docs artifact volume: %s\n' "$$artifact_volume" >&2; \
+	  exit 2; \
+	fi; \
+	docker --host "$$CAM_DOCKER_ENDPOINT" volume create --label "dapp32.docs.run=$$run_project" "$$artifact_volume" >/dev/null; \
+	volume_created=1; \
 	$(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml run --build --rm --no-deps -T docs-build; \
 	$(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml run --rm --no-deps -T docs-export; \
 	printf 'Generated docs: %s/site\n' "$$DOCS_OUTPUT_DIR"
