@@ -49,8 +49,8 @@ services:
       - type: bind
         # Reuse the existing workspace's installed dependencies.
         source: ../js/node_modules
-        # Let the VitePress executable resolve from the working directory.
-        target: /work/js/node_modules
+        # Keep dependencies immutable; build-time module links live on tmpfs.
+        target: /input/node_modules
         # Prevent VitePress and plugins from altering installed packages.
         read_only: true
         # Fail instead of creating an empty dependency directory.
@@ -73,14 +73,22 @@ services:
       - -c
       # Multi-line shell script; there is no npm install in this service.
       - |
+        # Keep dependencies read-only while allowing Vite's temporary config
+        # outside those packages, in the disposable workspace node_modules.
+        mkdir /work/js/node_modules
+        for package in /input/node_modules/* /input/node_modules/.[!.]*; do
+          if [ -e "$$package" ] || [ -L "$$package" ]; then
+            ln -s "$$package" "/work/js/node_modules/$${package##*/}"
+          fi
+        done
         # Stage read-only source in writable, noexec tmpfs.
         cp -a /input/docs /work/js/docs
         # CAM protocol references are also published as exact-byte resources.
         # Copy them unchanged into VitePress public assets, never re-render them.
         mkdir -p /work/js/docs/public/reference/cam
         for version in 1.1.0 1.2.0 1.3.0 1.4.0; do
-          test -f "/work/js/docs/reference/cam/$version/index.html"
-          cp -a "/work/js/docs/reference/cam/$version" /work/js/docs/public/reference/cam/
+          test -f "/work/js/docs/reference/cam/$$version/index.html"
+          cp -a "/work/js/docs/reference/cam/$$version" /work/js/docs/public/reference/cam/
         done
         # Build GitHub Pages paths into the disposable artifact volume.
         exec node node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
