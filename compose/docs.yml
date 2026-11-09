@@ -48,7 +48,7 @@ services:
         bind: { create_host_path: false }
       # Keep compiled HTML/assets in Docker-managed storage, not on the host.
       - type: volume
-        # Make runs each build in a unique project; this volume is disposable.
+        # Make creates a unique volume for this build; cleanup removes it.
         source: docs-artifact
         # VitePress writes its static output here.
         target: /out
@@ -85,7 +85,7 @@ services:
     volumes:
       # Read the completed site from the Docker volume.
       - type: volume
-        # Both services share this disposable artifact volume.
+        # This operation's builder and exporter share the same temporary volume.
         source: docs-artifact
         # The exporter reads it at a different path from the builder.
         target: /artifact
@@ -116,7 +116,9 @@ services:
         # Copy the complete static site into the caller's output directory.
         cp -a /artifact/site /export/site
 
-# Compose owns this volume only for the temporary project made by Make.
+# This is only a logical name for one operation's explicitly created volume.
+# Compose neither creates nor retains it; Make creates it, shares it, and removes it.
 volumes:
-  # Carry the site between builder and exporter, then remove it with down -v.
-  docs-artifact: {}
+  docs-artifact:
+    external: true
+    name: ${DOCS_ARTIFACT_VOLUME:?missing_DOCS_ARTIFACT_VOLUME}
