@@ -79,6 +79,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "COMPOSE_PROJECT_NAME": "dapps-check",
     "DOCS_OUTPUT_DIR": "/tmp/dapp32-docs-fixture",
     "DOCS_STAGE_DIR": "/tmp/dapp32-docs-stage-fixture",
+    "DOCS_IMAGE_TAG": "docs-test",
     "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
     "DAPP": "pay-to-play",
     "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
