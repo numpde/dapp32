@@ -154,8 +154,24 @@ jobs:
             echo 'Published Pages site already matches the qualified docs.'
             exit 0
           fi
-          if git diff --cached --name-only | grep -q '^viewer/'; then
-            echo 'Documentation update must not modify the separately published viewer.' >&2
+          # The viewer hosting guide is documentation; the viewer bundle is not.
+          if git diff --cached --name-only | grep '^viewer/' | grep -v '^viewer/deploy\.html
+          git commit -m "Build VitePress docs from $GITHUB_SHA"
+          branch="docs/vitepress-pages-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git push origin "HEAD:refs/heads/$branch"
+          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" \
+            --title "Publish VitePress docs $(printf %s "$GITHUB_SHA" | cut -c1-12)" \
+            --body "Qualified VitePress build from main@$GITHUB_SHA. Replaces the static guide pages, keeps exact CAM protocol bytes, retains the independent viewer and requires review before publication."; then
+            echo "::warning::Qualified docs candidate pushed; open a PR manually."
+            {
+              echo '### VitePress docs await review'
+              echo "Source: main@$GITHUB_SHA"
+              echo "Candidate branch: $branch"
+              echo "Review: https://github.com/$GITHUB_REPOSITORY/compare/gh-pages...$branch?expand=1"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+; then
+            echo 'Documentation update must not modify the viewer application bundle.' >&2
             exit 2
           fi
           git commit -m "Build VitePress docs from $GITHUB_SHA"
