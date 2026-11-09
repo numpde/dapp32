@@ -69,11 +69,13 @@ def shell_updates(root: Path):
         expected = match[1] + "\n" + shell_html(root, page)
         updated = text[:match.start()] + expected + text[match.end():]
         updated = re.sub(r'<script src="[^"]*theme\.js"></script>\s*', '', updated)
+        updated = re.sub(r'<script defer src="[^"]*docs-nav\.js"></script>\s*', '', updated)
         styles = list(re.finditer(r'<link rel="stylesheet" href="[^"]*site\.css">', updated))
         if len(styles) != 1:
             raise AssertionError(f"expected one shared stylesheet: {page}")
         style = styles[0]
-        resources = theme_script(root, page) + f'\n<link rel="stylesheet" href="{os.path.relpath(root, page.parent)}/site.css">'
+        prefix = os.path.relpath(root, page.parent)
+        resources = theme_script(root, page) + f'\n<script defer src="{prefix}/docs-nav.js"></script>' + f'\n<link rel="stylesheet" href="{prefix}/site.css">'
         updated = updated[:style.start()] + resources + updated[style.end():]
         if updated != text:
             yield page, updated
@@ -91,6 +93,9 @@ def check_navigation(root: Path) -> None:
         expected = theme_script(root, page)
         if scripts.count(expected) != 1 or text.index(expected) > text.index('rel="stylesheet"'):
             raise AssertionError(f"expected one blocking shared theme script before styles: {page}")
+        nav_script = f'<script defer src="{os.path.relpath(root, page.parent)}/docs-nav.js"></script>'
+        if scripts.count(nav_script) != 1 or text.index(nav_script) > text.index('rel="stylesheet"'):
+            raise AssertionError(f"expected one shared progressive docs navigation script: {page}")
         if any('dapp32-theme' in script for script in scripts):
             raise AssertionError(f"inline theme implementation duplicates theme.js: {page}")
         for style in re.findall(r'<style\b[^>]*>(.*?)</style>', text, re.DOTALL):
@@ -104,13 +109,14 @@ def check_shell_witnesses() -> None:
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         page = root / "index.html"
-        canonical = '<head>' + theme_script(root, page) + '\n<link rel="stylesheet" href="./site.css"></head><body>\n' + shell_html(root, page) + '<main id="main"></main></body>'
+        canonical = '<head>' + theme_script(root, page) + '\n<script defer src="./docs-nav.js"></script>\n<link rel="stylesheet" href="./site.css"></head><body>\n' + shell_html(root, page) + '<main id="main"></main></body>'
         page.write_text(canonical, encoding="utf-8")
         check_navigation(root)
         for broken in (
             canonical.replace('id="theme-toggle"', 'id="missing-toggle"'),
             canonical.replace('Skip to content', 'Skip somewhere else'),
             canonical.replace(theme_script(root, page), ''),
+            canonical.replace('<script defer src="./docs-nav.js"></script>', ''),
             canonical.replace('</head>', theme_script(root, page) + '</head>'),
             canonical.replace('</head>', '<style>.topbar { color: red }</style></head>'),
             canonical.replace('</body>', '<script>localStorage.getItem("dapp32-theme")</script></body>'),
