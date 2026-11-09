@@ -3,12 +3,7 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/" aria-current="location">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><span aria-current="page">Source setup</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Build</summary><nav class="docs-section-links" aria-label="In Build"><a href="../authoring/">Build a workflow</a><a href="../authoring/headless.html">Headless integration</a><a href="./" aria-current="page">Source setup</a><a href="app-checks.html">App checks</a><a href="payment-fixture.html">Payment fixture</a></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#install-the-locked-dependencies">Install the locked dependencies</a><a href="#choose-the-relevant-validation">Choose the relevant validation</a><a href="#host-prerequisites-and-private-files">Host prerequisites and private files</a><a href="#source-and-documentation-ownership">Source and documentation ownership</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<main id="main" class="shell document"><article class="narrow">
 <h1>Set up a source checkout</h1>
 <p>Use a non-root account with Git, Bash, Make, Docker and Compose. The workflows select a <strong>local Linux Docker engine</strong>; do not substitute a remote context for a server login.</p>
 <h2 id="install-the-locked-dependencies">Install the locked dependencies</h2>
@@ -35,7 +30,4 @@ make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <h2 id="source-and-documentation-ownership">Source and documentation ownership</h2>
 <p><code>main</code> owns implementation, fixtures and protocol-reference sources. <code>gh-pages</code> owns these task guides. Keep versioned protocol copies byte-identical to their source; current readers use CAM 1.4.0 / UI 1.1.0. Historical specifications are not compatibility promises.</p>
 <p>For a release or published example, record the reviewed source commit. Do not mix an older deployment's ABI and signing rules with today's guide. The <a href="https://github.com/numpde/dapp32/tree/archive/poc-2026-05-20">archived proof of concept</a> is historical, not the starting point for current work.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>

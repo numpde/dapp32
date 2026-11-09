@@ -3,12 +3,7 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="./" aria-current="page">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><span aria-current="page">What runs where</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Start</summary><nav class="docs-section-links" aria-label="In Start"><a href="./" aria-current="page">What runs where</a><a href="local-wallet.html">Try Pay-to-Play locally</a><a href="fixture-wallet.html">Connect the test wallet</a><a href="../examples/">Local demos</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<main id="main" class="shell document"><article class="narrow">
 <h1>What runs where?</h1>
 <p>An app author describes a workflow in JSON. A contract publishes where to find it. A generic viewer reads that description and displays the app; a compatible agent can interpret it without drawing a screen. Business contracts, not the description, enforce the rules.</p>
 <p>To open a public testnet app without setting up a local environment, go to the <a href="../gallery/">Gallery</a>. To learn the system, continue below or <a href="local-wallet.html">try the local-wallet walkthrough</a>.</p>
@@ -45,7 +40,4 @@
 <h2>What hashes do—and do not—tell you</h2>
 <p>The current format uses SHA-256 over exact manifest and resource bytes. Matching hashes can connect files to a selected host's publication; they do not establish that the publisher, workflow, RPC or deployed code is trustworthy. Address bindings can change separately.</p>
 <p>The browser viewer can continue after an integrity warning. Treat that as a warning, not a successful authentication. Before authorizing, check the actual chain, destination, arguments and value. The <a href="../reference/cam/1.4.0/#security">protocol trust-boundary reference</a> gives the precise rules.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>

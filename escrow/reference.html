@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/" aria-current="location">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Escrow</a></li><li><span aria-current="page">Contract behavior</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Use</summary><nav class="docs-section-links" aria-label="In Use"><a href="../use/">Use an app</a><details class="docs-subsection"><summary>Pay-to-Play</summary><div class="docs-subsection-links"><a href="../pay-to-play/">Pay-to-Play</a><a href="../pay-to-play/local-payment.html">Try a voucher payment</a><a href="../pay-to-play/integration.html">Integrate payments</a></div></details><details class="docs-subsection" open><summary>Escrow</summary><div class="docs-subsection-links"><a href="./">Escrow</a><a href="documents.html">Prepare documents</a><a href="reference.html" aria-current="page">Contract behavior</a></div></details><details class="docs-subsection"><summary>Bike NFT</summary><div class="docs-subsection-links"><a href="../bike-nft/">Bike NFT</a><a href="../bike-nft/ownership.html">Ownership and workshops</a><a href="../bike-nft/metadata.html">Metadata</a></div></details></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#identity">An agreement key is not its full identity</a><a href="#accounting">Value changes category before it leaves the contract</a><a href="#actions">The core owns action availability</a><a href="#projection">A read-only application model, not a generic protocol machine</a><a href="#routes">Arguments and continuations have separate jobs</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../">Home</a></li><li><a href="./">Use Escrow</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Escrow accounting and projection</h1>
 <p>Use <a href="./">the agreement guide</a> for the workflow. This page records the developer contract at source <code>04a18763</code>; it does not describe arbitrary historical deployments.</p>
 <h2 id="identity">An agreement key is not its full identity</h2>
@@ -47,7 +43,4 @@ arbitrator acknowledgement: neither required nor recorded</code></pre>
 <p>Creation supplies one nested <code>params</code> value. <code>$inputs.params.amount</code> owns both the Solidity amount and the transaction's native value. Successful creation continues by client/reference lookup; stored transitions return to <code>agreement(agreementId)</code>; withdrawal returns to the caller's credit view.</p>
 <p>Unavailable actions and their fields can remain visible but disabled. The contract still checks actual sender, state and deadline during execution. Source-backed examples belong to the <a href="../authoring/">authoring guide</a>; campaign entrypoints belong to <a href="../development/app-checks.html#escrow">app checks</a>.</p>
 <p>Authorities: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrow.sol">core</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrowUI.sol">projection</a>, and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/main.json">manifest</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>

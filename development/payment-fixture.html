@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/" aria-current="location">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Source setup</a></li><li><span aria-current="page">Payment fixture</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Build</summary><nav class="docs-section-links" aria-label="In Build"><a href="../authoring/">Build a workflow</a><a href="../authoring/headless.html">Headless integration</a><a href="./">Source setup</a><a href="app-checks.html">App checks</a><a href="payment-fixture.html" aria-current="page">Payment fixture</a></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#start">1. Choose a unique ID and start</a><a href="#descriptor">2. Use the returned facts, not assumed addresses</a><a href="#connect">3. Attach and run the actual service tests</a><a href="#cleanup">4. Stop clients, then remove only your fixture</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../">Home</a></li><li><a href="./">Set up a source checkout</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Use a payment fixture from another repository</h1>
 <p>This repository owns a temporary chain and its contracts. Your test runner owns its services and tests. Both use the <strong>same local Docker engine</strong> and join an explicitly named internal network.</p>
 <dl><dt>Requires</dt><dd>A prepared source checkout with locked Solidity dependencies. This fixture does not require the JavaScript workspace.</dd><dt>Changes</dt><dd>An exclusive chain-31337 fixture with public test accounts; no host RPC port.</dd><dt>Success</dt><dd>A verified JSON descriptor, followed by your service's own accounting/collection assertions and ordered cleanup.</dd></dl>
@@ -48,7 +44,4 @@ make --no-print-directory -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/up \
 <p>Removal is safe to repeat for your owned ID. A rejected collision or info-only attachment does not authorize removing somebody else's resources. Trappable startup/verification/output failures attempt cleanup of that start attempt; SIGKILL, host loss or an unavailable engine can leave an uncertain outcome.</p>
 <p>Retain the allocated ID and stderr log, which announces recovery coordinates before resource creation. Inspect an uncertain result before removal or another start. Do not infer ownership from a partially written descriptor or silently guess that cleanup succeeded.</p>
 <p>Implementation: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/pay_to_play_fixture.sh">fixture lifecycle</a>. For self-contained campaigns, use <a href="app-checks.html">the app checks</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>
