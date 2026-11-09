@@ -28,7 +28,7 @@ const trail = computed((): Crumb[] => {
       const sectionHome = section.groups
         .flatMap(candidate => candidate.pages)
         .find(item => item.route === section.id + '/index.md')
-      if (!sectionHome || sectionHome.source === source) return []
+      if (!sectionHome || sectionHome.source === source || sectionHome.route === source) return []
 
       const crumbs: Crumb[] = [
         { text: 'Home', href: withBase('/') },
