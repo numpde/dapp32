@@ -57,7 +57,7 @@ jobs:
                       self.blocks[self.section][-1] += text
 
           parser = Commands()
-          parser.feed(Path('site/viewer/index.html').read_text())
+          parser.feed(Path('site/viewer/deploy.html').read_text())
           directory = Path(os.environ['RUNNER_TEMP'])
           for section in ('build', 'run', 'maintain'):
               blocks = parser.blocks[section]
