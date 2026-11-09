@@ -141,6 +141,6 @@ class DocsPortTests(unittest.TestCase):
                 implementation = (DOCS / script).read_text(encoding="utf-8")
                 self.assertIn("onMounted(", source)
                 self.assertIn("onBeforeUnmount(", source)
-                self.assertRegex(implementation, rf"export (?:async )?function {mount}\\(")
+                self.assertRegex(implementation, rf"export (?:async )?function {mount}\(")
                 # Gallery may be synchronous; the network catalog awaits fetch.
                 self.assertTrue(mount in source)
