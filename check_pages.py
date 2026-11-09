@@ -24,6 +24,8 @@ def navigation_pages(root: Path):
 
     for page in sorted(root.rglob("*.html")):
         relative = page.relative_to(root)
+        if relative == Path("viewer/index.html"):
+            continue  # Compiled Vite application, not a documentation page with the shared header.
         if relative.parent.parent == Path("reference/cam") and re.fullmatch(r"\d+\.\d+\.\d+", relative.parent.name):
             continue  # Versioned protocol documents are immutable copied resources.
         yield page
@@ -382,7 +384,7 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
     from urllib.parse import unquote, urlsplit
 
     pages: dict[Path, PageParser] = {}
-    for page in root.rglob("*.html"):
+    for page in navigation_pages(root):
         parser = PageParser()
         parser.feed(page.read_text(encoding="utf-8"))
         if "main" not in parser.ids:
@@ -448,6 +450,9 @@ def check_deployments(root: Path, repo_root: Path) -> None:
     data = json.loads((page / "deployments.json").read_text())
     viewer = urlsplit(data["viewer"])
     assert viewer.scheme == "https" and viewer.hostname and not viewer.username and not viewer.password
+    preview = urlsplit(data["previewViewer"])
+    assert (preview.scheme, preview.netloc, preview.path) == ("https", "numpde.github.io", "/dapp32/viewer/")
+    assert not preview.username and not preview.password and not preview.query and not preview.fragment
     catalog = json.loads((repo_root / "js/packages/cam-viewer/src/rpc-catalog.json").read_text())
     assert isinstance(data["deployments"], list)
     identifiers = set()
