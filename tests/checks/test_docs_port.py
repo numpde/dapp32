@@ -75,7 +75,7 @@ def route_for(page: str) -> str:
 
 
 def local_source(relative_url: str) -> Path:
-    if relative_url.endswith("/"):
+    if not relative_url or relative_url.endswith("/"):
         relative_url += "index.html"
     if relative_url.endswith(".html"):
         markdown = DOCS / (relative_url[:-5] + ".md")
