@@ -416,6 +416,7 @@ code {overflow-wrap:anywhere}pre code {overflow-wrap:normal}
 .docs-breadcrumb li + li::before { content: "/"; margin-right: .65rem; color: var(--muted); }
 .docs-breadcrumb span[aria-current] { color: var(--ink); }
 .docs-layout { display: grid; grid-template-columns: minmax(0, 13.5rem) minmax(0, 1fr); align-items: start; column-gap: clamp(1.75rem, 5vw, 4rem); }
+.docs-layout-wide { width: min(1560px, calc(100% - 32px)); }
 .docs-layout > .docs-main { width: 100%; min-width: 0; margin: 0; padding-top: 20px; }
 .docs-layout > .docs-main.docs-wide { max-width: none; padding: 20px 0 48px; }
 .docs-layout .docs-main > article.narrow { max-width: 48rem; margin-left: 0; }
