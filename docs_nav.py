@@ -25,22 +25,22 @@ DOC_SECTIONS = (
     )),
     # Catalog-backed sections use their source data rather than another menu list.
     ("Gallery", "gallery/index.html", (
-        ("gallery/index.html", "All deployed apps"),
+        ("gallery/index.html", "Gallery"),
     ), "gallery/deployments.json"),
     ("Use", "use/index.html", (
         ("use/index.html", "Use an app"),
         ("Pay-to-Play", "pay-to-play/index.html", (
-            ("pay-to-play/index.html", "Overview"),
+            ("pay-to-play/index.html", "Pay-to-Play"),
             ("pay-to-play/local-payment.html", "Try a voucher payment"),
             ("pay-to-play/integration.html", "Integrate payments"),
         )),
         ("Escrow", "escrow/index.html", (
-            ("escrow/index.html", "Overview"),
+            ("escrow/index.html", "Escrow"),
             ("escrow/documents.html", "Prepare documents"),
             ("escrow/reference.html", "Contract behavior"),
         )),
         ("Bike NFT", "bike-nft/index.html", (
-            ("bike-nft/index.html", "Overview"),
+            ("bike-nft/index.html", "Bike NFT"),
             ("bike-nft/ownership.html", "Ownership and workshops"),
             ("bike-nft/metadata.html", "Metadata"),
         )),
@@ -53,7 +53,7 @@ DOC_SECTIONS = (
         ("development/payment-fixture.html", "Payment fixture"),
     )),
     ("Deploy", "deployment/index.html", (
-        ("deployment/index.html", "Choose a deployment task"),
+        ("deployment/index.html", "Deploy"),
         ("deployment/new-instance.html", "Deploy a new instance"),
         ("viewer/deploy.html", "Host the stand-alone viewer"),
         ("deployment/update.html", "Update an instance"),
@@ -61,16 +61,16 @@ DOC_SECTIONS = (
         ("deployment/source-verification.html", "Verify contract sources"),
         ("deployment/practice.html", "Rehearse a release"),
         ("App settings", "deployment/index.html#app-settings", (
-            ("deployment/bike-nft/index.html", "Bike NFT"),
-            ("deployment/escrow/index.html", "Escrow"),
-            ("deployment/pay-to-play/index.html", "Pay-to-Play"),
+            ("deployment/bike-nft/index.html", "Bike NFT settings"),
+            ("deployment/escrow/index.html", "Escrow settings"),
+            ("deployment/pay-to-play/index.html", "Pay-to-Play settings"),
         )),
         ("Older bookmarks", "deployment/index.html", (
             ("deployment/manual.html", "Legacy manual index"),
         )),
     )),
     ("Reference", "reference/index.html", (
-        ("reference/index.html", "Reference overview"),
+        ("reference/index.html", "Reference"),
         ("reference/cam/index.html", "CAM specifications"),
         ("reference/operations.html", "Operational records"),
         ("reference/diagnostics.html", "Diagnostics"),
@@ -78,6 +78,36 @@ DOC_SECTIONS = (
         ("deployment/rpc/index.html", "RPC services"),
     )),
 )
+
+
+# Parent pages are explicit and independent of menu sections. Only record an
+# actual content relationship: a menu category is not automatically a parent.
+PAGE_PARENTS = {
+    "start/fixture-wallet.html": "start/local-wallet.html",
+    "pay-to-play/local-payment.html": "pay-to-play/index.html",
+    "pay-to-play/integration.html": "pay-to-play/index.html",
+    "escrow/documents.html": "escrow/index.html",
+    "escrow/reference.html": "escrow/index.html",
+    "bike-nft/ownership.html": "bike-nft/index.html",
+    "bike-nft/metadata.html": "bike-nft/index.html",
+    "development/app-checks.html": "development/index.html",
+    "development/payment-fixture.html": "development/index.html",
+    "deployment/new-instance.html": "deployment/index.html",
+    "viewer/deploy.html": "deployment/index.html",
+    "deployment/update.html": "deployment/index.html",
+    "deployment/recovery.html": "deployment/index.html",
+    "deployment/source-verification.html": "deployment/index.html",
+    "deployment/practice.html": "deployment/index.html",
+    "deployment/bike-nft/index.html": "deployment/index.html",
+    "deployment/escrow/index.html": "deployment/index.html",
+    "deployment/pay-to-play/index.html": "deployment/index.html",
+    "deployment/manual.html": "deployment/index.html",
+    "reference/cam/index.html": "reference/index.html",
+    "reference/operations.html": "reference/index.html",
+    "reference/diagnostics.html": "reference/index.html",
+    "deployment/networks/index.html": "reference/index.html",
+    "deployment/rpc/index.html": "reference/index.html",
+}
 
 
 def guide_locations() -> dict[str, tuple]:
@@ -88,7 +118,10 @@ def guide_locations() -> dict[str, tuple]:
                 path = leaf[0]
                 if path in result:
                     raise AssertionError(f"guide declared twice: {path}")
-                result[path] = (section, item if len(item) == 3 else None)
+                result[path] = (section, item if len(item) == 3 else None, leaf[1])
+    for child, parent in PAGE_PARENTS.items():
+        if child not in result or parent not in result:
+            raise AssertionError(f"unknown page relationship: {child} -> {parent}")
     return result
 
 
@@ -135,7 +168,7 @@ def guide_html(root: Path, page: Path, source: str) -> str:
     record = guide_locations().get(path)
     if record is None:
         return source
-    section, group = record
+    section, group, page_label = record
     main = re.search(r'<main\s+id="main"(?:\s+class="[^"]*")?>', source)
     ending = list(re.finditer(r'</main>', source))
     if main is None or len(ending) != 1:
@@ -154,13 +187,21 @@ def guide_html(root: Path, page: Path, source: str) -> str:
     title = unescape(re.sub(r'<[^>]*>', '', h1.group(1))).strip()
     section_name, section_root = section[:2]
     items = section_items(root, section)
+    # Menu grouping and breadcrumb ancestry are separate concepts. An actual
+    # parent must be a page, not an invented category or a group heading.
+    locations = guide_locations()
+    lineage, visited = [], {path}
+    parent = PAGE_PARENTS.get(path)
+    while parent is not None:
+        if parent in visited:
+            raise AssertionError(f"circular breadcrumb ancestry at {path}")
+        visited.add(parent)
+        lineage.append(parent)
+        parent = PAGE_PARENTS.get(parent)
     trail = [guide_link(root, page, "index.html", "Home")]
-    if path != section_root:
-        trail.append(guide_link(root, page, section_root, section_name))
-    if group and path != group[1].partition('#')[0]:
-        trail.append(guide_link(root, page, group[1], group[0]))
-    here = section_name if path == section_root else group[0] if group and path == group[1] else title
-    trail.append(f'<span aria-current="page">{escape(here)}</span>')
+    for ancestor in reversed(lineage):
+        trail.append(guide_link(root, page, ancestor, locations[ancestor][2]))
+    trail.append(f'<span aria-current="page">{escape(page_label)}</span>')
     crumb = '<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol>' + ''.join(f'<li>{item}</li>' for item in trail) + '</ol></nav>'
     section_links = []
     for item in items:
