@@ -1,11 +1,19 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Open an existing app · dapp32</title><meta name="description" content="Use a hosted viewer or launch one locally for an existing publication without redeploying contracts."><script src="../theme.js"></script>
+<script defer src="../docs-nav.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="./" aria-current="page">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
 <main id="main" class="shell document"><article class="narrow">
 <h1>Use an app</h1>
 <p class="lede"><a href="../gallery/">Browse deployed apps</a> to choose an instance and open it directly. No address copying or contract deployment is needed.</p>
+<h2 id="apps">Choose your app guide</h2>
+<dl class="task-routes">
+<dt><a href="../pay-to-play/">Pay-to-Play</a></dt><dd>Fund a channel, authorize voucher payments, withdraw or recover a balance.</dd>
+<dt><a href="../escrow/">Escrow</a></dt><dd>Create an agreement, submit work, resolve disputes and withdraw settlement credit.</dd>
+<dt><a href="../bike-nft/">Bike NFT</a></dt><dd>Register components, inspect their records and manage ownership or workshop access.</dd>
+</dl>
+<p>For disposable practice before using your wallet, follow the <a href="../start/local-wallet.html">local-wallet tutorial</a>.</p>
 <h2 id="hosted">Open an unlisted app</h2>
 <p>For an app not in the directory, you need its trusted network and <strong>CAM host address</strong>, a compatible viewer and browser-readable RPC access. You do not need a deployer's private key or a new contract deployment.</p>
 <p>Choose the <a href="https://app.dapp32.com/">stand-alone viewer</a> (deployed independently) or the <a href="../viewer/">Pages preview</a> (a newer, experimental build that may change sooner). Both run in your browser and contact the selected RPC/resource hosts directly. Use the same CAM root and chain; wallet permissions are separate for the two website origins.</p>
@@ -31,7 +39,5 @@ make viewer/release/up \
 <p>Inspect the receipt and resulting state. Simulation is a forecast; submission is a request; a successful receipt establishes execution. A receipt cannot establish off-chain service delivery.</p>
 <h2 id="navigation">Refresh, Back and account changes</h2>
 <p>Refresh rereads state and invalidates a prepared transaction. Back can restore compatible drafts from session history while rereading state. Reloading or switching accounts can clear drafts. In Pay-to-Play, the inspected owner/channel stays fixed across actor changes; check both identities rather than assuming the viewed balance belongs to your connected wallet.</p>
-<h2 id="apps">App guides</h2>
-<p><a href="../pay-to-play/">Pay-to-Play</a> explains payments and recovery. <a href="../escrow/">Escrow</a> explains agreement settlement. <a href="../bike-nft/">Bike NFT</a> explains components and ownership. The <a href="../start/local-wallet.html">local-wallet tutorial</a> is for disposable practice, not public funds.</p>
 <p>For exact verification and execution rules, use the <a href="../reference/cam/1.4.0/#security">current protocol reference</a>. Runtime baseline: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/apps/cam-web/src/app-setup.tsx">viewer setup at 04a18763</a>.</p>
 </article></main></body></html>
