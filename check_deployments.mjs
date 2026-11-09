@@ -18,7 +18,7 @@ for (const [url, path, type] of [
 // Check the executable redirect from the legacy route, including historical
 // deep links, without aborting unrelated in-flight CDP RPC interceptions.
 const redirectHTML = await readFile(`${site}/deployments/index.html`, 'utf8')
-const redirectScript = redirectHTML.match(/<script>([\\s\\S]*?)<\\/script>/)?.[1]
+const redirectScript = redirectHTML.match(/<script>([\s\S]*?)<\/script>/)?.[1]
 assert(redirectScript, 'Legacy deployment route must contain a redirect script')
 function redirectedURL(search, hash) {
   let redirected
