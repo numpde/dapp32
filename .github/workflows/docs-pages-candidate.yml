@@ -98,6 +98,10 @@ jobs:
               assert published.read_bytes() == original.read_bytes(), f'protocol bytes differ: {version}'
           gallery = json.loads((output / 'gallery/deployments.json').read_text())
           assert gallery['deployments'], 'Gallery has no published deployments'
+          for entry in output.rglob('*'):
+              relative = entry.relative_to(output)
+              assert not entry.is_symlink(), f'generated symlink is forbidden: {relative}'
+              assert '.git' not in relative.parts, f'git metadata is forbidden: {relative}'
           assert (output / 'assets').is_dir(), 'VitePress assets missing'
           assert any((output / 'assets').glob('*.js')), 'VitePress JS entry missing'
           print('Qualified route set, byte-identical CAM references and Gallery data.')
@@ -143,6 +147,15 @@ jobs:
           test -s qualified/index.html
           test -s qualified/gallery/index.html
           test -s qualified/reference/cam/1.4.0/index.html
+          # The read-only job validated these, but check again in the writer.
+          if find qualified -type l -print -quit | grep -q .; then
+            echo 'Cannot publish a symlink-bearing artifact.' >&2
+            exit 2
+          fi
+          if find qualified -name .git -print -quit | grep -q .; then
+            echo 'Cannot publish an artifact containing Git metadata.' >&2
+            exit 2
+          fi
           # Merge docs output; do not delete the independently published viewer.
           cp -a qualified/. site/
           touch site/.nojekyll
