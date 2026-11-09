@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/" aria-current="location">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Deploy</a></li><li><span aria-current="page">Update an instance</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Deploy</summary><nav class="docs-section-links" aria-label="In Deploy"><a href="./">Deploy</a><a href="new-instance.html">Deploy a new instance</a><a href="../viewer/deploy.html">Host the stand-alone viewer</a><a href="update.html" aria-current="page">Update an instance</a><a href="recovery.html">Recover a release</a><a href="source-verification.html">Verify contract sources</a><a href="practice.html">Rehearse a release</a><details class="docs-subsection"><summary>App settings</summary><div class="docs-subsection-links"><a href="bike-nft/">Bike NFT settings</a><a href="escrow/">Escrow settings</a><a href="pay-to-play/">Pay-to-Play settings</a></div></details><details class="docs-subsection"><summary>Older bookmarks</summary><div class="docs-subsection-links"><a href="manual.html">Legacy manual index</a></div></details></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#cam-only">Publish compatible navigation or screen changes</a><a href="#projection">Replace the read-only projection</a><a href="#check">Check the new publication</a><a href="#migration">Business replacement needs a migration decision</a><a href="#recover">Recover or reverse deliberately</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../">Home</a></li><li><a href="./">Deploy</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Update an existing app</h1>
 <p>First identify what changed. A viewer image, workflow files and a contract are different components with different update procedures.</p>
 <table><thead><tr><th>Changed component</th><th>Procedure and authority</th></tr></thead><tbody>
@@ -43,7 +39,4 @@ make viewer/release/up DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
 <p>A new business contract has a new address and state. Pay-to-Play vouchers bind the verifying-contract address; changing an ABI or manifest cannot move deposits, permanent keys or signatures. Specify the client/state transition and treatment of the old instance before deploying a replacement.</p>
 <h2 id="recover">Recover or reverse deliberately</h2>
 <p>Keep failed attempts and <a href="recovery.html">resume the selected operation</a>. Resolve uncertain submissions before approving another creation. Restoring an earlier CAM publication is itself an authorized on-chain update and may be incompatible with subsequent changes; rolling back a viewer image does not perform that reversal.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>
