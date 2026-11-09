@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/viewer-pages-preview.yml
       - js/apps/cam-web/**
       - js/packages/cam-*/**
       - js/package.json
@@ -153,4 +152,13 @@ jobs:
           branch="docs/viewer-preview-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           git push origin "HEAD:refs/heads/$branch"
           echo "Preview candidate branch: $branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" --title "Publish Pages viewer preview $(printf %s "$source_revision" | cut -c1-12)" --body "Static viewer bundle from main@$source_revision. Built with the existing pinned-image/locked-dependency path. Only viewer/index.html and viewer/assets/ change. Review and merge to publish; the stand-alone viewer is unaffected."
+          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" --title "Publish Pages viewer preview $(printf %s "$source_revision" | cut -c1-12)" --body "Static viewer bundle from main@$source_revision. Built with the existing pinned-image/locked-dependency path. Only viewer/index.html and viewer/assets/ change. Review and merge to publish; the stand-alone viewer is unaffected."; then
+            echo "::warning::Preview bundle pushed, but this repository does not permit the workflow to open its publishing PR. Use the candidate branch below."
+            {
+              echo '### Pages preview awaits review'
+              echo "Qualified bundle: main@$source_revision."
+              echo "Candidate branch: `$branch`."
+              echo "Create the Pages PR: https://github.com/$GITHUB_REPOSITORY/compare/gh-pages...$branch?expand=1"
+              echo 'The Pages site will update only after that PR is merged.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
