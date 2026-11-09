@@ -1697,7 +1697,8 @@ cam/abi/export: dapps/deps/verify
 
 # The build has no writable host mounts. The exporter can write only to a
 # private, newly created stage, which Make publishes after successful export.
-# A unique Compose project owns the RAM-backed volume; cleanup verifies removal.
+# A unique Compose project keeps the RAM volume mounted while its one-shot
+# builder/exporter run; cleanup stops the holder and verifies removal.
 .PHONY: docs/build
 docs/build:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
@@ -1744,7 +1745,9 @@ docs/build:
 	stage_dir="$$(mktemp -d -- "$$DOCS_OUTPUT_DIR/.dapp32-docs-XXXXXXXX")"; \
 	export DOCS_STAGE_DIR="$$stage_dir"; \
 	compose_attempted=1; \
-	release_with_mapped_owner $(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml run --build --rm --no-deps -T docs-build; \
+	release_with_mapped_owner $(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml build docs-build; \
+	release_with_mapped_owner $(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml up --no-build --no-deps -d --wait --wait-timeout 20 docs-hold; \
+	release_with_mapped_owner $(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml run --rm --no-deps -T docs-build; \
 	release_with_mapped_owner $(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml run --rm --no-deps -T docs-export; \
 	if [[ ! -d "$$stage_dir/site" || -L "$$stage_dir/site" || ! -f "$$stage_dir/site/index.html" || -L "$$stage_dir/site/index.html" ]]; then \
 	  printf '%s\n' 'Docs exporter did not produce a regular site with an index.' >&2; \

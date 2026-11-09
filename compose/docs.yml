@@ -11,7 +11,8 @@ services:
     # Give each operation its own image so concurrent builds cannot replace it.
     image: dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}
     # Build this local image rather than fetching a tagged image.
-    pull_policy: build
+    # Only the explicit Make build step may create this local image.
+    pull_policy: never
     # Build the image from the existing Node tools; no new Dockerfile.
     build:
       # Supply the repository's existing Node image build context.
@@ -93,6 +94,30 @@ services:
         # Build GitHub Pages paths into the disposable artifact volume.
         exec node node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
 
+  # Keep the RAM-backed volume mounted across the two sequential jobs.
+  # A tmpfs-backed local volume is emptied when its final mount disappears.
+  docs-hold:
+    extends:
+      file: fragments/node-workspace.yml
+      service: offline-node-workspace
+    image: dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}
+    pull_policy: never
+    build: !reset null
+    environment: !reset null
+    tmpfs: !reset []
+    working_dir: /
+    pids_limit: 16
+    mem_limit: 64m
+    memswap_limit: 64m
+    shm_size: 1m
+    volumes:
+      - type: volume
+        source: docs-artifact
+        target: /artifact
+        read_only: true
+        volume: { nocopy: true }
+    command: ["sleep", "infinity"]
+
   # Copy completed files to the host only after docs-build exits successfully.
   docs-export:
     # Reuse the builder's isolated namespace and verified host-owner mapping.
@@ -154,8 +179,9 @@ services:
         # Copy only into the disposable stage; Make publishes it afterward.
         cp -a /artifact/site /export/site
 
-# The uniquely named Compose project creates this shared, RAM-backed volume.
-# Make removes its project and volumes after export or failure.
+# The unique Compose project owns a RAM-backed local volume. Its read-only
+# holder mount keeps the tmpfs alive until both one-shot jobs complete;
+# Make removes the holder, project and volume after export or any failure.
 volumes:
   docs-artifact:
     driver: local

@@ -37,13 +37,39 @@ with (root / "calls.jsonl").open("a") as stream:
 if args[0] == "compose":
     project_option = "-p" if "-p" in args else "--project-name"
     project = args[args.index(project_option) + 1]
-    if "run" in args:
+    if "build" in args:
+        assert state["project"] in (None, project)
+        assert args[-1] == "docs-build"
+        state["project"] = project
+        state["phases"].append("image-build")
+        state_file.write_text(json.dumps(state))
+        if state["mode"] == "image-build-fail":
+            print("fake image build failed", file=sys.stderr)
+            sys.exit(21)
+    elif "up" in args:
+        assert state["project"] == project
+        assert state["phases"] == ["image-build"]
+        assert "--no-build" in args and "--no-deps" in args
+        assert "-d" in args and "--wait" in args
+        assert args[-1] == "docs-hold"
+        state["volume"] = f"{project}_docs-artifact"
+        state["phases"].append("hold-start")
+        state_file.write_text(json.dumps(state))
+        if state["mode"] == "holder-start-fail":
+            print("fake holder startup failed", file=sys.stderr)
+            sys.exit(22)
+        state["held"] = True
+    elif "run" in args:
+        assert state["project"] == project
+        assert state["held"]
+        assert "--rm" in args and "--no-deps" in args and "-T" in args
         assert state["project"] in (None, project)
         state["project"] = project
         if state["volume"] is None:
             state["volume"] = f"{project}_docs-artifact"
         service = args[-1]
         state["services"].append(service)
+        state["phases"].append(service)
         state_file.write_text(json.dumps(state))
 
         assert os.environ["LOCAL_UID"] == "0" and os.environ["LOCAL_GID"] == "0"
@@ -73,6 +99,8 @@ if args[0] == "compose":
             raise AssertionError("unexpected docs service: " + service)
     elif "down" in args:
         assert project == state["project"]
+        state["phases"].append("down")
+        state["held"] = False
         assert "--volumes" in args and "--remove-orphans" in args
         assert args[args.index("--rmi") + 1] == "all"
         assert os.environ["LOCAL_UID"] == "0" and os.environ["LOCAL_GID"] == "0"
@@ -95,7 +123,7 @@ state_file.write_text(json.dumps(state))
 
 
 class DocsBuildLifecycleTests(unittest.TestCase):
-    def test_both_services_are_offline_read_only_and_capability_free(self) -> None:
+    def test_all_services_are_offline_read_only_and_capability_free(self) -> None:
         config = rendered_compose_config("compose/docs.yml", env={
             "LOCAL_UID": "1000",
             "LOCAL_GID": "1000",
@@ -111,7 +139,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "o": "size=512m,uid=1000,gid=1000,mode=0700,nosuid,nodev,noexec",
         }, artifact["driver_opts"])
 
-        for name in ("docs-build", "docs-export"):
+        for name in ("docs-build", "docs-hold", "docs-export"):
             with self.subTest(service=name):
                 service = config["services"][name]
                 self.assertEqual("none", service["network_mode"])
@@ -127,9 +155,23 @@ class DocsBuildLifecycleTests(unittest.TestCase):
                 self.assertFalse(service.get("use_api_socket"))
 
         builder = config["services"]["docs-build"]
+        holder = config["services"]["docs-hold"]
         exporter = config["services"]["docs-export"]
         self.assertEqual("dapp32-docs-builder:docs-confinement-test", builder["image"])
+        self.assertEqual(builder["image"], holder["image"])
         self.assertEqual(builder["image"], exporter["image"])
+        self.assertEqual("never", builder["pull_policy"])
+        self.assertEqual("never", holder["pull_policy"])
+        self.assertFalse(holder.get("build"))
+        self.assertFalse(holder.get("environment"))
+        self.assertFalse(holder.get("tmpfs"))
+        self.assertEqual(["sleep", "infinity"], holder["command"])
+        self.assertEqual(16, holder["pids_limit"])
+        self.assertEqual(1, len(holder["volumes"]))
+        held_mount = compose_volume(holder, "/artifact")
+        self.assertEqual("docs-artifact", held_mount["source"])
+        self.assertTrue(held_mount["read_only"])
+        self.assertTrue(held_mount["volume"]["nocopy"])
         self.assertEqual("none", builder["build"]["network"])
         self.assertEqual(128, builder["pids_limit"])
         self.assertEqual(32, exporter["pids_limit"])
@@ -182,6 +224,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "project": None,
             "volume": None,
             "services": [],
+            "phases": [],
+            "held": False,
         }))
         docker = root / "docker"
         docker.write_text(
@@ -238,6 +282,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("built", (root / "output/site/index.html").read_text())
             self.assertEqual(["docs-build", "docs-export"], state["services"])
+            self.assertEqual(["image-build", "hold-start", "docs-build", "docs-export", "down"], state["phases"])
+            self.assertFalse(state["held"])
             self.assertIsNone(state["volume"])
             self.assertEqual(1, len(self.down_calls(calls)))
             self.assertTrue(all(call["uid"] == "0" and call["gid"] == "0"
@@ -288,6 +334,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
 
     def test_failures_remove_the_stage_and_volume_before_publication(self) -> None:
         for mode, expected, services in (
+            ("image-build-fail", 21, []),
+            ("holder-start-fail", 22, []),
             ("build-fail", 17, ["docs-build"]),
             ("export-fail", 18, ["docs-build", "docs-export"]),
             ("export-partial-fail", 18, ["docs-build", "docs-export"]),
@@ -300,6 +348,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
                 self.assertEqual(services, state["services"])
                 self.assertIsNone(state["volume"])
                 self.assertEqual(1, len(self.down_calls(calls)))
+                self.assertFalse(state["held"])
                 self.assertFalse((root / "output/site").exists())
 
     def test_concurrent_publication_cannot_replace_an_existing_site(self) -> None:
