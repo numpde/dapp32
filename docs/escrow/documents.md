@@ -1,0 +1,33 @@
+---
+title: "Prepare Escrow documents"
+description: "Publish or embed the exact terms, work or dispute document and supply its SHA-256 commitment."
+outline: false
+---
+
+# Prepare Escrow documents
+
+<div class="ported-guide">
+
+
+<p>Terms, work evidence and dispute evidence each contain a public URI and a nonzero SHA-256 digest. Agree on the exact file before committing it. The contract stores the reference; it does not download, decrypt or judge the document.</p>
+<h2 id="prepare">1. Choose the bytes and their location</h2>
+<p>Publish the agreed file at a URI the other parties can read, or use a small embedded document supported by the editor. The viewer does not upload a file for you. Escrow limits the complete URI to 512 UTF-8 bytes, including an embedded document's encoding; larger content needs an external location.</p>
+<p>For sensitive material, encrypt first and hash the exact published encrypted bytes. Arrange decryption-key delivery separately. Do not put secrets in URLs or agreement fields: the contract reference is public.</p>
+<h2 id="hash">2. Calculate or enter SHA-256</h2>
+<table><thead><tr><th>Method</th><th>What it establishes</th></tr></thead><tbody>
+<tr><td>Enter a digest</td><td>Paste <code>0x</code> plus 64 hexadecimal characters from your own exact-byte calculation. The form does not retrieve anything.</td></tr>
+<tr><td><strong>Calculate from file</strong></td><td>Hashes the selected local file without uploading it. This does not check the URI.</td></tr>
+<tr><td><strong>Calculate from URL</strong></td><td>Explicitly downloads and hashes the response. HTTP(S) requires browser access; IPFS uses the selected gateway. Download scope applies to the original remote URI.</td></tr>
+<tr><td><strong>Calculate from embedded document</strong></td><td>Decodes the supplied data URI and hashes its bytes locally, without a network request.</td></tr>
+</tbody></table>
+<p>The field does not fetch while you type. Calculation is bounded to 8 MiB and 15 seconds. Remote requests need browser CORS access, send no credentials or referrer, and reject redirects. For IPFS, select an admitted gateway first. A failed remote read does not silently switch methods.</p>
+<p>For an external calculation on Linux:</p>
+<pre><code>sha256sum "terms.txt"</code></pre>
+<p>Paste <code>0x</code> followed by the hash, not the filename. Hash the file's bytes, not its URI text. Changing whitespace, encoding or JSON formatting changes the commitment. A larger document can use a separately calculated digest even though the browser calculator will not read it.</p>
+<h2 id="review">3. Review the URI and digest together</h2>
+<p>A successful calculation replaces the digest. Failure or cancellation preserves it. Changing the URI also preserves the digest but clears its earlier source association and invalidates pending work. Check both values before preparing the transaction; an old hash beside a new URI is not a verified pair.</p>
+<p>Calculation produces a new digest. It does not compare downloaded bytes with an existing expected commitment. To verify stored evidence, retrieve the intended bytes independently, hash them and compare with the digest recorded on the contract. A URL calculation describes today's response, not a promise that a mutable URL will keep serving it.</p>
+<p>The contract checks a nonempty URI within its byte limit and a nonzero digest, not document truth or availability. The parties remain responsible for retaining and checking the agreed content. Return to <a href="./#create">create and fund</a>, <a href="./#work">submit work</a> or <a href="./#dispute">open a dispute</a>.</p>
+<p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/apps/cam-web/src/document-hash.ts#L7-L64">calculation transports and limits</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/apps/cam-web/src/components.tsx#L417-L456">field controls</a>, and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrow.sol#L497-L503">contract document validation</a>.</p>
+
+</div>
