@@ -1,0 +1,35 @@
+---
+title: "Collect a local test voucher"
+description: "Continue the first-deposit tutorial with permanent-key registration, invoice hashing, local signing and verified collection."
+outline: false
+---
+
+# Collect a local test voucher
+
+<div class="ported-guide">
+
+
+<p>Continue <a href="../start/local-wallet.html">the 100-wei deposit tutorial</a> before stopping its fixture. You need its running GUI and attached test wallet, a nonzero channel and the customer's funded position. This exercise submits transactions on disposable chain 31337, not a public deployment.</p>
+<h2 id="1-register-the-fixture-customer-as-the-permanent-key">1. Register the fixture customer as the permanent key</h2>
+<p>Connect <strong>customer</strong>, open its position and choose <strong>Vouchers</strong>. Register the customer's displayed address as the key. Wait for a successful receipt and reread the confirmed key. The offline signer below uses that fixed fixture customer; it cannot sign for a different registered key.</p>
+<p>Registration is permanent even in this experiment. To start again with a different key, use a new position or a fresh disposable fixture—not an assumed reset.</p>
+<h2 id="2-prepare-the-exact-invoice-commitment">2. Prepare the exact invoice commitment</h2>
+<p>Construct a synthetic invoice for this chain, payment address, owner, channel and desired cumulative total. Use the agreed <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/pay-to-play-vouchers/README.md">invoice codec and helper</a> to obtain its 32-byte hash. Do not hash a URL or arbitrary JSON formatting. The on-chain contract treats the hash as opaque; it does not validate the invoice for you.</p>
+<h2 id="3-sign-locally-then-compare-the-signing-details">3. Sign locally, then compare the signing details</h2>
+<p>In another terminal from the source checkout, replace every placeholder with the actual fixture values. Use the payment address from the loaded signing domain/binding, not the CAM host:</p>
+<pre><code>make pay-to-play/local/voucher/sign \
+  DOCKER_CONTEXT=your-local-context \
+  PAY_TO_PLAY_ADDRESS=0x... \
+  PAY_TO_PLAY_CHANNEL_ID=... \
+  PAY_TO_PLAY_TOTAL=100 \
+  PAY_TO_PLAY_INVOICE_HASH=0x...</code></pre>
+<p>The total is a lifetime cumulative amount in wei. The hash must be exactly 32 bytes. This offline helper neither registers the key nor validates the invoice or backing. Keep signature output out of commits and shared logs.</p>
+<p>Enter the same total and hash in <strong>Vouchers</strong> and inspect signing details. Compare PayToPlay/2, chain 31337, payment address and digest with the helper output. Back returns to the voucher task and compatible drafts. A matching digest is still not a collection receipt.</p>
+<h2 id="4-collect-using-the-actual-configured-collector">4. Collect using the actual configured collector</h2>
+<p>The prerequisite tutorial chose <strong>admin</strong> as both payee and collector. Switch to that account, wait for the refresh, and keep the customer's owner/channel selected. Account changes clear account-bound drafts; re-enter the total, hash, signature and a 100-wei collection cap before review.</p>
+<p>Review <strong>Collect voucher payment</strong>, send and confirm in the browser. Check the actual <code>VoucherCollected</code> amount, payee, cumulative paid total and invoice hash. With the original 100-wei backing and no prior payments, collection should pay 100 and leave zero balance. Gas is separate. A zero-payment replay can succeed without a collection event.</p>
+<p>The role selector's label does not grant collection permission. For a differently configured channel, use its real collector; zero pauses collection.</p>
+<h2 id="finish-the-exercise">Finish the exercise</h2>
+<p>Detach the wallet and <a href="../start/local-wallet.html#stop">stop the owned demo</a>. For the service responsibilities that this experiment does not implement—durable acceptance, allocation, delivery and uncertain outcomes—read <a href="integration.html">the integration guide</a>. Automated coverage is in <a href="../development/app-checks.html#payment">app checks</a>.</p>
+
+</div>
