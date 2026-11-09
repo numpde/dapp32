@@ -109,6 +109,29 @@ try {
   assert(await evaluate('[...document.querySelectorAll("main a")].filter(a=>a.getAttribute("href")==="gallery/").length >= 3'), 'Gallery is prominent within the original homepage layout')
   await visit('/use/')
   assert(await evaluate('!!document.querySelector(\'main a[href="../gallery/"]\')'), 'Use guide must open the Gallery directly')
+  const guideOrientation = await evaluate(`(() => ({
+    breadcrumb: document.querySelector('nav[aria-label="Breadcrumb"]')?.textContent,
+    sectionLinks: [...document.querySelectorAll('nav[aria-label="In Use"] a')].map(a=>a.textContent),
+    toc: [...document.querySelectorAll('nav[aria-label="On this page"] a')].map(a=>({
+      href: a.hash, exists: !!document.getElementById(decodeURIComponent(a.hash.slice(1)))
+    })),
+    hasLayout: !!document.querySelector('.docs-layout > .docs-main'),
+  }))()`);
+  assert(guideOrientation.hasLayout && guideOrientation.breadcrumb?.includes('Home'), 'Use has contextual orientation')
+  assert(guideOrientation.sectionLinks.includes('Pay-to-Play') && guideOrientation.sectionLinks.includes('Escrow'), 'Use connects to actual app guides')
+  assert(guideOrientation.toc.length >= 4 && guideOrientation.toc.every(x=>x.exists), 'Long Use pages have valid section jumps')
+  await visit('/pay-to-play/integration.html')
+  assert(await evaluate(`document.querySelector('nav[aria-label="Breadcrumb"]')?.textContent.includes('Pay-to-Play')`), 'Deep app guide shows its parent')
+  assert(await evaluate(`document.querySelector('nav[aria-label="In Pay-to-Play"] a[aria-current="page"]')?.textContent === 'Integrate payments'`), 'Nested guide active link is specific')
+  await visit('/deployment/')
+  assert(await evaluate(`document.querySelector('nav[aria-label="In Deploy"] a[aria-current="page"]')?.textContent === 'Deploy'`), 'Deploy shows section position')
+  await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 1, mobile: false })
+  await visit('/use/')
+  assert(await evaluate(`[...document.querySelectorAll('.docs-rail details')].every(x => !x.open)`), 'Mobile contextual groups are collapsed by default')
+  assert(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), 'Mobile guide navigation must not overflow')
+  await evaluate(`document.querySelector('.docs-rail summary').click()`)
+  assert(await evaluate(`document.querySelector('.docs-rail details').open`), 'Mobile section navigation opens with a native disclosure')
+  await call('Emulation.clearDeviceMetricsOverride')
   const files = await pages(root)
   for (const color of ['light', 'dark']) {
     await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: color }] })
@@ -160,6 +183,8 @@ try {
   const staticHeader = await visit('/deployment/networks/')
   assert.equal(staticHeader.visible, false, 'A nonfunctional theme control stays hidden without JavaScript')
   assert(staticHeader.fit && staticHeader.labels.length === 6, 'Navigation remains usable without JavaScript')
+  await visit('/use/')
+  assert(await evaluate(`document.querySelector('.docs-rail') === null && !!document.querySelector('main a[href="../gallery/"]')`), 'No-JS docs retain their original main content and primary links')
   assert.equal(await evaluate('document.querySelector("#theme-toggle").hidden'), true)
   await followTask('gallery/')
   await followTask('use/')
