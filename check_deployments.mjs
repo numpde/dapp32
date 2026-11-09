@@ -4,13 +4,15 @@ import { readFile } from 'node:fs/promises'
 const cdp = new URL(process.env.CDP_ORIGIN)
 assert(cdp.protocol === 'http:' && !cdp.username && !cdp.password)
 const site = process.env.SITE_ROOT
-const page = 'https://numpde.github.io/dapp32/deployments/'
+const page = 'https://numpde.github.io/dapp32/gallery/'
+const legacy = 'https://numpde.github.io/dapp32/deployments/'
 const catalogURL = 'https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json'
 const files = new Map()
 for (const [url, path, type] of [
-  [page, 'deployments/index.html', 'text/html'],
-  [page + 'deployments.js', 'deployments/deployments.js', 'text/javascript'],
-  [page + 'deployments.json', 'deployments/deployments.json', 'application/json'],
+  [page, 'gallery/index.html', 'text/html'],
+  [page + 'deployments.js', 'gallery/deployments.js', 'text/javascript'],
+  [page + 'deployments.json', 'gallery/deployments.json', 'application/json'],
+  [legacy, 'deployments/index.html', 'text/html'],
   ['https://numpde.github.io/dapp32/theme.js', 'theme.js', 'text/javascript'],
   ['https://numpde.github.io/dapp32/site.css', 'site.css', 'text/css'],
 ]) files.set(url, { body: await readFile(`${site}/${path}`), type })
@@ -255,6 +257,11 @@ try {
   await evaluate('history.back()')
   await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
   assert.equal(await evaluate('location.hash'), '#fixture-old', 'Back restores the older release URL and selection')
+  // Historical bookmarked URLs must open the *same* Gallery instance, without
+  // losing the selected old release or its query parameters.
+  await call('Page.navigate', { url: legacy + '?source=bookmark#fixture-old' })
+  await until(`location.pathname === '/dapp32/gallery/' && location.search === '?source=bookmark' && location.hash === '#fixture-old' && document.querySelector('#deployment-select-fixture-app')?.value === 'fixture-old'`)
+  assert.equal(await evaluate('document.querySelectorAll(".deployment").length'), 1, 'Legacy alias must resolve to one Gallery instance')
   console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 900, 800, 600, 390, 320], compactRows: true, responsiveVerification: true, enlargedText: true, rpcDisclosure: true, selectionKeepsFocusAndScroll: true, mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true }))
   if (process.env.LIVE_RPC === '1') {
     live = true; await navigate()
