@@ -1,0 +1,50 @@
+# Offline VitePress 2 build. Acquire locked npm dependencies through the
+# existing js/deps/install lane; this service never installs or fetches them.
+services:
+  docs-build:
+    extends:
+      file: fragments/node-workspace.yml
+      service: offline-node-workspace
+    image: dapp32-docs-builder:local
+    pull_policy: build
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+      network: none
+    init: true
+    working_dir: /work/js
+    volumes:
+      - type: bind
+        source: ../docs
+        target: /input/docs
+        read_only: true
+        bind: { create_host_path: false }
+      - type: bind
+        source: ../js/node_modules
+        target: /work/js/node_modules
+        read_only: true
+        bind: { create_host_path: false }
+      - type: volume
+        source: docs-output
+        target: /out
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+        if [ ! -x node_modules/.bin/vitepress ]; then
+          echo 'VitePress 2 is missing from the prepared js/node_modules' >&2
+          exit 2
+        fi
+        node -e 'const v = require("./node_modules/vitepress/package.json").version; if (!v.startsWith("2.")) { console.error(`Expected VitePress 2; found ${v}`); process.exit(2) }'
+        if find /input/docs -type l -print -quit | grep -q .; then
+          echo 'Documentation source must not contain symlinks' >&2
+          exit 2
+        fi
+        mkdir -p docs
+        cp -a /input/docs/. docs/
+        rm -rf /out/site
+        node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
+
+volumes:
+  docs-output: {}
