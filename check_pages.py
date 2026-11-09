@@ -97,7 +97,7 @@ def check_navigation(root: Path) -> None:
     guides = guide_locations()
     known = {p.relative_to(root).as_posix() for p in navigation_pages(root)}
     if (root / "gallery/index.html").is_file() and (root / "deployment/index.html").is_file():
-        assert known - {"index.html", "gallery/index.html"} == set(guides), "Guide map must cover every maintained guide exactly once"
+        assert known - {"index.html"} == set(guides), "Guide map must cover every maintained guide exactly once"
     for page in navigation_pages(root):
         text = page.read_text(encoding="utf-8")
         scripts = re.findall(r'<script\b[^>]*>.*?</script>', text, re.DOTALL)

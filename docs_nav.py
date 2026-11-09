@@ -6,6 +6,7 @@ No JavaScript is required to render or discover these navigation links.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import unicodedata
@@ -22,6 +23,10 @@ DOC_SECTIONS = (
         ("start/fixture-wallet.html", "Connect the test wallet"),
         ("examples/index.html", "Local demos"),
     )),
+    # Catalog-backed sections use their source data rather than another menu list.
+    ("Gallery", "gallery/index.html", (
+        ("gallery/index.html", "All deployed apps"),
+    ), "gallery/deployments.json"),
     ("Use", "use/index.html", (
         ("use/index.html", "Use an app"),
         ("Pay-to-Play", "pay-to-play/index.html", (
@@ -87,6 +92,23 @@ def guide_locations() -> dict[str, tuple]:
     return result
 
 
+def section_items(root: Path, section: tuple) -> tuple:
+    """Add app links from a section's catalog instead of duplicating its entries."""
+    if len(section) == 3:
+        return section[2]
+    catalog = json.loads((root / section[3]).read_text(encoding="utf-8"))
+    releases = {}
+    for deployment in catalog["deployments"]:
+        key = deployment["appId"]
+        previous = releases.get(key)
+        if previous is None or deployment.get("deployedAt", "") > previous.get("deployedAt", ""):
+            releases[key] = deployment
+    links = tuple(
+        (f'gallery/index.html#{deployment["id"]}', deployment["name"])
+        for deployment in releases.values()
+    )
+    return (*section[2], *links)
+
 def guide_url(root: Path, page: Path, destination: str) -> str:
     pathname, _, fragment = destination.partition("#")
     if not pathname:
@@ -120,13 +142,18 @@ def guide_html(root: Path, page: Path, source: str) -> str:
         raise AssertionError(f"guide needs exactly one main landmark: {page}")
     end = ending[0]
     article = re.search(r'<article\s+class="narrow">(.*?)</article>', source[main.end():end.start()], flags=re.DOTALL)
-    wide = article is None
+    original_classes = re.search(r'\bclass="([^"]*)"', main.group(0))
+    classes_before = original_classes.group(1).split() if original_classes else []
+    # Document-styled pages use the ordinary content width even without an article.
+    # Wide references omit document styling.
+    wide = article is None and "document" not in classes_before
     title_source = article.group(1) if article else source[main.end():end.start()]
     h1 = re.search(r'<h1(?:\s+[^>]*)?>(.*?)</h1>', title_source, flags=re.DOTALL)
     if h1 is None:
         raise AssertionError(f"guide needs a title: {page}")
     title = unescape(re.sub(r'<[^>]*>', '', h1.group(1))).strip()
-    section_name, section_root, items = section
+    section_name, section_root = section[:2]
+    items = section_items(root, section)
     trail = [guide_link(root, page, "index.html", "Home")]
     if path != section_root:
         trail.append(guide_link(root, page, section_root, section_name))
@@ -195,5 +222,9 @@ def guide_html(root: Path, page: Path, source: str) -> str:
     frame = 'docs-layout shell docs-layout-wide' if wide else 'docs-layout shell'
     before = '<!-- docs-layout:start -->\n' + crumb + '\n<div class="' + frame + '">\n' + rail + '\n<!-- docs-layout:before-main -->\n'
     after = '\n<!-- docs-layout:after-main -->\n</div>\n<!-- docs-layout:end -->'
-    new_open = f'<main id="main" class="{classes}">'
+    # Keep each page's content classes, but not duplicate frame/shell classes.
+    retained = [name for name in classes_before if name not in
+                {"shell", "document", "docs-main", "docs-wide"}]
+    class_names = " ".join((classes, *retained))
+    new_open = f'<main id="main" class="{class_names}">'
     return source[:main.start()] + before + new_open + source[main.end():end_position] + '</main>' + after + source[end_position + len('</main>'):]
