@@ -1,0 +1,70 @@
+---
+title: "Use Pay-to-Play"
+description: "Understand the balance, voucher, withdrawal and recovery tasks in the current Pay-to-Play workflow."
+outline: false
+---
+
+# Use Pay-to-Play
+
+<div class="ported-guide">
+
+
+<p>Deposit into your position, authorize cumulative payments with a registered key, and recover unused funds. A position is one <strong>balance owner + channel ID</strong>; the account viewing it can be someone else.</p>
+<p>This guide describes source <a href="https://github.com/numpde/dapp32/tree/2c8f962c8b0c34eced55a60bc421952ebe445d9c">2c8f962c</a>, including invoice-bound v2 vouchers, collector-gated payments and positive-credit withdrawal restarts. An older non-upgradeable deployment retains its original behavior; verify the deployed contract before relying on these instructions.</p>
+<nav aria-label="Guide sections"><a href="#use">Choose a task</a> · <a href="#example">Payment example</a> · <a href="#withdrawals">Withdraw</a> · <a href="#recovery">Recover</a> · <a href="#integrate">Integrate</a> · <a href="#local">Try locally</a></nav>
+<h2 id="use">Choose a task</h2>
+<p>Choose the owner and channel, then <strong>Open balance</strong>. The selection stays fixed when you switch wallets. The active task is a label, not a button that resets its form.</p>
+<table><thead><tr><th>Destination</th><th>Use it to</th></tr></thead><tbody>
+<tr><td>Balance</td><td>Read current state. No transaction editors.</td></tr>
+<tr><td>Deposit</td><td>Add native coins to your selected position.</td></tr>
+<tr><td>Withdraw or move</td><td>Request an exit, replace a request, or consume a mature request.</td></tr>
+<tr><td>Vouchers</td><td>Register a permanent key, inspect signing details, or collect a payment.</td></tr>
+<tr><td>Recovery</td><td>Inspect deadlines, choose a refund recipient, close a cycle, refund or retire a channel.</td></tr>
+<tr><td>Channel settings</td><td>Manage the channel's shared payee and collector as admin.</td></tr>
+</tbody></table>
+<p>Choose an action, inspect the prepared contract, arguments and value, then authorize it with the connected wallet. Success means a successful receipt and the resulting state, not merely a simulation or transaction hash. <strong>Refresh</strong> rereads state and removes a prepared call; <strong>Back</strong> rereads a prior view and restores compatible drafts. Switching accounts clears account-bound drafts.</p>
+<h2 id="balances">Keep the roles separate</h2>
+<p>The owner supplies funds and controls withdrawals. The permanent voucher key signs payment authority. The payee receives payment. The configured collector submits vouchers. The admin creates channels and changes payee/collector settings. These roles can be different addresses. Viewing another owner's balance grants none of their authority.</p>
+<p>Channel 0 is a reserve: it can hold and move funds, but cannot register a voucher key or collect payments. A channel's claim period is shared; its customers' balances are separate.</p>
+<h2 id="example">A payment, with numbers</h2>
+<p>Alice deposits 100 wei into channel 7 and registers key K. K signs a voucher for a lifetime cumulative total of 30, including the agreed invoice hash. The configured collector submits it with a 30-wei cap. The current payee receives 30, Alice's balance becomes 70, and her lifetime paid amount becomes 30. A later voucher for cumulative total 50 can authorize another 20, not another 50. Gas fees are separate.</p>
+<h3 id="vouchers">What a voucher authorizes</h3>
+<pre><code>payment = min(maxAmount,
+              max(cumulativeTotal - voucherPaid, 0),
+              currentBalance)</code></pre>
+<p>The caller must be the current nonzero collector, the signature must match the registered key, and collection must precede the recovery cutoff. These checks still apply to zero payment. Only a successful transfer increases <code>voucherPaid</code>.</p>
+<p>A deposit authorizes no charge by itself. A voucher authorizes settlement, not proof of work or invoice allocation. The invoice hash is signed, but the contract does not enforce invoice uniqueness, allocation, delivery or refunds for a failed service.</p>
+<h2 id="keys">Register the permanent key carefully</h2>
+<p>In <strong>Vouchers</strong>, connect the balance-owner wallet and enter the key's <em>address</em>, never its private key. Registration is once per operating, nonzero-channel position. Check that you can sign with the key before approving.</p>
+<p>The key cannot be replaced, revoked or reset, including after a refund. Changing the owner's wallet or its ERC-1271 policy does not revoke the key's ECDSA signatures. Old unpaid vouchers can become collectible again after an open position is refunded and funded again. Use a different position for a different key.</p>
+<h2 id="withdrawals">Withdraw or move funds</h2>
+<p>While operating, the owner requests a positive amount no greater than the balance. <code>requestWithdrawal</code> leaves an existing request unchanged. <code>setWithdrawal</code> explicitly creates or replaces it and restarts the full wait, even for the same or a smaller amount. There is no cancellation operation.</p>
+<p>At or after <code>readyAt</code>, anyone may execute a withdrawal to the balance owner. Only the owner may instead move the requested funds to another operating position of their own. Either operation transfers the smaller of request and balance and clears the whole request. A failed native transfer reverts.</p>
+<p><strong>A request does not reserve funds.</strong> Collection can reduce the balance before withdrawal. In this source revision, a positive deposit or incoming move into a position with a pending request restarts the full wait using the receiving channel’s claim period, preserving the amount requested. Zero-value credits do not restart it. For example, after a mature request for 100 survives collection of the original balance, depositing another 100 restarts readiness at the new credit timestamp plus the claim period. The reset is not a reservation for a payee or a promise of payment for later work. Older deployed contracts can still apply a mature request immediately to new funds. Ordinary withdrawals pay the owner, not the separately configured full-refund recipient.</p>
+<h2 id="recovery">Recover the full balance</h2>
+<p>Use <strong>Recovery</strong> to inspect the effective deadline and destination before acting. Positive funding and incoming moves normally schedule recovery after 365 days plus the claim period. Time passing changes the phase, but sends no transaction automatically.</p>
+<table><thead><tr><th>Phase</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Operating</td><td>Funding and owner renewal are allowed.</td></tr>
+<tr><td>Settling</td><td>No new funding or renewal; previously authorized vouchers remain collectible before the final cutoff.</td></tr>
+<tr><td>Refund-only</td><td>Collection has ended; anyone may execute a full refund to the stored destination.</td></tr>
+</tbody></table>
+<h3 id="wind-down">End a funding cycle early</h3>
+<p>The owner, admin or current payee may start wind-down. It can shorten, but never postpone, an existing effective exit. Settlement cannot be cancelled. Already-created ordinary withdrawal entitlements are preserved.</p>
+<h3 id="admin">Retire a channel</h3>
+<p>The admin or current payee can retire a channel permanently. This stops new funding immediately, preserves earlier exits, and allows each position to be refunded independently after its cutoff. It neither loops over customers nor transfers all funds at once. Only the admin can retire channel 0.</p>
+<h3 id="refunds">Choose the full-refund destination</h3>
+<p>Only the balance owner may change this destination; the default is the owner. A refund caller cannot choose it. A full refund clears the balance, ordinary request and funding-cycle deadline, but retains the key, paid total and configured recipient. A rejecting recipient affects only that position; its owner can correct the destination and retry.</p>
+<h3 id="batches">Refund many positions</h3>
+<p>Use the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/pay-to-play-refunds/README.md">bounded refund worker</a> for event discovery and independent batches. Complete historical funding and incoming-move coverage matters. A channel's <code>escrowTotal == 0</code> means no credited customer balance remains, not that forced uncredited native transfers are absent.</p>
+<h2 id="integrate">Integrate with a service</h2>
+<p><a href="integration.html">Follow the payment-integration guide</a> from deployment identity through durable invoice authorization, collection and reconciliation. The contract does not provide a purchase database or prove service delivery.</p>
+<p id="binding"><a href="integration.html#binding">Resolve and verify the payment address</a>, not the CAM host.</p>
+<p id="signing"><a href="integration.html#sign">Sign the four-field PayToPlay/2 voucher</a> with the confirmed permanent key. The helper reference owns exact invoice encodings and interoperability vectors.</p>
+<p id="api"><a href="integration.html#api">Use the deployed ABI and authored route mapping</a>; continuation inputs are not necessarily Solidity arguments.</p>
+<p id="compatibility"><a href="integration.html#compatibility">Plan replacement explicitly</a>. A new manifest cannot migrate balances, keys or issued vouchers to another contract.</p>
+<h2 id="local">Try locally</h2>
+<p>Start with <a href="../start/local-wallet.html">a local wallet and 100-wei deposit</a>, then <a href="local-payment.html">sign and collect a test voucher</a>. The shared wallet guide owns browser setup and cleanup; use public fixture keys only on disposable local state.</p>
+<h3 id="verify">Verification for contributors</h3>
+<p><a href="../development/app-checks.html#payment">Choose the payment or recovery campaign</a>, or <a href="../development/payment-fixture.html">hand an isolated deployment to another repository's test runner</a>. Live signing checks require disposable state. A passing fixture does not establish production readiness or delivered work.</p>
+
+</div>
