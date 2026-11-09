@@ -94,7 +94,7 @@ async function followTask(href) {
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 })
   for (let attempt = 0; attempt < 100; attempt++) {
     if (failure) throw failure
-    if (await evaluate(`location.pathname===${JSON.stringify('/' + href)}&&document.readyState==='complete'&&document.querySelector('main h1')!==null`)) return
+    if (await evaluate(`location.pathname===${JSON.stringify('/' + href)}&&document.readyState==='complete'&&document.querySelector('h1')!==null&&document.querySelector('main#main')!==null`)) return
     await new Promise(resolve => setTimeout(resolve, 50))
   }
   assert.fail(`Keyboard navigation did not reach the task: ${href}`)
