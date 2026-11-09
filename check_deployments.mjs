@@ -16,7 +16,7 @@ for (const [url, path, type] of [
 ]) files.set(url, { body: await readFile(`${site}/${path}`), type })
 const production = JSON.parse(files.get(page + 'deployments.json').body)
 const host = production.deployments[0].host
-const fixture = { viewer: production.viewer, deployments: [{ ...production.deployments[0], network: 'fixture', contracts: [
+const fixture = { viewer: production.viewer, previewViewer: production.previewViewer, deployments: [{ ...production.deployments[0], network: 'fixture', contracts: [
   { name: 'Registry', source: { address: '0x' + '1'.repeat(40), url: 'https://source.fixture.test/Registry.sol' } },
   { name: 'UI', source: { address: '0x' + '3'.repeat(40), url: 'https://source.fixture.test/UI.sol' } },
   { name: 'Unbound', source: { address: '0x' + '4'.repeat(40), url: 'https://source.fixture.test/Unbound.sol' } },
@@ -114,10 +114,11 @@ try {
   await call('Network.setCacheDisabled', { cacheDisabled: true })
   await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
-  assert.deepEqual(await evaluate('[...document.querySelectorAll(".deployment .actions a")].map(a=>a.textContent)'), ['Open app', 'App guide'], 'App actions are plain labels without arrows')
+  assert.deepEqual(await evaluate('[...document.querySelectorAll(".deployment .actions a")].map(a=>a.textContent)'), ['Open app', 'Pages preview', 'App guide'], 'Both viewers and the app guide use plain labels')
   assert.equal(await evaluate('document.querySelectorAll(".deployment .actions .button").length'), 0, 'Navigation links do not use button styling')
+  assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a:nth-child(2)").href).origin'), 'https://numpde.github.io', 'Pages preview uses Pages origin')
   assert(await evaluate(newTabActions), 'Both app actions open isolated new tabs')
-  assert.equal(await evaluate('document.querySelectorAll(".deployment a[target=_blank]").length'), 2, 'Other deployment links keep their existing navigation behavior')
+  assert.equal(await evaluate('document.querySelectorAll(".deployment a[target=_blank]").length'), 3, 'Other deployment links keep their existing navigation behavior')
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".address-controls code")].map(n=>n.textContent)'), [host, ...addresses])
   assert.equal(await evaluate('document.querySelectorAll(".deployment-heading select").length'), 0, 'A single deployment needs no selector')
   assert.equal(await evaluate('document.querySelectorAll(".contracts > div").length'), 4)
@@ -238,6 +239,7 @@ try {
   await until('document.querySelector("#fixture-old .rpc-controls [role=status]")?.textContent === "✓"')
   assert.equal(await evaluate('location.hash'), '#fixture-old')
   assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a").href).searchParams.get("host")'), olderHost)
+  assert.equal(await evaluate('new URL(document.querySelector(".deployment .actions a:nth-child(2)").href).searchParams.get("host")'), olderHost, 'Preview follows deployment selection')
   assert(await evaluate(newTabActions), 'Rebuilt actions retain isolated new tabs after switching deployments')
   assert(observed.some(request => request.method === 'eth_call' && request.params[0].to === olderHost), 'Selected root must receive RPC reads')
   assert(await evaluate('document.activeElement === document.querySelector("#deployment-select-fixture-app")'), 'Release switching retains keyboard focus')
