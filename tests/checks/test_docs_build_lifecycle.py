@@ -121,10 +121,10 @@ class DocsBuildLifecycleTests(unittest.TestCase):
                 self.assertIn("no-new-privileges:true", service["security_opt"])
                 self.assertNotEqual("host", service.get("pid"))
                 self.assertNotEqual("host", service.get("ipc"))
-                self.assertFalse(service.get("privileged", False))
+                self.assertFalse(service.get("privileged"))
                 self.assertFalse(service.get("ports"))
                 self.assertFalse(service.get("devices"))
-                self.assertFalse(service.get("use_api_socket", False))
+                self.assertFalse(service.get("use_api_socket"))
 
         builder = config["services"]["docs-build"]
         exporter = config["services"]["docs-export"]
@@ -159,8 +159,9 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertTrue(artifact_mount["volume"]["nocopy"])
         stage_mount = compose_volume(exporter, "/export")
         self.assertEqual("/tmp/dapp32-docs-stage-test", stage_mount["source"])
-        self.assertFalse(stage_mount.get("read_only", False))
-        self.assertFalse(stage_mount["bind"]["create_host_path"])
+        self.assertFalse(stage_mount.get("read_only"))
+        self.assertFalse(stage_mount["bind"].get("create_host_path"))
+        self.assertIn("bind: { create_host_path: false }", (ROOT / "compose/docs.yml").read_text(encoding="utf-8"))
         self.assertEqual(2, len(exporter["volumes"]))
         self.assertNotIn("/export", [mount["target"] for mount in builder["volumes"]])
 
@@ -168,7 +169,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertIn("exec node node_modules/.bin/vitepress", builder_command)
         self.assertNotIn("exec node_modules/.bin/vitepress", builder_command)
 
-    def run_operation(self, root: Path, mode: str, *, existing_site: bool = False) -> tuple[subprocess.CompletedProcess[str], list[dict], dict]:
+    def run_operation(self, root: Path, mode: str, *, existing_site: bool) -> tuple[subprocess.CompletedProcess[str], list[dict], dict]:
         (root / "output").mkdir()
         if existing_site:
             (root / "output/site").mkdir()
@@ -230,7 +231,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
     def test_success_publishes_and_cleans_the_private_stage_and_tmpfs_volume(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            result, calls, state = self.run_operation(root, "success")
+            result, calls, state = self.run_operation(root, "success", existing_site=False)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual("built", (root / "output/site/index.html").read_text())
             self.assertEqual(["docs-build", "docs-export"], state["services"])
@@ -256,7 +257,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         ):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                result, calls, state = self.run_operation(root, mode)
+                result, calls, state = self.run_operation(root, mode, existing_site=False)
                 self.assertEqual(expected, result.returncode, result.stderr)
                 self.assertEqual(services, state["services"])
                 self.assertIsNone(state["volume"])
@@ -266,7 +267,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
     def test_concurrent_publication_cannot_replace_an_existing_site(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            result, calls, state = self.run_operation(root, "publish-race")
+            result, calls, state = self.run_operation(root, "publish-race", existing_site=False)
             self.assertNotEqual(0, result.returncode)
             self.assertEqual("competitor", (root / "output/site/index.html").read_text())
             self.assertIsNone(state["volume"])
@@ -276,7 +277,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         for mode in ("down-fail", "volume-residue"):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                result, calls, state = self.run_operation(root, mode)
+                result, calls, state = self.run_operation(root, mode, existing_site=False)
                 self.assertNotEqual(0, result.returncode)
                 self.assertIsNotNone(state["volume"])
                 self.assertIn("Docs project/volume cleanup failed", result.stderr)
