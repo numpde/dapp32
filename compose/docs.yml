@@ -24,15 +24,40 @@ services:
         target: /work/js/node_modules
         read_only: true
         bind: { create_host_path: false }
-      # Supply an existing, dedicated empty directory for the build output.
+      # Only Docker-managed storage is writable by the documentation build.
+      - type: volume
+        source: docs-artifact
+        target: /out
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+        rm -rf /out/site
+        cp -a /input/docs /work/js/docs
+        exec node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
+
+  docs-export:
+    extends:
+      file: fragments/node-workspace.yml
+      service: offline-node-workspace
+    volumes:
+      - type: volume
+        source: docs-artifact
+        target: /artifact
+        read_only: true
       - type: bind
         source: ${DOCS_OUTPUT_DIR:?missing_DOCS_OUTPUT_DIR}
-        target: /out
+        target: /export
         bind: { create_host_path: false }
     command:
       - sh
       - -eu
       - -c
       - |
-        cp -a /input/docs /work/js/docs
-        exec node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out
+        test -f /artifact/site/index.html
+        test ! -e /export/site
+        cp -a /artifact/site /export/site
+
+volumes:
+  docs-artifact: {}
