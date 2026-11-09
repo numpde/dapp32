@@ -48,10 +48,12 @@ elif args[0] == "compose" and "run" in args:
     service = args[-1]
     state["services"].append(service)
     if service == "docs-build" and state["mode"] == "build-fail":
+        state_file.write_text(json.dumps(state))
         print("fixture docs compilation failed", file=sys.stderr)
         sys.exit(17)
     if service == "docs-export":
         if state["mode"] == "export-fail":
+            state_file.write_text(json.dumps(state))
             print("fixture docs export failed", file=sys.stderr)
             sys.exit(18)
         output = Path(os.environ["DOCS_OUTPUT_DIR"]) / "site"
@@ -111,6 +113,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "TRACE": str(root / "selector-trace"),
             "PATH": f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
             "BASH_ENV": str(root / "docker-functions.sh"),
+            "DOCS_OUTPUT_DIR": str(root / "output"),
         }
         makefile = (
             f"include {ROOT / 'Makefile'}\n"
