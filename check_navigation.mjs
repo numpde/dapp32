@@ -109,7 +109,7 @@ try {
   assert(await evaluate('[...document.querySelectorAll("main a")].filter(a=>a.getAttribute("href")==="gallery/").length >= 3'), 'Gallery is prominent within the original homepage layout')
   await visit('/gallery/')
   const galleryFrame = await evaluate('(() => ({ heading: document.querySelector("main h1")?.textContent, frame: !!document.querySelector(".docs-layout > main.docs-main.deployment-page"), breadcrumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelector(".docs-section-links a[aria-current=page]")?.textContent, apps: [...document.querySelectorAll(".docs-section-links a")].filter(a=>a.hash).map(a=>a.hash), duplicate: !!document.querySelector("#deployment-jump"), late: !!document.querySelector("script[src*=docs-nav]") }))()')
-  assert(galleryFrame.heading === 'Gallery' && galleryFrame.frame && galleryFrame.breadcrumb && galleryFrame.active === 'All deployed apps', 'Gallery has the same pre-rendered section frame as other pages')
+  assert(galleryFrame.heading === 'Gallery' && galleryFrame.frame && galleryFrame.breadcrumb && galleryFrame.active === 'Gallery', 'Gallery has the same pre-rendered section frame as other pages')
   assert.deepEqual(galleryFrame.apps, ['#bike-nft-fuji', '#pay-to-play-fuji-2026-11-08'], 'The Gallery menu follows the published catalog')
   assert(!galleryFrame.duplicate && !galleryFrame.late, 'Gallery must not create a second runtime menu')
   // A menu section is not necessarily a parent page. Only actual content
