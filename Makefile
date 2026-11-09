@@ -1700,29 +1700,29 @@ cam/abi/export: dapps/deps/verify
 .PHONY: docs/build
 docs/build:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
-	: "${DOCS_OUTPUT_DIR:?Set DOCS_OUTPUT_DIR to an existing absolute output directory}"; \
-	if [[ "$DOCS_OUTPUT_DIR" != /* || ! -d "$DOCS_OUTPUT_DIR" || -L "$DOCS_OUTPUT_DIR" || -e "$DOCS_OUTPUT_DIR/site" || -L "$DOCS_OUTPUT_DIR/site" ]]; then \
-	  printf '%s\\n' 'DOCS_OUTPUT_DIR must be an existing absolute directory without a site entry.' >&2; \
+	: "$${DOCS_OUTPUT_DIR:?Set DOCS_OUTPUT_DIR to an existing absolute output directory}"; \
+	if [[ "$$DOCS_OUTPUT_DIR" != /* || ! -d "$$DOCS_OUTPUT_DIR" || -L "$$DOCS_OUTPUT_DIR" || -e "$$DOCS_OUTPUT_DIR/site" || -L "$$DOCS_OUTPUT_DIR/site" ]]; then \
+	  printf '%s\n' 'DOCS_OUTPUT_DIR must be an existing absolute directory without a site entry.' >&2; \
 	  exit 2; \
 	fi; \
-	run_dir="$(mktemp -d -t dapp32-docs-XXXXXXXX)"; \
-	run_digest="$(printf '%s' "$run_dir" | sha256sum)"; \
-	run_project="$(COMPOSE_PROJECT_NAME)-docs-${run_digest:0:24}"; \
+	run_dir="$$(mktemp -d -t dapp32-docs-XXXXXXXX)"; \
+	run_digest="$$(printf '%s' "$$run_dir" | sha256sum)"; \
+	run_project="$(COMPOSE_PROJECT_NAME)-docs-$${run_digest:0:24}"; \
 	cleanup() { \
-	  status="$?"; \
+	  status="$$?"; \
 	  trap - EXIT; \
-	  if ! $(call disposable_cleanup_command,$run_project,-f $(COMPOSE_DIR)/docs.yml); then \
-	    if [[ "$status" == 0 ]]; then status=1; fi; \
+	  if ! $(call disposable_cleanup_command,$$run_project,-f $(COMPOSE_DIR)/docs.yml); then \
+	    if [[ "$$status" == 0 ]]; then status=1; fi; \
 	  fi; \
-	  rm -rf -- "$run_dir" || { \
-	    if [[ "$status" == 0 ]]; then status=1; fi; \
+	  rm -rf -- "$$run_dir" || { \
+	    if [[ "$$status" == 0 ]]; then status=1; fi; \
 	  }; \
-	  exit "$status"; \
+	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
-	$(DOCKER_COMPOSE) -p "$run_project" -f $(COMPOSE_DIR)/docs.yml run --build --rm --no-deps -T docs-build; \
-	$(DOCKER_COMPOSE) -p "$run_project" -f $(COMPOSE_DIR)/docs.yml run --rm --no-deps -T docs-export; \
-	printf 'Generated docs: %s/site\\n' "$DOCS_OUTPUT_DIR"
+	$(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml run --build --rm --no-deps -T docs-build; \
+	$(DOCKER_COMPOSE) -p "$$run_project" -f $(COMPOSE_DIR)/docs.yml run --rm --no-deps -T docs-export; \
+	printf 'Generated docs: %s/site\n' "$$DOCS_OUTPUT_DIR"
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status
 viewer/image/build:
