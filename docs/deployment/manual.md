@@ -1,0 +1,48 @@
+---
+title: "Deployment manual: moved sections"
+description: "Find the focused guide that replaces a section of the former deployment manual."
+outline: false
+---
+
+# The deployment manual has been split by task
+
+<div class="ported-guide">
+
+
+<p>Use <a href="./">Deploy</a> to choose a task. These retained section links take older bookmarks to the current explanation; this page is not a second procedure.</p>
+<h2>Plan, deploy and update</h2>
+<dl>
+<dt id="scope">System components</dt><dd><a href="../start/">What runs where</a></dd>
+<dt id="prepare">Prerequisites</dt><dd><a href="new-instance.html">Prepare a new instance</a></dd>
+<dt id="deploy-to-the-selected-chain">Full deployment</dt><dd><a href="new-instance.html">Deploy a new instance</a></dd>
+<dt id="host-the-prepared-bundle">Hosting pause</dt><dd><a href="new-instance.html">Host the prepared files and resume the same deployment</a></dd>
+<dt id="publish-prepared-cam">CAM publication</dt><dd><a href="update.html#cam-only">Publish the selected bundle on chain</a></dd>
+<dt id="update-an-existing-ui">Projection replacement</dt><dd><a href="update.html#projection">Replace a read-only Solidity projection</a></dd>
+<dt id="view-cam-publication">Local viewer for a publication</dt><dd><a href="../use/#local-publication">Open a saved publication</a></dd>
+</dl>
+<h2>Records, authority and recovery</h2>
+<dl>
+<dt id="independent-components">Instance and independent operations</dt><dd><a href="../reference/operations.html#instance">Defaults, saved selections and credentials</a></dd>
+<dt id="release-records">Retained phase evidence</dt><dd><a href="../reference/operations.html#artifacts">Artifact ownership</a></dd>
+<dt id="ui-signing-configuration">Projection-deployer configuration</dt><dd><a href="../reference/operations.html#configuration">Inputs for signed and keyless operations</a></dd>
+<dt id="docker-identity">Private-file access</dt><dd><a href="../reference/operations.html#identity">Qualify the selected local Docker engine</a></dd>
+<dt id="accept-the-selected-authorities">Nominee acceptance</dt><dd><a href="../reference/operations.html#handoffs">Separate authority handoffs</a></dd>
+<dt id="complete-component-records">Missing final artifacts</dt><dd><a href="recovery.html#records">Complete evidence without signing</a></dd>
+<dt id="complete-deployment-records">Verify, reconcile or resume</dt><dd><a href="recovery.html">Recover an interrupted release</a></dd>
+<dt id="cancel-a-release-or-rehearsal">Cancellation</dt><dd><a href="recovery.html#stop">Owned cleanup and unconfirmed removal</a></dd>
+</dl>
+<h2>Source verification and local practice</h2>
+<dl>
+<dt id="source-publication">Compiler source publication</dt><dd><a href="source-verification.html">Publish original sources to Sourcify</a></dd>
+<dt id="source-publication-recovery">Publication retries</dt><dd><a href="source-verification.html#retry">Resume jobs without redeploying</a></dd>
+<dt id="start-a-local-network-then-deploy-manually">Shared local release chain</dt><dd><a href="practice.html#persistent">Keep local state between release commands</a></dd>
+<dt id="view-an-existing-local-release">Local-release viewer</dt><dd><a href="practice.html#persistent">Open the saved publication on the shared chain</a></dd>
+<dt id="rehearse-the-release-locally">Isolated release rehearsal</dt><dd><a href="practice.html#isolated">Exercise the release with fixture keys</a></dd>
+<dt id="rehearse-approval-startup-and-rejection">Approval rejection</dt><dd><a href="practice.html#approval">Test a reviewed approval image</a></dd>
+<dt id="rehearse-a-successful-approval">Approval success</dt><dd><a href="practice.html#approval">Run the explicit fixture-only success check</a></dd>
+<dt id="progress-and-bounded-diagnostics">Private diagnostic evidence</dt><dd><a href="../reference/diagnostics.html#logs">Log locations, meanings and limits</a></dd>
+<dt id="explicit-simulation-comparison">Simulation experiment</dt><dd><a href="../reference/diagnostics.html#simulation">Compare isolated runs without a production fallback</a></dd>
+</dl>
+<p>The <a href="https://github.com/numpde/dapp32/blob/55734fdc51e2bf6f47387df50ee70e46537270b7/deployment/index.html">complete earlier manual</a> remains in Git history. Consult the current task owners above for instructions.</p>
+
+</div>
