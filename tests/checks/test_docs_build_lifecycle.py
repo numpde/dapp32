@@ -163,8 +163,10 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertIn("exec node node_modules/.bin/vitepress", builder_command)
         self.assertNotIn("exec node_modules/.bin/vitepress", builder_command)
 
-    def run_operation(self, root: Path, mode: str) -> tuple[subprocess.CompletedProcess[str], list[dict], dict]:
+    def run_operation(self, root: Path, mode: str, *, existing_site: bool = False) -> tuple[subprocess.CompletedProcess[str], list[dict], dict]:
         (root / "output").mkdir()
+        if existing_site:
+            (root / "output/site").mkdir()
         (root / "docker.py").write_text(FAKE_DOCKER)
         (root / "state.json").write_text(json.dumps({
             "mode": mode,
@@ -274,34 +276,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
     def test_existing_site_is_rejected_before_docker_runs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "output").mkdir()
-            (root / "output/site").mkdir()
-            result, calls, state = self.run_operation_with_existing_output(root)
-            self.assertNotEqual(0, result.returncode)
+            result, calls, state = self.run_operation(root, "success", existing_site=True)
+            self.assertEqual(2, result.returncode)
             self.assertFalse(calls)
             self.assertFalse(state["services"])
-
-    def run_operation_with_existing_output(self, root: Path) -> tuple[subprocess.CompletedProcess[str], list[dict], dict]:
-        # Keep this case focused on the startup guard: the full operation helper
-        # creates a fresh output directory and must not be used to bypass it.
-        (root / "docker.py").write_text(FAKE_DOCKER)
-        (root / "state.json").write_text(json.dumps({
-            "mode": "success", "project": None, "volume": None, "services": [],
-        }))
-        script = (
-            f"include {ROOT / 'Makefile'}\n"
-            "override LANE_GUARD := true\n"
-            "override PACKAGE_DEPS_GUARD := true\n"
-            'override select_host_output_identity = release_with_mapped_owner() { "$@"; }\n'
-        )
-        expanded = subprocess.run(
-            ["make", "-n", "-f", "-", "docs/build",
-             "DOCKER_CONTEXT=fixture", f"DOCS_OUTPUT_DIR={root / 'output'}"],
-            cwd=ROOT, input=script, capture_output=True, text=True, timeout=15,
-        )
-        self.assertEqual(0, expanded.returncode, expanded.stderr)
-        result = subprocess.run(
-            ["bash", "-eu", "-o", "pipefail", "-c", expanded.stdout],
-            cwd=ROOT, capture_output=True, text=True, timeout=15,
-        )
-        return result, [], json.loads((root / "state.json").read_text())
+            self.assertTrue((root / "output/site").is_dir())
