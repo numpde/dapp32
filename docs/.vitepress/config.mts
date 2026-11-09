@@ -26,7 +26,6 @@ export default defineConfig({
           { text: 'Examples and demos', link: '/examples/' },
         ] },
       ],
-      '/gallery/': false,
       '/use/': [
         { text: 'Use an app', items: [
           { text: 'Open an app', link: '/use/' },
