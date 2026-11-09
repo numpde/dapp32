@@ -8,8 +8,8 @@ services:
       file: fragments/node-workspace.yml
       # This variant additionally disables the container's network.
       service: offline-node-workspace
-    # Give the builder image a local name for the exporter to reuse.
-    image: dapp32-docs-builder:local
+    # Give each operation its own image so concurrent builds cannot replace it.
+    image: dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}
     # Build this local image rather than fetching a tagged image.
     pull_policy: build
     # Build the image from the existing Node tools; no new Dockerfile.
@@ -86,8 +86,8 @@ services:
       file: fragments/node-workspace.yml
       # Do not give the exporter network access.
       service: offline-node-workspace
-    # Reuse the exact local image produced by docs-build.
-    image: dapp32-docs-builder:local
+    # Reuse only the image built by this operation's docs-build service.
+    image: dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}
     # The exporter must neither pull an image nor access a registry.
     pull_policy: never
     # Do not create a second image from the inherited build definition.
