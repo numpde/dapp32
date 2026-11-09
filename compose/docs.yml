@@ -1,63 +1,122 @@
-# Offline VitePress 2 build. Acquire locked npm dependencies through the
-# existing js/deps/install lane; this service never installs or fetches them.
+# Build and export are separate, one-shot jobs; Make owns their temporary project.
 services:
+  # Compile documentation without access to the host output directory.
   docs-build:
+    # Inherit the repository's non-root, read-only, capability-free policy.
     extends:
+      # Use the shared Node service definitions rather than copying safeguards.
       file: fragments/node-workspace.yml
+      # This variant additionally disables the container's network.
       service: offline-node-workspace
+    # Give the builder image a local name for the exporter to reuse.
     image: dapp32-docs-builder:local
+    # Build this local image rather than fetching a tagged image.
     pull_policy: build
+    # Build the image from the existing Node tools; no new Dockerfile.
     build:
+      # Supply the repository's existing Node image build context.
       context: ../containers/node-deps
+      # Use its reviewed Dockerfile.
       dockerfile: Dockerfile
+      # Disable network access for Dockerfile RUN instructions.
       network: none
+    # Reap any processes the build tool leaves behind.
     init: true
+    # Run the VitePress CLI beside the prepared npm dependencies.
     working_dir: /work/js
+    # These are the only service-specific mounts; base tmpfs mounts are inherited.
     volumes:
+      # Read documentation sources, never modify them.
       - type: bind
+        # Use the repository's documentation source directory.
         source: ../docs
+        # Keep it separate from the writable build workspace.
         target: /input/docs
+        # The builder must not write to the checkout.
         read_only: true
+        # Fail if the source directory does not exist.
         bind: { create_host_path: false }
+      # Read dependencies acquired beforehand by the locked npm install lane.
       - type: bind
+        # Reuse the existing workspace's installed dependencies.
         source: ../js/node_modules
+        # Let the VitePress executable resolve from the working directory.
         target: /work/js/node_modules
+        # Prevent VitePress and plugins from altering installed packages.
         read_only: true
+        # Fail instead of creating an empty dependency directory.
         bind: { create_host_path: false }
-      # Only Docker-managed storage is writable by the documentation build.
+      # Keep compiled HTML/assets in Docker-managed storage, not on the host.
       - type: volume
+        # Make runs each build in a unique project; this volume is disposable.
         source: docs-artifact
+        # VitePress writes its static output here.
         target: /out
+    # Run a minimal shell solely to copy source into tmpfs and invoke VitePress.
     command:
+      # Use the image's POSIX shell.
       - sh
+      # Stop if either preparation or compilation fails.
       - -eu
+      # Evaluate the following two shell commands.
       - -c
+      # Multi-line shell script; there is no npm install in this service.
       - |
-        rm -rf /out/site
+        # Stage read-only source in the inherited writable tmpfs workspace.
         cp -a /input/docs /work/js/docs
+        # Build GitHub Pages paths into the disposable artifact volume.
         exec node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
 
+  # Copy completed files to the host only after docs-build exits successfully.
   docs-export:
+    # Use the same non-root, offline security posture as docs-build.
     extends:
+      # Share the Node container policy without duplicating it.
       file: fragments/node-workspace.yml
+      # Do not give the exporter network access.
       service: offline-node-workspace
+    # Reuse the exact local image produced by docs-build.
+    image: dapp32-docs-builder:local
+    # The exporter must neither pull an image nor access a registry.
+    pull_policy: never
+    # Do not create a second image from the inherited build definition.
+    build: !reset null
+    # Exporter access is limited to the artifact and designated host output.
     volumes:
+      # Read the completed site from the Docker volume.
       - type: volume
+        # Both services share this disposable artifact volume.
         source: docs-artifact
+        # The exporter reads it at a different path from the builder.
         target: /artifact
+        # The exporter must not change build artifacts.
         read_only: true
+      # Only the exporter sees a writable host directory.
       - type: bind
+        # The caller supplies an existing host directory for published output.
         source: ${DOCS_OUTPUT_DIR:?missing_DOCS_OUTPUT_DIR}
+        # Keep host output separate from container sources and dependencies.
         target: /export
+        # Refuse to silently create the host directory.
         bind: { create_host_path: false }
+    # Check that the build succeeded before copying its files.
     command:
+      # Use the image's POSIX shell.
       - sh
+      # Stop immediately on an invalid or incomplete artifact.
       - -eu
+      # Run the following checks and copy.
       - -c
+      # The copy is the only write to a host-mounted directory.
       - |
+        # Require the built landing page before exporting.
         test -f /artifact/site/index.html
-        test ! -e /export/site
+        # Never overwrite an existing or dangling-symlink output.
+        test ! -e /export/site && test ! -L /export/site
+        # Copy the complete static site into the caller's output directory.
         cp -a /artifact/site /export/site
 
+# Compose owns this volume only for the temporary project made by Make.
 volumes:
+  # Carry the site between builder and exporter, then remove it with down -v.
   docs-artifact: {}
