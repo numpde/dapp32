@@ -55,7 +55,7 @@ class DocsNavigationTests(unittest.TestCase):
                     self.assertTrue(pages[parent]["route"].startswith(section["id"] + "/"))
 
     def test_distinct_user_tasks_live_in_distinct_sections(self) -> None:
-        pages = dict(canonical_pages(DOCS))
+        pages = dict(canonical_pages(DOCS)[0])
         expected = {
             "examples/index.md": "start/examples/index.md",
             "pay-to-play/index.md": "use/pay-to-play/index.md",
