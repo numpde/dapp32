@@ -1,0 +1,61 @@
+/* VitePress owns chrome and navigation. These styles only cover the content
+   patterns carried over from the published hand-authored guides. */
+.vp-doc .ported-guide {
+  --ink: var(--vp-c-text-1);
+  --muted: var(--vp-c-text-2);
+  --panel: var(--vp-c-bg-soft);
+  --line: var(--vp-c-divider);
+  --green: var(--vp-c-brand-1);
+  --rust: #bd5c47;
+  --code: var(--vp-c-bg-alt);
+  --callout: var(--vp-c-bg-soft);
+  --callout-ink: var(--vp-c-text-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.vp-doc .ported-guide a { text-underline-offset: 2px; }
+.vp-doc .ported-guide .lede { color: var(--vp-c-text-2); font-size: 1.075rem; }
+.vp-doc .ported-guide .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,18rem),1fr)); gap: 1.1rem; margin-block: 1.5rem; }
+.vp-doc .ported-guide .grid.two { grid-template-columns: repeat(auto-fit,minmax(min(100%,19rem),1fr)); }
+.vp-doc .ported-guide .card, .vp-doc .ported-guide .registry-panel, .vp-doc .ported-guide .component-card, .vp-doc .ported-guide .flow-step {
+  min-width: 0; padding: 1.25rem; margin-block: .7rem; border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft); border-radius: 10px;
+}
+.vp-doc .ported-guide .card :first-child { margin-top: 0; }
+.vp-doc .ported-guide .task-routes dt, .vp-doc .ported-guide dl dt { font-weight: 650; margin-top: 1rem; }
+.vp-doc .ported-guide .task-routes dd, .vp-doc .ported-guide dl dd { margin: .35rem 0 1rem; }
+.vp-doc .ported-guide .flow { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap: .75rem; }
+.vp-doc .ported-guide .flow-step strong { color: var(--vp-c-brand-1); }
+.vp-doc .ported-guide .status-list { display: grid; gap: 1rem; }
+.vp-doc .ported-guide .status-row { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
+.vp-doc .ported-guide .chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.vp-doc .ported-guide .chip { border-radius: 6px; background: var(--vp-c-bg-alt); padding: .2rem .5rem; }
+.vp-doc .ported-guide .button { padding: .5rem .85rem; color: var(--vp-c-brand-1); border: 1px solid var(--vp-c-divider); border-radius: 6px; background: var(--vp-c-bg-soft); cursor: pointer; }
+.vp-doc .ported-guide .button:focus-visible { outline: 2px solid var(--vp-c-brand-1); outline-offset: 2px; }
+.vp-doc .ported-guide :is(pre,code) { overflow-wrap: normal; }
+.vp-doc .ported-guide pre { overflow-x: auto; padding: 1rem; background: var(--vp-code-block-bg); border-radius: 8px; }
+.vp-doc .ported-guide pre code { background: transparent; color: var(--vp-code-block-color, inherit); }
+.vp-doc .ported-guide table { display: table; width: 100%; border-collapse: collapse; }
+.vp-doc .ported-guide :is(th,td) { vertical-align: top; overflow-wrap: anywhere; }
+.vp-doc .ported-guide .route-table, .vp-doc .ported-guide .table-scroll { overflow-x: auto; }
+.vp-doc .ported-guide .route-table table, .vp-doc .ported-guide .table-scroll table { min-width: 38rem; }
+.vp-doc .ported-guide .note, .vp-doc .ported-guide .callout { border-inline-start: 3px solid var(--vp-c-brand-1); padding: .5rem 1rem; background: var(--vp-c-bg-soft); }
+.vp-doc .ported-guide .serial { font-family: var(--vp-font-family-mono); font-weight: 700; }
+.vp-doc .ported-guide .sources { color: var(--vp-c-text-2); font-size: .9rem; }
+.vp-doc .ported-guide .document-header { margin-block: 1rem; }
+.vp-doc .ported-guide :is(input,select) { max-width: 100%; }
+.vp-doc .network-page .toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin: 1.25rem 0; }
+.vp-doc .network-page .toolbar fieldset { border: 1px solid var(--vp-c-divider); display: flex; flex-wrap: wrap; gap: 1rem; padding: .5rem; }
+.vp-doc .network-page .toolbar label { cursor: pointer; display: inline-flex; gap: .45rem; }
+.vp-doc .network-page .table-wrap { overflow-x: auto; border: 1px solid var(--vp-c-divider); }
+.vp-doc .network-page table { min-width: 65rem; }
+.vp-doc .network-page th:first-child { position: sticky; left: 0; background: var(--vp-c-bg-soft); }
+.vp-doc .network-page .service + .service { margin-top: .5rem; }
+.vp-doc .network-page .service code { display: block; user-select: all; }
+.vp-doc .network-page .retired { color: var(--rust); font-weight: bold; }
+.vp-doc .network-page small { display: block; color: var(--vp-c-text-2); }
+.vp-doc .network-page #load-status { min-height: 1.5rem; }
+@media (max-width: 640px) {
+  .vp-doc .ported-guide .grid.two { grid-template-columns: 1fr; }
+  .vp-doc .ported-guide .status-row { display: block; }
+}
