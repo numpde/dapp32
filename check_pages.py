@@ -422,7 +422,7 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
                 # Deployment cards are rendered from checked catalog IDs at runtime.
                 if destination == (root / "deployments" / "index.html").resolve():
                     data = json.loads((root / "deployments" / "deployments.json").read_text())
-                    allowed = {entry["id"] for entry in data["deployments"]}
+                    allowed = pages[destination].ids | {entry["id"] for entry in data["deployments"]}
                 else:
                     allowed = pages[destination].ids
                 if target.fragment not in allowed:
