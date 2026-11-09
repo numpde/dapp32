@@ -1,0 +1,70 @@
+---
+title: "Build a workflow"
+description: "Make one visible change to a complete CAM workflow, validate it and run it locally."
+outline: false
+---
+
+# Build a workflow
+
+<div class="ported-guide">
+
+
+<p>Start by changing one screen in the complete Escrow example. You will see the change in the generic viewer without editing its React code or changing contract permissions.</p>
+<dl><dt>Run on</dt><dd>Your workstation, in a source checkout.</dd><dt>Requires</dt><dd><a href="../#development">Docker, Compose, Make and the locked dependencies</a>.</dd><dt>Changes</dt><dd>Local CAM files and a disposable chain. No public deployment.</dd><dt>Success</dt><dd>The local creation form shows your new label; CAM conformance passes.</dd></dl>
+<nav aria-label="Guide sections"><a href="#edit">Make a change</a> · <a href="#examples">Follow the read</a> · <a href="#write">Follow the write</a> · <a href="#publish">Publish deliberately</a></nav>
+<h2 id="edit">1. Make one visible change</h2>
+<p>In <code>dapps/escrow/cam/ui.json</code>, locate the <code>AmountField</code> with label <code>Escrow amount</code> in the agreement-creation screen. Change only its label to <code>Project budget</code>. Keep its state key, unit and expressions unchanged.</p>
+<p>The complete example has three different kinds of UI-related code:</p>
+<table><thead><tr><th>File or component</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>cam/main.json</code></td><td>Routes: what contract to read or call, and what happens next.</td></tr>
+<tr><td><code>cam/ui.json</code></td><td>Screens, fields, labels and buttons. This is what you are editing.</td></tr>
+<tr><td><code>CamEscrowUI</code></td><td>A read-only Solidity projection: state and available actions for a screen.</td></tr>
+<tr><td>Browser viewer</td><td>Renders those descriptions and connects a wallet. It is not the projection contract.</td></tr>
+</tbody></table>
+<h2>2. Refresh resource pins and validate</h2>
+<p>Replace <code>your-local-context</code> with your local Docker context. Use it for every command.</p>
+<pre><code>make cam/integrity/refresh DOCKER_CONTEXT=your-local-context
+make cam/conformance/check DOCKER_CONTEXT=your-local-context
+git diff -- dapps/escrow/cam</code></pre>
+<p>The UI's exact bytes changed, so its SHA-256 resource pin must change too. Inspect the diff: the intended label and affected integrity pins should explain it. Do not replace a digest with zero to bypass a failed check.</p>
+<h2>3. Open the complete example</h2>
+<pre><code>make escrow/local/demo/gui/up DOCKER_CONTEXT=your-local-context</code></pre>
+<p>Keep the command running. Open the complete printed URL, normally on loopback port 5174, and open the agreement-creation form. It should show <strong>Project budget</strong>. This is a local fixture, not an update to a deployed Escrow. No wallet is needed just to inspect the form.</p>
+<p>Stop the foreground command when finished. The explicit cleanup command is:</p>
+<pre><code>make escrow/local/demo/gui/down DOCKER_CONTEXT=your-local-context</code></pre>
+<p>Review your source diff before committing or discarding the experiment. Do not reset unrelated local work.</p>
+<h2 id="examples">Understand the read that opens the form</h2>
+<p>This is the complete <code>routes.createAgreementForm</code> object from the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/main.json">source manifest</a>, not a standalone manifest:</p>
+<pre data-source-route="escrow:createAgreementForm"><code>{
+  "kind": "read",
+  "inputs": [],
+  "call": {
+    "namespace": "contracts.CamEscrowUI",
+    "function": "viewCreateAgreement",
+    "args": { "client": "$account.address" }
+  },
+  "then": {
+    "namespace": "ui",
+    "function": "app",
+    "args": {
+      "view": {
+        "screen": "$outputs.0",
+        "navigation": "navigation.create"
+      }
+    }
+  }
+}</code></pre>
+<p>The host resolves <code>CamEscrowUI</code> to its address. The read uses the viewing account, receives the projection's result, and passes that result to the named <code>app</code> UI node. A viewing address is not proof of signing authority.</p>
+<h2 id="write">Understand how a field becomes a transaction</h2>
+<p>The amount field writes an exact base-unit decimal string to <code>$state.amount</code>. The creation button puts it in <code>params.amount</code>. The write route uses <code>$inputs.params.amount</code> for both the contract argument and native transaction value.</p>
+<p><strong>Field → button arguments → write route → review → wallet → receipt → next read.</strong> Preparation does not send anything. The contract still enforces its rules when a caller bypasses the viewer. A transaction hash is not a successful receipt.</p>
+<p>Follow the complete <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/ui.json">UI source</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/cam/main.json">route source</a> when changing arguments. A lone field/button excerpt does not supply the other agreement inputs.</p>
+<h2 id="publish">Publish deliberately</h2>
+<p>The current format is <a href="../reference/cam/1.4.0/">CAM 1.4.0 with UI 1.1.0</a>. The manifest commitment and resource integrity use SHA-256. Current software rejects the older manifest versions.</p>
+<p>For an ABI change, export the declared ABIs with <code>make cam/abi/export</code>, inspect the generated changes, and run conformance again. For a new app, add its explicit output mounts to the existing ABI/CAM build lanes; do not give a container write access to the whole checkout.</p>
+<p>A local file edit changes no chain publication. Use the <a href="../deployment/#publish-prepared-cam">bundle preparation and publication workflow</a> to make compatible resources available and have the CAM owner approve their new reference. A new business interface may require a contract migration, not just a new manifest.</p>
+<h2>Reference, not another tutorial</h2>
+<p>Use the current reference for <a href="../reference/cam/1.4.0/#expressions">expressions</a>, <a href="../reference/cam/1.4.0/#ui">UI fields and composition</a>, <a href="../reference/cam/1.4.0/#execution">execution outcomes</a> and <a href="../reference/cam/1.4.0/#security">trust boundaries</a>. In particular, the viewer can continue after an integrity warning; rendering a screen does not prove its authenticity.</p>
+<p>Source baseline: <code>04a18763</code>. The included route is checked against committed source by the documentation tests.</p>
+
+</div>
