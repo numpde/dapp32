@@ -109,28 +109,37 @@ try {
   assert(await evaluate('[...document.querySelectorAll("main a")].filter(a=>a.getAttribute("href")==="gallery/").length >= 3'), 'Gallery is prominent within the original homepage layout')
   await visit('/use/')
   assert(await evaluate('!!document.querySelector(\'main a[href="../gallery/"]\')'), 'Use guide must open the Gallery directly')
-  const guideOrientation = await evaluate(`(() => ({
-    breadcrumb: document.querySelector('nav[aria-label="Breadcrumb"]')?.textContent,
-    sectionLinks: [...document.querySelectorAll('nav[aria-label="In Use"] a')].map(a=>a.textContent),
-    toc: [...document.querySelectorAll('nav[aria-label="On this page"] a')].map(a=>({
-      href: a.hash, exists: !!document.getElementById(decodeURIComponent(a.hash.slice(1)))
-    })),
-    hasLayout: !!document.querySelector('.docs-layout > .docs-main'),
-  }))()`);
-  assert(guideOrientation.hasLayout && guideOrientation.breadcrumb?.includes('Home'), 'Use has contextual orientation')
-  assert(guideOrientation.sectionLinks.includes('Pay-to-Play') && guideOrientation.sectionLinks.includes('Escrow'), 'Use connects to actual app guides')
-  assert(guideOrientation.toc.length >= 4 && guideOrientation.toc.every(x=>x.exists), 'Long Use pages have valid section jumps')
+  const useOrientation = await evaluate('(() => ({ breadcrumb: document.querySelector(".docs-breadcrumb")?.textContent, current: [...document.querySelectorAll(".docs-section-links a[aria-current=page]")].map(a=>a.textContent), groups: [...document.querySelectorAll(".docs-subsection > summary")].map(x=>x.textContent), toc: !!document.querySelector(".docs-toc"), layout: !!document.querySelector(".docs-layout > .docs-main") }))()')
+  assert(useOrientation.layout && useOrientation.breadcrumb?.includes('Home') && useOrientation.current[0] === 'Use an app', 'Use has a consistent guide position')
+  assert.deepEqual(useOrientation.groups, ['Pay-to-Play', 'Escrow', 'Bike NFT'])
+  assert(!useOrientation.toc, 'Entry-page choices must not be duplicated as contents links')
   await visit('/pay-to-play/integration.html')
-  assert(await evaluate(`document.querySelector('nav[aria-label="Breadcrumb"]')?.textContent.includes('Pay-to-Play')`), 'Deep app guide shows its parent')
-  assert(await evaluate(`document.querySelector('nav[aria-label="In Pay-to-Play"] a[aria-current="page"]')?.textContent === 'Integrate payments'`), 'Nested guide active link is specific')
+  const payment = await evaluate('(() => ({ breadcrumb: document.querySelector(".docs-breadcrumb")?.textContent, active: document.querySelector(".docs-section-links a[aria-current=page]")?.textContent, group: [...document.querySelectorAll(".docs-subsection[open] > summary")].map(x=>x.textContent), toc: [...document.querySelectorAll(".docs-toc nav a")].map(a=>!!document.getElementById(decodeURIComponent(a.hash.slice(1)))) }))()')
+  assert(payment.breadcrumb?.includes('Use') && payment.breadcrumb?.includes('Pay-to-Play'))
+  assert.equal(payment.active, 'Integrate payments')
+  assert.deepEqual(payment.group, ['Pay-to-Play'])
+  assert(payment.toc.length === 0 && await evaluate('[...document.querySelectorAll("main article nav a")].filter(a=>a.getAttribute("href")?.startsWith("#")).length >= 4'), 'Authored contents replace, rather than duplicate, generated navigation')
+  await visit('/deployment/update.html')
+  const generated = await evaluate('([...document.querySelectorAll(".docs-toc nav a")].map(a=>!!document.getElementById(decodeURIComponent(a.hash.slice(1)))))')
+  assert(generated.length >= 4 && generated.every(Boolean), 'Long guide without authored contents has valid section jumps')
+  await visit('/escrow/')
+  assert(await evaluate('!document.querySelector(".docs-toc")'), 'Do not duplicate existing page-local contents')
   await visit('/deployment/')
-  assert(await evaluate(`document.querySelector('nav[aria-label="In Deploy"] a[aria-current="page"]')?.textContent === 'Deploy'`), 'Deploy shows section position')
+  assert.equal(await evaluate('document.querySelector(".docs-section-links a[aria-current=page]")?.textContent'), 'Choose a deployment task')
+  assert(await evaluate('!document.querySelector(".docs-toc")'), 'Deploy index is already a task contents page')
+  await visit('/deployment/pay-to-play/')
+  assert(await evaluate('document.querySelector(".docs-subsection[open] > summary")?.textContent === "App settings"'))
+  assert(await evaluate('document.querySelector(".docs-breadcrumb")?.textContent.includes("App settings")'))
+  await visit('/deployment/manual.html')
+  assert(await evaluate('document.querySelector(".docs-subsection[open] > summary")?.textContent === "Older bookmarks"'))
+  await visit('/deployment/networks/')
+  assert(await evaluate('document.querySelector("main.docs-wide") !== null && document.querySelector(".docs-section-links a[aria-current=page]")?.textContent === "Networks"'), 'Network reference has context without duplicating the table')
   await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 900, deviceScaleFactor: 1, mobile: false })
   await visit('/use/')
-  assert(await evaluate(`[...document.querySelectorAll('.docs-rail details')].every(x => !x.open)`), 'Mobile contextual groups are collapsed by default')
-  assert(await evaluate(`document.documentElement.scrollWidth <= innerWidth`), 'Mobile guide navigation must not overflow')
-  await evaluate(`document.querySelector('.docs-rail summary').click()`)
-  assert(await evaluate(`document.querySelector('.docs-rail details').open`), 'Mobile section navigation opens with a native disclosure')
+  assert(await evaluate('document.querySelector(".docs-section")?.open === false'), 'Mobile section navigation starts collapsed')
+  assert(await evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile navigation must not overflow')
+  await evaluate('document.querySelector(".docs-section > summary").click()')
+  assert(await evaluate('document.querySelector(".docs-section")?.open'), 'Native mobile disclosure opens')
   await call('Emulation.clearDeviceMetricsOverride')
   const files = await pages(root)
   for (const color of ['light', 'dark']) {
@@ -149,8 +158,12 @@ try {
         const { fit, ...style } = value
         if (reference === undefined) reference = style
         else assert.deepEqual(style, reference, `Header style differs: ${file} (${color}, ${width}px)`)
-        const taskFits = await evaluate(`!document.querySelector('main.document > article.narrow')||document.documentElement.scrollWidth<=innerWidth+1`)
-        assert(taskFits, `Task content widens the page at ${width}px: ${file}`)
+        const guidePath = file.slice(root.length).replace(/\/index\.html$/, '/')
+        const appPage = guidePath === '/' || guidePath === '/gallery/'
+        const orientation = await evaluate('(() => ({ rail: !!document.querySelector(".docs-rail"), crumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelectorAll(".docs-section-links a[aria-current=page]").length, overflow: document.documentElement.scrollWidth>innerWidth }))()')
+        assert(!orientation.overflow, 'Page overflows at ' + width + 'px: ' + file)
+        if (!appPage) assert(orientation.rail && orientation.crumb && orientation.active === 1, 'No unique guide location at ' + width + 'px: ' + file)
+        else assert(!orientation.rail, 'Homepage and Gallery are not documentation guides: ' + file)
         const next = color === 'dark' ? 'light' : 'dark'
         const changed = await clickTheme(next)
         assert.notEqual(changed.background, value.body, `Theme choice did not change the rendered palette: ${file}`)
