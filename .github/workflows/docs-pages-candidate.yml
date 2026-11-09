@@ -1,4 +1,4 @@
-name: Docs Pages candidate
+name: Documentation qualification and automatic publication
 
 on:
   push:
@@ -17,7 +17,6 @@ on:
       - tests/checks/test_docs_site.py
       - tools/make/docs.mk
       - tools/docs_site.py
-      - .github/workflows/docs-publish.yml
   pull_request:
     paths:
       - .github/workflows/docs-pages-candidate.yml
@@ -31,7 +30,6 @@ on:
       - tests/checks/test_docs_port.py
       - tests/checks/test_docs_build_lifecycle.py
       - tests/checks/test_docs_site.py
-      - .github/workflows/docs-publish.yml
   workflow_dispatch:
 
 permissions:
@@ -98,3 +96,118 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: qualify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - name: Check out qualified source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Check out independent Pages publication branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: gh-pages
+          path: site
+          persist-credentials: true
+
+      - name: Download the exact qualified artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: docs-pages-candidate
+          path: qualified
+
+      - name: Validate, stage and update gh-pages without touching the viewer
+        id: publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$GITHUB_SHA"
+
+          # Never publish a superseded source revision.
+          current="$(git -C site ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$current" != "$GITHUB_SHA" ]]; then
+            echo "::error::A newer source revision exists; refuse stale documentation publication." >&2
+            exit 2
+          fi
+          python3 -B source/tools/docs_site.py check source/docs qualified
+          python3 -B source/tools/docs_site.py stage source/docs qualified site "$GITHUB_SHA" "$GITHUB_RUN_ID"
+          cd site
+          git add -A -- .
+          if git diff --cached --name-only -- viewer/ | grep -v '^viewer/deploy\.html$' | grep -q .; then
+            echo "Documentation publisher must not modify viewer application files." >&2
+            exit 2
+          fi
+          if git diff --cached --quiet; then
+            echo 'Published branch already matches the qualified documentation.'
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Publish qualified docs from $GITHUB_SHA (run $GITHUB_RUN_ID)"
+          git push origin HEAD:refs/heads/gh-pages
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+          echo "published_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # A GITHUB_TOKEN git push does not by itself trigger a Pages branch build.
+      - name: Request and verify Pages deployment from gh-pages
+        if: steps.publication.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED_SHA: ${{ steps.publication.outputs.published_sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/pages-settings.json"
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          settings = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-settings.json").read_text())
+          origin = settings.get("source") or {}
+          if (settings.get("build_type") != "legacy" or origin.get("branch") != "gh-pages"
+                  or origin.get("path") != "/"):
+              raise SystemExit("Pages must publish gh-pages / in branch mode")
+          PY
+
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" > "$RUNNER_TEMP/pages-request.json"
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          request = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-request.json").read_text())
+          if request.get("status") != "queued":
+              raise SystemExit(f"Unexpected Pages build request: {request!r}")
+          PY
+
+          for attempt in {1..48}; do
+            gh api "repos/$GITHUB_REPOSITORY/pages/builds/latest" > "$RUNNER_TEMP/pages-result.json"
+            if python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          build = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-result.json").read_text())
+          if build.get("commit") != os.environ["PUBLISHED_SHA"]:
+              raise SystemExit(1)
+          if build.get("status") == "built":
+              print("GitHub Pages confirmed this exact published commit.")
+              raise SystemExit(0)
+          if build.get("status") in ("errored", "failed", "canceled"):
+              raise SystemExit(f"GitHub Pages build failed: {build.get('error')}")
+          raise SystemExit(1)
+          PY
+            then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Pages did not confirm the published commit $PUBLISHED_SHA." >&2
+          exit 2

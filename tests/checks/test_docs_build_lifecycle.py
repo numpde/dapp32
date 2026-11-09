@@ -297,33 +297,26 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertFalse(any(call["args"][:2] in (["volume", "create"], ["volume", "rm"])
                                  for call in calls))
 
-    def test_pages_workflows_do_not_create_unbounded_candidate_branches(self) -> None:
-        for path, branch, lane in (
-            (".github/workflows/docs-publish.yml", "docs/vitepress-pages-candidate", "propose"),
-            (".github/workflows/viewer-pages-preview.yml", "docs/viewer-preview-candidate", "publish"),
-        ):
-            with self.subTest(path=path):
-                source = (ROOT / path).read_text(encoding="utf-8")
-                publishing_job = source.split(f"  {lane}:\n", 1)[1]
-                if branch == "docs/vitepress-pages-candidate":
-                    self.assertIn("if: github.ref == 'refs/heads/main'", publishing_job)
-                    self.assertIn("workflow_dispatch:", source)
-                else:
-                    self.assertIn(
-                        "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
-                        publishing_job,
-                    )
-                self.assertIn(f'branch="{branch}"', publishing_job)
-                if branch == "docs/vitepress-pages-candidate":
-                    self.assertIn("git -C site ls-remote --heads origin", publishing_job)
-                else:
-                    self.assertIn("git ls-remote --heads origin", publishing_job)
-                self.assertNotRegex(publishing_job, r'branch="[^"\n]*\$GITHUB_RUN_')
-                if branch == "docs/vitepress-pages-candidate":
-                    self.assertIn("run-id: ", publishing_job)
-                    self.assertIn("source/tools/docs_site.py stage", publishing_job)
-                else:
-                    self.assertIn("needs: ", publishing_job)
+    def test_docs_publish_automatically_from_main_without_candidate_branches(self) -> None:
+        source = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")
+        publisher = source.split("  publish:\n", 1)[1]
+        self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main'", publisher)
+        self.assertIn("needs: qualify", publisher)
+        self.assertIn("pages: write", publisher)
+        self.assertIn("actions/download-artifact@", publisher)
+        self.assertIn("source/tools/docs_site.py stage", publisher)
+        self.assertIn("git push origin HEAD:refs/heads/gh-pages", publisher)
+        self.assertIn("gh api -X POST", publisher)
+        self.assertIn("pages/builds/latest", publisher)
+        self.assertNotIn("gh pr create", publisher)
+        self.assertNotIn('branch="docs/', publisher)
+        self.assertFalse((ROOT / ".github/workflows/docs-publish.yml").exists())
+
+        viewer = (ROOT / ".github/workflows/viewer-pages-preview.yml").read_text(encoding="utf-8")
+        viewer_publisher = viewer.split("  publish:\n", 1)[1]
+        self.assertIn("if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+                      viewer_publisher)
+        self.assertIn('branch="docs/viewer-preview-candidate"', viewer_publisher)
 
     def test_each_operation_owns_a_distinct_project_and_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -338,11 +331,11 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertEqual(2, len(projects))
 
     def test_publisher_rejects_unowned_viewer_assets_before_transfer(self) -> None:
-        workflow = (ROOT / ".github/workflows/docs-publish.yml").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")
         self.assertIn("source/tools/docs_site.py check", workflow)
         self.assertIn("source/tools/docs_site.py stage", workflow)
         self.assertIn("git diff --cached --name-only -- viewer/", workflow)
-        self.assertIn("previously qualified output without rebuilding", workflow.lower())
+        self.assertIn("Download the exact qualified artifact", workflow)
 
     def test_failures_remove_the_stage_and_volume_before_publication(self) -> None:
         for mode, expected, services in (
