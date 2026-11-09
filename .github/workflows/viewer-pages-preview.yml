@@ -1,0 +1,156 @@
+name: Viewer Pages preview candidate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/viewer-pages-preview.yml
+      - js/apps/cam-web/**
+      - js/packages/cam-*/**
+      - js/package.json
+      - js/package-lock.json
+      - compose/viewer-image.yml
+      - compose/fragments/node-workspace.yml
+      - containers/node-deps/**
+      - containers/viewer/**
+      - tools/viewer_image_build.sh
+      - Makefile
+  pull_request:
+    paths:
+      - .github/workflows/viewer-pages-preview.yml
+      - js/apps/cam-web/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: viewer-pages-preview
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out viewer source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: source
+          persist-credentials: false
+      - name: Check out the Pages publishing branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: gh-pages
+          path: site
+          persist-credentials: false
+      - name: Acquire the exact viewer build and runtime bases
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dockerfile in containers/node-deps/Dockerfile containers/viewer/Dockerfile; do
+            base="$(awk '$1 == "FROM" { print $2 }' "source/$dockerfile")"
+            test -n "$base"
+            docker --context default pull "$base"
+          done
+      - name: Install checksum-locked JavaScript dependencies
+        run: make -C source js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-pages-preview
+      - name: Compile using the existing confined viewer image build
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C source viewer/image/build DOCKER_CONTEXT=default VIEWER_IMAGE="viewer-pages-$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT"
+      - name: Extract and validate the relocatable static bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="viewer-pages-$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT"
+          container="viewer-pages-export-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          cleanup() {
+            docker --context default rm -f "$container" >/dev/null 2>&1 || :
+            docker --context default image rm "$image" >/dev/null 2>&1 || :
+          }
+          trap cleanup EXIT
+          test -s site/viewer/deploy.html
+          docker --context default create --name "$container" --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" >/dev/null
+          rm -rf -- site/viewer/assets
+          docker --context default cp "$container:/srv/viewer/." site/viewer/
+          python3 -B - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class Assets(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.refs = []
+                  self.has_root = False
+              def handle_starttag(self, tag, attrs):
+                  attrs = dict(attrs)
+                  if attrs.get('id') == 'root':
+                      self.has_root = True
+                  path = attrs.get('src') if tag == 'script' else attrs.get('href') if tag == 'link' else None
+                  if path:
+                      self.refs.append(path)
+          root = Path('site/viewer')
+          index = root / 'index.html'
+          parser = Assets()
+          parser.feed(index.read_text(encoding='utf-8'))
+          assert parser.has_root, 'generated viewer lacks application root'
+          assert parser.refs and any(path.endswith('.js') for path in parser.refs), 'viewer has no JavaScript entry'
+          assert all(path.startswith('./assets/') for path in parser.refs), parser.refs
+          assert all((root / path).is_file() for path in parser.refs), 'missing built assets'
+          assert not any(path.is_symlink() for path in root.rglob('*')), 'no symlink-based Pages escapes'
+          assert (root / 'deploy.html').is_file(), 'preserve hosting guide'
+          print(f'Pages viewer preview: {len(parser.refs)} entry assets, static paths checked')
+          PY
+      - name: Retain the reviewed static candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: viewer-pages-preview
+          path: |
+            site/viewer/index.html
+            site/viewer/assets/
+          retention-days: 1
+          if-no-files-found: error
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out Pages for a reviewable change
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: gh-pages
+          path: site
+          persist-credentials: true
+      - name: Retrieve the qualified static files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: viewer-pages-preview
+          path: site/viewer
+      - name: Propose the preview update against gh-pages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s site/viewer/deploy.html
+          test -s site/viewer/index.html
+          test -d site/viewer/assets
+          cd site
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- viewer/index.html viewer/assets
+          if git diff --cached --quiet; then
+            echo 'Pages viewer already matches the qualified build.'
+            exit 0
+          fi
+          source_revision="$GITHUB_SHA"
+          git commit -m "Build Pages viewer preview from $source_revision"
+          branch="docs/viewer-preview-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git push origin "HEAD:refs/heads/$branch"
+          echo "Preview candidate branch: $branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" --title "Publish Pages viewer preview $(printf %s "$source_revision" | cut -c1-12)" --body "Static viewer bundle from main@$source_revision. Built with the existing pinned-image/locked-dependency path. Only viewer/index.html and viewer/assets/ change. Review and merge to publish; the stand-alone viewer is unaffected."
