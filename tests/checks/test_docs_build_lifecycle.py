@@ -196,7 +196,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             f"include {ROOT / 'Makefile'}\n"
             "override LANE_GUARD := true\n"
             "override PACKAGE_DEPS_GUARD := true\n"
-            'override select_host_output_identity = release_with_mapped_owner() { LOCAL_UID=0 LOCAL_GID=0 "$$@"; };\n'
+            'override select_host_output_identity = release_with_mapped_owner() { LOCAL_UID=0 LOCAL_GID=0 "$@"; }\n'
         )
         expanded = subprocess.run(
             ["make", "--no-print-directory", "-n", "-f", "-", "docs/build",
@@ -292,7 +292,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             f"include {ROOT / 'Makefile'}\n"
             "override LANE_GUARD := true\n"
             "override PACKAGE_DEPS_GUARD := true\n"
-            'override select_host_output_identity = release_with_mapped_owner() { "$$@"; };\n'
+            'override select_host_output_identity = release_with_mapped_owner() { "$@"; }\n'
         )
         expanded = subprocess.run(
             ["make", "-n", "-f", "-", "docs/build",
