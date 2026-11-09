@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Understand what runs where · dapp32</title><meta name="description" content="Separate the browser viewer, hosted workflow files, on-chain host and business contracts before choosing a task."><script src="../theme.js"></script>
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
-<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="./" aria-current="page">Start</a><a href="../deployments/">Apps</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
+<div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="./" aria-current="page">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
 <main id="main" class="shell document"><article class="narrow">
 <h1>What runs where?</h1>
 <p>An app author describes a workflow in JSON. A contract publishes where to find it. A generic viewer reads that description and displays the app; a compatible agent can interpret it without drawing a screen. Business contracts, not the description, enforce the rules.</p>
@@ -34,7 +34,7 @@
 <tr><td>Provide a viewer website</td><td><a href="../viewer/deploy.html">Deploy the viewer</a></td><td>Server software, not contracts.</td></tr>
 <tr><td>Change screens or navigation</td><td><a href="../authoring/">Build a workflow</a>, then <a href="../deployment/#publish-prepared-cam">publish its bundle</a></td><td>Files and an approved publication update.</td></tr>
 <tr><td>Create a new on-chain app</td><td><a href="../deployment/">Deploy an instance</a></td><td>Contracts and publication, through separately approved transactions.</td></tr>
-<tr><td>Use contracts already deployed</td><td><a href="../deployments/">Available instances</a></td><td>Nothing until you authorize an action.</td></tr>
+<tr><td>Use contracts already deployed</td><td><a href="../gallery/">Gallery of deployed apps</a></td><td>Nothing until you authorize an action.</td></tr>
 </tbody></table>
 <h2>What hashes do—and do not—tell you</h2>
 <p>The current format uses SHA-256 over exact manifest and resource bytes. Matching hashes can connect files to a selected host's publication; they do not establish that the publisher, workflow, RPC or deployed code is trustworthy. Address bindings can change separately.</p>
