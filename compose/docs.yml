@@ -20,9 +20,18 @@ services:
       dockerfile: Dockerfile
       # Disable network access for Dockerfile RUN instructions.
       network: none
-    # Reap any processes the build tool leaves behind.
+    # Reap subprocesses started by the build tool.
     init: true
-    # Run the VitePress CLI beside the prepared npm dependencies.
+    # Deny swap-backed memory and limit worker proliferation.
+    memswap_limit: 1g
+    pids_limit: 128
+    shm_size: 16m
+    # Do not permit executables on the two writable build workspaces.
+    # The Node binary and installed dependencies remain on immutable mounts.
+    tmpfs: !override
+      - /tmp:rw,nosuid,nodev,noexec,size=128m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=0700
+      - /work/js:rw,nosuid,nodev,noexec,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=0700
+    # Run VitePress with an immutable Node binary, not a script on writable tmpfs.
     working_dir: /work/js
     # These are the only service-specific mounts; base tmpfs mounts are inherited.
     volumes:
@@ -52,6 +61,8 @@ services:
         source: docs-artifact
         # VitePress writes its static output here.
         target: /out
+        # Never populate a new artifact volume from image contents.
+        volume: { nocopy: true }
     # Run a minimal shell solely to copy source into tmpfs and invoke VitePress.
     command:
       # Use the image's POSIX shell.
@@ -65,7 +76,7 @@ services:
         # Stage read-only source in the inherited writable tmpfs workspace.
         cp -a /input/docs /work/js/docs
         # Build GitHub Pages paths into the disposable artifact volume.
-        exec node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
+        exec node node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
 
   # Copy completed files to the host only after docs-build exits successfully.
   docs-export:
@@ -81,7 +92,17 @@ services:
     pull_policy: never
     # Do not create a second image from the inherited build definition.
     build: !reset null
-    # Exporter access is limited to the artifact and designated host output.
+    # The exporter runs only sh, test, and cp; it needs no writable workspace,
+    # Node configuration, npm cache, or temporary filesystem.
+    environment: !reset null
+    tmpfs: !reset []
+    working_dir: /
+    # A copy job needs fewer processes and less memory than a VitePress build.
+    pids_limit: 32
+    mem_limit: 768m
+    memswap_limit: 768m
+    shm_size: 1m
+    # Only the fresh stage directory is writable on the host.
     volumes:
       # Read the completed site from the Docker volume.
       - type: volume
@@ -91,13 +112,14 @@ services:
         target: /artifact
         # The exporter must not change build artifacts.
         read_only: true
+        volume: { nocopy: true }
       # Only the exporter sees a writable host directory.
       - type: bind
-        # The caller supplies an existing host directory for published output.
-        source: ${DOCS_OUTPUT_DIR:?missing_DOCS_OUTPUT_DIR}
-        # Keep host output separate from container sources and dependencies.
+        # Make creates this empty, private, per-run stage directory.
+        source: ${DOCS_STAGE_DIR:?missing_DOCS_STAGE_DIR}
+        # Never give the container write access to the output directory itself.
         target: /export
-        # Refuse to silently create the host directory.
+        # Refuse to create a missing host directory.
         bind: { create_host_path: false }
     # Check that the build succeeded before copying its files.
     command:
@@ -109,8 +131,9 @@ services:
       - -c
       # The copy is the only write to a host-mounted directory.
       - |
-        # Require the built landing page before exporting.
-        test -f /artifact/site/index.html
+        # Require a real directory and landing page (not symlinks).
+        test -d /artifact/site && test ! -L /artifact/site
+        test -f /artifact/site/index.html && test ! -L /artifact/site/index.html
         # Never overwrite an existing or dangling-symlink output.
         test ! -e /export/site && test ! -L /export/site
         # Copy the complete static site into the caller's output directory.
