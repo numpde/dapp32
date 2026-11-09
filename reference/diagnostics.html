@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/">Deploy</a><a href="../reference/" aria-current="location">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Reference</a></li><li><span aria-current="page">Diagnostics</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Reference</summary><nav class="docs-section-links" aria-label="In Reference"><a href="./">Reference</a><a href="cam/">CAM specifications</a><a href="operations.html">Operational records</a><a href="diagnostics.html" aria-current="page">Diagnostics</a><a href="../deployment/networks/">Networks</a><a href="../deployment/rpc/">RPC services</a></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#symptoms">What does the observation establish?</a><a href="#logs">Private logs and their limits</a><a href="#rpc">RPC capacity is part of the deadline</a><a href="#simulation">Simulation experiments are fixture-only</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../">Home</a></li><li><a href="./">Reference</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Release diagnostics</h1>
 <p>Start with the records directory printed by the failed command. Diagnose the failing boundary before deciding whether to resume. Use <a href="../deployment/recovery.html">release recovery</a> for the commands that act on the result.</p>
 <h2 id="symptoms">What does the observation establish?</h2>
@@ -48,7 +44,4 @@
 <p><code>normal</code> remains the default. The explicit <code>skip</code> experiment is admitted only by the startup check and changes one signer command in its new private fixture source. It does not edit the operator checkout or production launcher. Approval isolation, automatic fixture rejection and cleanup remain enforced.</p>
 <p>A passing skip run identifies a dependency on normal simulation/preparation, not a root cause or a safe production workaround. Never add an automatic skip fallback or bypass approval to obtain a green result. Compare the two runs' <code>approval-diagnostics.json</code> and <code>approval-rpc.log</code>.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139/tests/fixtures/release-rehearsal">bounded rehearsal diagnostics</a>, <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139/containers/rpc-proxy">RPC proxy implementation</a> and <a href="https://github.com/foundry-rs/foundry-core/blob/fork-db-v0.26.0/crates/fork-db/src/backend.rs#L311-L398">the account-loader fallback</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>
