@@ -33,7 +33,7 @@ make pay-to-play/release/cam/bundle DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</
 <pre><code>make pay-to-play/release/verify DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE" &amp;&amp;
 make viewer/release/up DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
 <p>Select the completed publication and open a fresh session. Refreshing a screen's read does not reload publication resources. Inspect the chain, root, resource integrity, intended bindings and a known task. For the Pay-to-Play navigation update, check all six destinations and that the balances/keys belong to the same intended payment contract.</p>
-<p>Historical record verification does not prove current ownership or every critical action. Test the intended authorities and app behavior before accepting the cutover. Stop this local viewer with <code>viewer/release/down</code>; permanent server hosting has its <a href="../viewer/">own lifecycle</a>.</p>
+<p>Historical record verification does not prove current ownership or every critical action. Test the intended authorities and app behavior before accepting the cutover. Stop this local viewer with <code>viewer/release/down</code>; permanent server hosting has its <a href="../viewer/deploy.html">own lifecycle</a>.</p>
 <h2 id="migration">Business replacement needs a migration decision</h2>
 <p>A new business contract has a new address and state. Pay-to-Play vouchers bind the verifying-contract address; changing an ABI or manifest cannot move deposits, permanent keys or signatures. Specify the client/state transition and treatment of the old instance before deploying a replacement.</p>
 <h2 id="recover">Recover or reverse deliberately</h2>
