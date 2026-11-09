@@ -10,6 +10,7 @@ on:
       - check_navigation.mjs
       - check_deployments.mjs
       - viewer/deploy.html
+      - 'gallery/**'
       - 'deployments/**'
       - Makefile
       - .github/workflows/pages-navigation.yml
@@ -23,6 +24,7 @@ on:
       - check_navigation.mjs
       - check_deployments.mjs
       - viewer/deploy.html
+      - 'gallery/**'
       - 'deployments/**'
       - Makefile
       - .github/workflows/pages-navigation.yml

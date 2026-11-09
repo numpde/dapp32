@@ -4,16 +4,31 @@ import { readFile } from 'node:fs/promises'
 const cdp = new URL(process.env.CDP_ORIGIN)
 assert(cdp.protocol === 'http:' && !cdp.username && !cdp.password)
 const site = process.env.SITE_ROOT
-const page = 'https://numpde.github.io/dapp32/deployments/'
+const page = 'https://numpde.github.io/dapp32/gallery/'
+const legacy = 'https://numpde.github.io/dapp32/deployments/'
 const catalogURL = 'https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json'
 const files = new Map()
 for (const [url, path, type] of [
-  [page, 'deployments/index.html', 'text/html'],
-  [page + 'deployments.js', 'deployments/deployments.js', 'text/javascript'],
-  [page + 'deployments.json', 'deployments/deployments.json', 'application/json'],
+  [page, 'gallery/index.html', 'text/html'],
+  [page + 'deployments.js', 'gallery/deployments.js', 'text/javascript'],
+  [page + 'deployments.json', 'gallery/deployments.json', 'application/json'],
   ['https://numpde.github.io/dapp32/theme.js', 'theme.js', 'text/javascript'],
   ['https://numpde.github.io/dapp32/site.css', 'site.css', 'text/css'],
 ]) files.set(url, { body: await readFile(`${site}/${path}`), type })
+// Check the executable redirect from the legacy route, including historical
+// deep links, without aborting unrelated in-flight CDP RPC interceptions.
+const redirectHTML = await readFile(`${site}/deployments/index.html`, 'utf8')
+const redirectScript = redirectHTML.match(/<script>([\s\S]*?)<\/script>/)?.[1]
+assert(redirectScript, 'Legacy deployment route must contain a redirect script')
+function redirectedURL(search, hash) {
+  let redirected
+  const window = { location: { search, hash, replace(target) { redirected = new URL(target, legacy).href } } }
+  new Function('window', redirectScript)(window)
+  return redirected
+}
+assert.equal(redirectedURL('?source=bookmark', '#pay-to-play-fuji'), page + '?source=bookmark#pay-to-play-fuji')
+assert.equal(redirectedURL('', '#pay-to-play-fuji-2026-11-08'), page + '#pay-to-play-fuji-2026-11-08')
+assert.equal(redirectedURL('', ''), page)
 const production = JSON.parse(files.get(page + 'deployments.json').body)
 const host = production.deployments[0].host
 const fixture = { viewer: production.viewer, previewViewer: production.previewViewer, deployments: [{ ...production.deployments[0], network: 'fixture', contracts: [
@@ -255,7 +270,7 @@ try {
   await evaluate('history.back()')
   await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
   assert.equal(await evaluate('location.hash'), '#fixture-old', 'Back restores the older release URL and selection')
-  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 900, 800, 600, 390, 320], compactRows: true, responsiveVerification: true, enlargedText: true, rpcDisclosure: true, selectionKeepsFocusAndScroll: true, mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true }))
+  console.log(JSON.stringify({ fixtures: true, pinnedReads: true, noWrites: true, wrongChainRejected: true, failureAndRetry: true, staleCompletionDiscarded: true, customWithoutCatalog: true, widths: [1280, 900, 800, 600, 390, 320], compactRows: true, responsiveVerification: true, enlargedText: true, rpcDisclosure: true, selectionKeepsFocusAndScroll: true, mockCopy: true, nativeClipboardTested: false, datedChoices: true, latestDefault: true, fragmentHistory: true, legacyDeepLinks: true }))
   if (process.env.LIVE_RPC === '1') {
     live = true; await navigate()
     const appCount = new Set(production.deployments.map(deployment => deployment.appId)).size
