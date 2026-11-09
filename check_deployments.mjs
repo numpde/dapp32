@@ -257,6 +257,7 @@ try {
   await evaluate('history.back()')
   await until('document.querySelector("#deployment-select-fixture-app")?.value === "fixture-old"')
   assert.equal(await evaluate('location.hash'), '#fixture-old', 'Back restores the older release URL and selection')
+  await until('document.querySelector("#fixture-old .rpc-controls [role=status]")?.textContent === "✓"')
   // Historical bookmarked URLs must open the *same* Gallery instance, without
   // losing the selected old release or its query parameters.
   await call('Page.navigate', { url: legacy + '?source=bookmark#fixture-old' })
