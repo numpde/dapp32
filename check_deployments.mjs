@@ -114,7 +114,7 @@ try {
   await call('Page.enable'); await call('Runtime.enable'); await call('Network.enable')
   await call('Emulation.setFocusEmulationEnabled', { enabled: true })
   await call('Network.setCacheDisabled', { cacheDisabled: true })
-  await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
+  await call('Fetch.enable', { patterns: [{ urlPattern: page + '*' }, { urlPattern: legacy + '*' }, { urlPattern: 'https://numpde.github.io/dapp32/site.css' }, { urlPattern: 'https://numpde.github.io/dapp32/theme.js' }, { urlPattern: catalogURL }, { urlPattern: publicRPC + '*' }, { urlPattern: customRPC + '*' }] })
   await navigate(); await until(working)
   assert.deepEqual(await evaluate('[...document.querySelectorAll(".deployment .actions a")].map(a=>a.textContent)'), ['Open app', 'Pages preview', 'App guide'], 'Both viewers and the app guide use plain labels')
   assert.equal(await evaluate('document.querySelectorAll(".deployment .actions .button").length'), 0, 'Navigation links do not use button styling')
