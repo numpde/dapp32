@@ -99,9 +99,13 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "volume": None,
             "services": [],
         }))
-        (root / "docker-functions.sh").write_text(
-            'docker() { "$PYTHON" "$CASE_ROOT/docker.py" "$@"; }\nexport -f docker\n'
+        docker = root / "docker"
+        docker.write_text(
+            "#!/usr/bin/env bash\n"
+            f'if [[ $1 == context ]]; then exec "{ROOT / "tests/fixtures/docker-context/docker"}" "$@"; fi\n'
+            'exec "$PYTHON" "$CASE_ROOT/docker.py" "$@"\n'
         )
+        docker.chmod(0o755)
         endpoint = "unix:///tmp/docs-test-selected.sock"
         environment = {
             **os.environ,
@@ -111,8 +115,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "TEST_EXPECTED_DOCKER_ENDPOINT": endpoint,
             "ENDPOINT": endpoint,
             "TRACE": str(root / "selector-trace"),
-            "PATH": f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
-            "BASH_ENV": str(root / "docker-functions.sh"),
+            "PATH": f"{root}:{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
             "DOCS_OUTPUT_DIR": str(root / "output"),
         }
         makefile = (
