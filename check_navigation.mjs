@@ -162,7 +162,10 @@ try {
         const appPage = guidePath === '/' || guidePath === '/gallery/'
         const orientation = await evaluate('(() => ({ rail: !!document.querySelector(".docs-rail"), crumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelectorAll(".docs-section-links a[aria-current=page]").length, overflow: document.documentElement.scrollWidth>innerWidth }))()')
         assert(!orientation.overflow, 'Page overflows at ' + width + 'px: ' + file)
-        if (!appPage) assert(orientation.rail && orientation.crumb && orientation.active === 1, 'No unique guide location at ' + width + 'px: ' + file)
+        if (!appPage) {
+          assert(orientation.rail && orientation.crumb && orientation.active === 1, 'No unique guide location at ' + width + 'px: ' + file)
+          assert(await evaluate(`!document.querySelector('script[src*="docs-nav.js"]') && !!document.querySelector('.docs-layout > main.docs-main')`), 'Guide layout must be pre-rendered, not injected after load: ' + file)
+        }
         else assert(!orientation.rail, 'Homepage and Gallery are not documentation guides: ' + file)
         const next = color === 'dark' ? 'light' : 'dark'
         const changed = await clickTheme(next)
@@ -197,7 +200,8 @@ try {
   assert.equal(staticHeader.visible, false, 'A nonfunctional theme control stays hidden without JavaScript')
   assert(staticHeader.fit && staticHeader.labels.length === 6, 'Navigation remains usable without JavaScript')
   await visit('/use/')
-  assert(await evaluate(`document.querySelector('.docs-rail') === null && !!document.querySelector('main a[href="../gallery/"]')`), 'No-JS docs retain their original main content and primary links')
+  assert(await evaluate(`document.querySelector('.docs-rail') !== null && !!document.querySelector('main a[href="../gallery/"]')`), 'No-JS docs include the pre-rendered menu and original task links')
+  assert(await evaluate(`!!document.querySelector('.docs-breadcrumb') && !!document.querySelector('.docs-layout > .docs-main') && !document.querySelector('script[src*="docs-nav.js"]')`), 'No-JS document has its complete layout on the first render')
   assert.equal(await evaluate('document.querySelector("#theme-toggle").hidden'), true)
   await followTask('gallery/')
   await followTask('use/')
