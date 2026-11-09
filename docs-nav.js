@@ -147,6 +147,7 @@
   const slug = text => text.normalize('NFKD').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 64);
   const toc = [];
+  const newIds = new Set();
   for (const heading of headings) {
     if (!heading.id) {
       const stem = slug(heading.textContent) || 'section';
@@ -154,10 +155,16 @@
       for (let n = 2; seen.has(id); n++) id = `${stem}-${n}`;
       heading.id = id;
       seen.add(id);
+      newIds.add(id);
     }
     toc.push([`#${encodeURIComponent(heading.id)}`, heading.textContent.trim()]);
   }
   if (toc.length >= 4) group('On this page', toc.slice(0, 9));
+  // The browser resolves fragments before deferred scripts create these IDs.
+  if (location.hash) {
+    const target = decodeURIComponent(location.hash.slice(1));
+    if (newIds.has(target)) requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
+  }
   const section = top.find(([name]) => name === ancestor);
   const selected = [...document.querySelectorAll('.topbar nav a')]
     .find(link => link.href === urlFor(section[1]));
