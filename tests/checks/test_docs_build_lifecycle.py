@@ -241,7 +241,9 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertEqual(1, len({call["stage"] for call in calls if call["args"][0] == "compose"}))
             image_tags = {call["image_tag"] for call in calls if call["args"][0] == "compose"}
             self.assertEqual(1, len(image_tags))
-            self.assertEqual(24, len(next(iter(image_tags))))
+            image_tag = next(iter(image_tags))
+            self.assertEqual(24, len(image_tag))
+            self.assertTrue(state["project"].endswith(f"-docs-{image_tag}"))
             self.assertFalse(any(call["args"][:2] in (["volume", "create"], ["volume", "rm"])
                                  for call in calls))
 
