@@ -26,6 +26,8 @@
   },
   "devDependencies": {
     "@types/node": "24.10.1",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vitepress": "2.0.0-alpha.21",
+    "vue": "3.5.44"
   }
 }
