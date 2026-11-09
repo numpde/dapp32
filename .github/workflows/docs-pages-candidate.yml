@@ -47,7 +47,8 @@ jobs:
           set -euo pipefail
           base="$(awk '$1 == "FROM" { print $2 }' source/containers/node-deps/Dockerfile)"
           test -n "$base"
-          docker --context default pull "$base"
+          CAM_DOCKER_ENDPOINT="$(bash source/tools/docker_context.sh "command line" default undefined "" 0)"
+          docker --host "$CAM_DOCKER_ENDPOINT" pull "$base"
 
       - name: Install existing checksum-locked dependencies
         shell: bash
