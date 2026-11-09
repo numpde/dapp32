@@ -124,6 +124,24 @@ jobs:
           name: docs-pages-candidate
           path: qualified
 
+      - name: Verify the configured Pages source before modifying gh-pages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/pages-settings.json"
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          settings = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-settings.json").read_text())
+          origin = settings.get("source") or {}
+          if (settings.get("build_type") != "legacy" or origin.get("branch") != "gh-pages"
+                  or origin.get("path") != "/"):
+              raise SystemExit("Pages must publish gh-pages / in branch mode")
+          PY
+
       - name: Validate, stage and update gh-pages without touching the viewer
         id: publication
         shell: bash
@@ -153,6 +171,13 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Publish qualified docs from $GITHUB_SHA (run $GITHUB_RUN_ID)"
+          # Check again immediately before the update. git push is non-forced,
+          # and therefore refuses concurrent gh-pages publication.
+          current="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$current" != "$GITHUB_SHA" ]]; then
+            echo "::error::Source main changed during staging; refuse stale publication." >&2
+            exit 2
+          fi
           git push origin HEAD:refs/heads/gh-pages
           echo 'changed=true' >> "$GITHUB_OUTPUT"
           echo "published_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -166,18 +191,6 @@ jobs:
           PUBLISHED_SHA: ${{ steps.publication.outputs.published_sha }}
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/pages-settings.json"
-          python3 -B - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-          settings = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-settings.json").read_text())
-          origin = settings.get("source") or {}
-          if (settings.get("build_type") != "legacy" or origin.get("branch") != "gh-pages"
-                  or origin.get("path") != "/"):
-              raise SystemExit("Pages must publish gh-pages / in branch mode")
-          PY
-
           gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" > "$RUNNER_TEMP/pages-request.json"
           python3 -B - <<'PY'
           import json

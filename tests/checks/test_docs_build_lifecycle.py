@@ -307,6 +307,9 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertIn("source/tools/docs_site.py stage", publisher)
         self.assertIn("git push origin HEAD:refs/heads/gh-pages", publisher)
         self.assertIn("gh api -X POST", publisher)
+        self.assertLess(publisher.index("Verify the configured Pages source"),
+                        publisher.index("git push origin HEAD:refs/heads/gh-pages"))
+        self.assertIn("git ls-remote origin refs/heads/main", publisher)
         self.assertIn("pages/builds/latest", publisher)
         self.assertNotIn("gh pr create", publisher)
         self.assertNotIn('branch="docs/', publisher)
