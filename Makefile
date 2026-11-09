@@ -1698,7 +1698,7 @@ cam/abi/export: dapps/deps/verify
 # One build owns exactly one disposable Compose project and its named artifact volume.
 # The builder sees no writable host output. Only the exporter can copy /out/site.
 .PHONY: docs/build
-docs/build: export DOCS_OUTPUT_DIR
+docs/build: export DOCS_OUTPUT_DIR := $(DOCS_OUTPUT_DIR)
 docs/build:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
 	: "$${DOCS_OUTPUT_DIR:?Set DOCS_OUTPUT_DIR to an existing absolute output directory}"; \
