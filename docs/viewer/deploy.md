@@ -27,7 +27,7 @@ make viewer/image/build DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE"</code></pre>
 <p>Replace <code>your-local-context</code> with a local entry from <code>docker context ls</code>. Image acquisition and locked dependency installation are the networked preparation steps. The viewer builder then runs offline. It does not publish the image or install missing dependencies implicitly. Solidity dependencies are not needed just to build the viewer.</p>
 <h2 id="run">2. Start it on loopback</h2>
 <p>Continue in the same shell. Record the resulting image ID for updates and rollback, then start the existing runtime:</p>
-<pre><code>docker --context "$CTX" image inspect "$IMAGE" --format '{{.Id}}' &amp;&amp;
+<pre v-pre><code>docker --context "$CTX" image inspect "$IMAGE" --format '{{.Id}}' &amp;&amp;
 make viewer/up DOCKER_CONTEXT="$CTX" \
   VIEWER_IMAGE="$IMAGE" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer \
   VIEWER_BIND_HOST=127.0.0.1 VIEWER_PORT=8080 &amp;&amp;
