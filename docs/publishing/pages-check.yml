@@ -1,0 +1,53 @@
+name: Generated Pages checks
+on:
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - '**/*.html'
+      - 'assets/**'
+      - 'gallery/**'
+      - 'docs-publication.json'
+      - '.github/workflows/pages-check.yml'
+  push:
+    branches: [gh-pages]
+    paths:
+      - '**/*.html'
+      - 'assets/**'
+      - 'gallery/**'
+      - 'docs-publication.json'
+      - '.github/workflows/pages-check.yml'
+permissions:
+  contents: read
+concurrency:
+  group: generated-pages-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Check out generated site without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: site
+          persist-credentials: false
+      - name: Read exact source revision from publication manifest
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(python3 -B -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_sha"])' site/docs-publication.json)"
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          printf 'sha=%s\n' "$revision" >> "$GITHUB_OUTPUT"
+      - name: Check out qualified source without credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          path: source
+          persist-credentials: false
+      - name: Verify generated inventory, immutable references and viewer boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "${{ steps.source.outputs.sha }}"
+          python3 -B source/tools/docs_site.py check-published source/docs site
