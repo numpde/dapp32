@@ -12,7 +12,7 @@ SOURCE_ARCHIVE_ROOT: Path | None = None
 # The published pages keep static, usable links; this is their single source.
 PRIMARY_NAVIGATION = (
     ("start/", "Start"),
-    ("use/", "Use"),
+    ("deployments/", "Apps"),
     ("authoring/", "Build"),
     ("deployment/", "Deploy"),
     ("reference/", "Reference"),
@@ -336,11 +336,14 @@ class PageParser(HTMLParser):
         self.example_text: list[str] = []
         self.primary_links: list[str] = []
         self.app_guide_links: list[str] = []
+        self.gallery_apps: list[str] = []
         self.in_primary_nav = False
         self.in_app_guides = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
+        if attributes.get("data-gallery-app"):
+            self.gallery_apps.append(attributes["data-gallery-app"])
         if tag == "nav" and attributes.get("aria-label") == "Primary":
             self.in_primary_nav = True
         if tag == "section" and attributes.get("id") == "apps":
@@ -418,8 +421,15 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
                 destination /= "index.html"
             if not destination.is_relative_to(root.resolve()) or not destination.is_file():
                 raise AssertionError(f"missing or out-of-site local link: {page}: {href}")
-            if target.fragment and target.fragment not in pages[destination].ids:
-                raise AssertionError(f"missing fragment target: {page}: {href}")
+            if target.fragment:
+                # Deployment cards are rendered from checked catalog IDs at runtime.
+                if destination == (root / "deployments" / "index.html").resolve():
+                    data = json.loads((root / "deployments" / "deployments.json").read_text())
+                    allowed = pages[destination].ids | {entry["id"] for entry in data["deployments"]}
+                else:
+                    allowed = pages[destination].ids
+                if target.fragment not in allowed:
+                    raise AssertionError(f"missing fragment target: {page}: {href}")
 
         for owner, text in parser.examples:
             dapp, name = owner.split(":", 1)
@@ -457,6 +467,12 @@ def check_deployments(root: Path, repo_root: Path) -> None:
     assert not preview.username and not preview.password and not preview.query and not preview.fragment
     catalog = json.loads((repo_root / "js/packages/cam-viewer/src/rpc-catalog.json").read_text())
     assert isinstance(data["deployments"], list)
+    homepage = PageParser()
+    homepage.feed((root / "index.html").read_text())
+    gallery_apps = homepage.gallery_apps
+    published_apps = {deployment["appId"] for deployment in data["deployments"]}
+    assert len(gallery_apps) == len(set(gallery_apps)), "Duplicate app in homepage gallery"
+    assert set(gallery_apps) == published_apps, f"Homepage gallery must cover every published app: {published_apps - set(gallery_apps)}"
     identifiers = set()
     applications = {}
     for deployment in data["deployments"]:
@@ -471,6 +487,8 @@ def check_deployments(root: Path, repo_root: Path) -> None:
             import datetime
             datetime.date.fromisoformat(deployment["deployedAt"])
         assert deployment["name"] and deployment["network"] in catalog
+        assert isinstance(deployment["chainId"], int) and not isinstance(deployment["chainId"], bool)
+        assert deployment["chainId"] == catalog[deployment["network"]]["chainId"], "Published chain identity must match network catalog"
         guide = (page / deployment["guide"] / "index.html").resolve()
         assert guide.is_relative_to(root.resolve()) and guide.is_file()
         address = deployment["host"]

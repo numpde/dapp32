@@ -94,7 +94,7 @@ async function followTask(href) {
   await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 })
   for (let attempt = 0; attempt < 100; attempt++) {
     if (failure) throw failure
-    if (await evaluate(`location.pathname===${JSON.stringify('/' + href)}&&document.readyState==='complete'&&document.querySelector('main h1')!==null`)) return
+    if (await evaluate(`location.pathname===${JSON.stringify('/' + href)}&&document.readyState==='complete'&&document.querySelector('h1')!==null&&document.querySelector('main#main')!==null`)) return
     await new Promise(resolve => setTimeout(resolve, 50))
   }
   assert.fail(`Keyboard navigation did not reach the task: ${href}`)
@@ -104,6 +104,45 @@ try {
   session = (await call('Target.attachToTarget', { targetId: target, flatten: true }, undefined)).sessionId
   await call('Page.enable'); await call('Runtime.enable'); await call('Emulation.setFocusEmulationEnabled', { enabled: true }); await call('Fetch.enable', { patterns: [{ urlPattern: '*' }] })
   await visit('/')
+  assert.equal(await evaluate('document.querySelector("#gallery h1")?.textContent'), 'Deployed apps')
+  assert.deepEqual(await evaluate('[...document.querySelectorAll("[data-gallery-app] h2")].map(x=>x.textContent)'), ['Pay-to-Play', 'Bicycle component registry'])
+  // Catalog hydration must make the latest real app reachable in one click,
+  // without duplicating CAM host addresses in the homepage's static markup.
+  let gallery
+  for (let attempt = 0; attempt < 100; attempt++) {
+    gallery = await evaluate(`(() => {
+      const cards = [...document.querySelectorAll('[data-gallery-app]')]
+      if (cards.some(card => card.querySelectorAll('.gallery-links a').length < 4)) return null
+      return cards.map(card => ({
+        name: card.querySelector('h2').textContent,
+        links: [...card.querySelectorAll('.gallery-links a')].map(a => ({ label: a.textContent, href: a.href, target: a.target })),
+        releases: [...card.querySelectorAll('select option')].map(o => ({ value: o.value, text: o.textContent })),
+      }))
+    })()`)
+    if (gallery) break
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert(gallery, 'Homepage cards must gain direct viewer links from the deployment catalog')
+  assert.deepEqual(gallery.map(card => card.links.map(a => a.label)), [
+    ['Open app', 'Pages preview', 'Deployment details', 'Guide'],
+    ['Open app', 'Pages preview', 'Deployment details', 'Guide'],
+  ])
+  assert.deepEqual(gallery[0].releases.map(o => o.text), ['2026-11-08 · Latest', '2026-10-30'])
+  for (const card of gallery) {
+    assert.equal(new URL(card.links[0].href).searchParams.get('chainId'), 'eip155:43113')
+    assert.equal(new URL(card.links[1].href).searchParams.get('chainId'), 'eip155:43113')
+    assert.equal(card.links[0].target, '_blank')
+    assert.equal(card.links[1].target, '_blank')
+  }
+  assert.equal(new URL(gallery[0].links[0].href).searchParams.get('host').toLowerCase(), '0xaf64d347faac6aec8a80f2fc8420681619a9fa49')
+  await evaluate(`(() => {
+    const card = document.querySelector('[data-gallery-app="pay-to-play"]')
+    card.querySelector('select').value = 'pay-to-play-fuji'
+    card.querySelector('select').dispatchEvent(new Event('change'))
+  })()`)
+  assert.equal(await evaluate(`new URL(document.querySelector('[data-gallery-app="pay-to-play"] .gallery-links a').href).searchParams.get('host').toLowerCase()`), '0x2714d4566fff401957a9096c9a6c39d686877d3a')
+  assert((await evaluate(`document.querySelector('[data-gallery-app="pay-to-play"] [data-gallery-details]').href`)).endsWith('/deployments/#pay-to-play-fuji'))
+  assert.equal(await evaluate('document.querySelector("nav[aria-label=Primary] a:nth-child(2)").textContent'), 'Apps')
   const files = await pages(root)
   for (const color of ['light', 'dark']) {
     await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: color }] })
@@ -155,6 +194,8 @@ try {
   const staticHeader = await visit('/deployment/networks/')
   assert.equal(staticHeader.visible, false, 'A nonfunctional theme control stays hidden without JavaScript')
   assert(staticHeader.fit && staticHeader.labels.length === 5, 'Navigation remains usable without JavaScript')
+  assert.equal(await evaluate('document.querySelector("#theme-toggle").hidden'), true)
+  await followTask('deployments/')
   await followTask('viewer/deploy.html')
   await followTask('start/local-wallet.html')
   await call('Emulation.setScriptExecutionDisabled', { value: false })

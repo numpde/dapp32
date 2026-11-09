@@ -32,7 +32,8 @@
         }
       ],
       "hostSource": "https://github.com/numpde/dapp32/blob/5cd938b45fa2652422a14f95e1844307e7044f58/dapps/cam/src/CamRoot.sol",
-      "appId": "bike-nft"
+      "appId": "bike-nft",
+      "chainId": 43113
     },
     {
       "id": "pay-to-play-fuji",
@@ -58,7 +59,8 @@
       ],
       "hostSource": "https://github.com/numpde/dapp32/blob/39336c8897acdc9ce2061562714220bc7996d6f3/dapps/cam/src/CamRoot.sol",
       "appId": "pay-to-play",
-      "deployedAt": "2026-10-30"
+      "deployedAt": "2026-10-30",
+      "chainId": 43113
     },
     {
       "id": "pay-to-play-fuji-2026-11-08",
@@ -87,7 +89,8 @@
         }
       ],
       "hostSource": "https://github.com/numpde/dapp32/blob/0c33dceb4697fe5b7b5ba0d14d4bb0d61b6b3696/dapps/cam/src/CamRoot.sol",
-      "hostVerificationUrl": "https://repo.sourcify.dev/43113/0xaF64d347fAAC6aEC8a80F2fc8420681619A9FA49"
+      "hostVerificationUrl": "https://repo.sourcify.dev/43113/0xaF64d347fAAC6aEC8a80F2fc8420681619A9FA49",
+      "chainId": 43113
     }
   ]
 }
