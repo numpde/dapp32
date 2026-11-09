@@ -99,6 +99,24 @@ jobs:
               assert published.read_bytes() == original.read_bytes(), f'protocol bytes differ: {version}'
           gallery = json.loads((output / 'gallery/deployments.json').read_text())
           assert gallery['deployments'], 'Gallery has no published deployments'
+          # Interactive page targets must be real server-rendered elements,
+          # not escaped HTML inside an accidentally indented Markdown block.
+          from html.parser import HTMLParser
+          class PageIds(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.ids = set()
+              def handle_starttag(self, tag, attrs):
+                  attributes = dict(attrs)
+                  if attributes.get('id'):
+                      self.ids.add(attributes['id'])
+          for route, required in (
+              ('gallery/index.html', {'load-status', 'retry', 'deployments'}),
+              ('deployment/networks/index.html', {'load-status', 'reference', 'networks', 'network-jump'}),
+          ):
+              parser = PageIds()
+              parser.feed((output / route).read_text(encoding='utf-8'))
+              assert required <= parser.ids, f'{route}: missing DOM mount IDs {required - parser.ids}'
           for entry in output.rglob('*'):
               relative = entry.relative_to(output)
               assert not entry.is_symlink(), f'generated symlink is forbidden: {relative}'
