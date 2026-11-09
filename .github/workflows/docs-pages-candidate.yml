@@ -14,6 +14,9 @@ on:
       - Makefile
       - tests/checks/test_docs_port.py
       - tests/checks/test_docs_build_lifecycle.py
+      - tools/make/docs.mk
+      - tools/docs_site.py
+      - .github/workflows/docs-publish.yml
   pull_request:
     paths:
       - .github/workflows/docs-pages-candidate.yml
@@ -21,6 +24,12 @@ on:
       - compose/docs.yml
       - js/package.json
       - js/package-lock.json
+      - Makefile
+      - tools/make/docs.mk
+      - tools/docs_site.py
+      - tests/checks/test_docs_port.py
+      - tests/checks/test_docs_build_lifecycle.py
+      - .github/workflows/docs-publish.yml
   workflow_dispatch:
 
 permissions:
