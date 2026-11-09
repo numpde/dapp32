@@ -3,7 +3,7 @@ override define reject_external_make_expression
 $(and $(filter command line environment environment override,$(origin $(1))),$(findstring $$,$(value $(1))),$(error $(1) must not contain Make expression syntax))
 endef
 override COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME VIEWER_COMPOSE_PROJECT_NAME RELEASE_VIEWER_COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
-$(foreach name,LOCAL_UID LOCAL_GID ALLOW_UPDATE $(COMPOSE_PROJECT_NAME_VARS) ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN CAM_URI CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS VIEWER_TERMINAL_MOCK,$(call reject_external_make_expression,$(name)))
+$(foreach name,LOCAL_UID LOCAL_GID ALLOW_UPDATE DOCS_OUTPUT_DIR $(COMPOSE_PROJECT_NAME_VARS) ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN CAM_URI CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS VIEWER_TERMINAL_MOCK,$(call reject_external_make_expression,$(name)))
 
 $(foreach name,DEPS_COMPOSE_ENV PACKAGE_DEPS_COMPOSE_ENV ABI_EXPORT_COMPOSE_ENV RPC_COMPOSE_ENV RPC_INDEXER_COMPOSE_ENV ANVIL_COMPOSE_ENV LIVE_CHECK_COMPOSE_ENV BIKE_NFT_COMPOSE_ENV BIKE_NFT_LOCAL_COMPOSE_ENV BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV BIKE_NFT_VIEWER_GUI_COMPOSE_ENV BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV ESCROW_COMPOSE_ENV ESCROW_LOCAL_SCENARIO_COMPOSE_ENV ESCROW_VIEWER_TERMINAL_COMPOSE_ENV ESCROW_VIEWER_GUI_COMPOSE_ENV ESCROW_RELEASE_CHECK_COMPOSE_ENV TEST_INTEGRATION_FUZZ_ENV TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV VIEWER_TERMINAL_COMPOSE_ENV ANVIL_INTERNAL_COMPOSE_ENV ANVIL_HOST_COMPOSE_ENV ANVIL_ALL_COMPOSE_ENV PAY_TO_PLAY_COMPOSE_ENV PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV COMPOSE_ENV COMPOSE_DIR CAM_COMPOSE_FILES FORGE_ABI_COMPOSE_FILES COMPOSE_PROJECT_NAME_VARS select_cam_output_identity select_host_output_identity cam_integrity_refresh cleanup_disposable_project disposable_cleanup_command LANE_GUARD NON_ROOT_GUARD COMPOSE_PROJECT_NAME_GUARD REPO_SHAPE_GUARD FIRST_PARTY_ROOTS ACTUAL_UID ACTUAL_GID DEPS_COMPOSE_PROJECT_NAME PACKAGE_DEPS_COMPOSE_PROJECT_NAME ABI_EXPORT_COMPOSE_PROJECT_NAME ALLOW_UPDATE_GUARD CAM_RESOURCE_OUTPUT_GUARD ANVIL_HOST_PORT_GUARD BIKE_NFT_GUI_BIND_GUARD ESCROW_GUI_BIND_GUARD PAY_TO_PLAY_GUI_BIND_GUARD CAM_URI_GUARD CAM_INTEGRATION_INPUT_GUARD VIEWER_TERMINAL_MOCK_GUARD,$(call reject_external_make_expression,$(name)))
 
@@ -881,6 +881,7 @@ help:
 	  '' \
 	  'Compile or update repository files:' \
 	  '  make js/build/check             Compile JS workspace packages/apps; keep outputs inside the container.' \
+	  '  make docs/build DOCS_OUTPUT_DIR=/absolute/existing/dir  Build and export VitePress offline; clean the temporary Docker volume.' \
 	  '  make js/compiler/qualify        Build packages and fully typecheck the web app/tests in a fresh workspace.' \
 	  '    Reports compiler version, workload time, outcome and whole-container cgroup v2 peak memory.' \
 	  '    Peak includes setup and tmpfs. Compare the same target in baseline/candidate checkouts.' \
@@ -1693,6 +1694,35 @@ cam/abi/export: dapps/deps/verify
 	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm --user "$$cam_user" forge-abi-plan; \
 	$(ABI_EXPORT_COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm --user "$$cam_user" forge-abi; \
 	$(call cam_integrity_refresh,$(ABI_EXPORT_COMPOSE_ENV))
+
+# One build owns exactly one disposable Compose project and its named artifact volume.
+# The builder sees no writable host output. Only the exporter can copy /out/site.
+.PHONY: docs/build
+docs/build:
+	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
+	: "${DOCS_OUTPUT_DIR:?Set DOCS_OUTPUT_DIR to an existing absolute output directory}"; \
+	if [[ "$DOCS_OUTPUT_DIR" != /* || ! -d "$DOCS_OUTPUT_DIR" || -L "$DOCS_OUTPUT_DIR" || -e "$DOCS_OUTPUT_DIR/site" || -L "$DOCS_OUTPUT_DIR/site" ]]; then \
+	  printf '%s\\n' 'DOCS_OUTPUT_DIR must be an existing absolute directory without a site entry.' >&2; \
+	  exit 2; \
+	fi; \
+	run_dir="$(mktemp -d -t dapp32-docs-XXXXXXXX)"; \
+	run_digest="$(printf '%s' "$run_dir" | sha256sum)"; \
+	run_project="$(COMPOSE_PROJECT_NAME)-docs-${run_digest:0:24}"; \
+	cleanup() { \
+	  status="$?"; \
+	  trap - EXIT; \
+	  if ! $(call disposable_cleanup_command,$run_project,-f $(COMPOSE_DIR)/docs.yml); then \
+	    if [[ "$status" == 0 ]]; then status=1; fi; \
+	  fi; \
+	  rm -rf -- "$run_dir" || { \
+	    if [[ "$status" == 0 ]]; then status=1; fi; \
+	  }; \
+	  exit "$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(DOCKER_COMPOSE) -p "$run_project" -f $(COMPOSE_DIR)/docs.yml run --build --rm --no-deps -T docs-build; \
+	$(DOCKER_COMPOSE) -p "$run_project" -f $(COMPOSE_DIR)/docs.yml run --rm --no-deps -T docs-export; \
+	printf 'Generated docs: %s/site\\n' "$DOCS_OUTPUT_DIR"
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status
 viewer/image/build:
