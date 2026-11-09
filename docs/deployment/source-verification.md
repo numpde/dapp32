@@ -1,0 +1,37 @@
+---
+title: "Publish contract sources"
+description: "Verify original deployed compiler sources with Sourcify without redeploying contracts or changing CAM bindings."
+outline: false
+---
+
+# Publish contract sources
+
+<div class="ported-guide">
+
+
+<p>Submit a deployment's original compiler sources to Sourcify and recheck its public verification. This is separate from hosting CAM files or publishing their on-chain reference.</p>
+<dl><dt>Run on</dt><dd>The operator workstation with the retained private instance and matching source/dependency history.</dd><dt>Requires</dt><dd>Original deployment artifacts, Forge compiler output including <code>rawMetadata</code>, and a chain supported by Sourcify.</dd><dt>Changes</dt><dd>Public source-verification submissions and local request/job records. No contract creation, binding change or signed transaction.</dd><dt>Success</dt><dd>The selected contract's public bytecode matches and original compiler metadata satisfy the publisher's checks.</dd></dl>
+<h2 id="1-select-contracts-from-retained-evidence">1. Select contracts from retained evidence</h2>
+<pre><code>make pay-to-play/release/source/publish \
+  DOCKER_CONTEXT=your-local-context \
+  INSTANCE=/absolute/private/pay-to-play-instance</code></pre>
+<p>Use <code>escrow</code> or <code>bike-nft</code> instead for those instances. The menu lists contracts across saved records, deduplicated by chain and address. Check the network, address, recorded source revision and creation transaction before selecting.</p>
+<p>Enter selects all contracts in the deployment selected by <code>instance.json</code>. Numbers or comma-separated numbers can select individual contracts, including an old projection that has since been replaced. Membership comes from saved CAM evidence, not today's live bindings. An unavailable service lookup is reported as unknown, not as verified.</p>
+<h2 id="2-keep-original-compiler-identity">2. Keep original compiler identity</h2>
+<p>The publisher uses the deployment's retained compiler artifacts and Git revision, not today's source files. Installed dependency sources must match the compiler metadata hashes. Restore matching source history, artifacts or dependencies when absent; do not substitute a fresh build and call it the original deployment.</p>
+<p>Only metadata-listed source files and compiler settings are sent to Sourcify. The submission does not use the private signing RPC or a signing key. Completed instance deployments also attempt source publication after their deployment cleanup; a service failure does not undo the deployed contracts. Rehearsals do not submit public sources.</p>
+<h2 id="evidence">3. Inspect the result</h2>
+<p>Output distinguishes exact matches from bytecode matches with differing compiler metadata. After selecting an already verified address, the publisher compares the public compiler metadata with the original metadata. An HTTP 409 response takes that same address-based verification path; it is not silently accepted as success.</p>
+<p>Creation and runtime matches must satisfy the publisher's exact-match requirements. For its own completed jobs, public matches must also be at least as strong as the saved job receipt. A successful explorer badge alone is not the retained evidence.</p>
+<table><thead><tr><th>Retained location</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><code>source-publication/&lt;artifact-sha256&gt;/</code></td><td>Prepared requests tied to one deployment artifact.</td></tr>
+<tr><td><code>source-publication/state/</code></td><td>Shared per-chain/address jobs for manual and automatic publication.</td></tr>
+<tr><td><code>state/&lt;chain&gt;-&lt;address&gt;.public-check.json</code></td><td>Latest public lookup, including a mismatch reason and response when verification disagrees.</td></tr>
+</tbody></table>
+<h2 id="retry">Retry without redeploying</h2>
+<p>Repeat the same command with the same instance. Pending jobs resume; failed attempts and historical receipts remain. Older per-operation job records are imported against their retained requests rather than discarded.</p>
+<p><strong>Service unavailable:</strong> retain the records and retry later. <strong>Metadata differs:</strong> inspect the recorded difference and original artifact before resubmitting. <strong>History or dependencies missing:</strong> restore those inputs. None of these failures is a reason to create a new business contract.</p>
+<p><code>release/verify</code> checks deployment evidence against the chain and submits nothing to Sourcify. Public source verification does not prove current ownership, service behavior, wallet decoding or an ERC-7730 description. See <a href="recovery.html">release recovery</a> for incomplete transaction/artifact work.</p>
+<p>Implementation: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_source.py#L147-L253">public rechecks, metadata comparison and job resumption</a>.</p>
+
+</div>
