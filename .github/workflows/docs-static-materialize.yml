@@ -29,11 +29,12 @@ jobs:
           from subprocess import check_output
           changed = check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
           assert changed and all(path.endswith('.html') for path in changed), changed
-          assert len(changed) == 36, f'Expected 36 maintained guides, got {len(changed)}: {changed}'
+          assert len(changed) == 38, f'Expected 36 guides plus homepage and Gallery, got {len(changed)}: {changed}'
           for name in changed:
               content = Path(name).read_text()
-              assert content.count('<!-- docs-layout:start -->') == 1, name
-              assert content.count('<!-- docs-layout:end -->') == 1, name
+              if name not in {'index.html', 'gallery/index.html'}:
+                  assert content.count('<!-- docs-layout:start -->') == 1, name
+                  assert content.count('<!-- docs-layout:end -->') == 1, name
               assert 'docs-nav.js' not in content, name
           PY
           git config user.name 'github-actions[bot]'
