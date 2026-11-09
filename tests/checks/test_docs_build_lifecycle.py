@@ -151,7 +151,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertEqual("docs-artifact", compose_volume(builder, "/out")["source"])
         self.assertTrue(compose_volume(builder, "/out")["volume"]["nocopy"])
         self.assertTrue(compose_volume(builder, "/input/docs")["read_only"])
-        self.assertTrue(compose_volume(builder, "/work/js/node_modules")["read_only"])
+        self.assertTrue(compose_volume(builder, "/input/node_modules")["read_only"])
+        self.assertNotIn("/work/js/node_modules", [mount["target"] for mount in builder["volumes"]])
 
         artifact_mount = compose_volume(exporter, "/artifact")
         self.assertEqual("docs-artifact", artifact_mount["source"])
@@ -166,6 +167,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertNotIn("/export", [mount["target"] for mount in builder["volumes"]])
 
         builder_command = " ".join(str(item) for item in builder["command"])
+        self.assertIn("mkdir /work/js/node_modules", builder_command)
+        self.assertIn("ln -s", builder_command)
         self.assertIn("exec node node_modules/.bin/vitepress", builder_command)
         self.assertNotIn("exec node_modules/.bin/vitepress", builder_command)
 
