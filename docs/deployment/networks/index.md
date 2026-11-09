@@ -4,9 +4,30 @@ description: ""
 outline: false
 ---
 
+<script setup>
+import { onMounted, onBeforeUnmount } from 'vue'
+
+let dispose
+let alive = false
+
+onMounted(async () => {
+  alive = true
+  const { mountNetworks } = await import('./networks.js')
+  const cleanup = await mountNetworks()
+  if (alive) dispose = cleanup
+  else cleanup()
+})
+
+onBeforeUnmount(() => {
+  alive = false
+  dispose?.()
+})
+</script>
+
+
 # EVM networks and their testnets
 
-<div class="ported-guide">
+<div class="ported-guide network-page">
 
 
   <p class="intro">Switch between mainnets and application testnets. Network indexes and row links stay fixed; testnet names show their mainnet in brackets.</p>
