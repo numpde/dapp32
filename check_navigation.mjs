@@ -11,7 +11,7 @@ async function pages(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
     if (entry.isDirectory() && !/\/reference\/cam\/\d+\.\d+\.\d+$/.test(path)) result.push(...await pages(path))
-    else if (entry.isFile() && entry.name.endsWith('.html')) result.push(path)
+    else if (entry.isFile() && entry.name.endsWith('.html') && !path.endsWith('/viewer/index.html')) result.push(path)
   }
   return result.sort()
 }
@@ -155,7 +155,7 @@ try {
   const staticHeader = await visit('/deployment/networks/')
   assert.equal(staticHeader.visible, false, 'A nonfunctional theme control stays hidden without JavaScript')
   assert(staticHeader.fit && staticHeader.labels.length === 5, 'Navigation remains usable without JavaScript')
-  await followTask('viewer/')
+  await followTask('viewer/deploy.html')
   await followTask('start/local-wallet.html')
   await call('Emulation.setScriptExecutionDisabled', { value: false })
   console.log(JSON.stringify({ pages: files.length, widths: [1280, 320], themes: ['light', 'dark'], sharedToggle: true, savedChoice: true, systemChanges: true, storageDenied: true, staticNavigation: true, taskLayout: true, keyboardTaskLinks: true, externalRequests: 'blocked' }))

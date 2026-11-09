@@ -14,7 +14,7 @@ make dapps/deps/install DOCKER_CONTEXT=your-local-context
 make js/deps/install DOCKER_CONTEXT=your-local-context
 make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <p>Replace <code>your-local-context</code> with the engine you intend to use. Omit the argument only when you want the interactive chooser. Noninteractive commands need the context on the Make command line. Each operation resolves that engine once and uses the same endpoint for child operations and cleanup.</p>
-<p>Dependency installation is explicitly networked. The offline checks do not install missing dependencies for you. For the standalone viewer, only JavaScript dependencies are needed; its <a href="../viewer/#build">build guide</a> also acquires its pinned base images explicitly.</p>
+<p>Dependency installation is explicitly networked. The offline checks do not install missing dependencies for you. For the standalone viewer, only JavaScript dependencies are needed; its <a href="../viewer/deploy.html#build">build guide</a> also acquires its pinned base images explicitly.</p>
 <h2>Choose the relevant validation</h2>
 <table><thead><tr><th>Change</th><th>Validation</th></tr></thead><tbody>
 <tr><td>Authored CAM files</td><td><code>make cam/conformance/check</code>; refresh resource pins after edits.</td></tr>

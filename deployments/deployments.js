@@ -80,7 +80,7 @@ function addressValue(address, name, explorer) {
   return value;
 }
 
-function deploymentCard(deployment, viewer, catalog, embedded = false) {
+function deploymentCard(deployment, viewer, previewViewer, catalog, embedded = false) {
   const network = catalog[deployment.network];
   if (!network) throw new Error(`Unknown network: ${deployment.network}.`);
   const card = element(embedded ? 'div' : 'article', undefined, embedded ? 'deployment-instance' : 'card deployment');
@@ -96,8 +96,11 @@ function deploymentCard(deployment, viewer, catalog, embedded = false) {
   const viewerURL = new URL(viewer);
   viewerURL.searchParams.set('chainId', `eip155:${network.chainId}`);
   viewerURL.searchParams.set('host', deployment.host);
+  const previewURL = new URL(previewViewer);
+  previewURL.searchParams.set('chainId', `eip155:${network.chainId}`);
+  previewURL.searchParams.set('host', deployment.host);
   const actions = element('div', undefined, 'actions');
-  for (const [url, label] of [[viewerURL, 'Open app'], [deployment.guide, 'App guide']]) {
+  for (const [url, label] of [[viewerURL, 'Open app'], [previewURL, 'Pages preview'], [deployment.guide, 'App guide']]) {
     const action = link(url, label);
     action.target = '_blank';
     action.rel = 'noopener noreferrer';
@@ -298,7 +301,7 @@ async function load() {
     const rendered = [];
     for (const deployments of groups) {
       if (deployments.length === 1) {
-        const card = deploymentCard(deployments[0], data.viewer, catalog);
+        const card = deploymentCard(deployments[0], data.viewer, data.previewViewer, catalog);
         rendered.push(card);
         jump.append(link(`#${card.id}`, deployments[0].name));
         continue;
@@ -329,7 +332,7 @@ async function load() {
         const deployment = ordered.find(item => item.id === id);
         if (!deployment) return;
         active?.cancelBindings();
-        active = deploymentCard(deployment, data.viewer, catalog, true);
+        active = deploymentCard(deployment, data.viewer, data.previewViewer, catalog, true);
         details.replaceChildren(active);
         select.value = id;
         jumpLink.href = `#${id}`;
