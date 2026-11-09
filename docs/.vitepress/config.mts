@@ -19,6 +19,7 @@ const rewrites = Object.fromEntries(
 const nav = sections.map(section => ({
   text: section.label,
   link: '/' + section.id + '/',
+  activeMatch: '^/' + section.id + '/',
 }))
 
 // Each canonical URL belongs to exactly one section. Sidebar groups are

@@ -96,6 +96,8 @@ class DocsNavigationTests(unittest.TestCase):
         self.assertIn("rewrites,", config)
         self.assertIn("nav,", config)
         self.assertIn("sidebar,", config)
+        self.assertIn("activeMatch: '^/' + section.id + '/'", config)
+        self.assertIn("item.route === source", breadcrumbs)
         self.assertNotIn("theme.js", theme)
         self.assertIn("DefaultTheme.Layout", theme)
         self.assertIn("aria-label=\"Breadcrumb\"", breadcrumbs)

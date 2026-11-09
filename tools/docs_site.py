@@ -33,6 +33,23 @@ class Ids(HTMLParser):
             self.found.add(attributes["id"])
 
 
+class Navigation(HTMLParser):
+    """Observe the actual server-rendered active section and breadcrumbs."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.active_sections: list[str] = []
+        self.breadcrumb = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        classes = str(attributes.get("class", "")).split()
+        if tag == "a" and "VPNavBarMenuLink" in classes and "active" in classes:
+            self.active_sections.append(str(attributes.get("href", "")))
+        if tag == "nav" and attributes.get("aria-label") == "Breadcrumb":
+            self.breadcrumb = True
+
+
 def safe_files(root: Path, *, checkout: bool) -> list[Path]:
     if not root.is_dir() or root.is_symlink():
         raise ValueError(f"Missing real directory: {root}")
@@ -120,6 +137,17 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         output = html_path(canonical)
         if not (site / output).is_file() or (site / output).stat().st_size < 100:
             raise ValueError(f"Missing generated page: {output}")
+
+        parser = Navigation()
+        parser.feed((site / output).read_text(encoding="utf-8"))
+        section = canonical.split("/", 1)[0] if canonical != "index.md" else None
+        expected_nav = [] if section is None else ["/dapp32/" + section + "/"]
+        if parser.active_sections != expected_nav:
+            raise ValueError(f"Incorrect top-level navigation on {output}: "
+                             f"{parser.active_sections} != {expected_nav}")
+        root = section is None or canonical == section + "/index.md"
+        if parser.breadcrumb == root:
+            raise ValueError(f"Breadcrumb presence disagrees with real page ancestry: {output}")
 
         if original != canonical:
             alias = site / html_path(original)

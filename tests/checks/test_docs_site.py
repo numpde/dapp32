@@ -29,8 +29,13 @@ def artifact_fixture(root: Path) -> Path:
         if output == Path("deploy/networks/index.html"):
             ids = ''.join(f'<div id="{name}"></div>'
                           for name in ("load-status", "reference", "networks", "network-jump"))
-        target.write_text("<!doctype html><html><body>" + ids + ("document " * 30)
-                          + "</body></html>", encoding="utf-8")
+        section = canonical.split("/", 1)[0] if canonical != "index.md" else None
+        active_nav = ('<a class="VPNavBarMenuLink active" href="/dapp32/' + section + '/">Section</a>'
+                      if section else '')
+        breadcrumb = ('<nav aria-label="Breadcrumb"><a href="/dapp32/">Home</a></nav>'
+                      if section and canonical != section + "/index.md" else '')
+        target.write_text("<!doctype html><html><body>" + active_nav + breadcrumb
+                          + ids + ("document " * 30) + "</body></html>", encoding="utf-8")
     for original, canonical in pages:
         if original == canonical:
             continue

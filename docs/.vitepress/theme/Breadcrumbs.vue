@@ -22,7 +22,7 @@ const trail = computed((): Crumb[] => {
 
   for (const section of sections) {
     for (const group of section.groups) {
-      const current = group.pages.find(item => item.source === source)
+      const current = group.pages.find(item => item.source === source || item.route === source)
       if (!current || section.id === 'gallery') continue
 
       const sectionHome = section.groups
@@ -34,7 +34,7 @@ const trail = computed((): Crumb[] => {
         { text: 'Home', href: withBase('/') },
         { text: section.label, href: withBase(canonical(sectionHome.route)) },
       ]
-      if (group.parent && group.parent !== source && group.parent !== sectionHome.source) {
+      if (group.parent && group.parent !== current.source && group.parent !== sectionHome.source) {
         const parent = group.pages.find(item => item.source === group.parent)
         if (parent) crumbs.push({ text: parent.text, href: withBase(canonical(parent.route)) })
       }
