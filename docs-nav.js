@@ -198,7 +198,7 @@
   const layout = document.createElement('div');
   layout.className = 'docs-layout shell';
   // The network catalog is wide by design; its table, not the page, scrolls.
-  if (!article) main.classList.add('docs-wide');
+  if (!article) { main.classList.add('docs-wide'); layout.classList.add('docs-layout-wide'); }
   main.parentNode.insertBefore(bread, main);
   main.parentNode.insertBefore(layout, main);
   layout.append(rail, main);
