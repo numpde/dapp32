@@ -1719,7 +1719,7 @@ docs/build:
 	  trap - EXIT; \
 	  trap '' INT TERM HUP; \
 	  if [[ "$$compose_attempted" == 1 ]]; then \
-	    if ! release_with_mapped_owner $(call disposable_cleanup_command,$run_project,-f $(COMPOSE_DIR)/docs.yml,--rmi all); then \
+	    if ! release_with_mapped_owner $(call disposable_cleanup_command,$$run_project,-f $(COMPOSE_DIR)/docs.yml,--rmi all); then \
 	      printf 'Docs project/volume cleanup failed: %s\n' "$$run_project" >&2; \
 	      if [[ "$$status" == 0 ]]; then status=1; fi; \
 	    fi; \
