@@ -109,9 +109,31 @@ try {
   assert(await evaluate('[...document.querySelectorAll("main a")].filter(a=>a.getAttribute("href")==="gallery/").length >= 3'), 'Gallery is prominent within the original homepage layout')
   await visit('/gallery/')
   const galleryFrame = await evaluate('(() => ({ heading: document.querySelector("main h1")?.textContent, frame: !!document.querySelector(".docs-layout > main.docs-main.deployment-page"), breadcrumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelector(".docs-section-links a[aria-current=page]")?.textContent, apps: [...document.querySelectorAll(".docs-section-links a")].filter(a=>a.hash).map(a=>a.hash), duplicate: !!document.querySelector("#deployment-jump"), late: !!document.querySelector("script[src*=docs-nav]") }))()')
-  assert(galleryFrame.heading === 'Gallery' && galleryFrame.frame && galleryFrame.breadcrumb && galleryFrame.active === 'All deployed apps', 'Gallery has the same pre-rendered section frame as other pages')
+  assert(galleryFrame.heading === 'Gallery' && galleryFrame.frame && galleryFrame.breadcrumb && galleryFrame.active === 'Gallery', 'Gallery has the same pre-rendered section frame as other pages')
   assert.deepEqual(galleryFrame.apps, ['#bike-nft-fuji', '#pay-to-play-fuji-2026-11-08'], 'The Gallery menu follows the published catalog')
   assert(!galleryFrame.duplicate && !galleryFrame.late, 'Gallery must not create a second runtime menu')
+  // A menu section is not necessarily a parent page. Only actual content
+  // relationships appear as intermediate breadcrumb links.
+  for (const [url, expected] of [
+    ['/start/', ['Home', 'What runs where']],
+    ['/start/local-wallet.html', ['Home', 'Try Pay-to-Play locally']],
+    ['/start/fixture-wallet.html', ['Home', 'Try Pay-to-Play locally', 'Connect the test wallet']],
+    ['/use/', ['Home', 'Use an app']],
+    ['/pay-to-play/', ['Home', 'Pay-to-Play']],
+    ['/pay-to-play/integration.html', ['Home', 'Pay-to-Play', 'Integrate payments']],
+    ['/authoring/', ['Home', 'Build a workflow']],
+    ['/authoring/headless.html', ['Home', 'Headless integration']],
+    ['/deployment/', ['Home', 'Deploy']],
+    ['/deployment/new-instance.html', ['Home', 'Deploy', 'Deploy a new instance']],
+    ['/deployment/pay-to-play/', ['Home', 'Deploy', 'Pay-to-Play settings']],
+    ['/reference/', ['Home', 'Reference']],
+    ['/reference/operations.html', ['Home', 'Reference', 'Operational records']],
+    ['/gallery/', ['Home', 'Gallery']],
+  ]) {
+    await visit(url)
+    const crumbs = await evaluate('[...document.querySelectorAll(".docs-breadcrumb li")].map(x=>x.textContent.trim())')
+    assert.deepEqual(crumbs, expected, 'Breadcrumb parents for ' + url)
+  }
   await visit('/use/')
   assert(await evaluate('!!document.querySelector(\'main a[href="../gallery/"]\')'), 'Use guide must open the Gallery directly')
   const useOrientation = await evaluate('(() => ({ breadcrumb: document.querySelector(".docs-breadcrumb")?.textContent, current: [...document.querySelectorAll(".docs-section-links a[aria-current=page]")].map(a=>a.textContent), groups: [...document.querySelectorAll(".docs-subsection > summary")].map(x=>x.textContent), toc: !!document.querySelector(".docs-toc"), layout: !!document.querySelector(".docs-layout > .docs-main") }))()')
@@ -120,7 +142,7 @@ try {
   assert(!useOrientation.toc, 'Entry-page choices must not be duplicated as contents links')
   await visit('/pay-to-play/integration.html')
   const payment = await evaluate('(() => ({ breadcrumb: document.querySelector(".docs-breadcrumb")?.textContent, active: document.querySelector(".docs-section-links a[aria-current=page]")?.textContent, group: [...document.querySelectorAll(".docs-subsection[open] > summary")].map(x=>x.textContent), toc: [...document.querySelectorAll(".docs-toc nav a")].map(a=>!!document.getElementById(decodeURIComponent(a.hash.slice(1)))) }))()')
-  assert(payment.breadcrumb?.includes('Use') && payment.breadcrumb?.includes('Pay-to-Play'))
+  assert(payment.breadcrumb?.includes('Pay-to-Play') && !payment.breadcrumb?.includes('Use'), 'App guide is not beneath the unrelated Use instructions')
   assert.equal(payment.active, 'Integrate payments')
   assert.deepEqual(payment.group, ['Pay-to-Play'])
   assert(payment.toc.length === 0 && await evaluate('[...document.querySelectorAll("main article nav a")].filter(a=>a.getAttribute("href")?.startsWith("#")).length >= 4'), 'Authored contents replace, rather than duplicate, generated navigation')
@@ -130,11 +152,11 @@ try {
   await visit('/escrow/')
   assert(await evaluate('!document.querySelector(".docs-toc")'), 'Do not duplicate existing page-local contents')
   await visit('/deployment/')
-  assert.equal(await evaluate('document.querySelector(".docs-section-links a[aria-current=page]")?.textContent'), 'Choose a deployment task')
+  assert.equal(await evaluate('document.querySelector(".docs-section-links a[aria-current=page]")?.textContent'), 'Deploy')
   assert(await evaluate('!document.querySelector(".docs-toc")'), 'Deploy index is already a task contents page')
   await visit('/deployment/pay-to-play/')
   assert(await evaluate('document.querySelector(".docs-subsection[open] > summary")?.textContent === "App settings"'))
-  assert(await evaluate('document.querySelector(".docs-breadcrumb")?.textContent.includes("App settings")'))
+  assert(await evaluate('document.querySelector(".docs-breadcrumb")?.textContent.includes("Deploy")'))
   await visit('/deployment/manual.html')
   assert(await evaluate('document.querySelector(".docs-subsection[open] > summary")?.textContent === "Older bookmarks"'))
   await visit('/deployment/networks/')
@@ -165,10 +187,10 @@ try {
         else assert.deepEqual(style, reference, `Header style differs: ${file} (${color}, ${width}px)`)
         const guidePath = file.slice(root.length).replace(/\/index\.html$/, '/')
         const appPage = guidePath === '/'
-        const orientation = await evaluate('(() => ({ rail: !!document.querySelector(".docs-rail"), crumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelectorAll(".docs-section-links a[aria-current=page]").length, overflow: document.documentElement.scrollWidth>innerWidth }))()')
+        const orientation = await evaluate('(() => ({ rail: !!document.querySelector(".docs-rail"), crumb: !!document.querySelector(".docs-breadcrumb"), active: document.querySelectorAll(".docs-section-links a[aria-current=page]").length, activeLabel: document.querySelector(".docs-section-links a[aria-current=page]")?.textContent.trim(), crumbLabel: document.querySelector(".docs-breadcrumb li:last-child [aria-current=page]")?.textContent.trim(), overflow: document.documentElement.scrollWidth>innerWidth }))()')
         assert(!orientation.overflow, 'Page overflows at ' + width + 'px: ' + file)
         if (!appPage) {
-          assert(orientation.rail && orientation.crumb && orientation.active === 1, 'No unique guide location at ' + width + 'px: ' + file)
+          assert(orientation.rail && orientation.crumb && orientation.active === 1 && orientation.activeLabel === orientation.crumbLabel, 'Missing or inconsistent guide location at ' + width + 'px: ' + file)
           assert(await evaluate(`!document.querySelector('script[src*="docs-nav.js"]') && !!document.querySelector('.docs-layout > main.docs-main')`), 'Guide layout must be pre-rendered, not injected after load: ' + file)
         }
         else assert(!orientation.rail, 'Homepage and Gallery are not documentation guides: ' + file)
