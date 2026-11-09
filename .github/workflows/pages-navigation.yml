@@ -6,7 +6,7 @@ on:
       - index.html
       - site.css
       - theme.js
-      - docs-nav.js
+      - docs_nav.py
       - check_pages.py
       - check_navigation.mjs
       - check_deployments.mjs
@@ -21,7 +21,7 @@ on:
       - index.html
       - site.css
       - theme.js
-      - docs-nav.js
+      - docs_nav.py
       - check_pages.py
       - check_navigation.mjs
       - check_deployments.mjs
