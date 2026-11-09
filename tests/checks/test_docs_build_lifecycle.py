@@ -314,7 +314,10 @@ class DocsBuildLifecycleTests(unittest.TestCase):
                         publishing_job,
                     )
                 self.assertIn(f'branch="{branch}"', publishing_job)
-                self.assertIn("git ls-remote --heads origin", publishing_job)
+                if branch == "docs/vitepress-pages-candidate":
+                    self.assertIn("git -C site ls-remote --heads origin", publishing_job)
+                else:
+                    self.assertIn("git ls-remote --heads origin", publishing_job)
                 self.assertNotRegex(publishing_job, r'branch="[^"\n]*\$GITHUB_RUN_')
                 if branch == "docs/vitepress-pages-candidate":
                     self.assertIn("run-id: ", publishing_job)
