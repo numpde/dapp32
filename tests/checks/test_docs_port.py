@@ -127,7 +127,7 @@ class DocsPortTests(unittest.TestCase):
                 self.assertFalse(reference.with_suffix(".md").exists())
         compose = (ROOT / "compose/docs.yml").read_text(encoding="utf-8")
         self.assertIn("public/reference/cam", compose)
-        self.assertIn('cp -a "/work/js/docs/reference/cam/$version"', compose)
+        self.assertIn('cp -a "/work/js/docs/reference/cam/$$version"', compose)
 
     def test_gallery_uses_one_catalog_and_page_mounts(self) -> None:
         self.assertTrue((DOCS / "public/gallery/deployments.json").is_file())
