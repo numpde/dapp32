@@ -1,0 +1,42 @@
+name: Materialize static docs navigation (temporary)
+
+on:
+  push:
+    branches: [docs/static-navigation-first-paint-20261109]
+    paths:
+      - .github/workflows/docs-static-materialize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the dedicated documentation branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: true
+      - name: Render the existing checked navigation update lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          make pages/navigation/update
+          git add -u -- '*.html'
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          from subprocess import check_output
+          changed = check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          assert changed and all(path.endswith('.html') for path in changed), changed
+          assert len(changed) == 36, f'Expected 36 maintained guides, got {len(changed)}: {changed}'
+          for name in changed:
+              content = Path(name).read_text()
+              assert content.count('<!-- docs-layout:start -->') == 1, name
+              assert content.count('<!-- docs-layout:end -->') == 1, name
+              assert 'docs-nav.js' not in content, name
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Materialize static navigation for all 36 maintained guides'
+          git push origin HEAD:refs/heads/docs/static-navigation-first-paint-20261109
