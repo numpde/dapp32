@@ -1,5 +1,6 @@
 {
   "viewer": "https://app.dapp32.com/",
+  "previewViewer": "https://numpde.github.io/dapp32/viewer/",
   "deployments": [
     {
       "id": "bike-nft-fuji",
