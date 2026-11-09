@@ -48,7 +48,7 @@ services:
         bind: { create_host_path: false }
       # Keep compiled HTML/assets in Docker-managed storage, not on the host.
       - type: volume
-        # Make creates a unique volume for this build; cleanup removes it.
+        # Compose creates this RAM-backed volume for this build only.
         source: docs-artifact
         # VitePress writes its static output here.
         target: /out
@@ -116,9 +116,12 @@ services:
         # Copy the complete static site into the caller's output directory.
         cp -a /artifact/site /export/site
 
-# This is only a logical name for one operation's explicitly created volume.
-# Compose neither creates nor retains it; Make creates it, shares it, and removes it.
+# The uniquely named Compose project creates this shared, RAM-backed volume.
+# Make removes its project and volumes after export or failure.
 volumes:
   docs-artifact:
-    external: true
-    name: ${DOCS_ARTIFACT_VOLUME:?missing_DOCS_ARTIFACT_VOLUME}
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=0700,nosuid,nodev,noexec"
