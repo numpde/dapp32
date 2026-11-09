@@ -118,7 +118,7 @@ jobs:
           include-hidden-files: true
 
   propose:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: qualify
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -178,7 +178,15 @@ jobs:
             exit 2
           fi
           git commit -m "Build VitePress docs from $GITHUB_SHA"
-          branch="docs/vitepress-pages-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          # One outstanding docs publication candidate at a time. Every push
+          # qualifies and retains an artifact; only an explicit manual run
+          # creates a branch that somebody must review and merge.
+          branch="docs/vitepress-pages-candidate"
+          existing="$(git ls-remote --heads origin "refs/heads/$branch")"
+          if [[ -n "$existing" ]]; then
+            echo "::error::Review or retire the existing docs candidate before proposing another: $branch" >&2
+            exit 2
+          fi
           git push origin "HEAD:refs/heads/$branch"
           if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" \
             --title "Publish VitePress docs $(printf %s "$GITHUB_SHA" | cut -c1-12)" \

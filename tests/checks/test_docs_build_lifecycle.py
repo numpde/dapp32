@@ -251,6 +251,23 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertFalse(any(call["args"][:2] in (["volume", "create"], ["volume", "rm"])
                                  for call in calls))
 
+    def test_pages_workflows_do_not_create_unbounded_candidate_branches(self) -> None:
+        for path, branch, lane in (
+            (".github/workflows/docs-pages-candidate.yml", "docs/vitepress-pages-candidate", "propose"),
+            (".github/workflows/viewer-pages-preview.yml", "docs/viewer-preview-candidate", "publish"),
+        ):
+            with self.subTest(path=path):
+                source = (ROOT / path).read_text(encoding="utf-8")
+                publishing_job = source.split(f"  {lane}:\n", 1)[1]
+                self.assertIn(
+                    "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+                    publishing_job,
+                )
+                self.assertIn(f'branch="{branch}"', publishing_job)
+                self.assertIn("git ls-remote --heads origin", publishing_job)
+                self.assertNotRegex(publishing_job, r'branch="[^"\n]*\$GITHUB_RUN_')
+                self.assertIn("needs: ", publishing_job)
+
     def test_each_operation_owns_a_distinct_project_and_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             projects: set[str] = set()

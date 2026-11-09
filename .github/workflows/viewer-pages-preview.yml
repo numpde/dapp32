@@ -43,6 +43,12 @@ jobs:
           ref: gh-pages
           path: site
           persist-credentials: false
+      - name: Resolve the selected local Docker endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="$(bash source/tools/docker_context.sh 'command line' default undefined '' 0)"
+          printf 'CAM_DOCKER_ENDPOINT=%s\n' "$endpoint" >> "$GITHUB_ENV"
       - name: Acquire the exact viewer build and runtime bases
         shell: bash
         run: |
@@ -50,7 +56,7 @@ jobs:
           for dockerfile in containers/node-deps/Dockerfile containers/viewer/Dockerfile; do
             base="$(awk '$1 == "FROM" { print $2 }' "source/$dockerfile")"
             test -n "$base"
-            docker --context default pull "$base"
+            docker --host "$CAM_DOCKER_ENDPOINT" pull "$base"
           done
       - name: Install checksum-locked JavaScript dependencies
         run: make -C source js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-pages-preview
@@ -66,14 +72,14 @@ jobs:
           image="viewer-pages-$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT"
           container="viewer-pages-export-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           cleanup() {
-            docker --context default rm -f "$container" >/dev/null 2>&1 || :
-            docker --context default image rm "$image" >/dev/null 2>&1 || :
+            docker --host "$CAM_DOCKER_ENDPOINT" rm -f "$container" >/dev/null 2>&1 || :
+            docker --host "$CAM_DOCKER_ENDPOINT" image rm "$image" >/dev/null 2>&1 || :
           }
           trap cleanup EXIT
           test -s site/viewer/deploy.html
-          docker --context default create --name "$container" --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" >/dev/null
+          docker --host "$CAM_DOCKER_ENDPOINT" create --name "$container" --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" >/dev/null
           rm -rf -- site/viewer/assets
-          docker --context default cp "$container:/srv/viewer/." site/viewer/
+          docker --host "$CAM_DOCKER_ENDPOINT" cp "$container:/srv/viewer/." site/viewer/
           python3 -B - <<'PY'
           from html.parser import HTMLParser
           from pathlib import Path
@@ -111,7 +117,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
   publish:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -149,7 +155,15 @@ jobs:
           fi
           source_revision="$GITHUB_SHA"
           git commit -m "Build Pages viewer preview from $source_revision"
-          branch="docs/viewer-preview-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          # Preserve the existing unreviewed preview rather than creating
+          # another run-numbered branch. Publishing is a manual action only.
+          branch="docs/viewer-preview-candidate"
+          existing="$(git ls-remote --heads origin 'refs/heads/docs/viewer-preview-*')"
+          if [[ -n "$existing" ]]; then
+            echo "::error::Review or retire the existing viewer preview before proposing another." >&2
+            printf '%s\n' "$existing" >&2
+            exit 2
+          fi
           git push origin "HEAD:refs/heads/$branch"
           echo "Preview candidate branch: $branch"
           if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" --title "Publish Pages viewer preview $(printf %s "$source_revision" | cut -c1-12)" --body "Static viewer bundle from main@$source_revision. Built with the existing pinned-image/locked-dependency path. Only viewer/index.html and viewer/assets/ change. Review and merge to publish; the stand-alone viewer is unaffected."; then
