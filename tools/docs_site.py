@@ -17,8 +17,9 @@ RETIRED_FILES = {
     "check_reference.py", "check_navigation.mjs", "check_deployments.mjs",
     "check_networks.mjs",
 }
-RETIRED_WORKFLOWS = {"pages-check.yml", "pages-navigation.yml"}
-PRESERVED_WORKFLOWS = {"viewer-recipe-check.yml"}
+# Workflow definitions are separately provisioned, never rewritten by the
+# GITHUB_TOKEN publication job (which has no workflow-write permission).
+PAGES_WORKFLOWS = {"pages-check.yml", "viewer-recipe-check.yml"}
 
 
 class Ids(HTMLParser):
@@ -104,8 +105,11 @@ def stage(source: Path, built: Path, site: Path, sha: str, run: str) -> None:
         raise ValueError("Pages checkout contains unowned roots; refuse deletion")
     safe_files(site, checkout=True)
     workflows = site / ".github/workflows"
-    if workflows.exists() and {p.name for p in workflows.iterdir()} - RETIRED_WORKFLOWS - PRESERVED_WORKFLOWS:
-        raise ValueError("Unknown Pages workflow; refuse deletion")
+    if not workflows.is_dir() or {p.name for p in workflows.iterdir()} != PAGES_WORKFLOWS:
+        raise ValueError("Pages workflows must be provisioned separately before publishing")
+    if ((workflows / "pages-check.yml").read_bytes()
+            != (source / "publishing/pages-check.yml").read_bytes()):
+        raise ValueError("Published Pages verifier does not match the reviewed source")
     viewer = site / "viewer"
     if viewer.exists() and {p.name for p in viewer.iterdir()} - {
         "index.html", "assets", "deploy.html",
@@ -122,17 +126,11 @@ def stage(source: Path, built: Path, site: Path, sha: str, run: str) -> None:
         else:
             item.unlink()
     (viewer / "deploy.html").unlink(missing_ok=True)
-    if workflows.exists():
-        for name in RETIRED_WORKFLOWS:
-            (workflows / name).unlink(missing_ok=True)
     for file in qualified:
         target = site / file.relative_to(built)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(file, target)
     (site / ".nojekyll").touch()
-    check_file = site / ".github/workflows/pages-check.yml"
-    check_file.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source / "publishing/pages-check.yml", check_file)
     manifest = {
         "schema": "docs-publication/v1", "source_sha": sha,
         "qualified_run_id": int(run), "files": hashes,

@@ -60,8 +60,10 @@ def previous_site(root: Path) -> Path:
     (site / "site.css").write_text("old CSS")
     (site / "check_pages.py").write_text("old check")
     (site / ".github/workflows").mkdir(parents=True)
-    for name in ("pages-check.yml", "pages-navigation.yml", "viewer-recipe-check.yml"):
-        (site / ".github/workflows" / name).write_text("old check")
+    (site / ".github/workflows/pages-check.yml").write_bytes(
+        (DOCS / "publishing/pages-check.yml").read_bytes()
+    )
+    (site / ".github/workflows/viewer-recipe-check.yml").write_text("old check")
     return site
 
 
@@ -89,6 +91,26 @@ class DocsPublishedTests(unittest.TestCase):
             self.assertEqual(1234, manifest["qualified_run_id"])
             self.assertEqual("a" * 40, manifest["source_sha"])
             self.assertNotIn("viewer/index.html", manifest["files"])
+
+    def test_staging_never_modifies_pages_workflow_definitions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            site = previous_site(root)
+            verifier = site / ".github/workflows/pages-check.yml"
+            original = verifier.read_bytes()
+            stage(DOCS, artifact_fixture(root), site, "d" * 40, "15")
+            self.assertEqual(original, verifier.read_bytes())
+
+    def test_unprovisioned_workflow_blocks_staging_without_modification(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            site = previous_site(root)
+            verifier = site / ".github/workflows/pages-check.yml"
+            verifier.write_text("obsolete verifier")
+            with self.assertRaisesRegex(ValueError, "verifier"):
+                stage(DOCS, artifact_fixture(root), site, "e" * 40, "15")
+            self.assertEqual("obsolete verifier", verifier.read_text())
+            self.assertTrue((site / "site.css").is_file())
 
     def test_published_asset_mutation_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
