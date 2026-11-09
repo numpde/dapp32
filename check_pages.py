@@ -12,7 +12,7 @@ SOURCE_ARCHIVE_ROOT: Path | None = None
 # The published pages keep static, usable links; this is their single source.
 PRIMARY_NAVIGATION = (
     ("start/", "Start"),
-    ("use/", "Use"),
+    ("deployments/", "Apps"),
     ("authoring/", "Build"),
     ("deployment/", "Deploy"),
     ("reference/", "Reference"),
@@ -471,6 +471,8 @@ def check_deployments(root: Path, repo_root: Path) -> None:
             import datetime
             datetime.date.fromisoformat(deployment["deployedAt"])
         assert deployment["name"] and deployment["network"] in catalog
+        assert isinstance(deployment["chainId"], int) and not isinstance(deployment["chainId"], bool)
+        assert deployment["chainId"] == catalog[deployment["network"]]["chainId"], "Published chain identity must match network catalog"
         guide = (page / deployment["guide"] / "index.html").resolve()
         assert guide.is_relative_to(root.resolve()) and guide.is_file()
         address = deployment["host"]
