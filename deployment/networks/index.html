@@ -49,12 +49,8 @@
 <body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../start/">Start</a><a href="../../gallery/">Gallery</a><a href="../../use/">Use</a><a href="../../authoring/">Build</a><a href="../../deployment/">Deploy</a><a href="../../reference/" aria-current="location">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../../index.html">Home</a></li><li><a href="../../reference/">Reference</a></li><li><span aria-current="page">Networks</span></li></ol></nav>
-<div class="docs-layout shell docs-layout-wide">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Reference</summary><nav class="docs-section-links" aria-label="In Reference"><a href="../../reference/">Reference</a><a href="../../reference/cam/">CAM specifications</a><a href="../../reference/operations.html">Operational records</a><a href="../../reference/diagnostics.html">Diagnostics</a><a href="./" aria-current="page">Networks</a><a href="../rpc/">RPC services</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="docs-main docs-wide">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../../">Home</a></li><li><a href="../../reference/">Reference</a></li></ol></nav>
+<main id="main">
   <h1>EVM networks and their testnets</h1>
   <p class="intro">Switch between mainnets and application testnets. Network indexes and row links stay fixed; testnet names show their mainnet in brackets.</p>
   <noscript><p>Enable JavaScript to load the network table from <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json">the RPC catalog</a>.</p></noscript>
@@ -86,9 +82,6 @@
     <p>Public RPC services can impose rate and method limits. Mainnet and testnet balances and deployments are separate. A retired testnet is retained for identification and has no selectable RPC service.</p>
   </footer>
 </main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end -->
 <script type="module">
   const status = document.querySelector('#load-status');
   const tbody = document.querySelector('#networks');

@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../">dapp32</a><nav aria-label="Primary"><a href="../start/">Start</a><a href="../gallery/">Gallery</a><a href="../use/">Use</a><a href="../authoring/">Build</a><a href="../deployment/" aria-current="location">Deploy</a><a href="../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../index.html">Home</a></li><li><a href="./">Deploy</a></li><li><span aria-current="page">Rehearse a release</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Deploy</summary><nav class="docs-section-links" aria-label="In Deploy"><a href="./">Deploy</a><a href="new-instance.html">Deploy a new instance</a><a href="../viewer/deploy.html">Host the stand-alone viewer</a><a href="update.html">Update an instance</a><a href="recovery.html">Recover a release</a><a href="source-verification.html">Verify contract sources</a><a href="practice.html" aria-current="page">Rehearse a release</a><details class="docs-subsection"><summary>App settings</summary><div class="docs-subsection-links"><a href="bike-nft/">Bike NFT settings</a><a href="escrow/">Escrow settings</a><a href="pay-to-play/">Pay-to-Play settings</a></div></details><details class="docs-subsection"><summary>Older bookmarks</summary><div class="docs-subsection-links"><a href="manual.html">Legacy manual index</a></div></details></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../">Home</a></li><li><a href="./">Deploy</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Practice the release workflow</h1>
 <p>These procedures use public fixture keys and local test coins. For a first browser interaction, use the shorter <a href="../start/local-wallet.html">local-wallet tutorial</a>; it is not a release rehearsal.</p>
 <table><thead><tr><th>Purpose</th><th>State and authority</th></tr></thead><tbody>
@@ -55,7 +51,4 @@ make network/local/down DOCKER_CONTEXT="$CTX" COMPOSE_PROJECT_NAME="$PROJECT"</c
 <p>Replace <code>approval/start/check</code> with <code>approval/success/check</code> to exercise successful fixture approval. It checks ordered audits, mined receipts, complete artifacts and handoffs; it automatically approves only within its owned local chain. Both targets support all three apps. A fresh records subdirectory is allocated on every run.</p>
 <p>Explicit approval rehearsals have a ten-minute execution deadline and allow up to seven additional minutes for nested cleanup. Let cancellation finish. See <a href="../reference/diagnostics.html">diagnostics</a> for log limits and the separate simulation experiment.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/Makefile">release and local-network targets</a>, and <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139/tests/fixtures/release-rehearsal">rehearsal drivers</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>
