@@ -31,6 +31,7 @@ with (root / "calls.jsonl").open("a") as stream:
         "uid": os.environ.get("LOCAL_UID"),
         "gid": os.environ.get("LOCAL_GID"),
         "stage": os.environ.get("DOCS_STAGE_DIR"),
+        "image_tag": os.environ.get("DOCS_IMAGE_TAG"),
     }) + "\n")
 
 if args[0] == "compose":
@@ -73,6 +74,7 @@ if args[0] == "compose":
     elif "down" in args:
         assert project == state["project"]
         assert "--volumes" in args and "--remove-orphans" in args
+        assert args[args.index("--rmi") + 1] == "all"
         assert os.environ["LOCAL_UID"] == "0" and os.environ["LOCAL_GID"] == "0"
         if state["mode"] == "down-fail":
             print("fixture Compose teardown failed", file=sys.stderr)
@@ -98,6 +100,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "LOCAL_UID": "1000",
             "LOCAL_GID": "1000",
             "DOCS_STAGE_DIR": "/tmp/dapp32-docs-stage-test",
+            "DOCS_IMAGE_TAG": "docs-confinement-test",
         })
         artifact = config["volumes"]["docs-artifact"]
         self.assertEqual("local", artifact["driver"])
@@ -125,6 +128,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
 
         builder = config["services"]["docs-build"]
         exporter = config["services"]["docs-export"]
+        self.assertEqual("dapp32-docs-builder:docs-confinement-test", builder["image"])
+        self.assertEqual(builder["image"], exporter["image"])
         self.assertEqual("none", builder["build"]["network"])
         self.assertEqual(128, builder["pids_limit"])
         self.assertEqual(32, exporter["pids_limit"])
@@ -234,6 +239,9 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertTrue(all(call["uid"] == "0" and call["gid"] == "0"
                                 for call in calls if call["args"][0] == "compose"))
             self.assertEqual(1, len({call["stage"] for call in calls if call["args"][0] == "compose"}))
+            image_tags = {call["image_tag"] for call in calls if call["args"][0] == "compose"}
+            self.assertEqual(1, len(image_tags))
+            self.assertEqual(24, len(next(iter(image_tags))))
             self.assertFalse(any(call["args"][:2] in (["volume", "create"], ["volume", "rm"])
                                  for call in calls))
 
