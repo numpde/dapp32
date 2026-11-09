@@ -384,7 +384,9 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
     from urllib.parse import unquote, urlsplit
 
     pages: dict[Path, PageParser] = {}
-    for page in navigation_pages(root):
+    for page in root.rglob("*.html"):
+        if page == root / "viewer" / "index.html":
+            continue  # The generated viewer is not a documentation page.
         parser = PageParser()
         parser.feed(page.read_text(encoding="utf-8"))
         if "main" not in parser.ids:
