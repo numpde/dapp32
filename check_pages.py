@@ -5,8 +5,10 @@ import os
 import subprocess
 from html.parser import HTMLParser
 from pathlib import Path
+from runpy import run_path
 
-from docs_nav import guide_html, guide_locations
+_DOC_NAV = run_path(str(Path(__file__).with_name("docs_nav.py")))
+guide_html, guide_locations = _DOC_NAV["guide_html"], _DOC_NAV["guide_locations"]
 
 
 SOURCE_ARCHIVE_ROOT: Path | None = None
