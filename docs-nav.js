@@ -162,8 +162,10 @@
   if (toc.length >= 4) group('On this page', toc.slice(0, 9));
   // The browser resolves fragments before deferred scripts create these IDs.
   if (location.hash) {
-    const target = decodeURIComponent(location.hash.slice(1));
-    if (newIds.has(target)) requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
+    try {
+      const target = decodeURIComponent(location.hash.slice(1));
+      if (newIds.has(target)) requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
+    } catch { /* A malformed fragment must not break the guide. */ }
   }
   const section = top.find(([name]) => name === ancestor);
   const selected = [...document.querySelectorAll('.topbar nav a')]
