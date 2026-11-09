@@ -79,6 +79,7 @@ jobs:
       - name: Verify and stage documentation without changing the independent viewer
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           QUALIFIED_RUN_ID: ${{ inputs.qualified_run_id }}
         run: |
           set -euo pipefail

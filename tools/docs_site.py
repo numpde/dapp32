@@ -17,9 +17,8 @@ RETIRED_FILES = {
     "check_reference.py", "check_navigation.mjs", "check_deployments.mjs",
     "check_networks.mjs",
 }
-RETIRED_WORKFLOWS = {
-    "pages-check.yml", "pages-navigation.yml", "viewer-recipe-check.yml",
-}
+RETIRED_WORKFLOWS = {"pages-check.yml", "pages-navigation.yml"}
+PRESERVED_WORKFLOWS = {"viewer-recipe-check.yml"}
 
 
 class Ids(HTMLParser):
@@ -105,7 +104,7 @@ def stage(source: Path, built: Path, site: Path, sha: str, run: str) -> None:
         raise ValueError("Pages checkout contains unowned roots; refuse deletion")
     safe_files(site, checkout=True)
     workflows = site / ".github/workflows"
-    if workflows.exists() and {p.name for p in workflows.iterdir()} - RETIRED_WORKFLOWS:
+    if workflows.exists() and {p.name for p in workflows.iterdir()} - RETIRED_WORKFLOWS - PRESERVED_WORKFLOWS:
         raise ValueError("Unknown Pages workflow; refuse deletion")
     viewer = site / "viewer"
     if viewer.exists() and {p.name for p in viewer.iterdir()} - {
@@ -155,7 +154,8 @@ def check_published(source: Path, site: Path) -> None:
     actual = {}
     for file in files:
         relative = file.relative_to(site).as_posix()
-        if relative in {MANIFEST, ".nojekyll", ".github/workflows/pages-check.yml"}:
+        if relative in {MANIFEST, ".nojekyll", ".github/workflows/pages-check.yml",
+                        ".github/workflows/viewer-recipe-check.yml"}:
             continue
         if relative == "viewer/index.html" or relative.startswith("viewer/assets/"):
             continue

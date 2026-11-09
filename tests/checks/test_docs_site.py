@@ -82,7 +82,7 @@ class DocsPublishedTests(unittest.TestCase):
             self.assertFalse((site / "site.css").exists())
             self.assertFalse((site / "check_pages.py").exists())
             self.assertFalse((site / ".github/workflows/pages-navigation.yml").exists())
-            self.assertFalse((site / ".github/workflows/viewer-recipe-check.yml").exists())
+            self.assertEqual("old check", (site / ".github/workflows/viewer-recipe-check.yml").read_text())
             self.assertEqual((DOCS / "publishing/pages-check.yml").read_bytes(),
                              (site / ".github/workflows/pages-check.yml").read_bytes())
             manifest = json.loads((site / "docs-publication.json").read_text())
