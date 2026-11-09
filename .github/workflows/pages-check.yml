@@ -8,6 +8,7 @@ on:
       - 'gallery/deployments.json'
       - check_reference.py
       - theme.js
+      - docs-nav.js
       - site.css
       - Makefile
       - .github/workflows/pages-check.yml
@@ -19,6 +20,7 @@ on:
       - 'gallery/deployments.json'
       - check_reference.py
       - theme.js
+      - docs-nav.js
       - site.css
       - Makefile
       - .github/workflows/pages-check.yml
