@@ -3,12 +3,8 @@
 <link rel="stylesheet" href="../../site.css"></head><body>
 <a class="skip-link" href="#main">Skip to content</a>
 <div class="topbar"><div class="shell"><a class="brand" href="../../">dapp32</a><nav aria-label="Primary"><a href="../../start/">Start</a><a href="../../gallery/">Gallery</a><a href="../../use/">Use</a><a href="../../authoring/">Build</a><a href="../../deployment/" aria-current="location">Deploy</a><a href="../../reference/">Reference</a></nav><button class="theme-toggle" id="theme-toggle" type="button" hidden aria-label="Toggle color theme"><span class="theme-sun" aria-hidden="true">☀</span><span class="theme-moon" aria-hidden="true">☾</span></button></div></div>
-<!-- docs-layout:start -->
-<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../../index.html">Home</a></li><li><a href="../">Deploy</a></li><li><span aria-current="page">Bike NFT settings</span></li></ol></nav>
-<div class="docs-layout shell">
-<aside class="docs-rail" aria-label="Documentation navigation"><details class="docs-section"><summary>In Deploy</summary><nav class="docs-section-links" aria-label="In Deploy"><a href="../">Deploy</a><a href="../new-instance.html">Deploy a new instance</a><a href="../../viewer/deploy.html">Host the stand-alone viewer</a><a href="../update.html">Update an instance</a><a href="../recovery.html">Recover a release</a><a href="../source-verification.html">Verify contract sources</a><a href="../practice.html">Rehearse a release</a><details class="docs-subsection" open><summary>App settings</summary><div class="docs-subsection-links"><a href="./" aria-current="page">Bike NFT settings</a><a href="../escrow/">Escrow settings</a><a href="../pay-to-play/">Pay-to-Play settings</a></div></details><details class="docs-subsection"><summary>Older bookmarks</summary><div class="docs-subsection-links"><a href="../manual.html">Legacy manual index</a></div></details></nav></details><details class="docs-toc"><summary>On this page</summary><nav aria-label="On this page"><a href="#release-policy">Choose the authorities before setup</a><a href="#token-and-collection-metadata">Choose collection identity and metadata</a><a href="#release-deployment">Deploy and publish through the shared procedure</a><a href="#handoffs">Accept three independent handovers</a><a href="#release-verification">Verify history, then inspect current state</a><a href="#public-rehearsal">Qualify the intended workflow</a><a href="#explicit-uncertainties-and-limits">What the records do not establish</a></nav></details></aside>
-<!-- docs-layout:before-main -->
-<main id="main" class="document docs-main"><article class="narrow">
+<nav class="docs-breadcrumb shell" aria-label="Breadcrumb"><ol><li><a href="../../index.html">Home</a></li><li><a href="../">Deploy</a></li></ol></nav>
+<main id="main" class="shell document"><article class="narrow">
 <h1>Bike NFT deployment settings</h1>
 <p>Use these choices with <a href="../new-instance.html">Deploy a new instance</a>, substituting the <code>bike-nft</code> prefix. The normal release creates an <strong>empty collection</strong>; only the disposable demo registers the sample components.</p>
 <h2 id="release-policy">Choose the authorities before setup</h2>
@@ -47,7 +43,4 @@
 <p>The administrator interface is not enumerable: current reads cannot discover every undisclosed role holder. Retained initialization/broadcast evidence and subsequent role-event coverage matter. Deployment records establish provenance, not physical component authenticity, future server availability or every later authority change.</p>
 <p>Older irreversible-retirement or delegation designs retain their deployed meaning. Use compatible interfaces; a new CAM file is not a contract migration. Recover interrupted work through <a href="../recovery.html">retained-operation recovery</a>, not an automatic replacement.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_config.py">setup fields</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/bike-nft/script/BikeNftContractDeployment.sol">business initialization</a>. <a href="../../bike-nft/">User guide</a>.</p>
-</article></main>
-<!-- docs-layout:after-main -->
-</div>
-<!-- docs-layout:end --></body></html>
+</article></main></body></html>
