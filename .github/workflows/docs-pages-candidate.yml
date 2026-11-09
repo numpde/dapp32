@@ -1,0 +1,174 @@
+name: Docs Pages candidate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/docs-pages-candidate.yml
+      - docs/**
+      - compose/docs.yml
+      - compose/fragments/node-workspace.yml
+      - containers/node-deps/**
+      - js/package.json
+      - js/package-lock.json
+      - Makefile
+      - tests/checks/test_docs_port.py
+      - tests/checks/test_docs_build_lifecycle.py
+  pull_request:
+    paths:
+      - .github/workflows/docs-pages-candidate.yml
+      - docs/**
+      - compose/docs.yml
+      - js/package.json
+      - js/package-lock.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-pages-candidate
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Pull reviewed Node build base
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(awk '$1 == "FROM" { print $2 }' source/containers/node-deps/Dockerfile)"
+          test -n "$base"
+          docker --context default pull "$base"
+
+      - name: Install existing checksum-locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C source js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=docs-pages-candidate
+          test -e source/js/node_modules/vitepress/package.json
+
+      - name: Qualify migrated pages and disposable build lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd source
+          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle
+
+      - name: Build docs with confined Docker Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs-output
+          make -C source docs/build DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=docs-pages-candidate \
+            DOCS_OUTPUT_DIR="$GITHUB_WORKSPACE/docs-output"
+
+      - name: Verify built routes and protocol bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+
+          source = Path('source/docs')
+          output = Path('docs-output/site')
+          routes = (
+              'index.html', 'start/index.html', 'gallery/index.html',
+              'use/index.html', 'authoring/index.html', 'deployment/index.html',
+              'reference/index.html', 'reference/cam/index.html',
+              'pay-to-play/index.html', 'escrow/index.html', 'bike-nft/index.html',
+              'development/index.html', 'deployment/networks/index.html',
+              'viewer/deploy.html', 'deployments/index.html',
+          )
+          for name in routes:
+              file = output / name
+              assert file.is_file() and file.stat().st_size > 100, f'missing route: {name}'
+          for version in ('1.1.0', '1.2.0', '1.3.0', '1.4.0'):
+              original = source / f'reference/cam/{version}/index.html'
+              published = output / f'reference/cam/{version}/index.html'
+              assert published.read_bytes() == original.read_bytes(), f'protocol bytes differ: {version}'
+          gallery = json.loads((output / 'gallery/deployments.json').read_text())
+          assert gallery['deployments'], 'Gallery has no published deployments'
+          assert (output / 'assets').is_dir(), 'VitePress assets missing'
+          assert any((output / 'assets').glob('*.js')), 'VitePress JS entry missing'
+          print('Qualified route set, byte-identical CAM references and Gallery data.')
+          PY
+
+      - name: Retain exact qualified site
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: docs-pages-candidate
+          path: docs-output/site/
+          retention-days: 3
+          if-no-files-found: error
+          include-hidden-files: true
+
+  propose:
+    if: github.event_name != 'pull_request'
+    needs: qualify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out published site for a reviewed update
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: gh-pages
+          path: site
+          persist-credentials: true
+
+      - name: Download immutable qualified site
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: docs-pages-candidate
+          path: qualified
+
+      - name: Propose Docs update without changing viewer publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -s qualified/index.html
+          test -s qualified/gallery/index.html
+          test -s qualified/reference/cam/1.4.0/index.html
+          # Merge docs output; do not delete the independently published viewer.
+          cp -a qualified/. site/
+          touch site/.nojekyll
+          cd site
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- .
+          if git diff --cached --quiet; then
+            echo 'Published Pages site already matches the qualified docs.'
+            exit 0
+          fi
+          if git diff --cached --name-only | grep -q '^viewer/'; then
+            echo 'Documentation update must not modify the separately published viewer.' >&2
+            exit 2
+          fi
+          git commit -m "Build VitePress docs from $GITHUB_SHA"
+          branch="docs/vitepress-pages-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git push origin "HEAD:refs/heads/$branch"
+          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" \
+            --title "Publish VitePress docs $(printf %s "$GITHUB_SHA" | cut -c1-12)" \
+            --body "Qualified VitePress build from main@$GITHUB_SHA. Replaces the static guide pages, keeps exact CAM protocol bytes, retains the independent viewer and requires review before publication."; then
+            echo "::warning::Qualified docs candidate pushed; open a PR manually."
+            {
+              echo '### VitePress docs await review'
+              echo "Source: main@$GITHUB_SHA"
+              echo "Candidate branch: $branch"
+              echo "Review: https://github.com/$GITHUB_REPOSITORY/compare/gh-pages...$branch?expand=1"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
