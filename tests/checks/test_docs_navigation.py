@@ -60,6 +60,21 @@ class DocsNavigationTests(unittest.TestCase):
             {source for source, _ in pages} | set(retired),
         )
 
+    def test_homepage_contains_only_technical_scope_and_generated_section_directory(self) -> None:
+        homepage = (DOCS / "index.md").read_text(encoding="utf-8")
+        self.assertEqual(1, homepage.count('<p>'))
+        self.assertEqual(1, homepage.count('<HomeSections />'))
+        self.assertIn('id="documentation"', homepage)
+        self.assertNotIn('class="lede"', homepage)
+        self.assertNotIn('Explore the Gallery', homepage)
+        self.assertNotIn('<h2', homepage)
+        for legacy_section in ("apps", "try", "development", "problem", "approach",
+                               "status", "roadmap", "related", "archive"):
+            self.assertNotIn(f'id="{legacy_section}"', homepage)
+        self.assertIn("CAM host contract", homepage)
+        self.assertIn("SHA-256 digest", homepage)
+        self.assertIn("business contracts enforce", homepage)
+
     def test_home_sidebar_is_the_six_section_landings_from_the_same_inventory(self) -> None:
         expected = [
             "/dapp32/" + route_url(section["landing"]["route"])

@@ -28,7 +28,7 @@ outline: false
 </ol>
 <p>The viewer browser fetches the resources and RPC itself. HTTPS, CORS and Download scope must allow those requests. Never paste a private signing endpoint or secret API credential into a shared viewer URL.</p>
 <h2 id="local-publication">Run a local viewer for your saved publication</h2>
-<dl><dt>Run on</dt><dd>Your workstation, in the source checkout, after <a href="../#development">dependency setup</a>.</dd><dt>Requires</dt><dd>An existing private instance containing a completed compatible publication.</dd><dt>Changes</dt><dd>A local viewer runtime. No chain deployment, signing or CAM update.</dd></dl>
+<dl><dt>Run on</dt><dd>Your workstation, in the source checkout, after <a href="../development/">dependency setup</a>.</dd><dt>Requires</dt><dd>An existing private instance containing a completed compatible publication.</dd><dt>Changes</dt><dd>A local viewer runtime. No chain deployment, signing or CAM update.</dd></dl>
 <pre><code>INSTANCE=/absolute/private/pay-to-play-fuji
 make viewer/release/up \
   DOCKER_CONTEXT=your-local-context INSTANCE="$INSTANCE"</code></pre>

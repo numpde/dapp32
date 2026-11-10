@@ -10,7 +10,7 @@ outline: false
 
 
 <p>Start by changing one screen in the complete Escrow example. You will see the change in the generic viewer without editing its React code or changing contract permissions.</p>
-<dl><dt>Run on</dt><dd>Your workstation, in a source checkout.</dd><dt>Requires</dt><dd><a href="../#development">Docker, Compose, Make and the locked dependencies</a>.</dd><dt>Changes</dt><dd>Local CAM files and a disposable chain. No public deployment.</dd><dt>Success</dt><dd>The local creation form shows your new label; CAM conformance passes.</dd></dl>
+<dl><dt>Run on</dt><dd>Your workstation, in a source checkout.</dd><dt>Requires</dt><dd><a href="../development/">Docker, Compose, Make and the locked dependencies</a>.</dd><dt>Changes</dt><dd>Local CAM files and a disposable chain. No public deployment.</dd><dt>Success</dt><dd>The local creation form shows your new label; CAM conformance passes.</dd></dl>
 <nav aria-label="Guide sections"><a href="#edit">Make a change</a> · <a href="#examples">Follow the read</a> · <a href="#write">Follow the write</a> · <a href="#publish">Publish deliberately</a></nav>
 <h2 id="edit">1. Make one visible change</h2>
 <p>In <code>dapps/escrow/cam/ui.json</code>, locate the <code>AmountField</code> with label <code>Escrow amount</code> in the agreement-creation screen. Change only its label to <code>Project budget</code>. Keep its state key, unit and expressions unchanged.</p>
