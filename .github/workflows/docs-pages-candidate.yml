@@ -97,6 +97,10 @@ jobs:
     needs: qualify
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # The independently qualified viewer publisher also updates gh-pages.
+    concurrency:
+      group: gh-pages-publication
+      cancel-in-progress: false
     permissions:
       contents: write
       pages: write
