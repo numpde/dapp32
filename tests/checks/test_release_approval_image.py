@@ -14,7 +14,7 @@ import tempfile
 import time
 import unittest
 
-from .common import ROOT, rendered_compose_config
+from .common import ROOT, rendered_compose_config, compose_sequence_or_empty
 
 
 class ReleaseApprovalImageTest(unittest.TestCase):
@@ -69,7 +69,7 @@ class ReleaseApprovalImageTest(unittest.TestCase):
         consumers = {}
         for name, service in config["services"].items():
             private_mounts = [
-                mount["source"] for mount in service.get("volumes", ())
+                mount["source"] for mount in compose_sequence_or_empty(service, "volumes")
                 if mount["type"] == "bind" and any(
                     mount["source"] == root or mount["source"].startswith(root + "/")
                     for root in private_roots
@@ -98,6 +98,7 @@ class _ReleaseCommandHarness:
     executable is involved.
     """
 
+    # silent-defaults: allow-default -- Tests use a mapped-root identity and a successful probe unless a failure is being exercised.
     def __init__(
         self, kind: str, *, block: str, hold_down: bool,
         down_status: int, child_status: int, build_directory: Path | None = None,
