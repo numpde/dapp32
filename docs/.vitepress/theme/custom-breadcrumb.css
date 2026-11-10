@@ -38,9 +38,13 @@
   .doc-breadcrumb { font-size: 0.76rem; margin-bottom: 1rem; }
 }
 
-/* The right VitePress outline is an independently scrolling container.
-   Its upstream overscroll containment traps wheel input at scroll boundaries,
-   even when the document has more content. Preserve native scroll chaining. */
+/* VitePress makes the desktop right-hand "On this page" outline its own
+   scroll container and applies overscroll-behavior: contain. At its scroll
+   limits (including when the outline is too short to scroll), that prevents
+   wheel movement over the right column from reaching the main document.
+   Restore vertical scroll chaining: the outline still scrolls normally when
+   it has room, and otherwise the page scrolls. Scope this to the desktop
+   breakpoint where VitePress displays the right-hand outline. */
 @media (min-width: 1280px) {
   .VPDoc .aside-container { overscroll-behavior-y: auto; }
 }
