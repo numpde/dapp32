@@ -1,0 +1,23 @@
+# Temporary maintainer diagnostic. Remove before merging.
+name: CI source diagnostic archive
+on:
+  push:
+    branches: [fix/ci-infrastructure-and-regressions-20261110]
+    paths: [.github/workflows/ci-source-debug.yml]
+permissions:
+  contents: read
+jobs:
+  archive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - run: git archive --format=tar HEAD | gzip -n > source.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ci-source-diagnostic
+          path: source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
