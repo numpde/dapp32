@@ -322,9 +322,14 @@ class DocsBuildLifecycleTests(unittest.TestCase):
 
         viewer = (ROOT / ".github/workflows/viewer-pages-preview.yml").read_text(encoding="utf-8")
         viewer_publisher = viewer.split("  publish:\n", 1)[1]
-        self.assertIn("if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
-                      viewer_publisher)
-        self.assertIn('branch="docs/viewer-preview-candidate"', viewer_publisher)
+        self.assertIn("github.event_name == 'push'", viewer_publisher)
+        self.assertIn("github.ref == 'refs/heads/main'", viewer_publisher)
+        self.assertIn("needs: candidate", viewer_publisher)
+        self.assertIn("pages: write", viewer_publisher)
+        self.assertIn("group: gh-pages-publication", viewer_publisher)
+        self.assertIn("git push origin HEAD:refs/heads/gh-pages", viewer_publisher)
+        self.assertIn("pages/builds/latest", viewer_publisher)
+        self.assertNotIn("gh pr create", viewer_publisher)
 
     def test_each_operation_owns_a_distinct_project_and_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

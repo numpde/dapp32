@@ -1,9 +1,12 @@
-name: Viewer Pages preview candidate
+name: Viewer qualification and automatic Pages publication
 
 on:
   push:
     branches: [main]
     paths:
+      - .github/workflows/viewer-pages-preview.yml
+      - tools/viewer_pages.py
+      - tests/checks/test_viewer_pages.py
       - js/apps/cam-web/**
       - js/packages/cam-*/**
       - js/package.json
@@ -17,6 +20,8 @@ on:
   pull_request:
     paths:
       - .github/workflows/viewer-pages-preview.yml
+      - tools/viewer_pages.py
+      - tests/checks/test_viewer_pages.py
       - js/apps/cam-web/**
   workflow_dispatch:
 
@@ -80,33 +85,8 @@ jobs:
           docker --host "$CAM_DOCKER_ENDPOINT" create --name "$container" --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" >/dev/null
           rm -rf -- site/viewer/assets
           docker --host "$CAM_DOCKER_ENDPOINT" cp "$container:/srv/viewer/." site/viewer/
-          python3 -B - <<'PY'
-          from html.parser import HTMLParser
-          from pathlib import Path
-          class Assets(HTMLParser):
-              def __init__(self):
-                  super().__init__()
-                  self.refs = []
-                  self.has_root = False
-              def handle_starttag(self, tag, attrs):
-                  attrs = dict(attrs)
-                  if attrs.get('id') == 'root':
-                      self.has_root = True
-                  path = attrs.get('src') if tag == 'script' else attrs.get('href') if tag == 'link' else None
-                  if path:
-                      self.refs.append(path)
-          root = Path('site/viewer')
-          index = root / 'index.html'
-          parser = Assets()
-          parser.feed(index.read_text(encoding='utf-8'))
-          assert parser.has_root, 'generated viewer lacks application root'
-          assert parser.refs and any(path.endswith('.js') for path in parser.refs), 'viewer has no JavaScript entry'
-          assert all(path.startswith('./assets/') for path in parser.refs), parser.refs
-          assert all((root / path).is_file() for path in parser.refs), 'missing built assets'
-          assert not any(path.is_symlink() for path in root.rglob('*')), 'no symlink-based Pages escapes'
-          assert (root / 'deploy.html').is_file(), 'preserve hosting guide'
-          print(f'Pages viewer preview: {len(parser.refs)} entry assets, static paths checked')
-          PY
+          python3 -B source/tools/viewer_pages.py check site/viewer
+
       - name: Retain the reviewed static candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -117,62 +97,160 @@ jobs:
           retention-days: 1
           if-no-files-found: error
   publish:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: candidate
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
+    # The documentation publisher uses the same group. Never update the shared
+    # Pages branch using two independent, stale checkouts.
+    concurrency:
+      group: gh-pages-publication
+      cancel-in-progress: false
     permissions:
       contents: write
-      pull-requests: write
+      pages: write
     steps:
-      - name: Check out Pages for a reviewable change
+      - name: Check out the exact qualified source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Check out the independent Pages branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: gh-pages
           path: site
           persist-credentials: true
-      - name: Retrieve the qualified static files
+
+      - name: Download the exact qualified viewer artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: viewer-pages-preview
-          path: site/viewer
-      - name: Propose the preview update against gh-pages
+          path: qualified
+
+      - name: Verify Pages publishes from gh-pages root
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test -s site/viewer/deploy.html
-          test -s site/viewer/index.html
-          test -d site/viewer/assets
-          cd site
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A -- viewer/index.html viewer/assets
-          if git diff --cached --quiet; then
-            echo 'Pages viewer already matches the qualified build.'
-            exit 0
-          fi
-          source_revision="$GITHUB_SHA"
-          git commit -m "Build Pages viewer preview from $source_revision"
-          # Preserve the existing unreviewed preview rather than creating
-          # another run-numbered branch. Publishing is a manual action only.
-          branch="docs/viewer-preview-candidate"
-          existing="$(git ls-remote --heads origin 'refs/heads/docs/viewer-preview-*')"
-          if [[ -n "$existing" ]]; then
-            echo "::error::Review or retire the existing viewer preview before proposing another." >&2
-            printf '%s\n' "$existing" >&2
+          gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/pages-settings.json"
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          settings = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-settings.json").read_text())
+          source = settings.get("source")
+          if settings.get("build_type") != "legacy" or not isinstance(source, dict) \
+                  or source.get("branch") != "gh-pages" or source.get("path") != "/":
+              raise SystemExit("Pages must publish gh-pages / in branch mode")
+          PY
+
+      - name: Stage and publish only qualified viewer application files
+        id: publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$GITHUB_SHA"
+          current="$(git -C site ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$current" != "$GITHUB_SHA" ]]; then
+            echo "::error::A newer source revision exists; refuse stale viewer publication." >&2
             exit 2
           fi
-          git push origin "HEAD:refs/heads/$branch"
-          echo "Preview candidate branch: $branch"
-          if ! gh pr create --repo "$GITHUB_REPOSITORY" --base gh-pages --head "$branch" --title "Publish Pages viewer preview $(printf %s "$source_revision" | cut -c1-12)" --body "Static viewer bundle from main@$source_revision. Built with the existing pinned-image/locked-dependency path. Only viewer/index.html and viewer/assets/ change. Review and merge to publish; the stand-alone viewer is unaffected."; then
-            echo "::warning::Preview bundle pushed, but this repository does not permit the workflow to open its publishing PR. Use the candidate branch below."
-            {
-              echo '### Pages preview awaits review'
-              echo "Qualified bundle: main@$source_revision."
-              echo "Candidate branch: `$branch`."
-              echo "Create the Pages PR: https://github.com/$GITHUB_REPOSITORY/compare/gh-pages...$branch?expand=1"
-              echo 'The Pages site will update only after that PR is merged.'
-            } >> "$GITHUB_STEP_SUMMARY"
+
+          # Preserve viewer/deploy.html, every docs file and the root site.
+          # Replace old hashed assets rather than accumulating dead bundles.
+          entry="$(python3 -B source/tools/viewer_pages.py stage qualified site/viewer)"
+          echo "entry_js=$entry" >> "$GITHUB_OUTPUT"
+          cd site
+          git add -A -- viewer/index.html viewer/assets
+          while IFS= read -r changed_file; do
+            case "$changed_file" in
+              viewer/index.html|viewer/assets/*) ;;
+              *) echo "::error::Viewer publisher attempted to change $changed_file" >&2; exit 2 ;;
+            esac
+          done < <(git diff --cached --name-only)
+          if git diff --cached --quiet; then
+            echo 'Viewer bundle already matches the qualified build.'
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Publish qualified viewer from $GITHUB_SHA (run $GITHUB_RUN_ID)"
+          # A non-forced push also protects concurrent updates to the Pages branch.
+          current="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$current" != "$GITHUB_SHA" ]]; then
+            echo "::error::Source main changed during publication; refuse stale viewer." >&2
+            exit 2
+          fi
+          git push origin HEAD:refs/heads/gh-pages
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+          echo "published_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # GITHUB_TOKEN pushes do not cause a Pages branch build automatically.
+      - name: Request and verify GitHub Pages deployment
+        if: steps.publication.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED_SHA: ${{ steps.publication.outputs.published_sha }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" > "$RUNNER_TEMP/pages-request.json"
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          request = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-request.json").read_text())
+          if request.get("status") != "queued":
+              raise SystemExit(f"Unexpected Pages build request: {request!r}")
+          PY
+          for attempt in {1..48}; do
+            gh api "repos/$GITHUB_REPOSITORY/pages/builds/latest" > "$RUNNER_TEMP/pages-result.json"
+            if python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          build = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-result.json").read_text())
+          if build.get("commit") != os.environ["PUBLISHED_SHA"]:
+              raise SystemExit(1)
+          if build.get("status") == "built":
+              print("GitHub Pages confirmed the exact viewer publication commit.")
+              raise SystemExit(0)
+          if build.get("status") in ("errored", "failed", "canceled"):
+              raise SystemExit(f"GitHub Pages build failed: {build.get('error')}")
+          raise SystemExit(1)
+          PY
+            then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Pages did not confirm commit $PUBLISHED_SHA." >&2
+          exit 2
+
+      - name: Verify the published viewer and its JavaScript bundle over HTTPS
+        if: steps.publication.outputs.changed == 'true'
+        shell: bash
+        env:
+          VIEWER_ENTRY: ${{ steps.publication.outputs.entry_js }}
+        run: |
+          set -euo pipefail
+          origin="https://numpde.github.io/dapp32/viewer/"
+          asset="$origin$(printf '%s' "$VIEWER_ENTRY" | sed 's#^\./##')"
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --max-time 10 \
+                -H 'Cache-Control: no-cache' "$origin?revision=$GITHUB_SHA" \
+                -o "$RUNNER_TEMP/viewer-live.html" \
+                && grep -Fq "$VIEWER_ENTRY" "$RUNNER_TEMP/viewer-live.html" \
+                && curl --fail --silent --show-error --max-time 10 "$asset" -o /dev/null; then
+              printf 'Verified deployed viewer at %s, entry %s\n' "$origin" "$VIEWER_ENTRY"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Pages did not serve the qualified viewer and entry asset." >&2
+          exit 2
