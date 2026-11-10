@@ -62,7 +62,9 @@ class DocsNavigationTests(unittest.TestCase):
 
     def test_homepage_contains_only_technical_scope_and_generated_section_directory(self) -> None:
         homepage = (DOCS / "index.md").read_text(encoding="utf-8")
-        self.assertEqual(1, homepage.count('<p>'))
+        self.assertEqual(3, homepage.count('<p>'))
+        self.assertEqual(1, homepage.count('<ul>'))
+        self.assertEqual(3, homepage.count('<li>'))
         self.assertEqual(1, homepage.count('<HomeSections />'))
         self.assertIn('id="documentation"', homepage)
         self.assertNotIn('class="lede"', homepage)
@@ -71,11 +73,15 @@ class DocsNavigationTests(unittest.TestCase):
         for legacy_section in ("apps", "try", "development", "problem", "approach",
                                "status", "roadmap", "related", "archive"):
             self.assertNotIn(f'id="{legacy_section}"', homepage)
-        # Guard homepage structure rather than pinning prose to implementation
-        # terminology. Technical details belong in Start and Reference.
-        self.assertNotIn("manifest URI", homepage)
-        self.assertNotIn("SHA-256 digest", homepage)
-        self.assertNotIn("UI and ABI resources", homepage)
+        # The root contract points to a separately served CAM. Calling the
+        # on-chain component a "host" conflates it with off-chain hosting.
+        self.assertIn("CAM root contract", homepage)
+        self.assertNotIn("CAM host", homepage)
+        self.assertIn("Contract Application Manifest (CAM)", homepage)
+        self.assertIn("standard, off-chain viewer", homepage)
+        self.assertIn("autonomous agents", homepage)
+        for app in ("Pay-to-Play", "Escrow", "Bike NFT"):
+            self.assertIn(app, homepage)
 
     def test_home_sidebar_is_the_six_section_landings_from_the_same_inventory(self) -> None:
         expected = [
