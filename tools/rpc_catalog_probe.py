@@ -248,7 +248,7 @@ def check(rpc, results, name, method, params, validator=None):
         return None
 
 
-def validate_logs(value, start, end):
+def validate_logs(value, start, end, expected_hash=None):
     if not isinstance(value, list) or len(value) > 5000:
         raise ProbeFailure("invalid_result")
     for item in value:
@@ -261,7 +261,8 @@ def validate_logs(value, start, end):
         transaction_hash = item.get("transactionHash")
         contract_address = item.get("address")
         if (not start <= height <= end or type(block_hash) is not str
-                or HASH.fullmatch(block_hash) is None):
+                or HASH.fullmatch(block_hash) is None
+                or (expected_hash is not None and block_hash.lower() != expected_hash)):
             raise ProbeFailure("inconsistent")
         if type(transaction_hash) is not str or HASH.fullmatch(transaction_hash) is None:
             raise ProbeFailure("invalid_result")
@@ -385,28 +386,38 @@ def probe_provider(network, service, endpoint, expected_chain):
 
     hash_logs = check(
         rpc, checks, "eth_getLogs:blockHash", "eth_getLogs", [log_filter],
-        lambda value: validate_logs(value, hex_quantity(observed_log["blockNumber"]) if observed_log else selected_height,
-                                    hex_quantity(observed_log["blockNumber"]) if observed_log else selected_height),
+        lambda value: validate_logs(
+            value,
+            hex_quantity(observed_log["blockNumber"]) if observed_log else selected_height,
+            hex_quantity(observed_log["blockNumber"]) if observed_log else selected_height,
+            expected_hash=log_block,
+        ),
     )
-    if observed_log:
+    if observed_log and hash_logs is not None:
         identity = (observed_log["transactionHash"].lower(), hex_quantity(observed_log["logIndex"]))
-        if hash_logs is not None:
-            identities = {(item["transactionHash"].lower(), hex_quantity(item["logIndex"])) for item in hash_logs}
-            if identity not in identities or any(item["blockHash"].lower() != log_block for item in hash_logs):
-                checks["eth_getLogs:blockHash"] = {"status": "inconsistent"}
-    elif hash_logs is not None:
+        identities = {(item["transactionHash"].lower(), hex_quantity(item["logIndex"])) for item in hash_logs}
+        if identity not in identities:
+            checks["eth_getLogs:blockHash"] = {"status": "inconsistent"}
+    elif range_logs == []:
+        checks["eth_getLogs:range"]["status"] = "inconclusive_empty"
+        if hash_logs:
+            checks["eth_getLogs:blockHash"] = {"status": "inconsistent"}
+        elif hash_logs == []:
+            checks["eth_getLogs:blockHash"]["status"] = "inconclusive_empty"
+    elif hash_logs == []:
         checks["eth_getLogs:blockHash"]["status"] = "inconclusive_empty"
 
     precompile_call = [{"to": IDENTITY_PRECOMPILE, "data": IDENTITY_INPUT},
                        {"blockHash": block_hash, "requireCanonical": True}]
     check(rpc, checks, "eth_call:blockHash", "eth_call", precompile_call, validate_identity_call)
     # A nonexistent hash must *not* be treated as the latest block.
-    unknown = check(rpc, checks, "eth_call:unknownBlockHash", "eth_call",
-                    [{"to": IDENTITY_PRECOMPILE, "data": IDENTITY_INPUT},
-                     {"blockHash": UNKNOWN_HASH, "requireCanonical": True}], validate_identity_call)
-    if unknown is not None:
+    check(rpc, checks, "eth_call:unknownBlockHash", "eth_call",
+          [{"to": IDENTITY_PRECOMPILE, "data": IDENTITY_INPUT},
+           {"blockHash": UNKNOWN_HASH, "requireCanonical": True}])
+    unknown_status = checks["eth_call:unknownBlockHash"]["status"]
+    if unknown_status == "ok":
         checks["eth_call:unknownBlockHash"] = {"status": "inconsistent_accepted_nonexistent_hash"}
-    elif checks["eth_call:unknownBlockHash"]["status"] == "rpc_error":
+    elif unknown_status == "rpc_error":
         checks["eth_call:unknownBlockHash"]["status"] = "rejected_unknown_hash"
 
     check(rpc, checks, "eth_getCode:blockHash", "eth_getCode",
