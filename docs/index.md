@@ -12,7 +12,7 @@ import HomeSections from './.vitepress/theme/HomeSections.vue'
 
 <div class="ported-guide">
 
-<p>A typical dapp32 application has four components:</p>
+<p>A typical dapp32 application has four components, plus an optional fifth:</p>
 
 <table>
 <thead><tr><th></th><th>On-chain</th><th>App-specific</th><th>Responsibility</th></tr></thead>
@@ -29,7 +29,7 @@ import HomeSections from './.vitepress/theme/HomeSections.vue'
 
 <p>
 The CAM is a standardized description of contract workflows that positions itself between low-level on-chain operations and custom frontends. 
-It can be read and understood both by autonomous agents and by the standard viewer (implemented in this repo), and allows to build and ship faster by providing the functionality without the frontend overhead.
+It can be read by both autonomous agents and the standard viewer (implemented in this repo), and allows developers to build and ship faster by providing functionality without the overhead of a custom frontend.
 It consists of off-chain files, including:
 </p>
 
@@ -40,7 +40,7 @@ It consists of off-chain files, including:
 </ul>
 
 <p>
-The CAM root on-chain contract
+The on-chain CAM root contract
 is a publication and discovery mechanism.
 It identifies the on-chain contracts by name 
 and publishes the location and digest of the CAM. 
@@ -49,8 +49,8 @@ and publishes the location and digest of the CAM.
 
 <p>
 The viewer is <strong>not</strong> specific to the application. 
-It is a standard frontend-only app that 
-can be self-hosted or not. 
+It is a standard frontend application that
+can be self-hosted or accessed through a hosted instance. 
 </p>
 
 <h2>How they fit together</h2>
@@ -61,7 +61,8 @@ can be self-hosted or not.
 
 <p>
 This repository demonstrates 
-this approach end-to-end with three applications:
+this approach end to end with three applications:
+</p>
 <ul>
 <li>Pay-to-Play as a blockchain payment system with cumulative voucher collection;</li>
 <li>An Escrow service;</li>
