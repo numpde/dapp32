@@ -371,16 +371,18 @@ release_approval_run "$CASE_ROOT/output"
                     events = (root / "events").read_text().splitlines()
                     self.assertEqual(1, sum(event.startswith("up ") and event.endswith(" deploy-release") for event in events))
                     self.assertEqual(0 if failure == "proxy" else 1, sum(event.endswith(" release-artifact") for event in events))
-                    command = next(line.strip() for line in stderr.splitlines() if "make " in line)
-                    command = command[command.index("make "):]
-                    expected = ["make", f"bike-nft/release/{phase}/artifact"]
                     if phase == "cam":
-                        expected += ["CONFIG=" + env["CONFIG"], "CAM_RECORDS=" + str(root / "output"),
-                                     "CAM_BUNDLE=" + str(root / "prepared")]
+                        # Without a usable attempt record, a guessed retry command
+                        # could cause duplicate on-chain effects.
+                        self.assertNotIn("make bike-nft/release/cam/artifact", stderr)
+                        self.assertIn("Review the retained verification log", stderr)
                     else:
-                        expected += [("CONTRACT_RECORDS=" if phase == "contracts" else "UI_RECORDS=") + str(root / "output"),
-                                     "CONFIG=" + env["CONFIG"]]
-                    self.assertEqual(expected, shlex.split(command))
+                        command = next(line.strip() for line in stderr.splitlines() if "make " in line)
+                        command = command[command.index("make "):]
+                        expected = ["make", f"bike-nft/release/{phase}/artifact",
+                                    ("CONTRACT_RECORDS=" if phase == "contracts" else "UI_RECORDS=") + str(root / "output"),
+                                    "CONFIG=" + env["CONFIG"]]
+                        self.assertEqual(expected, shlex.split(command))
 
     def test_artifact_completion_copies_prepared_dependencies_and_rejects_unsafe_paths_first(self):
         for case in ("default", "prepared", "missing", "symlink"):
