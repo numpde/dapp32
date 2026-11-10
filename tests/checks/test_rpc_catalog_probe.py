@@ -131,6 +131,42 @@ class CatalogAdmissionTests(unittest.TestCase):
         self.assertEqual(result["observed_chain_id"], 2)
         self.assertEqual(list(result["checks"]), ["eth_chainId"])
 
+    def test_nonexistent_block_hash_must_be_rejected_even_if_reply_is_empty(self):
+        class IgnoresHash(FakeRpc):
+            def call(self, method, params):
+                if method == "eth_call" and params[1]["blockHash"] == probe.UNKNOWN_HASH:
+                    return "0x", 1
+                return super().call(method, params)
+
+        with patch.object(probe, "JsonRpc", IgnoresHash):
+            result = probe.probe_provider("network", "public", "https://example.org", 1)
+        self.assertEqual(result["checks"]["eth_call:unknownBlockHash"]["status"],
+                         "inconsistent_accepted_nonexistent_hash")
+
+    def test_hash_log_query_must_match_the_requested_block_hash(self):
+        class WrongBlockHash(FakeRpc):
+            def call(self, method, params):
+                if method == "eth_getLogs" and "blockHash" in params[0]:
+                    rows, duration = super().call(method, params)
+                    return [{**row, "blockHash": "0x" + "ff" * 32} for row in rows], duration
+                return super().call(method, params)
+
+        with patch.object(probe, "JsonRpc", WrongBlockHash):
+            result = probe.probe_provider("network", "public", "https://example.org", 1)
+        self.assertEqual(result["checks"]["eth_getLogs:blockHash"]["status"], "inconsistent")
+
+    def test_contradictory_empty_range_and_nonempty_block_hash_query(self):
+        class ContradictoryLogs(FakeRpc):
+            def call(self, method, params):
+                if method == "eth_getLogs" and "fromBlock" in params[0]:
+                    return [], 1
+                return super().call(method, params)
+
+        with patch.object(probe, "JsonRpc", ContradictoryLogs):
+            result = probe.probe_provider("network", "public", "https://example.org", 1)
+        self.assertEqual(result["checks"]["eth_getLogs:range"]["status"], "inconclusive_empty")
+        self.assertEqual(result["checks"]["eth_getLogs:blockHash"]["status"], "inconsistent")
+
     def test_mismatched_log_contents_cannot_count_as_hash_query_success(self):
         class LyingLogs(FakeRpc):
             def call(self, method, params):
