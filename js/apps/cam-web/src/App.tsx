@@ -63,6 +63,7 @@ import {
 import type { ConnectionOptions, StartupCoordinates, StartupOptions } from "./startup.ts"
 import { RpcControls } from "./rpc-controls.tsx"
 import { AppSetup } from "./app-setup.tsx"
+import { AppearanceControl } from "./appearance.tsx"
 import { createRpcConnection } from "./rpc-connection.ts"
 import {
   ConnectionSummary,
@@ -959,6 +960,7 @@ export function App(): ReactElement {
     <main className="app-shell">
       <header className="topbar">
         <h1>{"coordinates" in viewerLink ? headerTitle(loadState) : "Open app"}</h1>
+        <AppearanceControl />
       </header>
       {"coordinates" in viewerLink ? null : <AppSetup rpcURLs={viewerLink.rpcURLs} onOpen={request => {
         const { rpcUrl, ...coordinates } = request
