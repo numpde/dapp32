@@ -16,7 +16,7 @@ jobs:
           persist-credentials: false
       - name: Reproduce documentation lifecycle under the exact offline check image
         run: |
-          docker compose -f compose/checks.yml run --build --rm -T checks -I -B -m unittest -v tests.checks.test_docs_build_lifecycle.DocsBuildLifecycleTests.test_success_publishes_and_cleans_the_private_stage_and_tmpfs_volume
+          docker compose -f compose/checks.yml run --build --rm -T checks -I -B -m unittest discover -s tests/checks -t . -p test_docs_build_lifecycle.py -k test_success_publishes_and_cleans_the_private_stage_and_tmpfs_volume -v
       - run: git archive --format=tar HEAD | gzip -n > source.tar.gz
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
