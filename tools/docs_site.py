@@ -105,7 +105,7 @@ def check_links(site: Path, pages: list[tuple[str, str]], retired: dict[str, str
                 raise ValueError(f"Broken guide link from {original_html}: {href}")
             if target.fragment and resolved.suffix == ".html":
                 anchor = unquote(target.fragment)
-                if (relative, anchor) == ("gallery/index.html", anchor) and anchor in gallery_apps:
+                if relative == "gallery/index.html" and anchor in gallery_apps:
                     continue
                 if anchor not in parsed(relative).anchors:
                     raise ValueError(f"Broken section link from {original_html}: {href}")
