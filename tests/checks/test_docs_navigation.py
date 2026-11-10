@@ -68,6 +68,7 @@ class DocsNavigationTests(unittest.TestCase):
         self.assertEqual(expected, sidebar_links(DOCS, None))
         self.assertEqual(6, len(expected))
         navigation = (DOCS / ".vitepress/navigation.ts").read_text(encoding="utf-8")
+        self.assertIn("if (route === homePage.route) return '/'", navigation)
         self.assertIn("[homeHref, homeSections.map(section =>", navigation)
         self.assertIn("...sections.map(section => [", navigation)
         self.assertNotIn("sidebar['/']", navigation)

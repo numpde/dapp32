@@ -13,6 +13,9 @@ const sections = architecture.sections as Section[]
 export const homePage = architecture.home as Page
 
 export function pageLink(route: string): string {
+  // The declared site root is served at "/", not "/index.html". VitePress
+  // resolves sidebars by URL prefix, so an incorrect root link hides its aside.
+  if (route === homePage.route) return '/'
   return route.endsWith('/index.md')
     ? '/' + route.slice(0, -'index.md'.length)
     : '/' + route.replace(/\.md$/, '.html')
