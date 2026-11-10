@@ -63,9 +63,9 @@ export function mountCapabilities() {
           const row = element('tr');
           const networkCell = element('th', networkName);
           networkCell.scope = 'row';
-          networkCell.append(element('small', `Chain ${network.chain_id}`));
+          networkCell.append(element('br'), element('small', `Chain ${network.chain_id}`));
           const providerCell = element('td');
-          providerCell.append(element('strong', provider),
+          providerCell.append(element('strong', provider), element('br'),
                               element('code', service.endpoint ?? service.endpoint_template ?? ''));
 
           row.append(networkCell, providerCell);

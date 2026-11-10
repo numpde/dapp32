@@ -46,12 +46,12 @@ onBeforeUnmount(() => {
 <h2 id="recorded-rpc-capabilities">Recorded RPC capabilities</h2>
 <p>The measurements below come from the <code>rpc/catalog/probe</code> read-only experiment, not from the network catalog's reference dates. The probe checks recent block data, limited event-log queries, hash-addressed calls, and historical reads 4,096 blocks behind the sampled head. Credential-required services are listed but not tested. A method accepting one sample does not prove complete historical state, correct event logs, reliable finality, or future availability.</p>
 <p id="capability-status" role="status" aria-live="polite">Loading recorded RPC measurements…</p>
+<p id="capability-source"><a href="https://github.com/numpde/dapp32/blob/main/docs/public/deployment/rpc/capabilities.json">Open the recorded JSON</a></p>
 <div id="capability-results" hidden>
   <p id="capability-summary"></p>
-  <p id="capability-source"></p>
   <div class="table-wrap" role="region" aria-label="Recorded RPC capability results" tabindex="0">
     <table>
-      <thead><tr><th scope="col">Network</th><th scope="col">Provider and URL</th><th scope="col">Chain ID</th><th scope="col">Event logs: range / block hash</th><th scope="col">Calls: block hash / historical</th><th scope="col">Detailed checks</th></tr></thead>
+      <thead><tr><th scope="col">Network</th><th scope="col">Provider and URL</th><th scope="col">Chain ID check</th><th scope="col">Event logs: range / block hash</th><th scope="col">Calls: block hash / historical</th><th scope="col">Detailed checks</th></tr></thead>
       <tbody id="capability-rows"></tbody>
     </table>
   </div>
