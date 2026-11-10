@@ -1,6 +1,6 @@
 ---
 title: "Contract-defined workflows"
-description: "CAM host, off-chain manifest and resources, viewer or agent, and on-chain execution."
+description: "How dapp32 applications describe their interfaces while contracts enforce the rules."
 outline: false
 ---
 
@@ -12,7 +12,7 @@ import HomeSections from './.vitepress/theme/HomeSections.vue'
 
 <div class="ported-guide">
 
-<p>A CAM host contract exposes a manifest URI, its SHA-256 digest, and named contract bindings. The off-chain manifest defines routes and references UI and ABI resources used by a viewer or agent to read state and prepare calls. Signing is separate; business contracts enforce permissions and state changes.</p>
+<p>A dapp32 application has smart contracts and a published description of how to use them. A shared viewer or automated client reads that description to show information and prepare actions. The description grants no permissions: users approve transactions through their wallets, and the contracts enforce the rules.</p>
 <section id="documentation">
 <HomeSections />
 </section>

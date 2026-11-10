@@ -71,9 +71,11 @@ class DocsNavigationTests(unittest.TestCase):
         for legacy_section in ("apps", "try", "development", "problem", "approach",
                                "status", "roadmap", "related", "archive"):
             self.assertNotIn(f'id="{legacy_section}"', homepage)
-        self.assertIn("CAM host contract", homepage)
-        self.assertIn("SHA-256 digest", homepage)
-        self.assertIn("business contracts enforce", homepage)
+        # Guard homepage structure rather than pinning prose to implementation
+        # terminology. Technical details belong in Start and Reference.
+        self.assertNotIn("manifest URI", homepage)
+        self.assertNotIn("SHA-256 digest", homepage)
+        self.assertNotIn("UI and ABI resources", homepage)
 
     def test_home_sidebar_is_the_six_section_landings_from_the_same_inventory(self) -> None:
         expected = [
