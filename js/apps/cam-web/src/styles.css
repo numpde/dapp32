@@ -27,8 +27,6 @@
   box-sizing: border-box;
 }
 
-a { color: var(--accent); }
-
 body {
   margin: 0;
   color: var(--ink);
