@@ -160,6 +160,19 @@ class DocsPortTests(unittest.TestCase):
         self.assertIn("@media (prefers-reduced-motion: reduce)", css)
         self.assertIn(".VPDoc .aside-container { overscroll-behavior-y: auto; }", scroll)
 
+    def test_gallery_headings_are_guide_links_without_vitepress_dividers(self) -> None:
+        gallery = (DOCS / "gallery/deployments.js").read_text(encoding="utf-8")
+        css = (DOCS / "gallery/gallery.css").read_text(encoding="utf-8")
+
+        self.assertIn("function appHeading(deployment)", gallery)
+        self.assertIn("heading.append(link(deployment.guide, deployment.name))", gallery)
+        self.assertIn("heading.append(appHeading(deployment))", gallery)
+        self.assertIn("heading.append(appHeading(ordered[0]))", gallery)
+        self.assertNotIn("[deployment.guide, 'App guide']", gallery)
+        self.assertIn(".vp-doc .gallery-content .deployment-heading h2", css)
+        self.assertIn("border: 0;", css)
+        self.assertIn("padding: 0;", css)
+
     def test_gallery_uses_one_catalog_and_page_mounts(self) -> None:
         self.assertTrue((DOCS / "public/gallery/deployments.json").is_file())
         import json

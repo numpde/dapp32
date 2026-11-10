@@ -19,7 +19,24 @@
       gap: 12px 20px;
     }
     .deployment-heading { margin-bottom: 12px; }
-    .deployment-heading h2 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+    /* VitePress adds a top border and 24px padding to article h2 headings.
+       Gallery app titles are card headers, not article section breaks. */
+    .vp-doc .gallery-content .deployment-heading h2 {
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      overflow-wrap: anywhere;
+    }
+    .vp-doc .gallery-content .deployment-heading h2 a {
+      color: var(--vp-c-text-1);
+      text-decoration: none;
+    }
+    .vp-doc .gallery-content .deployment-heading h2 a:is(:hover, :focus-visible) {
+      color: var(--vp-c-brand-1);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
     .deployment-overview { justify-content: space-between; }
     .deployment .network { margin: 0; font-size: .9rem; }
     .deployment .actions { margin: 0; align-items: center; gap: 16px; }

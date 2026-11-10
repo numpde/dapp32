@@ -98,7 +98,11 @@ class DocsNavigationTests(unittest.TestCase):
         self.assertIn("sidebar,", config)
         self.assertIn("sections.map(section => [", config)
         self.assertNotIn("sections.filter(section => section.id !== 'gallery')", config)
-        self.assertIn("sidebar['/gallery/'].push(", config)
+        self.assertIn("sidebar['/gallery/'] = [", config)
+        self.assertNotIn("sidebar['/gallery/'].push(", config)
+        gallery_sidebar = config.split("sidebar['/gallery/'] = [", 1)[1].split("]\n", 1)[0]
+        self.assertNotIn("collapsed:", gallery_sidebar)
+        self.assertNotIn("items:", gallery_sidebar)
         self.assertIn("import galleryCatalog from '../public/gallery/deployments.json'", config)
         self.assertIn("link: '/gallery/#' + id", config)
         self.assertIn("activeMatch: '^/' + section.id + '/'", config)

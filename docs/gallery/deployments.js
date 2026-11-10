@@ -21,6 +21,14 @@ function link(url, text, className) {
   return node;
 }
 
+// One guide link is the application heading for both single deployments and
+// grouped release selectors. The separate actions open running viewers only.
+function appHeading(deployment) {
+  const heading = element('h2');
+  heading.append(link(deployment.guide, deployment.name));
+  return heading;
+}
+
 function explorerAddress(explorer, address) {
   return `${explorer.replace(/\/$/, '')}/address/${address}`;
 }
@@ -90,7 +98,7 @@ function deploymentCard(deployment, viewer, previewViewer, catalog, embedded = f
   card.id = deployment.id;
   if (!embedded) {
     const heading = element('div', undefined, 'deployment-heading');
-    heading.append(element('h2', deployment.name));
+    heading.append(appHeading(deployment));
     card.append(heading);
   }
   const mainnet = catalog[network.mainnet];
@@ -103,7 +111,7 @@ function deploymentCard(deployment, viewer, previewViewer, catalog, embedded = f
   previewURL.searchParams.set('chainId', `eip155:${network.chainId}`);
   previewURL.searchParams.set('host', deployment.host);
   const actions = element('div', undefined, 'actions');
-  for (const [url, label] of [[viewerURL, 'Open app'], [previewURL, 'Pages preview'], [deployment.guide, 'App guide']]) {
+  for (const [url, label] of [[viewerURL, 'Open app'], [previewURL, 'Pages preview']]) {
     const action = link(url, label);
     action.target = '_blank';
     action.rel = 'noopener noreferrer';
@@ -340,7 +348,7 @@ async function load() {
       const ordered = [...deployments].sort((a, b) => b.deployedAt.localeCompare(a.deployedAt));
       const group = element('article', undefined, 'card deployment');
       const heading = element('div', undefined, 'deployment-heading');
-      heading.append(element('h2', deployments[0].name));
+      heading.append(appHeading(ordered[0]));
       const select = element('select');
       select.id = `deployment-select-${deployments[0].appId}`;
       select.setAttribute('aria-label', `${deployments[0].name} deployment`);

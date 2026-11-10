@@ -45,23 +45,17 @@ for (const app of galleryCatalog.deployments) {
   }
   deployedApps.set(app.appId, app.name)
 }
-sidebar['/gallery/'].push(
-  {
-    text: 'Deployed apps',
-    collapsed: false,
-    items: [...deployedApps].sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([id, name]) => ({ text: name, link: '/gallery/#' + id })),
-  },
-  {
-    text: 'Next steps',
-    collapsed: false,
-    items: [
-      { text: 'Open an unlisted app', link: '/use/' },
-      { text: 'Try a local demo', link: '/start/examples/' },
-      { text: 'Network catalog', link: '/deploy/networks/' },
-    ],
-  },
-)
+// The Gallery is a directory, not a nested guide tree. Flat links keep the
+// same sidebar as the other sections without meaningless disclosure toggles.
+// Releases are chosen in the Gallery card, not duplicated in the sidebar.
+sidebar['/gallery/'] = [
+  { text: 'Browse deployments', link: '/gallery/' },
+  ...[...deployedApps].sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([id, name]) => ({ text: name, link: '/gallery/#' + id })),
+  { text: 'Open an unlisted app', link: '/use/' },
+  { text: 'Try a local demo', link: '/start/examples/' },
+  { text: 'Network catalog', link: '/deploy/networks/' },
+]
 
 export default defineConfig({
   lang: 'en-US',
