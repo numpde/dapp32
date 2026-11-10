@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "state": "not_run",
+  "catalog": "js/packages/cam-viewer/src/rpc-catalog.json",
+  "report": "This fixed tracked file is populated by make rpc/catalog/probe DOCKER_CONTEXT=<local-context>.",
+  "generated_at_utc": null,
+  "networks": {}
+}
