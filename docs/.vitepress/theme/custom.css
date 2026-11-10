@@ -38,6 +38,22 @@
 .vp-doc .ported-guide table { display: table; width: 100%; border-collapse: collapse; }
 .vp-doc .ported-guide :is(th,td) { vertical-align: top; overflow-wrap: anywhere; }
 .vp-doc .ported-guide .route-table, .vp-doc .ported-guide .table-scroll { overflow-x: auto; }
+/* Compare application components without relying on platform-dependent emoji
+   glyphs. At narrow widths the table scrolls, rather than breaking status
+   headers or squeezing the responsibility column. */
+.vp-doc .ported-guide .component-table { min-width: 43rem; margin: 0; }
+.vp-doc .ported-guide .component-table :is(th,td) {
+  vertical-align: middle;
+  padding: .75rem .85rem;
+}
+.vp-doc .ported-guide .component-table tbody th { text-align: left; }
+.vp-doc .ported-guide .component-table :is(th,td):nth-child(2),
+.vp-doc .ported-guide .component-table :is(th,td):nth-child(3) {
+  width: 7rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .vp-doc .ported-guide .route-table table, .vp-doc .ported-guide .table-scroll table { min-width: 38rem; }
 .vp-doc .ported-guide .note, .vp-doc .ported-guide .callout { border-inline-start: 3px solid var(--vp-c-brand-1); padding: .5rem 1rem; background: var(--vp-c-bg-soft); }
 .vp-doc .ported-guide .serial { font-family: var(--vp-font-family-mono); font-weight: 700; }

@@ -14,16 +14,18 @@ import HomeSections from './.vitepress/theme/HomeSections.vue'
 
 <p>A typical dapp32 application has these components:</p>
 
-<table>
-<thead><tr><th></th><th>On-chain</th><th>App-specific</th><th>Responsibility</th></tr></thead>
+<div class="table-scroll" role="region" aria-label="Components of a dapp32 application" tabindex="0">
+<table class="component-table">
+<thead><tr><th scope="col">Component</th><th scope="col">On-chain</th><th scope="col">App-specific</th><th scope="col">Responsibility</th></tr></thead>
 <tbody>
-<tr><td><strong>Business contracts</strong></td><td>✔</td><td>✔</td><td>Business logic, state, permissions, and transactions</td></tr>
-<tr><td><strong>Contract Application Manifest (CAM)</strong></td><td>✗</td><td>✔</td><td>Describe workflows, contract interactions, views, forms, and actions</td></tr>
-<tr><td><strong>CAM root contract</strong></td><td>✔</td><td>✔</td><td>Point to the CAM and resolve contracts by name</td></tr>
-<tr><td><strong>Standard viewer</strong></td><td>✗</td><td>✗</td><td>Read contract state, interpret and render the CAM, prepare transactions</td></tr>
-<tr><td><strong>UI projection (optional)</strong></td><td>✔</td><td>✔</td><td>Assemble contract state into useful information</td></tr>
+<tr><th scope="row">Business contracts</th><td>Yes</td><td>Yes</td><td>Business logic, state, permissions, and transactions</td></tr>
+<tr><th scope="row">Contract Application Manifest (CAM)</th><td>No</td><td>Yes</td><td>Describe workflows, contract interactions, views, forms, and actions</td></tr>
+<tr><th scope="row">CAM root contract</th><td>Yes</td><td>Yes</td><td>Point to the CAM and resolve contracts by name</td></tr>
+<tr><th scope="row">Standard viewer</th><td>No</td><td>No</td><td>Read contract state, interpret and render the CAM, prepare transactions</td></tr>
+<tr><th scope="row">UI projection (optional)</th><td>Yes</td><td>Yes</td><td>Assemble contract state into useful information</td></tr>
 </tbody>
 </table>
+</div>
 
 <h2>Important distinctions</h2>
 

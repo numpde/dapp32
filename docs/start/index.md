@@ -1,48 +1,53 @@
 ---
-title: "Understand what runs where"
-description: "Separate the browser viewer, hosted workflow files, on-chain host and business contracts before choosing a task."
+title: "How a dapp32 application runs"
+description: "Follow discovery, contract reads, transaction preparation, wallet approval, and execution."
 outline: false
 ---
 
-# What runs where?
+# How a dapp32 application runs
 
 <div class="ported-guide">
 
+<p>The <a href="../">homepage</a> describes the business contracts, CAM root, off-chain CAM, and shared viewer. This page follows what happens when someone opens an application and executes an action. The CAM root is an on-chain contract; the CAM files are served separately.</p>
 
-<p>An app author describes a workflow in JSON. A contract publishes where to find it. A generic viewer reads that description and displays the app; a compatible agent can interpret it without drawing a screen. Business contracts, not the description, enforce the rules.</p>
-<p>To open a public testnet app without setting up a local environment, go to the <a href="../gallery/">Gallery</a>. To learn the system, continue below or <a href="local-wallet.html">try the local-wallet walkthrough</a>.</p>
-<h2>Four parts, not one deployment</h2>
-<table><thead><tr><th>Part</th><th>Location</th><th>Responsibility</th></tr></thead><tbody>
-<tr><td>Viewer</td><td>JavaScript in the user's browser; static assets on a web server</td><td>Discover, render, prepare reads/writes, and ask a wallet to authorize.</td></tr>
-<tr><td>CAM bundle</td><td>Hosted files</td><td><code>main.json</code> describes routes; UI, ABI and protocol resources provide their definitions.</td></tr>
-<tr><td>CAM host, often <code>CamRoot</code></td><td>Blockchain</td><td>Advertise the manifest URI/hash and resolve named contract addresses.</td></tr>
-<tr><td>Business contracts</td><td>Blockchain</td><td>Hold application state and enforce balances, permissions and lifecycle rules.</td></tr>
-</tbody></table>
-<p><strong>Browser → RPC → CAM host → manifest/resources → screen.</strong><br><strong>Approved action → wallet → RPC → business contract → receipt → next read.</strong></p>
-<p>RPC gives access to a selected chain. The wallet authorizes transactions. Neither is supplied merely by hosting the viewer. The browser also needs permission and network access to fetch the app's resources.</p>
-<h2>Follow one deposit</h2>
+<h2>Opening an application</h2>
+
 <ol>
-<li>You choose the network and CAM host. The viewer reads its publication through RPC and loads the declared files.</li>
-<li>You open a balance. A read returns the owner's state and the viewing account's available actions.</li>
-<li>You enter 100 wei. The UI stores a local draft; no money has moved.</li>
-<li>You review the action. The viewer prepares the destination, arguments and native value and can simulate them.</li>
-<li>Your wallet authorizes submission. The business contract checks the real sender, value and current state.</li>
-<li>A successful receipt establishes execution. The next read shows the new balance.</li>
+<li><strong>Select the chain and CAM root address.</strong> Choose a published instance in the <a href="../gallery/">Gallery</a>, or enter the chain and CAM root in a viewer. The viewer uses RPC to query the CAM root contract.</li>
+<li><strong>Load the CAM.</strong> The root returns the manifest's URI and byte digest, and resolves named contract addresses. The viewer fetches the manifest from its off-chain location, then fetches its referenced UI, ABI, and protocol resources. These files are not stored in the root contract.</li>
+<li><strong>Interpret the workflow.</strong> The CAM defines routes, contract calls, and screens. The standard viewer renders those screens; a compatible agent can interpret the same CAM without a graphical interface. Neither needs a dedicated frontend for this application.</li>
+<li><strong>Read state.</strong> Through RPC, the viewer calls the contracts identified by the CAM root. An application may also use an optional read-only UI projection contract to assemble information for a screen. The viewer displays the returned data and available actions.</li>
 </ol>
-<p>A simulation can become stale. A transaction hash alone is not success. Viewing an account is not authority to spend from it.</p>
-<h2>“UI” can mean three different things</h2>
-<p>The <strong>browser viewer</strong> is software you host. The <strong>CAM UI description</strong> is the JSON defining screens and controls. A <strong>Solidity projection contract</strong> is an optional read-only helper that assembles screen data. Replacing one does not automatically replace the others.</p>
-<h2>Choose the operation that matches your intent</h2>
-<table><thead><tr><th>I need to…</th><th>Start here</th><th>What changes</th></tr></thead><tbody>
-<tr><td>Explore an app safely</td><td><a href="../examples/#local-demos">Local demos</a></td><td>Disposable local state.</td></tr>
-<tr><td>Open a hosted viewer</td><td><a href="https://app.dapp32.com/">Stand-alone viewer</a> · <a href="../viewer/">Pages preview</a></td><td>Existing contracts; the preview may change sooner.</td></tr>
-<tr><td>Provide a viewer website</td><td><a href="../viewer/deploy.html">Deploy the viewer</a></td><td>Server software, not contracts.</td></tr>
-<tr><td>Change screens or navigation</td><td><a href="../authoring/">Build a workflow</a>, then <a href="../deployment/#publish-prepared-cam">publish its bundle</a></td><td>Files and an approved publication update.</td></tr>
-<tr><td>Create a new on-chain app</td><td><a href="../deployment/">Deploy an instance</a></td><td>Contracts and publication, through separately approved transactions.</td></tr>
-<tr><td>Use contracts already deployed</td><td><a href="../gallery/">Gallery of deployed apps</a></td><td>Nothing until you authorize an action.</td></tr>
-</tbody></table>
-<h2>What hashes do—and do not—tell you</h2>
-<p>The current format uses SHA-256 over exact manifest and resource bytes. Matching hashes can connect files to a selected host's publication; they do not establish that the publisher, workflow, RPC or deployed code is trustworthy. Address bindings can change separately.</p>
-<p>The browser viewer can continue after an integrity warning. Treat that as a warning, not a successful authentication. Before authorizing, check the actual chain, destination, arguments and value. The <a href="../reference/cam/1.4.0/#security">protocol trust-boundary reference</a> gives the precise rules.</p>
+
+<p>Opening an app requires a usable RPC endpoint and browser access to the hosted CAM resources. Merely opening or reading it does not require the user to sign a transaction. Choosing a viewing address does not grant authority to act as that address.</p>
+
+<h2>Executing an action</h2>
+
+<p>For example, consider depositing money into a Pay-to-Play payment channel:</p>
+
+<ol>
+<li>The user enters an amount in the viewer. The form holds a local draft; no transaction has been sent.</li>
+<li>The CAM route tells the viewer which contract function to call and how to form its arguments and native value. The viewer prepares the transaction and may simulate it.</li>
+<li>The user reviews the destination, network, arguments, and amount, then authorizes the transaction through a wallet.</li>
+<li>The business contract executes the call and checks the real sender, supplied value, current state, and its own rules. The CAM and viewer cannot bypass those checks.</li>
+<li>A successful transaction receipt establishes execution. The viewer rereads the resulting contract state to display the updated balance or status.</li>
+</ol>
+
+<p>Simulation can become stale between preparation and submission. A transaction hash alone is not evidence of successful execution; check the receipt. For a disposable example, use the <a href="local-wallet.html">local-wallet walkthrough</a>.</p>
+
+<h2>What can change independently</h2>
+
+<ul>
+<li><strong>CAM files:</strong> Changing a screen, label, or workflow description changes the interface without changing the business contracts. The changed resources must be published and referenced by an updated CAM publication.</li>
+<li><strong>CAM root:</strong> Changing its published manifest reference or named address bindings changes what clients discover; it does not migrate business-contract state.</li>
+<li><strong>Viewer:</strong> Updating the standard viewer changes the client software, not the published CAM or on-chain contracts.</li>
+<li><strong>UI projection contract:</strong> An optional read-only contract can assemble state for display. It does not authorize transactions or define the screen layout.</li>
+</ul>
+
+<h2>What publication proves</h2>
+
+<p>The current format uses SHA-256 digests of the manifest and referenced resources. Matching digests show that fetched bytes agree with a particular CAM publication; they do not establish that the publisher, contract code, RPC endpoint, or application is trustworthy. Named address bindings can change independently of the manifest.</p>
+
+<p>The viewer can continue after an integrity warning. Treat it as an unresolved warning, not proof that the application is safe. Before signing, verify the selected chain, destination contract, function, arguments, and amount. The <a href="../reference/cam/1.4.0/#security">CAM trust-boundary reference</a> specifies the exact behavior.</p>
 
 </div>
