@@ -223,20 +223,27 @@ release_cam_sources_cleanup
         with tempfile.TemporaryDirectory() as temp:
             repository = Path(temp) / "repo"
             repository.mkdir()
-            subprocess.run(["git", "init", "-q", str(repository)], check=True)
-            (repository / "tools").mkdir()
-            source = repository / "tools/release_cam.sh"
-            source.write_text("before\n")
-            subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-            make_commit = ["git", "-C", str(repository), "-c", "user.name=Test",
-                           "-c", "user.email=test@example.invalid", "commit", "-q"]
-            subprocess.run([*make_commit, "-m", "old"], check=True)
-            old = subprocess.check_output(["git", "-C", str(repository), "rev-parse", "HEAD"], text=True).strip()
-            source.write_text("after\n")
-            subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
-            subprocess.run([*make_commit, "-m", "new"], check=True)
-            new = subprocess.check_output(["git", "-C", str(repository), "rev-parse", "HEAD"], text=True).strip()
-            cmd = ["bash", "-euo", "pipefail", "-c",
+            old, new = "a" * 40, "b" * 40
+            # The repository checks container has no Git executable. Exercise
+            # the review protocol against an exact-argv peer instead of adding
+            # network-accessible tool installation to an offline test image.
+            git_fixture = r'''git() {
+  [[ "$1" == -C && "$2" == "$REVIEW_REPO" ]] || return 95
+  shift 2
+  case "$*" in
+    "cat-file -e $REVIEW_OLD^{commit}"|"cat-file -e $REVIEW_NEW^{commit}") return 0 ;;
+    "--no-pager diff --no-ext-diff --no-renames --no-color --name-status $REVIEW_OLD $REVIEW_NEW")
+      printf 'M\ttools/release_cam.sh\n' ;;
+    "--no-pager diff --no-ext-diff --no-renames --no-color --stat $REVIEW_OLD $REVIEW_NEW")
+      printf ' tools/release_cam.sh | 2 +1 -1\n' ;;
+    "diff --quiet $REVIEW_OLD $REVIEW_NEW -- dapps js/apps js/packages") return 0 ;;
+    "--no-pager diff --no-ext-diff --no-renames --no-color $REVIEW_OLD $REVIEW_NEW")
+      printf '%s\n' '-before' '+after' ;;
+    *) printf 'Unexpected Git request: %s\n' "$*" >&2; return 95 ;;
+  esac
+}
+'''
+            cmd = ["bash", "-euo", "pipefail", "-c", git_fixture +
                    'source tools/release_source_files.sh\n'
                    'release_review_tool_delta "$REVIEW_REPO" "$REVIEW_OLD" "$REVIEW_NEW"\n'
                    'echo accepted']
