@@ -1084,6 +1084,10 @@ class RenderedComposePostureTest(unittest.TestCase):
                     )
                 )
 
+        # The one writable documentation mount is a fresh, privately owned
+        # publication stage. The docs lifecycle test enforces its creation,
+        # non-symlink identity, failure cleanup and concurrent publication.
+        expected.add(("compose/docs.yml", "docs-export", "/tmp/dapp32-docs-stage-fixture", "/export"))
         expected.add(("compose/release/rehearsal.yml", "rehearsal-prepare", "/tmp/release-rehearsal/control", "/rehearsal-control"))
         for files in release_rehearsal_units():
             if files[-1].endswith("rehearsal-deploy.yml"):
