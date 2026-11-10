@@ -50,6 +50,19 @@ class ToolchainVersionTest(unittest.TestCase):
                     self.assertEqual("none", builder["build"]["network"])
                     self.assertEqual("none", builder["network_mode"])
                     continue
+                if path == repo_path("compose/docs.yml") and image == "dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}":
+                    # A local build image is not a remote tag. Every consumer
+                    # uses the same per-operation image with pulls forbidden.
+                    services = rendered_compose_config("compose/docs.yml")["services"]
+                    builder = services["docs-build"]
+                    self.assertEqual("none", builder["build"]["network"])
+                    self.assertEqual(str(repo_path("containers/node-deps")), builder["build"]["context"])
+                    for service in ("docs-build", "docs-hold", "docs-export"):
+                        self.assertEqual("never", services[service]["pull_policy"])
+                        self.assertEqual(builder["image"], services[service]["image"])
+                    for service in ("docs-hold", "docs-export"):
+                        self.assertFalse(services[service].get("build"))
+                    continue
                 if path == repo_path("compose/viewer.yml") and image == "${VIEWER_IMAGE:?Set_VIEWER_IMAGE_to_a_prebuilt_viewer_image}":
                     viewer = rendered_compose_config("compose/viewer.yml")["services"]["viewer"]
                     self.assertEqual("never", viewer["pull_policy"])
