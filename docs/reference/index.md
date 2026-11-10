@@ -20,6 +20,7 @@ outline: false
 <dt><a href="operations.html">Deployment records and authority</a></dt><dd>Private instances, defaults versus retained inputs, artifacts, approval images, Docker identity and nominee acceptance.</dd>
 <dt><a href="diagnostics.html">Release diagnostics</a></dt><dd>Log meanings and limits, uncertain transaction outcomes, RPC deadlines and isolated simulation experiments.</dd>
 <dt><a href="../deployment/networks/">Networks</a> and <a href="../deployment/rpc/">RPC services</a></dt><dd>Transport selection and provider configuration. A catalog entry does not authenticate a deployed contract.</dd>
+<dt><a href="../deployment/rpc/#recorded-rpc-capabilities">Measured RPC capabilities</a></dt><dd>Dated, per-provider results for supported, rejected and inconclusive JSON-RPC methods. These observations are not service guarantees.</dd>
 </dl>
 <h2>App-specific behavior</h2>
 <p><a href="../pay-to-play/#integrate">Pay-to-Play signing and integration</a> · <a href="../escrow/#phases">Escrow deadlines and settlement</a> · <a href="../escrow/documents.html">Escrow document commitments</a> · <a href="../bike-nft/#cam">Bike NFT routes</a>.</p>
