@@ -53,6 +53,7 @@ onBeforeUnmount(() => {
   <div class="gallery-loading-card" aria-hidden="true"><span class="gallery-loading-heading"></span><span class="gallery-loading-line"></span><span class="gallery-loading-line short"></span></div>
 </div>
 <noscript><p>Enable JavaScript to show the deployments, or open the <a href="deployments.json">deployment data</a>.</p></noscript>
-<p class="sources">Sources: <a href="deployments.json">deployment data</a> · <a href="../deployment/networks/">RPC network catalog</a>.</p>
+<p class="sources">Related tasks: <a href="../use/">Open an unlisted app</a> · <a href="../examples/">Try a local demo</a> · <a href="../deployment/networks/">Network catalog</a>.</p>
+<p class="sources">Data: <a href="deployments.json">deployment catalog</a>.</p>
 
 </div>

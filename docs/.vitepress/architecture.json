@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "id": "start",
@@ -8,11 +8,6 @@
         {
           "title": "Get oriented",
           "pages": [
-            {
-              "source": "start/index.md",
-              "route": "start/index.md",
-              "text": "How it works"
-            },
             {
               "source": "start/local-wallet.md",
               "route": "start/local-wallet.md",
@@ -23,7 +18,8 @@
               "route": "start/fixture-wallet.md",
               "text": "Attach the test wallet"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Practice",
@@ -33,40 +29,37 @@
               "route": "start/examples/index.md",
               "text": "Local demos"
             }
-          ]
+          ],
+          "kind": "pages"
         }
-      ]
+      ],
+      "landing": {
+        "source": "start/index.md",
+        "route": "start/index.md",
+        "text": "How it works"
+      }
     },
     {
       "id": "gallery",
       "label": "Gallery",
       "groups": [
         {
-          "title": "Published applications",
-          "pages": [
-            {
-              "source": "gallery/index.md",
-              "route": "gallery/index.md",
-              "text": "Browse deployments"
-            }
-          ]
+          "kind": "catalog",
+          "title": "Deployed applications",
+          "catalog": "gallery/deployments.json",
+          "anchor": "appId"
         }
-      ]
+      ],
+      "landing": {
+        "source": "gallery/index.md",
+        "route": "gallery/index.md",
+        "text": "Browse deployments"
+      }
     },
     {
       "id": "use",
       "label": "Use",
       "groups": [
-        {
-          "title": "Open an app",
-          "pages": [
-            {
-              "source": "use/index.md",
-              "route": "use/index.md",
-              "text": "Choose an app or host"
-            }
-          ]
-        },
         {
           "title": "Pay-to-Play",
           "parent": "pay-to-play/index.md",
@@ -81,7 +74,8 @@
               "route": "use/pay-to-play/local-payment.md",
               "text": "Collect a test voucher"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Escrow",
@@ -97,7 +91,8 @@
               "route": "use/escrow/documents.md",
               "text": "Prepare documents"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Bike NFT",
@@ -118,9 +113,15 @@
               "route": "use/bike-nft/ownership.md",
               "text": "Ownership and workshop access"
             }
-          ]
+          ],
+          "kind": "pages"
         }
-      ]
+      ],
+      "landing": {
+        "source": "use/index.md",
+        "route": "use/index.md",
+        "text": "Choose an app or host"
+      }
     },
     {
       "id": "build",
@@ -128,19 +129,14 @@
       "groups": [
         {
           "title": "Author a workflow",
-          "parent": "authoring/index.md",
           "pages": [
-            {
-              "source": "authoring/index.md",
-              "route": "build/index.md",
-              "text": "Edit a workflow"
-            },
             {
               "source": "authoring/headless.md",
               "route": "build/headless.md",
               "text": "Headless integration"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Develop and test",
@@ -161,7 +157,8 @@
               "route": "build/payment-fixture.md",
               "text": "Payment fixture"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Service integration",
@@ -171,9 +168,15 @@
               "route": "build/pay-to-play-integration.md",
               "text": "Integrate Pay-to-Play"
             }
-          ]
+          ],
+          "kind": "pages"
         }
-      ]
+      ],
+      "landing": {
+        "source": "authoring/index.md",
+        "route": "build/index.md",
+        "text": "Edit a workflow"
+      }
     },
     {
       "id": "deploy",
@@ -182,11 +185,6 @@
         {
           "title": "Release lifecycle",
           "pages": [
-            {
-              "source": "deployment/index.md",
-              "route": "deploy/index.md",
-              "text": "Choose a deployment task"
-            },
             {
               "source": "deployment/new-instance.md",
               "route": "deploy/new-instance.md",
@@ -197,7 +195,8 @@
               "route": "deploy/update.md",
               "text": "Update a publication"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Operate and recover",
@@ -217,7 +216,8 @@
               "route": "deploy/practice.md",
               "text": "Rehearse a release"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Hosting and networks",
@@ -237,7 +237,8 @@
               "route": "deploy/rpc/index.md",
               "text": "RPC services"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "App configuration",
@@ -258,9 +259,15 @@
               "route": "deploy/bike-nft/index.md",
               "text": "Bike NFT"
             }
-          ]
+          ],
+          "kind": "pages"
         }
-      ]
+      ],
+      "landing": {
+        "source": "deployment/index.md",
+        "route": "deploy/index.md",
+        "text": "Choose a deployment task"
+      }
     },
     {
       "id": "reference",
@@ -270,16 +277,12 @@
           "title": "Protocol",
           "pages": [
             {
-              "source": "reference/index.md",
-              "route": "reference/index.md",
-              "text": "Reference index"
-            },
-            {
               "source": "reference/cam/index.md",
               "route": "reference/cam/index.md",
               "text": "CAM specifications"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "Operational internals",
@@ -294,7 +297,8 @@
               "route": "reference/diagnostics.md",
               "text": "Diagnostics"
             }
-          ]
+          ],
+          "kind": "pages"
         },
         {
           "title": "App internals",
@@ -304,9 +308,15 @@
               "route": "reference/escrow.md",
               "text": "Escrow model"
             }
-          ]
+          ],
+          "kind": "pages"
         }
-      ]
+      ],
+      "landing": {
+        "source": "reference/index.md",
+        "route": "reference/index.md",
+        "text": "Reference index"
+      }
     }
   ],
   "retired": {

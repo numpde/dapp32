@@ -133,47 +133,152 @@ def safe_files(root: Path, *, checkout: bool) -> list[Path]:
     return sorted(files)
 
 
-def canonical_pages(source: Path) -> tuple[list[tuple[str, str]], dict[str, str]]:
-    """A guide has one source, one canonical output and one navigation owner."""
-    architecture = json.loads((source / ".vitepress/architecture.json").read_text(encoding="utf-8"))
-    sections = architecture["sections"]
-    if [section["id"] for section in sections] != [
-        "start", "gallery", "use", "build", "deploy", "reference"
-    ]:
+def architecture_model(source: Path, *, definition: dict | None = None) -> dict:
+    """The only authored navigation inventory; no per-section config overrides."""
+    model = definition if definition is not None else json.loads(
+        (source / ".vitepress/architecture.json").read_text(encoding="utf-8")
+    )
+    if set(model) != {"version", "sections", "retired"} or model["version"] != 2:
+        raise ValueError("Expected architecture schema version 2")
+    return model
+
+
+def catalog_apps(source: Path, catalog: str) -> list[tuple[str, str]]:
+    if catalog != "gallery/deployments.json":
+        raise ValueError(f"Unknown sidebar catalog: {catalog}")
+    deployments = json.loads((source / "public" / catalog).read_text(encoding="utf-8"))["deployments"]
+    apps: dict[str, str] = {}
+    for entry in deployments:
+        app_id = entry["appId"]
+        name = entry["name"]
+        if not re.fullmatch(r"[a-z][a-z0-9-]*", app_id) or not isinstance(name, str) or not name:
+            raise ValueError(f"Invalid deployment in catalog: {app_id!r}")
+        if app_id in apps and apps[app_id] != name:
+            raise ValueError(f"Conflicting deployment labels for {app_id}")
+        apps[app_id] = name
+    if not apps:
+        raise ValueError("Gallery catalog is empty")
+    return sorted(apps.items())
+
+
+def canonical_pages(source: Path, *, definition: dict | None = None) -> tuple[list[tuple[str, str]], dict[str, str]]:
+    """Every authored guide has exactly one owner, including section landings."""
+    model = architecture_model(source, definition=definition)
+    sections = model["sections"]
+    if [s.get("id") for s in sections] != ["start", "gallery", "use", "build", "deploy", "reference"]:
         raise ValueError("Unexpected top-level documentation hierarchy")
 
-    mapped = []
-    sources = set()
-    targets = set()
-    for section in sections:
-        root = section["id"] + "/index.md"
-        members = [page for group in section["groups"] for page in group["pages"]]
-        if sum(page["route"] == root for page in members) != 1:
-            raise ValueError(f"Section {section['id']} has no unique entry page")
-        for group in section["groups"]:
-            parent = group.get("parent")
-            if parent and parent not in {page["source"] for page in group["pages"]}:
-                raise ValueError(f"Breadcrumb group has no real parent page: {parent}")
-        for page in members:
-            original = page["source"]
-            canonical = page["route"]
-            if original in sources or canonical in targets or not canonical.startswith(section["id"] + "/"):
-                raise ValueError(f"Duplicate or misplaced guide: {original}")
-            if not (source / original).is_file():
-                raise ValueError(f"Navigation points to missing guide: {original}")
-            sources.add(original)
-            targets.add(canonical)
-            mapped.append((original, canonical))
+    mapped: list[tuple[str, str]] = []
+    sources: set[str] = set()
+    targets: set[str] = set()
 
-    retired = architecture["retired"]
+    def own(page: dict, section: str) -> None:
+        if set(page) != {"source", "route", "text"}:
+            raise ValueError(f"Page must name source, route and text: {page}")
+        original = page["source"]
+        canonical = page["route"]
+        if not isinstance(original, str) or not original.endswith(".md") or not isinstance(canonical, str):
+            raise ValueError(f"Invalid guide paths: {page}")
+        if (original in sources or canonical in targets or not canonical.startswith(section + "/")
+                or not canonical.endswith(".md")):
+            raise ValueError(f"Duplicate or misplaced guide: {original} -> {canonical}")
+        if not isinstance(page["text"], str) or not page["text"].strip():
+            raise ValueError(f"Guide has no navigation label: {original}")
+        if not (source / original).is_file():
+            raise ValueError(f"Navigation points to missing guide: {original}")
+        sources.add(original)
+        targets.add(canonical)
+        mapped.append((original, canonical))
+
+    for section in sections:
+        if set(section) != {"id", "label", "landing", "groups"}:
+            raise ValueError(f"Section must have id, label, landing and groups: {section.get('id')}")
+        section_id = section["id"]
+        if not isinstance(section["label"], str) or not section["label"].strip():
+            raise ValueError(f"Unlabeled section: {section_id}")
+        landing = section["landing"]
+        if landing["route"] != section_id + "/index.md":
+            raise ValueError(f"Missing section landing: {section_id}")
+        own(landing, section_id)
+        if not section["groups"]:
+            raise ValueError(f"Section without sidebar content: {section_id}")
+        catalog_count = 0
+        for group in section["groups"]:
+            kind = group.get("kind")
+            if kind == "catalog":
+                if (set(group) != {"kind", "title", "catalog", "anchor"}
+                        or section_id != "gallery" or group["anchor"] != "appId"):
+                    raise ValueError(f"Invalid catalog sidebar group: {section_id}")
+                catalog_apps(source, group["catalog"])
+                catalog_count += 1
+                continue
+            if kind != "pages" or set(group) - {"kind", "title", "pages", "parent", "collapsed"}:
+                raise ValueError(f"Invalid sidebar group kind or keys: {section_id}")
+            if not isinstance(group.get("pages"), list) or not group["pages"]:
+                raise ValueError(f"Empty page group: {section_id}")
+            if "collapsed" in group and not isinstance(group["collapsed"], bool):
+                raise ValueError(f"Invalid collapse state: {section_id}")
+            parent = group.get("parent")
+            if parent and parent not in {p["source"] for p in group["pages"]}:
+                raise ValueError(f"Breadcrumb parent is not a member of its group: {parent}")
+            for page in group["pages"]:
+                own(page, section_id)
+        if section_id == "gallery":
+            if catalog_count != 1 or len(section["groups"]) != 1:
+                raise ValueError("Gallery sidebar is only its catalog of deployed applications")
+        elif catalog_count:
+            raise ValueError(f"Unowned catalog sidebar in {section_id}")
+
+    retired = model["retired"]
+    if any(path in sources for path in retired):
+        raise ValueError("A retired guide still has a canonical owner")
     observed = {path.relative_to(source).as_posix() for path in source.rglob("*.md")}
     expected = sources | set(retired) | {"index.md"}
     if observed != expected or len(mapped) != 36:
         raise ValueError(f"Documentation inventory differs from routes: "
                          f"missing={sorted(expected - observed)}, unowned={sorted(observed - expected)}")
-    if any(name in sources for name in retired):
-        raise ValueError("A retired page cannot have a canonical route")
     return mapped, retired
+
+
+def sidebar_links(source: Path, section: str) -> list[str]:
+    """Project only in-section destinations from the same architecture model."""
+    model = architecture_model(source)
+    owner = next((item for item in model["sections"] if item["id"] == section), None)
+    if owner is None:
+        raise ValueError(f"Unknown sidebar section: {section}")
+    links: list[str] = []
+    for group in owner["groups"]:
+        if group["kind"] == "pages":
+            links.extend("/dapp32/" + route_url(page["route"]) for page in group["pages"])
+        elif group["kind"] == "catalog":
+            links.extend("/dapp32/" + section + "/#" + app_id
+                         for app_id, _ in catalog_apps(source, group["catalog"]))
+        else:
+            raise ValueError(f"Unsupported sidebar group type: {group}")
+    return links
+
+
+class SidebarLinks(HTMLParser):
+    """Read only VitePress's sidebar; content links cannot masquerade as navigation."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.depth = 0
+        self.hrefs: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if self.depth:
+            self.depth += 1
+            if tag == "a" and values.get("href"):
+                self.hrefs.append(str(values["href"]))
+        elif tag == "aside" and "VPSidebar" in str(values.get("class", "")).split():
+            self.depth = 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.depth:
+            self.depth -= 1
+
 
 
 def html_path(markdown: str) -> Path:
@@ -199,9 +304,16 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         if not (site / output).is_file() or (site / output).stat().st_size < 100:
             raise ValueError(f"Missing generated page: {output}")
 
+        rendered = (site / output).read_text(encoding="utf-8")
         parser = Navigation()
-        parser.feed((site / output).read_text(encoding="utf-8"))
+        parser.feed(rendered)
         section = canonical.split("/", 1)[0] if canonical != "index.md" else None
+        sidebar = SidebarLinks()
+        sidebar.feed(rendered)
+        expected_sidebar = sidebar_links(source, section) if section else []
+        if sidebar.hrefs != expected_sidebar:
+            raise ValueError(f"Sidebar contains an extra, missing, duplicate or cross-section link on "
+                             f"{output}: observed={sidebar.hrefs}, expected={expected_sidebar}")
         expected_nav = [] if section is None else ["/dapp32/" + section + "/"]
         if parser.active_sections != expected_nav:
             raise ValueError(f"Incorrect top-level navigation on {output}: "

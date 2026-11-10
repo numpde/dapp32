@@ -7,7 +7,8 @@ import shutil
 import tempfile
 import unittest
 
-from tools.docs_site import check, check_published, stage, canonical_pages, html_path, route_url
+from tools.docs_site import (check, check_published, stage, canonical_pages,
+                             html_path, route_url, sidebar_links)
 
 from .common import ROOT
 
@@ -42,7 +43,10 @@ def artifact_fixture(root: Path) -> Path:
                       if section else '')
         breadcrumb = ('<nav aria-label="Breadcrumb"><a href="/dapp32/">Home</a></nav>'
                       if section and canonical != section + "/index.md" else '')
-        target.write_text("<!doctype html><html><body>" + active_nav + breadcrumb
+        sidebar = ('<aside class="VPSidebar">' +
+                   ''.join(f'<a href="{href}">Page</a>' for href in sidebar_links(DOCS, section)) +
+                   '</aside>' if section else '')
+        target.write_text("<!doctype html><html><body>" + active_nav + sidebar + breadcrumb
                           + ids + ("document " * 30) + "</body></html>", encoding="utf-8")
     for original, canonical in pages:
         if original == canonical:
@@ -147,6 +151,26 @@ class DocsPublishedTests(unittest.TestCase):
                     if old != new:
                         self.assertIn("/dapp32/" + route_url(new),
                                       (site / html_path(old)).read_text())
+
+    def test_sidebar_rejects_cross_section_duplicate_and_unlisted_links(self) -> None:
+        for extra in ('<a href="/dapp32/use/">Cross-section</a>',
+                      '<a href="/dapp32/gallery/#unlisted-app">Unknown app</a>',
+                      '<a href="/dapp32/gallery/#bike-nft">Duplicate app</a>'):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as directory:
+                site = artifact_fixture(Path(directory))
+                gallery = site / "gallery/index.html"
+                gallery.write_text(gallery.read_text().replace("</aside>", extra + "</aside>"))
+                with self.assertRaisesRegex(ValueError, "Sidebar contains"):
+                    check(DOCS, site, published=False)
+
+    def test_sidebar_rejects_missing_owned_guide(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = artifact_fixture(Path(directory))
+            target = site / "use/pay-to-play/index.html"
+            target.write_text(target.read_text().replace(
+                '<a href="/dapp32/use/pay-to-play/">Page</a>', ''))
+            with self.assertRaisesRegex(ValueError, "Sidebar contains"):
+                check(DOCS, site, published=False)
 
     def test_internal_links_and_anchors_are_validated(self) -> None:
         for href, error in (

@@ -9,7 +9,11 @@ if (process.argv.length !== 3 || !root || !isAbsolute(root)) {
 }
 const architecture = JSON.parse(await readFile(join(root, '.vitepress/architecture.json'), 'utf8'))
 const sections = architecture.sections
-const pages = sections.flatMap(section => section.groups.flatMap(group => group.pages))
+// Landing pages have one owner but are not duplicated in their sidebars.
+const pages = sections.flatMap(section => [
+  section.landing,
+  ...section.groups.flatMap(group => group.kind === 'pages' ? group.pages : []),
+])
 const retired = architecture.retired
 
 function isSource(value) {
@@ -28,22 +32,33 @@ function assertCanonical(value) {
 const oldToNew = new Map()
 const usedSources = new Set()
 const usedTargets = new Set()
+function ownPage(page, sectionId) {
+  if (!isSource(page.source) || !isSource(page.route)) throw new Error('Invalid page')
+  if (!page.route.startsWith(sectionId + '/')) throw new Error('Wrong page section')
+  if (usedSources.has(page.source) || usedTargets.has(page.route)) {
+    throw new Error('Page has multiple homes: ' + page.source)
+  }
+  usedSources.add(page.source)
+  usedTargets.add(page.route)
+  const original = pageUrl(page.source)
+  const canonical = pageUrl(page.route)
+  assertCanonical(canonical)
+  if (original !== canonical) oldToNew.set(original, canonical)
+}
 for (const section of sections) {
   if (!/^[a-z][a-z0-9-]*$/.test(section.id)) throw new Error('Unsafe section ID')
+  if (section.landing.route !== section.id + '/index.md') throw new Error('Invalid section landing')
+  ownPage(section.landing, section.id)
   for (const group of section.groups) {
-    for (const page of group.pages) {
-      if (!isSource(page.source) || !isSource(page.route)) throw new Error('Invalid page')
-      if (!page.route.startsWith(section.id + '/')) throw new Error('Wrong page section')
-      if (usedSources.has(page.source) || usedTargets.has(page.route)) {
-        throw new Error('Page has multiple homes: ' + page.source)
-      }
-      usedSources.add(page.source)
-      usedTargets.add(page.route)
-      const original = pageUrl(page.source)
-      const canonical = pageUrl(page.route)
-      assertCanonical(canonical)
-      if (original !== canonical) oldToNew.set(original, canonical)
+    if (group.kind === 'catalog') {
+      if (section.id !== 'gallery' || group.catalog !== 'gallery/deployments.json'
+          || group.anchor !== 'appId') throw new Error('Unknown in-section collection')
+      continue
     }
+    if (group.kind !== 'pages' || !Array.isArray(group.pages) || !group.pages.length) {
+      throw new Error('Invalid sidebar group')
+    }
+    for (const page of group.pages) ownPage(page, section.id)
   }
 }
 for (const [source, target] of Object.entries(retired)) {
@@ -52,7 +67,7 @@ for (const [source, target] of Object.entries(retired)) {
   usedSources.add(source)
   oldToNew.set(pageUrl(source), target)
 }
-if (sections.length !== 6 || pages.length !== 36) {
+if (architecture.version !== 2 || sections.length !== 6 || pages.length !== 36) {
   throw new Error('Unexpected documentation page inventory')
 }
 async function markdownFiles(directory, prefix = '') {
