@@ -80,15 +80,33 @@ jobs:
               result=2
             fi
             if [[ -v chrome_pid ]]; then
-              kill "$chrome_pid" 2>/dev/null || :
+              # Own Chrome's process group, not only its launcher PID.
+              kill -TERM -- "-$chrome_pid" 2>/dev/null || :
               wait "$chrome_pid" 2>/dev/null || :
+              for attempt in {1..40}; do
+                if ! kill -0 -- "-$chrome_pid" 2>/dev/null; then break; fi
+                sleep 0.25
+              done
+              if kill -0 -- "-$chrome_pid" 2>/dev/null; then
+                kill -KILL -- "-$chrome_pid" 2>/dev/null || :
+              fi
             fi
-            rm -rf -- "$scratch"
+            # Chrome children may finish releasing their profile after the
+            # launcher exits. Bounded retries must not hide cleanup failure.
+            for attempt in {1..20}; do
+              if rm -rf -- "$scratch"; then break; fi
+              if (( attempt == 20 )); then
+                printf 'Chrome profile cleanup failed: %s\n' "$scratch" >&2
+                if (( result == 0 )); then result=3; fi
+              else
+                sleep 0.25
+              fi
+            done
             exit "$result"
           }
           trap cleanup EXIT
 
-          google-chrome --headless=new --no-first-run --disable-gpu \
+          setsid google-chrome --headless=new --no-first-run --disable-gpu \
             --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 \
             --user-data-dir="$scratch/chrome" about:blank >"$scratch/chrome.log" 2>&1 &
           chrome_pid=$!
