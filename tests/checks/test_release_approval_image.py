@@ -197,7 +197,7 @@ timeout() {
   if [[ "$TEST_KIND" == rehearsal-full && "$1 $2" == 'bash -c' ]]; then exec "$@"; fi
   "$@"
 }
-id() { printf '1000\n'; }
+id() { command id "$@"; }
 realpath() { local last; for last; do :; done; printf '%s\n' "$last"; }
 mktemp() {
   if [[ "$*" == *preparation.log-* ]]; then
