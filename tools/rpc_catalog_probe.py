@@ -1,4 +1,4 @@
-"""Probe dapp32's public RPC catalog and atomically publish one tracked report.
+"""Probe the public RPC catalog and atomically publish one tracked report.
 
 The probe is a read-only, bounded JSON-RPC experiment. It neither signs nor
 submits transactions, never supplies API keys, and does not certify event-log
@@ -156,7 +156,7 @@ class JsonRpc:
             self.endpoint,
             data=request_body,
             headers={"Content-Type": "application/json", "Accept": "application/json",
-                     "Accept-Encoding": "identity", "User-Agent": "dapp32-rpc-capability-probe/1"},
+                     "Accept-Encoding": "identity", "User-Agent": "rpc-catalog-probe/1"},
             method="POST",
         )
         started = time.monotonic()
@@ -167,7 +167,7 @@ class JsonRpc:
             with self.opener.open(request, timeout=min(REQUEST_TIMEOUT, remaining)) as response:
                 if response.status != 200:
                     raise ProbeFailure("http_error", response.status)
-                if response.headers.get("Content-Encoding", "identity").lower() != "identity":
+                if response.headers.get("Content-Encoding") not in (None, "identity"):
                     raise ProbeFailure("unsupported_encoding")
                 response_bytes = response.read(MAX_RESPONSE_BYTES + 1)
                 if len(response_bytes) > MAX_RESPONSE_BYTES:
@@ -429,7 +429,7 @@ def probe_provider(network, service, endpoint, expected_chain):
     check(rpc, checks, "eth_getBalance:blockHash", "eth_getBalance",
           [IDENTITY_PRECOMPILE, {"blockHash": block_hash, "requireCanonical": True}], validate_bal)
 
-    transactions = header.get("transactions", [])
+    transactions = header.get("transactions")
     transaction_hash = transactions[0] if isinstance(transactions, list) and transactions else None
     if not transaction_hash and observed_log:
         transaction_hash = observed_log["transactionHash"]
@@ -633,9 +633,12 @@ def publish_via_docker(endpoint):
     )
     if tracked.returncode != 0:
         raise ValueError("The fixed RPC report must already be tracked by Git")
-    container_name = "dapp32-rpc-probe-" + secrets.token_hex(8)
-    with tempfile.TemporaryDirectory(prefix="dapp32-rpc-probe-docker-") as docker_config:
-        docker_command = ["docker", "--config", docker_config, "--host", endpoint]
+    container_name = "rpc-catalog-probe-" + secrets.token_hex(8)
+    with tempfile.TemporaryDirectory(prefix="rpc-catalog-probe-docker-") as docker_config:
+        if os.environ["CAM_DOCKER_ENDPOINT"] != endpoint:
+            raise ValueError("RPC probe's pinned Docker endpoint differs from Make's selection")
+        docker_command = ["docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"]]
+        docker_command.extend(["--config", docker_config])
         argv = [
             *docker_command, "run", "--rm", "--name", container_name,
             "--pull", "missing", "--network", "bridge", "--read-only",
