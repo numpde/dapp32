@@ -30,8 +30,8 @@ onBeforeUnmount(() => {
 <div class="ported-guide network-page">
 
 
-  <p class="intro">Switch between mainnets and application testnets. Network indexes and row links stay fixed; testnet names show their mainnet in brackets.</p>
-  <noscript><p>Enable JavaScript to load the network table from <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json">the RPC catalog</a>.</p></noscript>
+  <p class="intro">Select an ecosystem, then switch between its mainnet and application testnet. The same catalog supplies identifiers, endpoints, explorers and source references.</p>
+  <noscript><p>Enable JavaScript to inspect networks from <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-viewer/src/rpc-catalog.json">the RPC catalog</a>.</p></noscript>
   <p id="load-status" role="status">Loading the RPC catalog…</p>
   <div id="reference" hidden>
     <div class="toolbar">
@@ -41,18 +41,11 @@ onBeforeUnmount(() => {
         <label><input type="radio" name="view" value="testnet" checked>Testnets</label>
       </fieldset>
       <div class="jump">
-        <label for="network-jump">Jump to network</label>
+        <label for="network-jump">Network</label>
         <select id="network-jump"><option value="">Choose a network</option></select>
       </div>
     </div>
-    <p class="hint" id="table-help">Scroll sideways for more columns. RPC URLs are selectable; <code>{API_KEY}</code> requires your own provider key.</p>
-    <div class="table-wrap" role="region" aria-label="Network reference table" aria-describedby="table-help" tabindex="0">
-      <table>
-        <caption id="table-caption">Application testnets</caption>
-        <thead><tr><th scope="col">Index</th><th scope="col">Network</th><th scope="col">Chain ID</th><th scope="col">Gas token</th><th scope="col">RPC services</th><th scope="col">Explorer</th><th scope="col">Authoritative references</th></tr></thead>
-        <tbody id="networks"></tbody>
-      </table>
-    </div>
+    <section id="networks" class="network-details"></section>
   </div>
   <footer>
     <p>A curated reference for widely used EVM ecosystems, including the networks discussed in this repository. Chain-specific execution, fees, and tooling can differ. Source-check dates describe documentation checks, not live RPC tests.</p>

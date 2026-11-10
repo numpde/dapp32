@@ -14,12 +14,14 @@ outline: false
 <p>Publish the agreed file at a URI the other parties can read, or use a small embedded document supported by the editor. The viewer does not upload a file for you. Escrow limits the complete URI to 512 UTF-8 bytes, including an embedded document's encoding; larger content needs an external location.</p>
 <p>For sensitive material, encrypt first and hash the exact published encrypted bytes. Arrange decryption-key delivery separately. Do not put secrets in URLs or agreement fields: the contract reference is public.</p>
 <h2 id="hash">2. Calculate or enter SHA-256</h2>
+<div class="table-scroll" role="region" aria-label="Table: Method / What it establishes" tabindex="0">
 <table><thead><tr><th>Method</th><th>What it establishes</th></tr></thead><tbody>
 <tr><td>Enter a digest</td><td>Paste <code>0x</code> plus 64 hexadecimal characters from your own exact-byte calculation. The form does not retrieve anything.</td></tr>
 <tr><td><strong>Calculate from file</strong></td><td>Hashes the selected local file without uploading it. This does not check the URI.</td></tr>
 <tr><td><strong>Calculate from URL</strong></td><td>Explicitly downloads and hashes the response. HTTP(S) requires browser access; IPFS uses the selected gateway. Download scope applies to the original remote URI.</td></tr>
 <tr><td><strong>Calculate from embedded document</strong></td><td>Decodes the supplied data URI and hashes its bytes locally, without a network request.</td></tr>
 </tbody></table>
+</div>
 <p>The field does not fetch while you type. Calculation is bounded to 8 MiB and 15 seconds. Remote requests need browser CORS access, send no credentials or referrer, and reject redirects. For IPFS, select an admitted gateway first. A failed remote read does not silently switch methods.</p>
 <p>For an external calculation on Linux:</p>
 <pre><code>sha256sum "terms.txt"</code></pre>

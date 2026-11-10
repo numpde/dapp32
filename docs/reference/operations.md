@@ -21,12 +21,14 @@ outline: false
 <p><code>instance.json</code> points to configurations, the selected publication and unfinished work. It is not a second address registry or a live-readiness certificate. A saved operation's <code>selection.json</code> and retained <code>inputs/</code> identify its chosen components, source revision, settings and exact approval image. Input records reference the protected credential file rather than copying its key or private RPC URL.</p>
 <p>Setup offers full, business-creator, projection-deployer and CAM-owner configurations. Separate <code>business-config.json</code>, <code>ui-config.json</code> and <code>cam-config.json</code> can assign different actors; <code>instance.json</code> retains their references. A full configuration can supply all phases. Editing those defaults does not change an already saved operation.</p>
 <h2 id="artifacts">Each phase owns its evidence</h2>
+<div class="table-scroll" role="region" aria-label="Table: Artifact in a full operation / What it records" tabindex="0">
 <table><thead><tr><th>Artifact in a full operation</th><th>What it records</th></tr></thead><tbody>
 <tr><td><code>contracts/artifact/contract-deployment.json</code></td><td>Business creation and required initialization, including observed administration and pending handoffs.</td></tr>
 <tr><td><code>ui/artifact/ui-deployment.json</code></td><td>The read-only projection's creation, runtime and backing dependency.</td></tr>
 <tr><td><code>cam-bundle/artifact/cam-bundle.json</code></td><td>Selected component evidence, original ABIs and hashes of prepared publication resources.</td></tr>
 <tr><td><code>cam/artifact/cam-publication.json</code></td><td>The completed CAM root publication. Only matching completion advances the instance's selected publication.</td></tr>
 </tbody></table>
+</div>
 <p>Independent operations retain only their relevant phases. Signed phases also retain plans, broadcasts, approval evidence and logs. Keep the whole instance, including failed attempts; a later UI deployment can depend on an earlier business artifact.</p>
 <p>Original artifacts choose original source and ABI export. A projection may use an earlier compatible backing contract; verification of identity does not prove arbitrary interface compatibility. Historical verification preserves completed artifact bytes and does not certify current owners, roles, balances or pause state.</p>
 <h3 id="configuration">Minimal inputs differ by operation</h3>

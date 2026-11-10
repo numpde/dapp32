@@ -15,12 +15,14 @@ outline: false
 <h2 id="edit">1. Make one visible change</h2>
 <p>In <code>dapps/escrow/cam/ui.json</code>, locate the <code>AmountField</code> with label <code>Escrow amount</code> in the agreement-creation screen. Change only its label to <code>Project budget</code>. Keep its state key, unit and expressions unchanged.</p>
 <p>The complete example has three different kinds of UI-related code:</p>
+<div class="table-scroll" role="region" aria-label="Table: File or component / Responsibility" tabindex="0">
 <table><thead><tr><th>File or component</th><th>Responsibility</th></tr></thead><tbody>
 <tr><td><code>cam/main.json</code></td><td>Routes: what contract to read or call, and what happens next.</td></tr>
 <tr><td><code>cam/ui.json</code></td><td>Screens, fields, labels and buttons. This is what you are editing.</td></tr>
 <tr><td><code>CamEscrowUI</code></td><td>A read-only Solidity projection: state and available actions for a screen.</td></tr>
 <tr><td>Browser viewer</td><td>Renders those descriptions and connects a wallet. It is not the projection contract.</td></tr>
 </tbody></table>
+</div>
 <h2>2. Refresh resource pins and validate</h2>
 <p>Replace <code>your-local-context</code> with your local Docker context. Use it for every command.</p>
 <pre><code>make cam/integrity/refresh DOCKER_CONTEXT=your-local-context

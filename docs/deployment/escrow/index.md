@@ -11,11 +11,13 @@ outline: false
 
 <p>Use <a href="../new-instance.html">Deploy a new instance</a>, substituting the <code>escrow</code> app prefix. This page covers Escrow's choices and acceptance checks, not a second release procedure.</p>
 <h2 id="release-deployment">Choose who controls publication</h2>
+<div class="table-scroll" role="region" aria-label="Table: Contract / Authority after deployment" tabindex="0">
 <table><thead><tr><th>Contract</th><th>Authority after deployment</th></tr></thead><tbody>
 <tr><td><code>CamEscrow</code></td><td>Immutable business rules; no owner, pause, upgrade, fee, sweep or administrator recovery.</td></tr>
 <tr><td><code>CamEscrowUI</code></td><td>Read-only projection with an immutable backing contract. No write-forwarding or ownership role.</td></tr>
 <tr><td><code>CamRoot</code></td><td>The current owner controls the manifest URI/hash and contract bindings.</td></tr>
 </tbody></table>
+</div>
 <p>Choose <code>INTENDED_CAM_ROOT_OWNER</code> deliberately. The publication signer can nominate a different owner; that nominee must separately call <code>acceptOwnership()</code> on the root address in the final CAM publication artifact. There is no CAM acceptance delay. The current owner remains authorized until acceptance.</p>
 <p>The client chooses contractor, arbitrator, terms and durations when creating each agreement; these are not deployment-wide default authorities. An arbitrator never acknowledges participation on chain before funding.</p>
 <p>Business creation, projection deployment and CAM publication can use separate actors and source selections. Keep <a href="../../reference/operations.html">their retained inputs and artifacts</a>. Host the prepared files before approving their root publication, using the shared procedure's hosting pause.</p>

@@ -23,11 +23,13 @@ outline: false
 <h2 id="evidence">3. Inspect the result</h2>
 <p>Output distinguishes exact matches from bytecode matches with differing compiler metadata. After selecting an already verified address, the publisher compares the public compiler metadata with the original metadata. An HTTP 409 response takes that same address-based verification path; it is not silently accepted as success.</p>
 <p>Creation and runtime matches must satisfy the publisher's exact-match requirements. For its own completed jobs, public matches must also be at least as strong as the saved job receipt. A successful explorer badge alone is not the retained evidence.</p>
+<div class="table-scroll" role="region" aria-label="Table: Retained location / Purpose" tabindex="0">
 <table><thead><tr><th>Retained location</th><th>Purpose</th></tr></thead><tbody>
 <tr><td><code>source-publication/&lt;artifact-sha256&gt;/</code></td><td>Prepared requests tied to one deployment artifact.</td></tr>
 <tr><td><code>source-publication/state/</code></td><td>Shared per-chain/address jobs for manual and automatic publication.</td></tr>
 <tr><td><code>state/&lt;chain&gt;-&lt;address&gt;.public-check.json</code></td><td>Latest public lookup, including a mismatch reason and response when verification disagrees.</td></tr>
 </tbody></table>
+</div>
 <h2 id="retry">Retry without redeploying</h2>
 <p>Repeat the same command with the same instance. Pending jobs resume; failed attempts and historical receipts remain. Older per-operation job records are imported against their retained requests rather than discarded.</p>
 <p><strong>Service unavailable:</strong> retain the records and retry later. <strong>Metadata differs:</strong> inspect the recorded difference and original artifact before resubmitting. <strong>History or dependencies missing:</strong> restore those inputs. None of these failures is a reason to create a new business contract.</p>

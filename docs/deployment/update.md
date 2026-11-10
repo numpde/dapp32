@@ -10,12 +10,14 @@ outline: false
 
 
 <p>First identify what changed. A viewer image, workflow files and a contract are different components with different update procedures.</p>
+<div class="table-scroll" role="region" aria-label="Table: Changed component / Procedure and authority" tabindex="0">
 <table><thead><tr><th>Changed component</th><th>Procedure and authority</th></tr></thead><tbody>
 <tr><td>Browser viewer</td><td>The server operator <a href="../viewer/deploy.html#maintain">replaces its image</a>. No CAM transaction.</td></tr>
 <tr><td>Compatible labels, screens or navigation</td><td><a href="#cam-only">Prepare and host CAM files</a>; the current root owner approves their publication.</td></tr>
 <tr><td>Read-only Solidity projection</td><td><a href="#projection">Deploy or select the projection</a>, then publish compatible resources/bindings. Deployer and CAM owner may differ.</td></tr>
 <tr><td>Business behavior or incompatible ABI</td><td><a href="#migration">Plan replacement and migration</a>. This is not a UI refresh.</td></tr>
 </tbody></table>
+</div>
 <h2 id="cam-only">Publish compatible navigation or screen changes</h2>
 <dl><dt>Run on</dt><dd>The release operator's machine, in the reviewed source checkout, using its local Docker engine and private instance.</dd><dt>Requires</dt><dd>Retained evidence for compatible business/projection contracts and an existing CAM root; current publication-owner approval.</dd><dt>Changes</dt><dd>Prepared files and approved CAM reference/binding transactions, not an intended business-contract replacement.</dd></dl>
 <p>These examples use Pay-to-Play; substitute the app prefix for another app. Verify its deployed ABI and policy before selecting today's authored files. A new operation must select the intended source revision; editing defaults does not rewrite an older operation's retained inputs.</p>

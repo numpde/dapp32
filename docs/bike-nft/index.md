@@ -22,12 +22,14 @@ outline: false
 </ol>
 <p>The serial determines the token ID from its hash; it is not a short human identifier or a metadata digest. Losing registrar authority removes permission to create records, not ownership of existing NFTs.</p>
 <h2 id="authority">Choose the right authority</h2>
+<div class="table-scroll" role="region" aria-label="Table: Task / Who can authorize it?" tabindex="0">
 <table><thead><tr><th>Task</th><th>Who can authorize it?</th></tr></thead><tbody>
 <tr><td>Register</td><td>A manager-authorized registrar.</td></tr>
 <tr><td>Change metadata or manage a missing report</td><td>The owner or a workshop with that specific live capability.</td></tr>
 <tr><td>Take out of service, reactivate or manage grants</td><td>The current token owner.</td></tr>
 <tr><td>Handover through the app</td><td>The current owner, through a direct NFT transfer.</td></tr>
 </tbody></table>
+</div>
 <p><a href="ownership.html">Hand over ownership or authorize a workshop</a> explains expiry, replacement presets and transfer invalidation. These grants are not NFT transfer approvals. Account profile information is separately self-managed by its account and grants no registry authority.</p>
 <h2 id="reports">Missing reports and service state</h2>
 <p>Use <strong>Report component missing</strong> with a nonempty published report URI. Resolve it with <strong>Resolve missing report</strong> and a resolution URI. These are public references, not encrypted private messages or proof of an investigation.</p>
@@ -50,7 +52,7 @@ outline: false
 <p>Source baseline: <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/bike-nft">04a18763</a>. This page changes no older deployment's permissions, metadata-prefix policy or retirement semantics.</p>
 <h2 id="cam">CAM route reference</h2>
 <p>The table is checked against the committed manifest. Read routes supply screens; write routes prepare calls and continue after successful execution.</p>
-<details><summary>Show route calls and continuations</summary><div class="route-table">
+<details><summary>Show route calls and continuations</summary><div class="route-table" role="region" aria-label="Bike NFT CAM route inventory" tabindex="0">
         <table data-check="bike-routes">
           <thead>
             <tr>

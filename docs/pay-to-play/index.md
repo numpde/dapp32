@@ -14,6 +14,7 @@ outline: false
 <nav aria-label="Guide sections"><a href="#use">Choose a task</a> · <a href="#example">Payment example</a> · <a href="#withdrawals">Withdraw</a> · <a href="#recovery">Recover</a> · <a href="#integrate">Integrate</a> · <a href="#local">Try locally</a></nav>
 <h2 id="use">Choose a task</h2>
 <p>Choose the owner and channel, then <strong>Open balance</strong>. The selection stays fixed when you switch wallets. The active task is a label, not a button that resets its form.</p>
+<div class="table-scroll" role="region" aria-label="Table: Destination / Use it to" tabindex="0">
 <table><thead><tr><th>Destination</th><th>Use it to</th></tr></thead><tbody>
 <tr><td>Balance</td><td>Read current state. No transaction editors.</td></tr>
 <tr><td>Deposit</td><td>Add native coins to your selected position.</td></tr>
@@ -22,6 +23,7 @@ outline: false
 <tr><td>Recovery</td><td>Inspect deadlines, choose a refund recipient, close a cycle, refund or retire a channel.</td></tr>
 <tr><td>Channel settings</td><td>Manage the channel's shared payee and collector as admin.</td></tr>
 </tbody></table>
+</div>
 <p>Choose an action, inspect the prepared contract, arguments and value, then authorize it with the connected wallet. Success means a successful receipt and the resulting state, not merely a simulation or transaction hash. <strong>Refresh</strong> rereads state and removes a prepared call; <strong>Back</strong> rereads a prior view and restores compatible drafts. Switching accounts clears account-bound drafts.</p>
 <h2 id="balances">Keep the roles separate</h2>
 <p>The owner supplies funds and controls withdrawals. The permanent voucher key signs payment authority. The payee receives payment. The configured collector submits vouchers. The admin creates channels and changes payee/collector settings. These roles can be different addresses. Viewing another owner's balance grants none of their authority.</p>
@@ -43,11 +45,13 @@ outline: false
 <p><strong>A request does not reserve funds.</strong> Collection can reduce the balance before withdrawal. In this source revision, a positive deposit or incoming move into a position with a pending request restarts the full wait using the receiving channel’s claim period, preserving the amount requested. Zero-value credits do not restart it. For example, after a mature request for 100 survives collection of the original balance, depositing another 100 restarts readiness at the new credit timestamp plus the claim period. The reset is not a reservation for a payee or a promise of payment for later work. Older deployed contracts can still apply a mature request immediately to new funds. Ordinary withdrawals pay the owner, not the separately configured full-refund recipient.</p>
 <h2 id="recovery">Recover the full balance</h2>
 <p>Use <strong>Recovery</strong> to inspect the effective deadline and destination before acting. Positive funding and incoming moves normally schedule recovery after 365 days plus the claim period. Time passing changes the phase, but sends no transaction automatically.</p>
+<div class="table-scroll" role="region" aria-label="Table: Phase / Meaning" tabindex="0">
 <table><thead><tr><th>Phase</th><th>Meaning</th></tr></thead><tbody>
 <tr><td>Operating</td><td>Funding and owner renewal are allowed.</td></tr>
 <tr><td>Settling</td><td>No new funding or renewal; previously authorized vouchers remain collectible before the final cutoff.</td></tr>
 <tr><td>Refund-only</td><td>Collection has ended; anyone may execute a full refund to the stored destination.</td></tr>
 </tbody></table>
+</div>
 <h3 id="wind-down">End a funding cycle early</h3>
 <p>The owner, admin or current payee may start wind-down. It can shorten, but never postpone, an existing effective exit. Settlement cannot be cancelled. Already-created ordinary withdrawal entitlements are preserved.</p>
 <h3 id="admin">Retire a channel</h3>
