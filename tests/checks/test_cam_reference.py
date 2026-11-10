@@ -74,9 +74,11 @@ class CamReferenceTests(unittest.TestCase):
         self.assertIn(f"Document format versions: CAM <code>{cam}</code>, UI <code>{ui}</code>", reference)
 
     def test_worked_example_resource_bytes_match_manifest(self):
-        for version in ("1.1.0", "1.2.0", "1.3.0", "1.4.0"):
-            with self.subTest(version=version):
-                document = ReferenceHTML((REFERENCE / version / "index.html").read_text(encoding="utf-8"))
+        # The reference directories own the version inventory. Each retained
+        # worked example must agree with the exact resource bytes it embeds.
+        for reference in sorted(REFERENCE.glob("*/index.html")):
+            with self.subTest(reference=reference.relative_to(REFERENCE)):
+                document = ReferenceHTML(reference.read_text(encoding="utf-8"))
                 manifest = strict_json_loads(document.examples["example-cam"])
                 for namespace, example in (("contracts.Registry", "example-abi"), ("ui", "example-ui")):
                     resource_bytes = document.examples[example].encode("utf-8")
