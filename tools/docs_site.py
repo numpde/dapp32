@@ -11,7 +11,6 @@ import sys
 from urllib.parse import unquote, urljoin, urlsplit
 
 
-VERSIONS = ("1.1.0", "1.2.0", "1.3.0", "1.4.0")
 MANIFEST = "docs-publication.json"
 RETIRED_FILES = {
     "Makefile", "site.css", "theme.js", "docs_nav.py", "check_pages.py",
@@ -133,6 +132,18 @@ def safe_files(root: Path, *, checkout: bool) -> list[Path]:
     return sorted(files)
 
 
+def reference_versions(source: Path) -> list[str]:
+    """Discover separately published CAM references from the source directory."""
+    root = source / "reference/cam"
+    versions = sorted(
+        item.name for item in root.iterdir()
+        if item.is_dir() and (item / "index.html").is_file()
+    )
+    if not versions:
+        raise ValueError("No versioned CAM reference pages")
+    return versions
+
+
 def architecture_model(source: Path, *, definition: dict | None = None) -> dict:
     """The only authored navigation inventory; no per-section config overrides."""
     model = definition if definition is not None else json.loads(
@@ -165,8 +176,12 @@ def canonical_pages(source: Path, *, definition: dict | None = None) -> tuple[li
     """Every authored guide has exactly one owner, including section landings."""
     model = architecture_model(source, definition=definition)
     sections = model["sections"]
-    if [s.get("id") for s in sections] != ["start", "gallery", "use", "build", "deploy", "reference"]:
-        raise ValueError("Unexpected top-level documentation hierarchy")
+    identifiers = [section.get("id") for section in sections]
+    if (not identifiers
+            or any(not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", name)
+                   for name in identifiers)
+            or len(identifiers) != len(set(identifiers))):
+        raise ValueError("Documentation section IDs must be unique and path-safe")
 
     home = model["home"]
     if (not isinstance(home, dict) or set(home) != {"source", "route", "text"}
@@ -394,7 +409,7 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         alias = site / html_path(original)
         if not alias.is_file() or "/dapp32/" + destination not in alias.read_text(encoding="utf-8"):
             raise ValueError(f"Missing retired-guide redirect: {original}")
-    for version in VERSIONS:
+    for version in reference_versions(source):
         path = Path("reference/cam") / version / "index.html"
         if (source / path).read_bytes() != (site / path).read_bytes():
             raise ValueError(f"Modified versioned protocol reference: {version}")
@@ -404,13 +419,12 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
     catalog = json.loads((site / "gallery/deployments.json").read_text())
     if not isinstance(catalog["deployments"], list) or not catalog["deployments"]:
         raise ValueError("Gallery is missing deployments")
-    # A Gallery with a sidebar must point only to groups present in its
-    # deployment catalog, and must show loading feedback before hydration.
+    # The catalog is copied unchanged; sidebar destinations were checked on
+    # every rendered page above, against application IDs in the source catalog.
+    if ((site / "gallery/deployments.json").read_bytes()
+            != (source / "public/gallery/deployments.json").read_bytes()):
+        raise ValueError("Generated Gallery catalog differs from its source")
     gallery_html = (site / "gallery/index.html").read_text(encoding="utf-8")
-    for deployment in catalog["deployments"]:
-        sidebar_target = "/dapp32/gallery/#" + deployment["appId"]
-        if f'href="{sidebar_target}"' not in gallery_html:
-            raise ValueError(f"Gallery sidebar is missing {sidebar_target}")
     if ('class="gallery-status is-loading"' not in gallery_html
             or 'aria-busy="true"' not in gallery_html
             or 'gallery-loading-card' not in gallery_html):

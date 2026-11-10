@@ -12,12 +12,9 @@ on:
       - js/package.json
       - js/package-lock.json
       - Makefile
-      - tests/checks/test_docs_port.py
-      - tests/checks/test_docs_build_lifecycle.py
-      - tests/checks/test_docs_site.py
-      - tests/checks/test_docs_navigation.py
       - tools/make/docs.mk
       - tools/docs_site.py
+      - 'tests/checks/test_docs_*.py'
   pull_request:
     paths:
       - .github/workflows/docs-pages-candidate.yml
@@ -28,10 +25,7 @@ on:
       - Makefile
       - tools/make/docs.mk
       - tools/docs_site.py
-      - tests/checks/test_docs_port.py
-      - tests/checks/test_docs_build_lifecycle.py
-      - tests/checks/test_docs_site.py
-      - tests/checks/test_docs_navigation.py
+      - 'tests/checks/test_docs_*.py'
   workflow_dispatch:
 
 permissions:
@@ -73,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           cd source
-          python3 -B -m unittest -v tests.checks.test_docs_port tests.checks.test_docs_build_lifecycle tests.checks.test_docs_site tests.checks.test_docs_navigation
+          python3 -B -m unittest discover -v -s tests/checks -t . -p 'test_docs_*.py'
 
       - name: Build docs with confined Docker Compose
         shell: bash

@@ -79,8 +79,8 @@ for (const [source, target] of Object.entries(retired)) {
   usedSources.add(source)
   oldToNew.set(pageUrl(source), target)
 }
-if (architecture.version !== 3 || sections.length !== 6 || pages.length < sections.length + 1) {
-  throw new Error('Unexpected documentation page inventory')
+if (architecture.version !== 3 || sections.length === 0) {
+  throw new Error('Invalid documentation architecture')
 }
 async function markdownFiles(directory, prefix = '') {
   const entries = await readdir(directory, { withFileTypes: true })

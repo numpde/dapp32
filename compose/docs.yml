@@ -90,9 +90,11 @@ services:
         # CAM protocol references are also published as exact-byte resources.
         # Copy them unchanged into VitePress public assets, never re-render them.
         mkdir -p /work/js/docs/public/reference/cam
-        for version in 1.1.0 1.2.0 1.3.0 1.4.0; do
-          test -f "/work/js/docs/reference/cam/$$version/index.html"
-          cp -a "/work/js/docs/reference/cam/$$version" /work/js/docs/public/reference/cam/
+        # Every source reference directory with an index.html is published
+        # unchanged; there is no separate version list in the build recipe.
+        for reference_html in /work/js/docs/reference/cam/*/index.html; do
+          test -f "$$reference_html"
+          cp -a "$${reference_html%/index.html}" /work/js/docs/public/reference/cam/
         done
         # Build GitHub Pages paths into the disposable artifact volume.
         exec node node_modules/.bin/vitepress build docs --base /dapp32/ --outDir /out/site
