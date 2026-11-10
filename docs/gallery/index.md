@@ -10,16 +10,34 @@ import { onMounted, onBeforeUnmount } from 'vue'
 
 let dispose
 let alive = false
+let importFailed = false
+const retryImport = () => window.location.reload()
 
 onMounted(async () => {
   alive = true
-  const { mountGallery } = await import('./deployments.js')
-  if (alive) dispose = mountGallery()
+  try {
+    const { mountGallery } = await import('./deployments.js')
+    if (alive) dispose = mountGallery()
+  } catch {
+    if (!alive) return
+    const status = document.querySelector('#load-status')
+    const retry = document.querySelector('#retry')
+    status?.classList.remove('is-loading')
+    status?.setAttribute('aria-busy', 'false')
+    status?.setAttribute('role', 'alert')
+    if (status) status.textContent = 'Cannot load the Gallery. Reload to try again.'
+    if (retry) {
+      retry.hidden = false
+      retry.addEventListener('click', retryImport)
+      importFailed = true
+    }
+  }
 })
 
 onBeforeUnmount(() => {
   alive = false
   dispose?.()
+  if (importFailed) document.querySelector('#retry')?.removeEventListener('click', retryImport)
 })
 </script>
 

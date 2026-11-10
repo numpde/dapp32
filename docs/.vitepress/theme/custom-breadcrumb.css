@@ -37,3 +37,10 @@
 @media (max-width: 640px) {
   .doc-breadcrumb { font-size: 0.76rem; margin-bottom: 1rem; }
 }
+
+/* The right VitePress outline is an independently scrolling container.
+   Its upstream overscroll containment traps wheel input at scroll boundaries,
+   even when the document has more content. Preserve native scroll chaining. */
+@media (min-width: 1280px) {
+  .VPDoc .aside-container { overscroll-behavior-y: auto; }
+}

@@ -283,6 +283,9 @@ function selectionFromHash() {
       return;
     }
   }
+  // The Gallery sidebar targets application groups, not version-specific IDs.
+  const target = document.getElementById(id);
+  if (target?.classList.contains('gallery-app-group')) target.scrollIntoView({ block: 'start' });
 }
 window.addEventListener('hashchange', selectionFromHash);
 

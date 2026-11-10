@@ -139,8 +139,35 @@ class DocsPortTests(unittest.TestCase):
         self.assertIn("public/reference/cam", compose)
         self.assertIn('cp -a "/work/js/docs/reference/cam/$$version"', compose)
 
+    def test_gallery_sidebar_and_loading_feedback(self) -> None:
+        gallery = (DOCS / "gallery/index.md").read_text(encoding="utf-8")
+        implementation = (DOCS / "gallery/deployments.js").read_text(encoding="utf-8")
+        css = (DOCS / "gallery/gallery.css").read_text(encoding="utf-8")
+        scroll = (DOCS / ".vitepress/theme/custom-breadcrumb.css").read_text(encoding="utf-8")
+
+        self.assertNotIn("sidebar: false", gallery)
+        self.assertIn('id="load-status" class="gallery-status is-loading"', gallery)
+        self.assertIn('role="status" aria-live="polite" aria-busy="true"', gallery)
+        self.assertIn('class="gallery-loading-card"', gallery)
+        self.assertIn("status.classList.add('is-loading')", implementation)
+        self.assertIn("status.classList.remove('is-loading')", implementation)
+        self.assertIn("list.replaceChildren(loadingCard(), loadingCard())", implementation)
+        self.assertIn("bindingStatus.setAttribute('aria-busy', 'true')", implementation)
+        self.assertIn("galleryGroup(deployments, card)", implementation)
+        self.assertIn("galleryGroup(deployments, group)", implementation)
+        self.assertIn("group.id = deployments[0].appId || deployments[0].id", implementation)
+        self.assertIn("@keyframes gallery-loading-spin", css)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", css)
+        self.assertIn(".VPDoc .aside-container { overscroll-behavior-y: auto; }", scroll)
+
     def test_gallery_uses_one_catalog_and_page_mounts(self) -> None:
         self.assertTrue((DOCS / "public/gallery/deployments.json").is_file())
+        import json
+        catalog = json.loads((DOCS / "public/gallery/deployments.json").read_text(encoding="utf-8"))
+        for deployment in catalog["deployments"]:
+            with self.subTest(app=deployment["appId"]):
+                self.assertRegex(deployment["appId"], r"^[a-z][a-z0-9-]*$")
+                self.assertEqual(f"../use/{deployment['appId']}/", deployment["guide"])
         gallery_source = (DOCS / "gallery/index.md").read_text(encoding="utf-8")
         for node_id in ("load-status", "retry", "deployments"):
             node_lines = [line for line in gallery_source.splitlines() if f'id="{node_id}"' in line]

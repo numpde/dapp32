@@ -25,7 +25,15 @@ def artifact_fixture(root: Path) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
         ids = ""
         if output == Path("gallery/index.html"):
-            ids = '<div id="load-status"></div><button id="retry"></button><div id="deployments"></div>'
+            catalog = json.loads((DOCS / "public/gallery/deployments.json").read_text(encoding="utf-8"))
+            apps = {item["appId"]: item["name"] for item in catalog["deployments"]}
+            sidebar = "".join(f'<a href="/dapp32/gallery/#{app_id}">{name}</a>'
+                              for app_id, name in apps.items())
+            ids = ('<nav aria-label="Gallery sidebar">' + sidebar + '</nav>'
+                   '<p id="load-status" class="gallery-status is-loading"'
+                   ' role="status" aria-busy="true">Loading deployments…</p>'
+                   '<button id="retry"></button><div id="deployments">'
+                   '<div class="gallery-loading-card"></div></div>')
         if output == Path("deploy/networks/index.html"):
             ids = ''.join(f'<div id="{name}"></div>'
                           for name in ("load-status", "reference", "networks", "network-jump"))

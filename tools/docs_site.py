@@ -223,6 +223,17 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
     catalog = json.loads((site / "gallery/deployments.json").read_text())
     if not isinstance(catalog["deployments"], list) or not catalog["deployments"]:
         raise ValueError("Gallery is missing deployments")
+    # A Gallery with a sidebar must point only to groups present in its
+    # deployment catalog, and must show loading feedback before hydration.
+    gallery_html = (site / "gallery/index.html").read_text(encoding="utf-8")
+    for deployment in catalog["deployments"]:
+        sidebar_target = "/dapp32/gallery/#" + deployment["appId"]
+        if f'href="{sidebar_target}"' not in gallery_html:
+            raise ValueError(f"Gallery sidebar is missing {sidebar_target}")
+    if ('class="gallery-status is-loading"' not in gallery_html
+            or 'aria-busy="true"' not in gallery_html
+            or 'gallery-loading-card' not in gallery_html):
+        raise ValueError("Gallery lacks visible initial loading indicators")
     for page, ids in (
         ("gallery/index.html", {"load-status", "retry", "deployments"}),
         ("deploy/networks/index.html", {"load-status", "reference", "networks", "network-jump"}),

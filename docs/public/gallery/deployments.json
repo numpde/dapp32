@@ -5,7 +5,7 @@
     {
       "id": "bike-nft-fuji",
       "name": "Bicycle component registry",
-      "guide": "../bike-nft/",
+      "guide": "../use/bike-nft/",
       "network": "avalanche-fuji",
       "host": "0x7fa986f5b91782601368d15fb33494f50571a8b5",
       "contracts": [
@@ -38,7 +38,7 @@
     {
       "id": "pay-to-play-fuji",
       "name": "Pay-to-Play",
-      "guide": "../pay-to-play/",
+      "guide": "../use/pay-to-play/",
       "network": "avalanche-fuji",
       "host": "0x2714D4566FFf401957a9096C9A6c39d686877D3A",
       "contracts": [
@@ -67,7 +67,7 @@
       "name": "Pay-to-Play",
       "appId": "pay-to-play",
       "deployedAt": "2026-11-08",
-      "guide": "../pay-to-play/",
+      "guide": "../use/pay-to-play/",
       "network": "avalanche-fuji",
       "host": "0xaF64d347fAAC6aEC8a80F2fc8420681619A9FA49",
       "contracts": [

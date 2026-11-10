@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitepress'
 import architecture from './architecture.json'
+import galleryCatalog from '../public/gallery/deployments.json'
 
 type Page = { source: string; route: string; text: string }
 type Group = { title: string; collapsed?: boolean; parent?: string; pages: Page[] }
@@ -24,7 +25,7 @@ const nav = sections.map(section => ({
 
 // Each canonical URL belongs to exactly one section. Sidebar groups are
 // navigational clusters, not additional parent pages or competing trees.
-const sidebar = Object.fromEntries(sections.filter(section => section.id !== 'gallery').map(section => [
+const sidebar = Object.fromEntries(sections.map(section => [
   '/' + section.id + '/',
   section.groups.map(group => ({
     text: group.title,
@@ -32,6 +33,35 @@ const sidebar = Object.fromEntries(sections.filter(section => section.id !== 'ga
     items: group.pages.map(page => ({ text: page.text, link: pageLink(page.route) })),
   })),
 ]))
+
+
+// Sidebar entries point to actual deployed apps, derived from the same catalog
+// that renders the Gallery; they are anchored sections, not duplicate guide owners.
+const deployedApps = new Map<string, string>()
+for (const app of galleryCatalog.deployments) {
+  if (!/^[a-z][a-z0-9-]*$/.test(app.appId)) throw new Error('Invalid Gallery application ID')
+  if (deployedApps.has(app.appId) && deployedApps.get(app.appId) !== app.name) {
+    throw new Error('Conflicting Gallery application names for ' + app.appId)
+  }
+  deployedApps.set(app.appId, app.name)
+}
+sidebar['/gallery/'].push(
+  {
+    text: 'Deployed apps',
+    collapsed: false,
+    items: [...deployedApps].sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, name]) => ({ text: name, link: '/gallery/#' + id })),
+  },
+  {
+    text: 'Next steps',
+    collapsed: false,
+    items: [
+      { text: 'Open an unlisted app', link: '/use/' },
+      { text: 'Try a local demo', link: '/start/examples/' },
+      { text: 'Network catalog', link: '/deploy/networks/' },
+    ],
+  },
+)
 
 export default defineConfig({
   lang: 'en-US',
