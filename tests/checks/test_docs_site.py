@@ -55,7 +55,7 @@ def artifact_fixture(root: Path) -> Path:
                       if section and canonical != section + "/index.md" else '')
         sidebar = ('<aside class="VPSidebar">' +
                    ''.join(f'<a href="{href}">Page</a>' for href in sidebar_links(DOCS, section)) +
-                   '</aside>' if section else '')
+                   '</aside>')
         target.write_text("<!doctype html><html><body>" + active_nav + sidebar + breadcrumb
                           + ids + ("document " * 30) + "</body></html>", encoding="utf-8")
     for original, canonical in pages:
@@ -161,6 +161,42 @@ class DocsPublishedTests(unittest.TestCase):
                     if old != new:
                         self.assertIn("/dapp32/" + route_url(new),
                                       (site / html_path(old)).read_text())
+
+    def test_every_generated_guide_including_home_requires_a_sidebar(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            site = artifact_fixture(Path(directory))
+            pages, _ = canonical_pages(DOCS)
+            for _, route in pages:
+                with self.subTest(page=route):
+                    output = site / html_path(route)
+                    self.assertIn('<aside class="VPSidebar">', output.read_text(encoding="utf-8"))
+            check(DOCS, site, published=False)
+
+        for route in ("index.md", "gallery/index.md", "use/pay-to-play/index.md"):
+            with self.subTest(missing_sidebar_on=route), tempfile.TemporaryDirectory() as directory:
+                site = artifact_fixture(Path(directory))
+                output = site / html_path(route)
+                markup = output.read_text(encoding="utf-8")
+                left = markup.index('<aside class="VPSidebar">')
+                right = markup.index('</aside>', left) + len('</aside>')
+                output.write_text(markup[:left] + markup[right:], encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Required sidebar is absent"):
+                    check(DOCS, site, published=False)
+
+    def test_home_sidebar_matches_the_six_declared_sections(self) -> None:
+        sections = architecture_model(DOCS)["sections"]
+        expected = ["/dapp32/" + route_url(section["landing"]["route"]) for section in sections]
+        self.assertEqual(expected, sidebar_links(DOCS, None))
+        with tempfile.TemporaryDirectory() as directory:
+            site = artifact_fixture(Path(directory))
+            markup = (site / "index.html").read_text(encoding="utf-8")
+            left = markup.index('<aside class="VPSidebar">')
+            right = markup.index('</aside>', left)
+            sidebar_markup = markup[left:right]
+            self.assertEqual(6, sidebar_markup.count('<a href="/dapp32/'))
+            for href in expected:
+                self.assertIn(f'href="{href}"', sidebar_markup)
+            check(DOCS, site, published=False)
 
     def test_sidebar_rejects_cross_section_duplicate_and_unlisted_links(self) -> None:
         for extra in ('<a href="/dapp32/use/">Cross-section</a>',

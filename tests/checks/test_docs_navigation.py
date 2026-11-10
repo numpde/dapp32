@@ -60,6 +60,18 @@ class DocsNavigationTests(unittest.TestCase):
             {source for source, _ in pages} | set(retired),
         )
 
+    def test_home_sidebar_is_the_six_section_landings_from_the_same_inventory(self) -> None:
+        expected = [
+            "/dapp32/" + route_url(section["landing"]["route"])
+            for section in self.architecture["sections"]
+        ]
+        self.assertEqual(expected, sidebar_links(DOCS, None))
+        self.assertEqual(6, len(expected))
+        navigation = (DOCS / ".vitepress/navigation.ts").read_text(encoding="utf-8")
+        self.assertIn("[homeHref, homeSections.map(section =>", navigation)
+        self.assertIn("...sections.map(section => [", navigation)
+        self.assertNotIn("sidebar['/']", navigation)
+
     def test_gallery_collection_has_no_handwritten_sidebar_links(self) -> None:
         section = next(item for item in self.architecture["sections"] if item["id"] == "gallery")
         self.assertEqual([{

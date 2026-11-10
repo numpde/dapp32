@@ -249,9 +249,12 @@ def canonical_pages(source: Path, *, definition: dict | None = None) -> tuple[li
     return mapped, retired
 
 
-def sidebar_links(source: Path, section: str) -> list[str]:
-    """Project only in-section destinations from the same architecture model."""
+def sidebar_links(source: Path, section: str | None) -> list[str]:
+    """Project sidebar destinations, including the declared parent site root."""
     model = architecture_model(source)
+    if section is None:
+        return ["/dapp32/" + route_url(item["landing"]["route"])
+                for item in model["sections"]]
     owner = next((item for item in model["sections"] if item["id"] == section), None)
     if owner is None:
         raise ValueError(f"Unknown sidebar section: {section}")
@@ -319,6 +322,7 @@ class SidebarLinks(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self.depth = 0
+        self.present = False
         self.hrefs: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -328,6 +332,7 @@ class SidebarLinks(HTMLParser):
             if tag == "a" and values.get("href"):
                 self.hrefs.append(str(values["href"]))
         elif tag == "aside" and "VPSidebar" in str(values.get("class", "")).split():
+            self.present = True
             self.depth = 1
 
     def handle_endtag(self, tag: str) -> None:
@@ -366,10 +371,12 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         section = canonical.split("/", 1)[0] if canonical != architecture_model(source)["home"]["route"] else None
         sidebar = SidebarLinks()
         sidebar.feed(rendered)
-        expected_sidebar = sidebar_links(source, section) if section else []
-        if sidebar.hrefs != expected_sidebar:
-            raise ValueError(f"Sidebar contains an extra, missing, duplicate or cross-section link on "
-                             f"{output}: observed={sidebar.hrefs}, expected={expected_sidebar}")
+        expected_sidebar = sidebar_links(source, section)
+        if not sidebar.present or sidebar.hrefs != expected_sidebar:
+            raise ValueError(f"Required sidebar is absent or contains an extra, missing, "
+                             f"duplicate or cross-section link on {output}: "
+                             f"present={sidebar.present}, observed={sidebar.hrefs}, "
+                             f"expected={expected_sidebar}")
         expected_nav = [] if section is None else ["/dapp32/" + section + "/"]
         if parser.active_sections != expected_nav:
             raise ValueError(f"Incorrect top-level navigation on {output}: "

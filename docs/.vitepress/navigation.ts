@@ -70,10 +70,16 @@ export const nav = sections.map(section => ({
   activeMatch: '^/' + section.id + '/',
 }))
 
-export const sidebar = Object.fromEntries(sections.map(section => [
-  pageLink(section.landing.route),
-  section.groups.map(group => sidebarGroup(section, group)),
-]))
+// The site root is the parent of the six sections. Its sidebar is a flat
+// directory of those section landings, from the same entries as the top nav
+// and homepage cards. Longer section-specific routes override this "/" entry.
+export const sidebar = Object.fromEntries([
+  [homeHref, homeSections.map(section => ({ text: section.label, link: section.href }))],
+  ...sections.map(section => [
+    pageLink(section.landing.route),
+    section.groups.map(group => sidebarGroup(section, group)),
+  ]),
+])
 
 // Root links are the top navigation's job; they are not repeated as children.
 // Breadcrumb parents must be real authored pages, never a category title.
