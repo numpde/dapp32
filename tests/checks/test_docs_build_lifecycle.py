@@ -228,13 +228,16 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "phases": [],
             "held": False,
         }))
-        docker = root / "docker"
-        docker.write_text(
-            "#!/usr/bin/env bash\n"
-            f'if [[ $1 == context ]]; then exec "{ROOT / "tests/fixtures/docker-context/docker"}" "$@"; fi\n'
-            'exec "$PYTHON" "$CASE_ROOT/docker.py" "$@"\n'
+        # The offline checks container mounts /tmp with noexec. Invoke the
+        # fake Docker peer through an interpreted Bash startup file, including
+        # nested cleanup shells, rather than executing a /tmp script directly.
+        bash_env = root / "fake-docker.bash"
+        bash_env.write_text(
+            'docker() {\n'
+            f'  if [[ "$1" == context ]]; then "{ROOT / "tests/fixtures/docker-context/docker"}" "$@";\n'
+            '  else "$PYTHON" "$CASE_ROOT/docker.py" "$@"; fi\n'
+            '}\n'
         )
-        docker.chmod(0o755)
         endpoint = "unix:///tmp/docs-test-selected.sock"
         environment = {
             **os.environ,
@@ -243,7 +246,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "CAM_DOCKER_ENDPOINT": endpoint,
             "ENDPOINT": endpoint,
             "TRACE": str(root / "selector-trace"),
-            "PATH": f"{root}:{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
+            "PATH": f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
+            "BASH_ENV": str(bash_env),
             "DOCS_OUTPUT_DIR": str(root / "output"),
         }
         # The real identity selector is tested separately against rootless/rootful
@@ -270,16 +274,6 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         calls = [json.loads(line) for line in calls_path.read_text().splitlines()] if calls_path.exists() else []
         state = json.loads((root / "state.json").read_text())
         self.assertFalse(list((root / "output").glob(".dapp32-docs-*")), "the host staging directory survived")
-        if "Docs exporter did not produce" in result.stderr:
-            # Report the simulated Docker operations at the real failing
-            # boundary; the lifecycle fixture otherwise removes its state.
-            result = subprocess.CompletedProcess(
-                result.args, result.returncode, result.stdout,
-                result.stderr + f"\nFake Docker calls: {calls!r}\nFake Docker state: {state!r}\n"
-                + f"Expanded command: {expanded.stdout[:4000]!r}\n"
-                + f"Runtime stdout: {result.stdout[:1200]!r}\n"
-                + f"Selected environment: {[(k, environment.get(k)) for k in ('BASH_ENV', 'MAKEFLAGS', 'DOCKER_HOST')]!r}\n",
-            )
         return result, calls, state
 
     @staticmethod
