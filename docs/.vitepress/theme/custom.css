@@ -49,7 +49,6 @@
 .vp-doc .ported-guide .component-table tbody th { text-align: left; }
 .vp-doc .ported-guide .component-table :is(th,td):nth-child(2),
 .vp-doc .ported-guide .component-table :is(th,td):nth-child(3) {
-  width: 15%;
   text-align: center;
   white-space: nowrap;
 }
@@ -170,8 +169,10 @@
 }
 
 /* Keep the four-column component comparison compact without squeezing prose. */
-.vp-doc .ported-guide .component-table :is(th, td):first-child { width: 25%; }
-.vp-doc .ported-guide .component-table :is(th, td):nth-child(4) { width: 45%; }
+.vp-doc .ported-guide .component-table :is(th, td):first-child { width: 23%; }
+.vp-doc .ported-guide .component-table :is(th, td):nth-child(2) { width: 15%; }
+.vp-doc .ported-guide .component-table :is(th, td):nth-child(3) { width: 20%; }
+.vp-doc .ported-guide .component-table :is(th, td):nth-child(4) { width: 42%; }
 .vp-doc .ported-guide .component-table th { white-space: normal; }
 
 /* Inline resource paths may exceed a phone viewport; fenced commands still scroll. */

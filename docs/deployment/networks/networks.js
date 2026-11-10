@@ -62,7 +62,7 @@ export async function mountNetworks() {
       const view = radios.find(radio => radio.checked).value;
       const chain = view === 'mainnet' ? mainnet : testnets.get(mainnetKey)[1];
       const label = view === 'mainnet' ? mainnet.name : `${chain.name} [${mainnet.name}]`;
-      const article = element('article', undefined, 'network-details');
+      const article = element('article', undefined, 'network-card');
       article.id = mainnetKey;
 
       const heading = element('div', undefined, 'network-heading');
@@ -128,6 +128,7 @@ export async function mountNetworks() {
       if (mainnets.some(([key]) => key === selected)) {
         jump.value = selected;
         render();
+        document.getElementById(selected)?.scrollIntoView();
       }
     }
 
@@ -136,6 +137,9 @@ export async function mountNetworks() {
     window.addEventListener('hashchange', followHash, { signal: controller.signal });
     render();
     document.querySelector('#reference').hidden = false;
+    if (mainnets.some(([key]) => key === requestedNetwork)) {
+      document.getElementById(requestedNetwork)?.scrollIntoView();
+    }
   } catch (error) {
     if (!controller.signal.aborted) {
       status.textContent = `Cannot load the network catalog: ${error.message}. Reload this page to retry.`;
