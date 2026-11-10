@@ -33,6 +33,11 @@ class Ids(HTMLParser):
             self.found.add(attributes["id"])
 
 
+def html_classes(attributes: dict[str, str | None]) -> list[str]:
+    value = attributes.get("class")
+    return [] if value is None else value.split()
+
+
 class Navigation(HTMLParser):
     """Observe the actual server-rendered active section and breadcrumbs."""
 
@@ -43,9 +48,11 @@ class Navigation(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
-        classes = str(attributes.get("class", "")).split()
+        classes = html_classes(attributes)
         if tag == "a" and "VPNavBarMenuLink" in classes and "active" in classes:
-            self.active_sections.append(str(attributes.get("href", "")))
+            href = attributes.get("href")
+            if href is not None:
+                self.active_sections.append(href)
         if tag == "nav" and attributes.get("aria-label") == "Breadcrumb":
             self.breadcrumb = True
 
@@ -301,7 +308,7 @@ class HomeCards(HTMLParser):
                 hrefs = self.cards[-1]["hrefs"]
                 assert isinstance(hrefs, list)
                 hrefs.append(str(values["href"]))
-        elif tag == "section" and "home-section-card" in str(values.get("class", "")).split():
+        elif tag == "section" and "home-section-card" in html_classes(values):
             self.depth = 1
             self.cards.append({"section": str(values.get("data-section")), "hrefs": [], "text": ""})
 
@@ -346,7 +353,7 @@ class SidebarLinks(HTMLParser):
             self.depth += 1
             if tag == "a" and values.get("href"):
                 self.hrefs.append(str(values["href"]))
-        elif tag == "aside" and "VPSidebar" in str(values.get("class", "")).split():
+        elif tag == "aside" and "VPSidebar" in html_classes(values):
             self.present = True
             self.depth = 1
 
