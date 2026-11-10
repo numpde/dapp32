@@ -372,11 +372,11 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         sidebar = SidebarLinks()
         sidebar.feed(rendered)
         expected_sidebar = sidebar_links(source, section)
-        if not sidebar.present or sidebar.hrefs != expected_sidebar:
-            raise ValueError(f"Required sidebar is absent or contains an extra, missing, "
-                             f"duplicate or cross-section link on {output}: "
-                             f"present={sidebar.present}, observed={sidebar.hrefs}, "
-                             f"expected={expected_sidebar}")
+        if not sidebar.present:
+            raise ValueError(f"Required sidebar is absent on {output}")
+        if sidebar.hrefs != expected_sidebar:
+            raise ValueError(f"Sidebar contains an extra, missing, duplicate or cross-section link on "
+                             f"{output}: observed={sidebar.hrefs}, expected={expected_sidebar}")
         expected_nav = [] if section is None else ["/dapp32/" + section + "/"]
         if parser.active_sections != expected_nav:
             raise ValueError(f"Incorrect top-level navigation on {output}: "
