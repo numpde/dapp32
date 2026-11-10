@@ -12,7 +12,7 @@ import HomeSections from './.vitepress/theme/HomeSections.vue'
 
 <div class="ported-guide">
 
-<p>A dapp32 application has smart contracts and a published description of how to use them. A shared viewer or automated client reads that description to show information and prepare actions. The description grants no permissions: users approve transactions through their wallets, and the contracts enforce the rules.</p>
+<p>A dapp32 application has smart contracts and a published description of how to use them. A shared viewer or automated client reads that description to show information and prepare actions. Users approve transactions through their wallets, and the contracts enforce the rules, as usual.</p>
 <section id="documentation">
 <HomeSections />
 </section>
