@@ -87,8 +87,13 @@ export async function checkViewerAppearance({ call, evaluate, viewerURL }) {
 
     return { appearance: 'system default, explicit overrides and persistence', widths: [320, 900] }
   } finally {
-    await evaluate(`(() => { if (${JSON.stringify(previousStorage)} === null) localStorage.removeItem('${key}');
-      else if (${JSON.stringify(previousStorage)} !== undefined) localStorage.setItem('${key}', ${JSON.stringify(previousStorage)}); })()`)
+    if (previousStorage !== undefined) {
+      await evaluate(`(() => {
+        const previous = ${JSON.stringify(previousStorage)};
+        if (previous === null) localStorage.removeItem('${key}');
+        else localStorage.setItem('${key}', previous);
+      })()`)
+    }
     await call('Emulation.clearDeviceMetricsOverride')
     await call('Emulation.setEmulatedMedia', { features: [] })
   }
