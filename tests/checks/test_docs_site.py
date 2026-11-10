@@ -208,7 +208,7 @@ class DocsPublishedTests(unittest.TestCase):
         changes = (
             ('data-section="' + second["id"] + '"', 'data-section="unowned-section"'),
             ('data-section="' + second["id"] + '"', 'data-section="' + first["id"] + '"'),
-            ('href="' + second_url + '"', 'href="' + first_url + '"'),
+            ('<h2><a href="' + second_url + '"', '<h2><a href="' + first_url + '"'),
             (first["summary"], "Wrong summary"),
         )
         for before, after in changes:
