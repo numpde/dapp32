@@ -17,7 +17,7 @@ export async function checkViewerAppearance({ call, evaluate, viewerURL }) {
       selection: control.value,
       values: [...control.options].map(option => option.value),
       label: control.labels[0]?.textContent.trim(),
-      override: document.documentElement.dataset.appearance ?? null,
+      override: document.documentElement.getAttribute('data-appearance'),
       saved: localStorage.getItem('${key}'),
       scheme: getComputedStyle(document.documentElement).colorScheme,
       background: getComputedStyle(document.body).backgroundColor,
