@@ -270,6 +270,13 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         calls = [json.loads(line) for line in calls_path.read_text().splitlines()] if calls_path.exists() else []
         state = json.loads((root / "state.json").read_text())
         self.assertFalse(list((root / "output").glob(".dapp32-docs-*")), "the host staging directory survived")
+        if "Docs exporter did not produce" in result.stderr:
+            # Report the simulated Docker operations at the real failing
+            # boundary; the lifecycle fixture otherwise removes its state.
+            result = subprocess.CompletedProcess(
+                result.args, result.returncode, result.stdout,
+                result.stderr + f"\nFake Docker calls: {calls!r}\nFake Docker state: {state!r}\n",
+            )
         return result, calls, state
 
     @staticmethod
