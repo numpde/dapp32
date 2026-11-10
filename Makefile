@@ -1705,8 +1705,13 @@ cam/abi/export: dapps/deps/verify
 # The docs target nevertheless refuses an incomplete checkout explicitly.
 -include tools/make/docs.mk
 .PHONY: docs/build
+ifeq ($(origin docs_build_impl),undefined)
 docs/build:
-	$(if $(value docs_build_impl),$(docs_build_impl),$(error Missing tools/make/docs.mk; cannot build docs))
+	@printf "%s\n" "Missing tools/make/docs.mk; cannot build docs" >&2; exit 2
+else
+docs/build:
+	$(docs_build_impl)
+endif
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status
 viewer/image/build:
