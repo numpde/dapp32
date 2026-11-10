@@ -273,6 +273,7 @@ class PublicationTests(unittest.TestCase):
 
             with (patch.object(probe, "ROOT", root), patch.object(probe, "REPORT", report_path),
                   patch.object(probe, "CATALOG", source), patch.object(probe.subprocess, "run", side_effect=subprocess_result),
+                  patch.dict(os.environ, {"CAM_DOCKER_ENDPOINT": "unix:///tmp/selected.sock"}),
                   redirect_stderr(io.StringIO()), patch("sys.stdout", new_callable=io.StringIO)):
                 probe.publish_via_docker("unix:///tmp/selected.sock")
 
@@ -319,7 +320,8 @@ class PublicationTests(unittest.TestCase):
 
             with (patch.object(probe, "ROOT", root), patch.object(probe, "REPORT", report_path),
                   patch.object(probe, "CATALOG", catalog_path),
-                  patch.object(probe.subprocess, "run", side_effect=failure)):
+                  patch.object(probe.subprocess, "run", side_effect=failure),
+                  patch.dict(os.environ, {"CAM_DOCKER_ENDPOINT": "unix:///tmp/selected.sock"})):
                 with self.assertRaisesRegex(ValueError, "prior report retained"):
                     probe.publish_via_docker("unix:///tmp/selected.sock")
             self.assertEqual(report_path.read_bytes(), b"previous verified probe\n")
