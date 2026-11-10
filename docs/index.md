@@ -1,5 +1,5 @@
 ---
-title: "Contract-defined workflows"
+title: "What is dapp32?"
 description: "How dapp32 applications describe their interfaces while contracts enforce the rules."
 outline: false
 ---
@@ -8,7 +8,7 @@ outline: false
 import HomeSections from './.vitepress/theme/HomeSections.vue'
 </script>
 
-# Contract-defined workflows
+# What is dapp32?
 
 <div class="ported-guide">
 
