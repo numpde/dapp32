@@ -1,8 +1,2910 @@
 {
   "schema": 1,
-  "state": "not_run",
+  "state": "complete",
+  "summary": {
+    "networks": 30,
+    "endpoints": 39,
+    "keyless": 29,
+    "requires_api_key": 10,
+    "chain_verified": 29
+  },
+  "generated_at_utc": "2026-11-09T18:27:50+00:00",
   "catalog": "js/packages/cam-viewer/src/rpc-catalog.json",
-  "report": "This fixed tracked file is populated by make rpc/catalog/probe DOCKER_CONTEXT=<local-context>.",
-  "generated_at_utc": null,
-  "networks": {}
+  "catalog_sha256": "f466729ca82cf8f8c7c9c8ab8d2bc869e2e405f224db38b5ebb138f4f103ee2b",
+  "method_checks": [
+    "eth_chainId",
+    "eth_blockNumber",
+    "eth_getBlockByNumber:sample",
+    "eth_getBlockByHash",
+    "eth_getBlockByNumber:finalized",
+    "eth_getBlockByNumber:safe",
+    "eth_getLogs:range",
+    "eth_getLogs:blockHash",
+    "eth_call:blockHash",
+    "eth_call:unknownBlockHash",
+    "eth_getCode:blockHash",
+    "eth_getStorageAt:blockHash",
+    "eth_getBalance:blockHash",
+    "eth_getTransactionReceipt",
+    "eth_getTransactionByHash",
+    "eth_getBlockReceipts",
+    "eth_getBlockByNumber:historical4096",
+    "eth_call:historical4096",
+    "eth_getCode:historical4096"
+  ],
+  "scope": {
+    "credentials": "none; API-key endpoints not contacted",
+    "read_only": true,
+    "historical_depth_blocks": 4096,
+    "max_parallel_endpoints": 4,
+    "timeout_seconds_per_call": 6,
+    "budget_seconds_per_endpoint": 45,
+    "probe": "Recent sample: head-2; Transfer logs in up to four blocks; identity precompile at hash.",
+    "caveat": "Method acceptance is not proof of complete logs, archive state, finality or provider honesty."
+  },
+  "networks": {
+    "ethereum-mainnet": {
+      "chain_id": 1,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://ethereum-rpc.publicnode.com",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1084
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 931
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 2697,
+              "height": 26379106
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 2022
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1512
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1455
+            },
+            "eth_getLogs:range": {
+              "status": "rpc_error",
+              "code": -32701
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 2131,
+              "matches": 620
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 938
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 944
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1029
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 889
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1216
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 2169
+            },
+            "eth_getBlockReceipts": {
+              "status": "response_limit"
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1212,
+              "height": 26375010
+            },
+            "eth_call:historical4096": {
+              "status": "rpc_error",
+              "code": -32000
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 26379108,
+          "sample": {
+            "block": 26379106,
+            "hash": "0xb616c5a79ad743414472191abc1a47820df26bb7515e48606a46ca76ebb36d33"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://eth-mainnet.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "ethereum-sepolia": {
+      "chain_id": 11155111,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://ethereum-sepolia-rpc.publicnode.com",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1084
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 3430
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 2612,
+              "height": 12099280
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1162
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 926
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 914
+            },
+            "eth_getLogs:range": {
+              "status": "rpc_error",
+              "code": -32701
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1573,
+              "matches": 109
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 930
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 932
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 944
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 941
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 903
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 935
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 2592,
+              "receipts": 125
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 981,
+              "height": 12095184
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 937
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 12099282,
+          "sample": {
+            "block": 12099280,
+            "hash": "0x1ece6e7399854aa561930f74a1b135bce759e3d2cc33bf5620915c4752f05d4b"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://eth-sepolia.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "base-mainnet": {
+      "chain_id": 8453,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://base-rpc.publicnode.com",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1023
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 928
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 2164,
+              "height": 55291547
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1769
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 945
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 2730
+            },
+            "eth_getLogs:range": {
+              "status": "rpc_error",
+              "code": -32701
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 944,
+              "matches": 10
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 922
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 935
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 926
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 924
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 938
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1196
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 2260,
+              "receipts": 14
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 914,
+              "height": 55287451
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 947
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 55291549,
+          "sample": {
+            "block": 55291547,
+            "hash": "0xf92a30b3c7a58b39b8711c8b770dcb34f7daf7bea656781e7e0fb8846219b74b"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://base-mainnet.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "base-sepolia": {
+      "chain_id": 84532,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://base-sepolia-rpc.publicnode.com",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 2075
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 879
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 906,
+              "height": 56634085
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 928
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1471
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 3274
+            },
+            "eth_getLogs:range": {
+              "status": "rpc_error",
+              "code": -32701
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 953,
+              "matches": 5
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 921
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 924
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 904
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 929
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1075
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 932
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1163,
+              "receipts": 5
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1750,
+              "height": 56629989
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 943
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 56634087,
+          "sample": {
+            "block": 56634085,
+            "hash": "0x836fa5967cccd0e5dd100f0947f02866e305d42c6934d27492465016b7d5a868"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://base-sepolia.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "arbitrum-one": {
+      "chain_id": 42161,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://arb1.arbitrum.io/rpc",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1053
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1037
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1024,
+              "height": 522754846
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1023
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1016
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1010
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 2044,
+              "matches": 59
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1022,
+              "matches": 1
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1330
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1031
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1013
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1015
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 2132
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1023
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 3770,
+              "receipts": 3
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1013,
+              "height": 522750750
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1025
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1013
+            }
+          },
+          "head_height": 522754848,
+          "sample": {
+            "block": 522754846,
+            "hash": "0x77f7525cbccd7a49ecc026e56def425d95b93884546949b5a3167f6576920cb9"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://arb-mainnet.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "arbitrum-sepolia": {
+      "chain_id": 421614,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://sepolia-rollup.arbitrum.io/rpc",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 3483
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1024
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 2033,
+              "height": 327633127
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1019
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1312
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 2310
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1025,
+              "matches": 18
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 975,
+              "matches": 1
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1027
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1311
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1374
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 982
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 988
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1006
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1191,
+              "receipts": 4
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1015,
+              "height": 327629031
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 999
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 998
+            }
+          },
+          "head_height": 327633129,
+          "sample": {
+            "block": 327633127,
+            "hash": "0xa5d337d0595ab09324c10607152c691aaf21ddbd31716b3bba843782dd6dc2eb"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://arb-sepolia.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "op-mainnet": {
+      "chain_id": 10,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://mainnet.optimism.io",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1081
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1154
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1108,
+              "height": 159324965
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 3598
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1365
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1099
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1625,
+              "matches": 29
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 889,
+              "matches": 5
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1117
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1082
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1070
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 870
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1099
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 882
+            },
+            "eth_getBlockReceipts": {
+              "status": "authentication_required",
+              "code": 403
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 858,
+              "height": 159320869
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 867
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 877
+            }
+          },
+          "head_height": 159324967,
+          "sample": {
+            "block": 159324965,
+            "hash": "0x19d73c152d07d8554f1fb772acf4dcf01c3041a3a1ab9ccc4b3389fc59328e0e"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://opt-mainnet.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "op-sepolia": {
+      "chain_id": 11155420,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://sepolia.optimism.io",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1193
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1106
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 881,
+              "height": 51223086
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1365
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1117
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1188
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 1116,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 1129,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1169
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1076
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 896
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 896
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 881
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 3376
+            },
+            "eth_getBlockReceipts": {
+              "status": "authentication_required",
+              "code": 403
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 907,
+              "height": 51218990
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1083
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 51223088,
+          "sample": {
+            "block": 51223086,
+            "hash": "0x69a77d6897c3f22a3b09d2684682a27312b88fbf55270831a92b0f00cb8ce525"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://opt-sepolia.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "polygon-mainnet": {
+      "chain_id": 137,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://polygon.drpc.org",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 877
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 919
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 938,
+              "height": 97028849
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 932
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "rpc_error",
+              "code": -32000
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 932
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 2084,
+              "matches": 712
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 888,
+              "matches": 1
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 938
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1125
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1088
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 918
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 950
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 944
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 2092,
+              "receipts": 59
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 942,
+              "height": 97024753
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1225
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1111
+            }
+          },
+          "head_height": 97028851,
+          "sample": {
+            "block": 97028849,
+            "hash": "0x6209e2b8caf47b6787888ba6548f58c2b967ef174534d383afbd6d9c8db4f0e2"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://polygon-mainnet.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "polygon-amoy": {
+      "chain_id": 80002,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://polygon-amoy.drpc.org",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1023
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 933
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1255,
+              "height": 52426111
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1276
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "rpc_error",
+              "code": -32000
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 920
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 2752,
+              "matches": 2
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1270,
+              "matches": 2
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 906
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": 3
+            },
+            "eth_getCode:blockHash": {
+              "status": "http_error",
+              "code": 408
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1266
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1128
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 964
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1099
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1097,
+              "receipts": 0
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1700,
+              "height": 52422015
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 943
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 944
+            }
+          },
+          "head_height": 52426113,
+          "sample": {
+            "block": 52426111,
+            "hash": "0x07c06abdeb47ec53daec60bd8ec9dafe229e8386c2e56c8ddd5d6edf804f9e57"
+          }
+        },
+        "alchemy": {
+          "endpoint_template": "https://polygon-amoy.g.alchemy.com/v2/{API_KEY}",
+          "status": "requires_api_key",
+          "checks": {}
+        }
+      }
+    },
+    "bsc-mainnet": {
+      "chain_id": 56,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://bsc-dataseed.bnbchain.org",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1216
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1539
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1291,
+              "height": 132632010
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1279
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1248
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1172
+            },
+            "eth_getLogs:range": {
+              "status": "rpc_error",
+              "code": -32005
+            },
+            "eth_getLogs:blockHash": {
+              "status": "rpc_error",
+              "code": -32005
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1200
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1194
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1264
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1251
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1365
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1258
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 2175,
+              "receipts": 60
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1271,
+              "height": 132627914
+            },
+            "eth_call:historical4096": {
+              "status": "rpc_error",
+              "code": -32000
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 132632012,
+          "sample": {
+            "block": 132632010,
+            "hash": "0x6e3e8960b0c97b30746cd6180cadf466271b747ddc8c50350206684adcf89886"
+          }
+        }
+      }
+    },
+    "bsc-testnet": {
+      "chain_id": 97,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://data-seed-prebsc-1-s1.bnbchain.org:8545",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1409
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1540
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1408,
+              "height": 141773015
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1567
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1537
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1433
+            },
+            "eth_getLogs:range": {
+              "status": "rpc_error",
+              "code": -32005
+            },
+            "eth_getLogs:blockHash": {
+              "status": "rpc_error",
+              "code": -32005
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1429
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1433
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1409
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1538
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1422
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1416
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1640,
+              "receipts": 5
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1410,
+              "height": 141768919
+            },
+            "eth_call:historical4096": {
+              "status": "rpc_error",
+              "code": -32000
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 141773017,
+          "sample": {
+            "block": 141773015,
+            "hash": "0x73ef2d9aa4ec390a415faa6ed215fe419f306b226c7afc868b0bc01d11c972e1"
+          }
+        }
+      }
+    },
+    "avalanche-mainnet": {
+      "chain_id": 43114,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://api.avax.network/ext/bc/C/rpc",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 912
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 926
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 901,
+              "height": 99872719
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 929
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 967
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 917
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 922,
+              "matches": 1
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 923,
+              "matches": 1
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 3421
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 935
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 899
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 995
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 952
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 925
+            },
+            "eth_getBlockReceipts": {
+              "status": "method_not_found",
+              "code": -32601
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 910,
+              "height": 99868623
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1199
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1613
+            }
+          },
+          "head_height": 99872721,
+          "sample": {
+            "block": 99872719,
+            "hash": "0x6fc3b939d5ee595da9bd4b526ec333c306d05216751f455858016c31603f8c30"
+          }
+        }
+      }
+    },
+    "avalanche-fuji": {
+      "chain_id": 43113,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://api.avax-test.network/ext/bc/C/rpc",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 934
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 3439
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 924,
+              "height": 60794959
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1142
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 996
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 907
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 983,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 942,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 921
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 890
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 925
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 925
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1038
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1144
+            },
+            "eth_getBlockReceipts": {
+              "status": "method_not_found",
+              "code": -32601
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 930,
+              "height": 60790863
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 937
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 60794961,
+          "sample": {
+            "block": 60794959,
+            "hash": "0x7dbcd5e16045e7ddeec166b71b869b7de992b44f657d12d8cc91ae427ea5a95b"
+          }
+        }
+      }
+    },
+    "opbnb-mainnet": {
+      "chain_id": 204,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://opbnb-mainnet-rpc.bnbchain.org",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1421
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1412
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1405,
+              "height": 204527312
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1545
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1450
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1574
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 1415,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 1459,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1542
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1583
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1435
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1558
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1538
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1422
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1421,
+              "receipts": 1
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1416,
+              "height": 204523216
+            },
+            "eth_call:historical4096": {
+              "status": "rpc_error",
+              "code": -32000
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 204527314,
+          "sample": {
+            "block": 204527312,
+            "hash": "0x5cec8144969351be260cf21326d734a2dbc0b5ce2138e55a81adf157f8fb1c2b"
+          }
+        }
+      }
+    },
+    "opbnb-testnet": {
+      "chain_id": 5611,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://opbnb-testnet-rpc.bnbchain.org",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 2178
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1922
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 2158,
+              "height": 221757761
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 2243
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 2176
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 2175
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 1979,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 2186,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 2182
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 2166
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1943
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 2168
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1925
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 2186
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 2218,
+              "receipts": 2
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 2167,
+              "height": 221753665
+            },
+            "eth_call:historical4096": {
+              "status": "rpc_error",
+              "code": -32000
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 221757763,
+          "sample": {
+            "block": 221757761,
+            "hash": "0xff76608fc7e699c2fed80ec312d0a669981ab1eeb79c95bf6aa6db758069ef8f"
+          }
+        }
+      }
+    },
+    "linea-mainnet": {
+      "chain_id": 59144,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://rpc.linea.build",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1221
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 993
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1006,
+              "height": 32560750
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1019
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1023
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1020
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1023,
+              "matches": 3
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1042,
+              "matches": 1
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1019
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1026
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1025
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1030
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1010
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 986
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1039,
+              "receipts": 3
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1027,
+              "height": 32556654
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1029
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1014
+            }
+          },
+          "head_height": 32560752,
+          "sample": {
+            "block": 32560750,
+            "hash": "0x1ae5626ae17944921fc34776368011ac45ab066ff5ab3e3dd02e7fd95d65f955"
+          }
+        }
+      }
+    },
+    "linea-sepolia": {
+      "chain_id": 59141,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://rpc.sepolia.linea.build",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1394
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1499
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1526,
+              "height": 33484599
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1500
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1518
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1616
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 1532,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 1524,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1307
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1509
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1540
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1417
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1592
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1302
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1410,
+              "receipts": 2
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1504,
+              "height": 33480503
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1434
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 33484601,
+          "sample": {
+            "block": 33484599,
+            "hash": "0x4a003f5e35aa14b97d8a3e54980b98c83bd55d7b6468140b2a4c4350b73c0b5f"
+          }
+        }
+      }
+    },
+    "megaeth-mainnet": {
+      "chain_id": 4326,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://mainnet.megaeth.com/rpc",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1014
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 949
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 912,
+              "height": 31451771
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 928
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 942
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 888
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1153,
+              "matches": 7
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 943,
+              "matches": 2
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 909
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 893
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 921
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 871
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1160
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1068
+            },
+            "eth_getBlockReceipts": {
+              "status": "invalid_result"
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 968,
+              "height": 31447675
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 922
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 916
+            }
+          },
+          "head_height": 31451773,
+          "sample": {
+            "block": 31451771,
+            "hash": "0xe2ea2d454ab578f2bfc1ce35242656cba7773a16e26d11cc43b191acc477a4ff"
+          }
+        }
+      }
+    },
+    "megaeth-testnet": {
+      "chain_id": 6343,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://carrot.megaeth.com/rpc",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 901
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1017
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 949,
+              "height": 34538335
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1043
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 2174
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1039
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 1155,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 1034,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1045
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1117
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1024
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1025
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1018
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1018
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1851,
+              "receipts": 19
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1073,
+              "height": 34534239
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1036
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 34538337,
+          "sample": {
+            "block": 34538335,
+            "hash": "0xdf7014b56cb1853545fcedcf61e45e47dfc02ad7bb3d59891d2713aa88489114"
+          }
+        }
+      }
+    },
+    "monad-mainnet": {
+      "chain_id": 143,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://rpc.monad.xyz",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 923
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 919
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 980,
+              "height": 120820885
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 933
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 921
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 905
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1313,
+              "matches": 65
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 929,
+              "matches": 1
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 955
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32602
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 917
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 922
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 937
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 916
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 913
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1911,
+              "receipts": 35
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 924,
+              "height": 120816789
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 913
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 919
+            }
+          },
+          "head_height": 120820887,
+          "sample": {
+            "block": 120820885,
+            "hash": "0xc0223db8718fbb2772656591954cd88902f5c66d3d731de08107d039c044742d"
+          }
+        }
+      }
+    },
+    "monad-testnet": {
+      "chain_id": 10143,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://testnet-rpc.monad.xyz",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 920
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 943
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 920,
+              "height": 78357167
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 929
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1140
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 909
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 931,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 1185,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 927
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32602
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 909
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 918
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 931
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 886
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 875
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1433,
+              "receipts": 6
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 879,
+              "height": 78353071
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 914
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 78357169,
+          "sample": {
+            "block": 78357167,
+            "hash": "0x247ea16a2a269acd27503ba879985cae1ee57358cfed036fc387aff490c398b3"
+          }
+        }
+      }
+    },
+    "zksync-mainnet": {
+      "chain_id": 324,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://mainnet.era.zksync.io",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1017
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 983
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 987,
+              "height": 72817878
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1188
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1005
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1191
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1235,
+              "matches": 24
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1192,
+              "matches": 3
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 997
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32602
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1201
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1532
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1185
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1236
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1184
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1435,
+              "receipts": 1
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 998,
+              "height": 72813782
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1249
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1496
+            }
+          },
+          "head_height": 72817880,
+          "sample": {
+            "block": 72817878,
+            "hash": "0x412cf0c072c8c2cf6a3db2c9f56618a60179ecce0e06987e5db22227294c42a6"
+          }
+        }
+      }
+    },
+    "zksync-sepolia": {
+      "chain_id": 300,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://sepolia.era.zksync.dev",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1210
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 985
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 987,
+              "height": 8822692
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1352
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1212
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 990
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1611,
+              "matches": 16
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1183,
+              "matches": 4
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1697
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32602
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1273
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1356
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1186
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1495
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1342
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1338,
+              "receipts": 1
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 991,
+              "height": 8818596
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1023
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1197
+            }
+          },
+          "head_height": 8822694,
+          "sample": {
+            "block": 8822692,
+            "hash": "0xa5bab5fffff4df8c741377f6a2a497498b5322bd38108bdb85bf295fd798d627"
+          }
+        }
+      }
+    },
+    "gnosis-mainnet": {
+      "chain_id": 100,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://rpc.gnosischain.com",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 916
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1103
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 910,
+              "height": 49194487
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1182
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1124
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1145
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1538,
+              "matches": 72
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 902,
+              "matches": 1
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1128
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1117
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 899
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1106
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1142
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1125
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1930,
+              "receipts": 26
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1145,
+              "height": 49190391
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1162
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1416
+            }
+          },
+          "head_height": 49194489,
+          "sample": {
+            "block": 49194487,
+            "hash": "0x31c85cf6b7dd7d7c5fd3363d7327a864014acdc7fb6de577877c5506b9550a34"
+          }
+        }
+      }
+    },
+    "gnosis-chiado": {
+      "chain_id": 10200,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://rpc.chiadochain.net",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1185
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 901
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1014,
+              "height": 23922261
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 912
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1139
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1113
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 1116,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 902,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1108
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 916
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1192
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1123
+            },
+            "eth_getTransactionReceipt": {
+              "status": "inconclusive_no_transaction"
+            },
+            "eth_getTransactionByHash": {
+              "status": "inconclusive_no_transaction"
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1142,
+              "receipts": 0
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1119,
+              "height": 23918165
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 929
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 23922263,
+          "sample": {
+            "block": 23922261,
+            "hash": "0xb0bcb6e9362ae4d531db1ffad8c0c4540dc411cc7b602dfd2a1c86f0db3d1552"
+          }
+        }
+      }
+    },
+    "celo-mainnet": {
+      "chain_id": 42220,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://forno.celo.org",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 995
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 923
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 911,
+              "height": 82348065
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 910
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 873
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 876
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1597,
+              "matches": 168
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1382,
+              "matches": 30
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1006
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 923
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 941
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1225
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 905
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 948
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1765,
+              "receipts": 14
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 978,
+              "height": 82343969
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 3469
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 953
+            }
+          },
+          "head_height": 82348067,
+          "sample": {
+            "block": 82348065,
+            "hash": "0xfec546c9be243682835f16ab669cabc5772df0de2b5bdc6bb31e2a0d05305667"
+          }
+        }
+      }
+    },
+    "celo-sepolia": {
+      "chain_id": 11142220,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://forno.celo-sepolia.celo-testnet.org",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1555
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 2341
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 2611,
+              "height": 40964847
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 1717
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "ok",
+              "ms": 1484
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1735
+            },
+            "eth_getLogs:range": {
+              "status": "inconclusive_empty",
+              "ms": 1765,
+              "matches": 0
+            },
+            "eth_getLogs:blockHash": {
+              "status": "inconclusive_empty",
+              "ms": 1706,
+              "matches": 0
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1488
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32001
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1504
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1753
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1527
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1506
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1749
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 3401,
+              "receipts": 1
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 1754,
+              "height": 40960751
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1525
+            },
+            "eth_getCode:historical4096": {
+              "status": "inconclusive_no_contract"
+            }
+          },
+          "head_height": 40964849,
+          "sample": {
+            "block": 40964847,
+            "hash": "0xc7712c357533a1ced0d1b9e5b89c67d49e625625fb45b9b001ad2c3b271bd8b0"
+          }
+        }
+      }
+    },
+    "scroll-mainnet": {
+      "chain_id": 534352,
+      "retired": false,
+      "services": {
+        "public": {
+          "endpoint": "https://rpc.scroll.io",
+          "status": "probed",
+          "checks": {
+            "eth_chainId": {
+              "status": "ok",
+              "ms": 1354
+            },
+            "eth_blockNumber": {
+              "status": "ok",
+              "ms": 1076
+            },
+            "eth_getBlockByNumber:sample": {
+              "status": "ok",
+              "ms": 1353,
+              "height": 35664382
+            },
+            "eth_getBlockByHash": {
+              "status": "ok",
+              "ms": 3568
+            },
+            "eth_getBlockByNumber:safe": {
+              "status": "unavailable"
+            },
+            "eth_getBlockByNumber:finalized": {
+              "status": "ok",
+              "ms": 1062
+            },
+            "eth_getLogs:range": {
+              "status": "ok",
+              "ms": 1054,
+              "matches": 3
+            },
+            "eth_getLogs:blockHash": {
+              "status": "ok",
+              "ms": 1021,
+              "matches": 2
+            },
+            "eth_call:blockHash": {
+              "status": "ok",
+              "ms": 1016
+            },
+            "eth_call:unknownBlockHash": {
+              "status": "rejected_unknown_hash",
+              "code": -32000
+            },
+            "eth_getCode:blockHash": {
+              "status": "ok",
+              "ms": 1230
+            },
+            "eth_getStorageAt:blockHash": {
+              "status": "ok",
+              "ms": 1117
+            },
+            "eth_getBalance:blockHash": {
+              "status": "ok",
+              "ms": 1954
+            },
+            "eth_getTransactionReceipt": {
+              "status": "ok",
+              "ms": 1084
+            },
+            "eth_getTransactionByHash": {
+              "status": "ok",
+              "ms": 1510
+            },
+            "eth_getBlockReceipts": {
+              "status": "ok",
+              "ms": 1109,
+              "receipts": 2
+            },
+            "eth_getBlockByNumber:historical4096": {
+              "status": "ok",
+              "ms": 934,
+              "height": 35660286
+            },
+            "eth_call:historical4096": {
+              "status": "ok",
+              "ms": 1163
+            },
+            "eth_getCode:historical4096": {
+              "status": "ok",
+              "ms": 1305
+            }
+          },
+          "head_height": 35664384,
+          "sample": {
+            "block": 35664382,
+            "hash": "0xac445c3fdc520d699935612e014d0ee371f6e2b77734a7740b18a98f6c499446"
+          }
+        }
+      }
+    },
+    "scroll-sepolia": {
+      "chain_id": 534351,
+      "retired": true,
+      "services": {}
+    }
+  }
 }
