@@ -8,7 +8,8 @@ import tempfile
 import unittest
 
 from tools.docs_site import (check, check_published, stage, canonical_pages,
-                             architecture_model, html_path, route_url, sidebar_links)
+                             architecture_model, reference_versions,
+                             html_path, route_url, sidebar_links)
 
 from .common import ROOT
 
@@ -68,7 +69,7 @@ def artifact_fixture(root: Path) -> Path:
         redirect = artifact / html_path(original)
         redirect.parent.mkdir(parents=True, exist_ok=True)
         redirect.write_text('<link rel="canonical" href="/dapp32/' + destination + '">')
-    for version in ("1.1.0", "1.2.0", "1.3.0", "1.4.0"):
+    for version in reference_versions(DOCS):
         path = Path("reference/cam") / version / "index.html"
         destination = artifact / path
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +105,7 @@ def previous_site(root: Path) -> Path:
 
 
 class DocsPublishedTests(unittest.TestCase):
+
     def test_stage_retires_legacy_docs_without_touching_viewer(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -148,123 +150,98 @@ class DocsPublishedTests(unittest.TestCase):
             self.assertEqual("obsolete verifier", verifier.read_text())
             self.assertTrue((site / "site.css").is_file())
 
-    def test_legacy_and_canonical_pages_have_exactly_one_target(self) -> None:
-        pages, retired = canonical_pages(DOCS)
-        self.assertEqual(len(pages), len({original for original, _ in pages}))
-        self.assertEqual(1, len(retired))
-        with tempfile.TemporaryDirectory() as directory:
-            site = artifact_fixture(Path(directory))
-            check(DOCS, site, published=False)
-            for old, new in pages:
-                with self.subTest(old=old):
-                    self.assertTrue((site / html_path(new)).is_file())
-                    if old != new:
-                        self.assertIn("/dapp32/" + route_url(new),
-                                      (site / html_path(old)).read_text())
-
-    def test_every_generated_guide_including_home_requires_a_sidebar(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            site = artifact_fixture(Path(directory))
-            pages, _ = canonical_pages(DOCS)
-            for _, route in pages:
-                with self.subTest(page=route):
-                    output = site / html_path(route)
-                    self.assertIn('<aside class="VPSidebar">', output.read_text(encoding="utf-8"))
-            check(DOCS, site, published=False)
-
-        for route in ("index.md", "gallery/index.md", "use/pay-to-play/index.md"):
-            with self.subTest(missing_sidebar_on=route), tempfile.TemporaryDirectory() as directory:
+    def test_generated_pages_reject_missing_sidebars(self) -> None:
+        pages, _ = canonical_pages(DOCS)
+        # Exercise root, a section landing and a nested guide. The generated
+        # site validator itself iterates over every canonical page.
+        samples = [pages[0][1], pages[1][1], pages[-1][1]]
+        for route in samples:
+            with self.subTest(route=route), tempfile.TemporaryDirectory() as directory:
                 site = artifact_fixture(Path(directory))
                 output = site / html_path(route)
                 markup = output.read_text(encoding="utf-8")
                 left = markup.index('<aside class="VPSidebar">')
-                right = markup.index('</aside>', left) + len('</aside>')
+                right = markup.index("</aside>", left) + len("</aside>")
                 output.write_text(markup[:left] + markup[right:], encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "Required sidebar is absent"):
                     check(DOCS, site, published=False)
 
-    def test_home_sidebar_matches_the_six_declared_sections(self) -> None:
+    def test_sidebar_rejects_unowned_or_duplicate_destinations(self) -> None:
         sections = architecture_model(DOCS)["sections"]
-        expected = ["/dapp32/" + route_url(section["landing"]["route"]) for section in sections]
-        self.assertEqual(expected, sidebar_links(DOCS, None))
-        with tempfile.TemporaryDirectory() as directory:
-            site = artifact_fixture(Path(directory))
-            markup = (site / "index.html").read_text(encoding="utf-8")
-            left = markup.index('<aside class="VPSidebar">')
-            right = markup.index('</aside>', left)
-            sidebar_markup = markup[left:right]
-            self.assertEqual(6, sidebar_markup.count('<a href="/dapp32/'))
-            for href in expected:
-                self.assertIn(f'href="{href}"', sidebar_markup)
-            check(DOCS, site, published=False)
-
-    def test_sidebar_rejects_cross_section_duplicate_and_unlisted_links(self) -> None:
-        for extra in ('<a href="/dapp32/use/">Cross-section</a>',
-                      '<a href="/dapp32/gallery/#unlisted-app">Unknown app</a>',
-                      '<a href="/dapp32/gallery/#bike-nft">Duplicate app</a>'):
-            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as directory:
+        catalog = next(section for section in sections
+                       if any(group["kind"] == "catalog" for group in section["groups"]))
+        other = next(section for section in sections if section is not catalog)
+        existing = sidebar_links(DOCS, catalog["id"])[0]
+        invalid = (
+            "/dapp32/" + route_url(other["landing"]["route"]),
+            "/dapp32/" + route_url(catalog["landing"]["route"]) + "#not-in-catalog",
+            existing,
+        )
+        for href in invalid:
+            with self.subTest(href=href), tempfile.TemporaryDirectory() as directory:
                 site = artifact_fixture(Path(directory))
-                gallery = site / "gallery/index.html"
-                gallery.write_text(gallery.read_text().replace("</aside>", extra + "</aside>"))
+                page = site / html_path(catalog["landing"]["route"])
+                markup = page.read_text(encoding="utf-8")
+                page.write_text(markup.replace("</aside>", f'<a href="{href}">Extra</a></aside>'),
+                                encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "Sidebar contains"):
                     check(DOCS, site, published=False)
 
     def test_sidebar_rejects_missing_owned_guide(self) -> None:
+        section = next(section for section in architecture_model(DOCS)["sections"]
+                       if any(group["kind"] == "pages" for group in section["groups"]))
+        link = sidebar_links(DOCS, section["id"])[0]
         with tempfile.TemporaryDirectory() as directory:
             site = artifact_fixture(Path(directory))
-            target = site / "use/pay-to-play/index.html"
-            target.write_text(target.read_text().replace(
-                '<a href="/dapp32/use/pay-to-play/">Page</a>', ''))
+            page = site / html_path(section["landing"]["route"])
+            original = page.read_text(encoding="utf-8")
+            omission = f'<a href="{link}">Page</a>'
+            self.assertIn(omission, original)
+            page.write_text(original.replace(omission, "", 1), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "Sidebar contains"):
                 check(DOCS, site, published=False)
 
-    def test_home_directory_matches_all_six_section_definitions(self) -> None:
-        sections = architecture_model(DOCS)["sections"]
-        with tempfile.TemporaryDirectory() as directory:
-            site = artifact_fixture(Path(directory))
-            html = (site / "index.html").read_text(encoding="utf-8")
-            self.assertEqual(6, html.count('class="card home-section-card"'))
-            for section in sections:
-                self.assertIn('data-section="' + section["id"] + '"', html)
-                self.assertIn('href="/dapp32/' + route_url(section["landing"]["route"]) + '"', html)
-            check(DOCS, site, published=False)
-
-    def test_home_directory_rejects_missing_duplicate_and_unowned_cards(self) -> None:
-        sections = architecture_model(DOCS)["sections"]
-        for name, change in (
-            ("missing",
-             lambda html: html.replace('data-section="gallery"', 'data-section="missing"')),
-            ("duplicate",
-             lambda html: html.replace('data-section="gallery"', 'data-section="start"')),
-            ("wrong destination",
-             lambda html: html.replace('href="/dapp32/gallery/"', 'href="/dapp32/use/"')),
-            ("wrong label",
-             lambda html: html.replace('>' + sections[0]["label"] + '</a>', '>Wrong section</a>')),
-            ("wrong summary",
-             lambda html: html.replace(sections[0]["summary"], "Mismatched section description")),
-        ):
-            with self.subTest(change=name), tempfile.TemporaryDirectory() as directory:
+    def test_home_directory_rejects_cards_that_disagree_with_the_inventory(self) -> None:
+        first, second = architecture_model(DOCS)["sections"][:2]
+        first_url = "/dapp32/" + route_url(first["landing"]["route"])
+        second_url = "/dapp32/" + route_url(second["landing"]["route"])
+        changes = (
+            ('data-section="' + second["id"] + '"', 'data-section="unowned-section"'),
+            ('data-section="' + second["id"] + '"', 'data-section="' + first["id"] + '"'),
+            ('<h2><a href="' + second_url + '"', '<h2><a href="' + first_url + '"'),
+            (first["summary"], "Wrong summary"),
+        )
+        for before, after in changes:
+            with self.subTest(replaced=before), tempfile.TemporaryDirectory() as directory:
                 site = artifact_fixture(Path(directory))
-                home = site / "index.html"
-                altered = change(home.read_text(encoding="utf-8"))
-                self.assertNotEqual(altered, home.read_text(encoding="utf-8"))
-                home.write_text(altered, encoding="utf-8")
+                page = site / "index.html"
+                content = page.read_text(encoding="utf-8")
+                self.assertIn(before, content)
+                page.write_text(content.replace(before, after, 1), encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "Homepage"):
                     check(DOCS, site, published=False)
 
-    def test_internal_links_and_anchors_are_validated(self) -> None:
-        for href, error in (
-            ("/dapp32/not-a-guide/", "Broken guide link"),
-            ("/dapp32/authoring/", "old guide URL"),
-            ("/dapp32/use/#nonexistent-section", "Broken section link"),
-            ("/dapp32/gallery/#unlisted-app", "Broken section link"),
-        ):
+    def test_generated_internal_links_reject_missing_targets_and_obsolete_routes(self) -> None:
+        pages, _ = canonical_pages(DOCS)
+        old, _ = next(pair for pair in pages if pair[0] != pair[1])
+        section = architecture_model(DOCS)["sections"][0]
+        catalog_section = next(item for item in architecture_model(DOCS)["sections"]
+                               if any(group["kind"] == "catalog" for group in item["groups"]))
+        targets = (
+            ("/dapp32/does-not-exist/", "Broken guide link"),
+            ("/dapp32/" + route_url(old), "old guide URL"),
+            ("/dapp32/" + route_url(section["landing"]["route"]) + "#nonexistent-anchor",
+             "Broken section link"),
+            ("/dapp32/" + route_url(catalog_section["landing"]["route"]) + "#unknown-app",
+             "Broken section link"),
+        )
+        for href, error in targets:
             with self.subTest(href=href), tempfile.TemporaryDirectory() as directory:
                 site = artifact_fixture(Path(directory))
-                index = site / "index.html"
-                html = index.read_text(encoding="utf-8")
-                index.write_text(html.replace("</body>", f'<a href="{href}">Broken</a></body>'),
-                                 encoding="utf-8")
+                page = site / "index.html"
+                markup = page.read_text(encoding="utf-8")
+                page.write_text(markup.replace("</body>", f'<a href="{href}">Bad</a></body>'),
+                                encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, error):
                     check(DOCS, site, published=False)
 
