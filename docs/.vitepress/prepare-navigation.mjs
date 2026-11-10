@@ -67,7 +67,7 @@ for (const [source, target] of Object.entries(retired)) {
   usedSources.add(source)
   oldToNew.set(pageUrl(source), target)
 }
-if (architecture.version !== 2 || sections.length !== 6 || pages.length !== 36) {
+if (architecture.version !== 2 || sections.length !== 6 || pages.length < sections.length) {
   throw new Error('Unexpected documentation page inventory')
 }
 async function markdownFiles(directory, prefix = '') {

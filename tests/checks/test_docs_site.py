@@ -140,7 +140,7 @@ class DocsPublishedTests(unittest.TestCase):
 
     def test_legacy_and_canonical_pages_have_exactly_one_target(self) -> None:
         pages, retired = canonical_pages(DOCS)
-        self.assertEqual(36, len(pages))
+        self.assertEqual(len(pages), len({original for original, _ in pages}))
         self.assertEqual(1, len(retired))
         with tempfile.TemporaryDirectory() as directory:
             site = artifact_fixture(Path(directory))

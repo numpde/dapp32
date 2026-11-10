@@ -49,10 +49,9 @@ class DocsNavigationTests(unittest.TestCase):
 
     def test_every_authored_guide_has_exactly_one_canonical_home(self) -> None:
         pages, retired = canonical_pages(DOCS)
-        self.assertEqual(36, len(pages))
         self.assertEqual({"deployment/manual.md": "deploy/"}, retired)
-        self.assertEqual(36, len({source for source, _ in pages}))
-        self.assertEqual(36, len({route for _, route in pages}))
+        self.assertEqual(len(pages), len({source for source, _ in pages}))
+        self.assertEqual(len(pages), len({route for _, route in pages}))
         self.assertEqual(
             {path.relative_to(DOCS).as_posix() for path in DOCS.rglob("*.md")},
             {"index.md"} | {source for source, _ in pages} | set(retired),

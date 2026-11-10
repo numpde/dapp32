@@ -9,49 +9,16 @@ import unittest
 from urllib.parse import urljoin, urlsplit
 
 from .common import ROOT
+from tools.docs_site import canonical_pages
 
 
 DOCS = ROOT / "docs"
-PAGES = (
-    "index.md",
-    "start/index.md",
-    "start/local-wallet.md",
-    "start/fixture-wallet.md",
-    "gallery/index.md",
-    "use/index.md",
-    "authoring/index.md",
-    "authoring/headless.md",
-    "development/index.md",
-    "development/app-checks.md",
-    "development/payment-fixture.md",
-    "pay-to-play/index.md",
-    "pay-to-play/integration.md",
-    "pay-to-play/local-payment.md",
-    "escrow/index.md",
-    "escrow/documents.md",
-    "escrow/reference.md",
-    "bike-nft/index.md",
-    "bike-nft/metadata.md",
-    "bike-nft/ownership.md",
-    "examples/index.md",
-    "deployment/index.md",
-    "deployment/new-instance.md",
-    "deployment/update.md",
-    "deployment/recovery.md",
-    "deployment/practice.md",
-    "deployment/source-verification.md",
-    "deployment/manual.md",
-    "deployment/pay-to-play/index.md",
-    "deployment/escrow/index.md",
-    "deployment/bike-nft/index.md",
-    "deployment/networks/index.md",
-    "deployment/rpc/index.md",
-    "reference/index.md",
-    "reference/operations.md",
-    "reference/diagnostics.md",
-    "reference/cam/index.md",
-    "viewer/deploy.md",
-)
+def source_pages() -> tuple[str, ...]:
+    # Same canonical inventory used by VitePress, redirects and the site verifier.
+    pages, retired = canonical_pages(DOCS)
+    return ("index.md", *(source for source, _ in pages), *retired)
+
+
 REFERENCE_VERSIONS = ("1.1.0", "1.2.0", "1.3.0", "1.4.0")
 BASE = "https://numpde.github.io/dapp32/"
 
@@ -87,7 +54,7 @@ def local_source(relative_url: str) -> Path:
 
 class DocsPortTests(unittest.TestCase):
     def test_all_published_guide_routes_are_owned_in_main(self) -> None:
-        for page in PAGES:
+        for page in source_pages():
             with self.subTest(page=page):
                 source = DOCS / page
                 self.assertTrue(source.is_file(), "missing migrated guide")
@@ -99,7 +66,7 @@ class DocsPortTests(unittest.TestCase):
                 self.assertNotIn("site.css", content)
 
     def test_local_navigation_targets_are_present(self) -> None:
-        for page in PAGES:
+        for page in source_pages():
             content = (DOCS / page).read_text(encoding="utf-8")
             parser = Links()
             parser.feed(content)

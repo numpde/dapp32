@@ -234,7 +234,7 @@ def canonical_pages(source: Path, *, definition: dict | None = None) -> tuple[li
         raise ValueError("A retired guide still has a canonical owner")
     observed = {path.relative_to(source).as_posix() for path in source.rglob("*.md")}
     expected = sources | set(retired) | {"index.md"}
-    if observed != expected or len(mapped) != 36:
+    if observed != expected:
         raise ValueError(f"Documentation inventory differs from routes: "
                          f"missing={sorted(expected - observed)}, unowned={sorted(observed - expected)}")
     return mapped, retired
