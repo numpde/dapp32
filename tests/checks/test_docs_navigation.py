@@ -62,24 +62,28 @@ class DocsNavigationTests(unittest.TestCase):
 
     def test_homepage_contains_only_technical_scope_and_generated_section_directory(self) -> None:
         homepage = (DOCS / "index.md").read_text(encoding="utf-8")
-        self.assertEqual(3, homepage.count('<p>'))
+        self.assertEqual(1, homepage.count('<table>'))
+        self.assertEqual(4, homepage.count('<tr><td><strong>'))
         self.assertEqual(1, homepage.count('<ul>'))
         self.assertEqual(3, homepage.count('<li>'))
         self.assertEqual(1, homepage.count('<HomeSections />'))
         self.assertIn('id="documentation"', homepage)
         self.assertNotIn('class="lede"', homepage)
         self.assertNotIn('Explore the Gallery', homepage)
-        self.assertNotIn('<h2', homepage)
         for legacy_section in ("apps", "try", "development", "problem", "approach",
                                "status", "roadmap", "related", "archive"):
             self.assertNotIn(f'id="{legacy_section}"', homepage)
-        # The root contract points to a separately served CAM. Calling the
-        # on-chain component a "host" conflates it with off-chain hosting.
-        self.assertIn("CAM root contract", homepage)
+        # Four separately described parts: three per-application and a shared
+        # viewer. The on-chain root references the CAM; it does not host files.
+        for component in ("Business contracts", "CAM root contract",
+                          "Contract Application Manifest (CAM)", "Standard viewer"):
+            self.assertIn(f"<strong>{component}</strong>", homepage)
+        self.assertIn("UI projection contract", homepage)
         self.assertNotIn("CAM host", homepage)
-        self.assertIn("Contract Application Manifest (CAM)", homepage)
-        self.assertIn("standard, off-chain viewer", homepage)
-        self.assertIn("autonomous agents", homepage)
+        for resource in ("main.json", "ui.json", "ABI and protocol resources"):
+            self.assertIn(resource, homepage)
+        self.assertIn("Viewer → CAM root → CAM → contract reads → rendered interface", homepage)
+        self.assertIn("Interface → prepared transaction → wallet approval → business contract", homepage)
         for app in ("Pay-to-Play", "Escrow", "Bike NFT"):
             self.assertIn(app, homepage)
 
