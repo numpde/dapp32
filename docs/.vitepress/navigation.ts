@@ -39,10 +39,17 @@ function catalogItems(section: Section, group: CatalogGroup) {
 }
 
 function sidebarGroup(section: Section, group: Group) {
-  const items = group.kind === 'pages'
-    ? group.pages.map(page => ({ text: page.text, link: pageLink(page.route) }))
-    : catalogItems(section, group)
-  return { text: group.title, collapsed: group.kind === 'pages' ? group.collapsed ?? false : false, items }
+  if (group.kind === 'pages') {
+    return {
+      text: group.title,
+      collapsed: group.collapsed ?? false,
+      items: group.pages.map(page => ({ text: page.text, link: pageLink(page.route) })),
+    }
+  }
+  if (group.kind === 'catalog') {
+    return { text: group.title, collapsed: false, items: catalogItems(section, group) }
+  }
+  throw new Error('Unknown sidebar group kind')
 }
 
 export const rewrites = Object.fromEntries(pages
