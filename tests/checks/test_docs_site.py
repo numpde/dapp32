@@ -153,6 +153,7 @@ class DocsPublishedTests(unittest.TestCase):
             ("/dapp32/not-a-guide/", "Broken guide link"),
             ("/dapp32/authoring/", "old guide URL"),
             ("/dapp32/use/#nonexistent-section", "Broken section link"),
+            ("/dapp32/gallery/#unlisted-app", "Broken section link"),
         ):
             with self.subTest(href=href), tempfile.TemporaryDirectory() as directory:
                 site = artifact_fixture(Path(directory))

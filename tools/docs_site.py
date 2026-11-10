@@ -71,6 +71,10 @@ def check_links(site: Path, pages: list[tuple[str, str]], retired: dict[str, str
     """No authored guide may link to a missing page, anchor or obsolete alias."""
     aliases = {html_path(original).as_posix() for original, canonical in pages
                if original != canonical} | {html_path(original).as_posix() for original in retired}
+    catalog = json.loads((site / "gallery/deployments.json").read_text(encoding="utf-8"))
+    # Deployed-app sections materialize after the Gallery fetch; these IDs are
+    # not present in server-rendered HTML. No other dynamic anchors are allowed.
+    gallery_apps = {item["appId"] for item in catalog["deployments"]}
     cached: dict[str, Links] = {}
 
     def parsed(relative: str) -> Links:
@@ -101,6 +105,8 @@ def check_links(site: Path, pages: list[tuple[str, str]], retired: dict[str, str
                 raise ValueError(f"Broken guide link from {original_html}: {href}")
             if target.fragment and resolved.suffix == ".html":
                 anchor = unquote(target.fragment)
+                if (relative, anchor) == ("gallery/index.html", anchor) and anchor in gallery_apps:
+                    continue
                 if anchor not in parsed(relative).anchors:
                     raise ValueError(f"Broken section link from {original_html}: {href}")
 
