@@ -1062,7 +1062,7 @@ help:
 	  '    Use RELEASE_VIEWER_COMPOSE_PROJECT_NAME and RELEASE_VIEWER_PORT for another viewer instance.' \
 	  '  make viewer/release/down INSTANCE=/absolute/instance  Stop only this instance viewer.' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
-	  '  make rpc/catalog/probe            Test keyless catalog endpoints; update tracked notes/046_rpc_capability_report.json.' \
+	  '  make rpc/catalog/probe            Test keyless catalog endpoints; update tracked docs/public/deployment/rpc/capabilities.json.' \
 	  '    Uses a pinned, contained Python probe. May pull that pinned image; sends no keys, writes only the one report.' \
 	  '  make rpc/indexer/up              Start a read-only RPC proxy for contract log indexing.' \
 	  '    Requires RPC_URL_FILE: an absolute, owner-only file outside the checkout, owned by LOCAL_UID.' \

@@ -30,7 +30,7 @@ from urllib.request import HTTPSHandler, HTTPRedirectHandler, ProxyHandler, Requ
 
 ROOT = Path(__file__).resolve().parent.parent
 CATALOG = ROOT / "js/packages/cam-viewer/src/rpc-catalog.json"
-REPORT = ROOT / "notes/046_rpc_capability_report.json"
+REPORT = ROOT / "docs/public/deployment/rpc/capabilities.json"
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_REPORT_BYTES = 2 * 1024 * 1024
 REQUEST_TIMEOUT = 6

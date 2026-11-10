@@ -222,6 +222,14 @@ class RpcWireTests(unittest.TestCase):
 
 
 class PublicationTests(unittest.TestCase):
+    def test_report_uses_single_public_documentation_asset(self):
+        destination = probe.REPORT.relative_to(probe.ROOT).as_posix()
+        self.assertEqual(destination, "docs/public/deployment/rpc/capabilities.json")
+        self.assertFalse((probe.ROOT / "notes/046_rpc_capability_report.json").exists())
+        report = json.loads(probe.REPORT.read_text(encoding="utf-8"))
+        self.assertEqual(report["schema"], 1)
+        self.assertIn(report["state"], ("not_run", "complete"))
+
     def test_report_is_replaced_atomically_with_original_mode(self):
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "report.json"
@@ -246,7 +254,7 @@ class PublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source = root / "js/packages/cam-viewer/src/rpc-catalog.json"
-            report_path = root / "notes/046_rpc_capability_report.json"
+            report_path = root / "docs/public/deployment/rpc/capabilities.json"
             source.parent.mkdir(parents=True)
             report_path.parent.mkdir(parents=True)
             source.write_text(json.dumps(sample_catalog()))
@@ -302,7 +310,7 @@ class PublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             catalog_path = root / "js/packages/cam-viewer/src/rpc-catalog.json"
-            report_path = root / "notes/046_rpc_capability_report.json"
+            report_path = root / "docs/public/deployment/rpc/capabilities.json"
             catalog_path.parent.mkdir(parents=True)
             report_path.parent.mkdir(parents=True)
             catalog_path.write_text(json.dumps(sample_catalog()))
