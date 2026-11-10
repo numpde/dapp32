@@ -1,0 +1,55 @@
+/* RPC probe observations are inspected one network at a time, not in a 39-row grid. */
+.vp-doc .ported-guide .rpc-network-picker { display: grid; gap: .45rem; margin: 1rem 0 1.4rem; }
+.vp-doc .ported-guide .rpc-network-picker label { font-weight: 650; }
+.vp-doc .ported-guide .rpc-network-picker select {
+  display: block;
+  width: min(100%, 30rem);
+  padding: .6rem .75rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+  font: inherit;
+}
+.vp-doc .ported-guide .rpc-network-picker select:focus-visible { outline: 2px solid var(--vp-c-brand-1); outline-offset: 2px; }
+.vp-doc .ported-guide #capability-selected-network { font-size: 1.15rem; margin: 0 0 1rem; }
+.vp-doc .ported-guide .rpc-providers { display: grid; gap: 1rem; min-width: 0; }
+.vp-doc .ported-guide .rpc-provider-card {
+  min-width: 0;
+  padding: clamp(.85rem, 2vw, 1.25rem);
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  border-radius: 10px;
+}
+.vp-doc .ported-guide .rpc-provider-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: .35rem .8rem; }
+.vp-doc .ported-guide .rpc-provider-heading h4 { margin: 0; font-size: 1.1rem; }
+.vp-doc .ported-guide .rpc-provider-state { color: var(--vp-c-text-2); font-size: .85rem; }
+.vp-doc .ported-guide .rpc-provider-url {
+  display: block;
+  margin: .35rem 0 1rem;
+  padding: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: .85rem;
+}
+.vp-doc .ported-guide .rpc-provider-note { margin: .5rem 0 0; }
+.vp-doc .ported-guide .rpc-key-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin: 0 0 1rem; }
+.vp-doc .ported-guide .rpc-key-result { min-width: 0; padding: .75rem; border: 1px solid var(--vp-c-divider); border-radius: 6px; background: var(--vp-c-bg); }
+.vp-doc .ported-guide .rpc-key-result dt { margin: 0 0 .25rem; font-size: .88rem; font-weight: 600; }
+.vp-doc .ported-guide .rpc-key-result dd { margin: 0; }
+.vp-doc .ported-guide .rpc-outcome { display: inline; font-weight: 600; }
+.vp-doc .ported-guide .rpc-outcome-inconclusive { color: var(--vp-c-text-2); }
+.vp-doc .ported-guide .rpc-method-details { border-top: 1px solid var(--vp-c-divider); padding-top: .7rem; }
+.vp-doc .ported-guide .rpc-method-details > summary { cursor: pointer; font-weight: 650; padding: .4rem 0; }
+.vp-doc .ported-guide .rpc-method-group { margin: 1rem 0 0; }
+.vp-doc .ported-guide .rpc-method-group h4 { font-size: .95rem; margin: 0 0 .45rem; }
+.vp-doc .ported-guide .rpc-method-list { margin: 0; }
+.vp-doc .ported-guide .rpc-method-row { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: .5rem 1.25rem; padding: .55rem 0; border-top: 1px solid var(--vp-c-divider); }
+.vp-doc .ported-guide .rpc-method-row dt,
+.vp-doc .ported-guide .rpc-method-row dd { min-width: 0; margin: 0; }
+.vp-doc .ported-guide .rpc-method-row code { overflow-wrap: anywhere; white-space: normal; font-size: .84rem; }
+.vp-doc .ported-guide .rpc-method-evidence { display: block; color: var(--vp-c-text-2); margin-top: .2rem; }
+@media (max-width: 540px) {
+  .vp-doc .ported-guide .rpc-key-results { grid-template-columns: minmax(0, 1fr); }
+  .vp-doc .ported-guide .rpc-method-row { grid-template-columns: minmax(0, 1fr); gap: .15rem; }
+}

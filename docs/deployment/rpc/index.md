@@ -49,12 +49,12 @@ onBeforeUnmount(() => {
 <p id="capability-source"><a href="https://github.com/numpde/dapp32/blob/main/docs/public/deployment/rpc/capabilities.json">Open the recorded JSON</a></p>
 <div id="capability-results" hidden>
   <p id="capability-summary"></p>
-  <div class="table-scroll" role="region" aria-label="Recorded RPC capability results" tabindex="0">
-    <table>
-      <thead><tr><th scope="col">Network</th><th scope="col">Provider and URL</th><th scope="col">Chain ID check</th><th scope="col">Event logs: range / block hash</th><th scope="col">Calls: block hash / historical</th><th scope="col">Detailed checks</th></tr></thead>
-      <tbody id="capability-rows"></tbody>
-    </table>
+  <div class="rpc-network-picker">
+    <label for="capability-network">Network</label>
+    <select id="capability-network"></select>
   </div>
+  <h3 id="capability-selected-network"></h3>
+  <div id="capability-providers" class="rpc-providers"></div>
 </div>
 <noscript><p>Enable JavaScript to view the measured method results, or read the <a href="https://github.com/numpde/dapp32/blob/main/docs/public/deployment/rpc/capabilities.json">JSON report</a>.</p></noscript>
 <h2 id="use-a-custom-endpoint">Select the deployment endpoint through the instance</h2>
