@@ -12,7 +12,7 @@ import HomeSections from './.vitepress/theme/HomeSections.vue'
 
 <div class="ported-guide">
 
-<p>A typical dapp32 application has four components, plus an optional fifth:</p>
+<p>A typical dapp32 application has these components:</p>
 
 <table>
 <thead><tr><th></th><th>On-chain</th><th>App-specific</th><th>Responsibility</th></tr></thead>
@@ -28,8 +28,11 @@ import HomeSections from './.vitepress/theme/HomeSections.vue'
 <h2>Important distinctions</h2>
 
 <p>
-The CAM is a standardized description of contract workflows that positions itself between low-level on-chain operations and custom frontends. 
-It can be read by both autonomous agents and the standard viewer (implemented in this repo), and allows developers to build and ship faster by providing functionality without the overhead of a custom frontend.
+The CAM is a standardized description of contract workflows that positions itself 
+between low-level on-chain operations and custom frontends. 
+It can be read by both autonomous agents and the standard viewer (implemented in this repo), 
+and allows developers to build and ship faster by providing functionality 
+without the overhead of a custom frontend.
 It consists of off-chain files, including:
 </p>
 
@@ -40,17 +43,17 @@ It consists of off-chain files, including:
 </ul>
 
 <p>
-The on-chain CAM root contract
+The CAM root contract
 is a publication and discovery mechanism.
 It identifies the on-chain contracts by name 
-and publishes the location and digest of the CAM. 
+and publishes the location and digest of the off-chain CAM. 
 </p>
 
 
 <p>
 The viewer is <strong>not</strong> specific to the application. 
-It is a standard frontend application that
-can be self-hosted or accessed through a hosted instance. 
+It is a standard frontend-only application that
+can be self-hosted or not. 
 </p>
 
 <h2>How they fit together</h2>
