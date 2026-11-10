@@ -466,9 +466,11 @@ def stage(source: Path, built: Path, site: Path, sha: str, run: str) -> None:
     if ((workflows / "pages-check.yml").read_bytes()
             != (source / "publishing/pages-check.yml").read_bytes()):
         raise ValueError("Published Pages verifier does not match the reviewed source")
+    # Viewer application bytes and its run/hash manifest have a separate
+    # publisher. Documentation may replace deploy.html, never these files.
     viewer = site / "viewer"
     if viewer.exists() and {p.name for p in viewer.iterdir()} - {
-        "index.html", "assets", "deploy.html",
+        "index.html", "assets", "deploy.html", "viewer-publication.json",
     }:
         raise ValueError("Unknown viewer resource; refuse deletion")
 
@@ -511,7 +513,10 @@ def check_published(source: Path, site: Path) -> None:
         if relative in {MANIFEST, ".nojekyll", ".github/workflows/pages-check.yml",
                         ".github/workflows/viewer-recipe-check.yml"}:
             continue
-        if relative == "viewer/index.html" or relative.startswith("viewer/assets/"):
+        # This is the docs manifest. The separate viewer manifest checks
+        # its HTML/assets; neither publication double-counts the other's files.
+        if (relative in {"viewer/index.html", "viewer/viewer-publication.json"}
+                or relative.startswith("viewer/assets/")):
             continue
         actual[relative] = sha256(file.read_bytes()).hexdigest()
     if actual != expected:

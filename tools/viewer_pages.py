@@ -1,8 +1,21 @@
-"""Validate and stage the qualified static viewer without touching Pages documentation."""
+"""Own the Pages viewer's qualified bundle and its publication manifest.
+
+The viewer owns only index.html, assets/ and viewer-publication.json; deploy.html
+belongs to documentation and must survive viewer updates. The publisher writes
+a manifest containing the exact main source, qualifying CI run, and hashes of
+the bytes staged on gh-pages. This is publication evidence, not a second
+hand-maintained list of assets; all files are discovered from the built bundle.
+
+The independent pages_integrity auditor uses check_published without any
+write permission. Do not expand this owner to documentation, release artifacts,
+or the independently hosted production viewer.
+"""
 
 from __future__ import annotations
 
+from hashlib import sha256
 from html.parser import HTMLParser
+import json
 from pathlib import Path
 import re
 import shutil
@@ -10,6 +23,8 @@ import sys
 
 
 ASSET_REFERENCE = re.compile(r"\./assets/[A-Za-z0-9._-]+")
+SOURCE_SHA = re.compile(r"[0-9a-f]{40}")
+MANIFEST = "viewer-publication.json"
 
 
 class ViewerIndex(HTMLParser):
@@ -59,8 +74,41 @@ def check_bundle(root: Path, *, guide: bool) -> str:
     return scripts[0]
 
 
-def stage_bundle(qualified: Path, published: Path) -> str:
-    """Replace only viewer/index.html and viewer/assets in the Pages checkout."""
+def check_published(root: Path) -> dict:
+    """Verify publication ownership and exact file hashes from the manifest."""
+    check_bundle(root, guide=True)
+    if {item.name for item in root.iterdir()} != {
+        "index.html", "assets", "deploy.html", MANIFEST,
+    } or (root / MANIFEST).is_symlink():
+        raise ValueError("Unexpected or unsafe published viewer files")
+    manifest = json.loads((root / MANIFEST).read_text(encoding="utf-8"))
+    if (not isinstance(manifest, dict) or set(manifest) != {
+        "schema", "source_sha", "qualified_run_id", "files",
+    } or manifest["schema"] != "viewer-publication/v1"
+            or not isinstance(manifest["source_sha"], str)
+            or SOURCE_SHA.fullmatch(manifest["source_sha"]) is None
+            or type(manifest["qualified_run_id"]) is not int
+            or manifest["qualified_run_id"] < 1
+            or not isinstance(manifest["files"], dict)):
+        raise ValueError("Invalid viewer publication provenance")
+
+    files = [root / "index.html", *sorted((root / "assets").iterdir())]
+    actual = {path.relative_to(root).as_posix(): sha256(path.read_bytes()).hexdigest()
+              for path in files}
+    if actual != manifest["files"]:
+        missing = sorted(actual.keys() - manifest["files"].keys())
+        extra = sorted(manifest["files"].keys() - actual.keys())
+        altered = sorted(key for key in actual.keys() & manifest["files"].keys()
+                         if actual[key] != manifest["files"][key])
+        raise ValueError(f"Viewer publication differs from qualified files: "
+                         f"unrecorded={missing} missing={extra} altered={altered}")
+    return manifest
+
+
+def stage_bundle(qualified: Path, published: Path, source_sha: str, run_id: int) -> str:
+    """Replace the viewer and record the exact source, run, and file hashes."""
+    if SOURCE_SHA.fullmatch(source_sha) is None or type(run_id) is not int or run_id < 1:
+        raise ValueError("Invalid viewer qualification source or run")
     if not qualified.is_dir() or qualified.is_symlink() or {
         entry.name for entry in qualified.iterdir()
     } != {"index.html", "assets"}:
@@ -70,15 +118,28 @@ def stage_bundle(qualified: Path, published: Path) -> str:
         raise ValueError(f"Missing real Pages viewer directory: {published}")
     if not (published / "deploy.html").is_file() or (published / "deploy.html").is_symlink():
         raise ValueError("Pages viewer hosting guide is missing or unsafe")
-    if (published / "index.html").is_symlink() or (published / "assets").is_symlink():
+    if (published / "index.html").is_symlink() or (published / "assets").is_symlink() \
+            or (published / MANIFEST).is_symlink():
         raise ValueError("Published viewer paths must not be symlinks")
     if (published / "assets").exists() and not (published / "assets").is_dir():
         raise ValueError("Published viewer assets path is not a directory")
+    if {item.name for item in published.iterdir()} - {
+        "index.html", "assets", "deploy.html", MANIFEST,
+    }:
+        raise ValueError("Unexpected published viewer entry; refuse overwrite")
 
     if (published / "assets").exists():
         shutil.rmtree(published / "assets")
     shutil.copytree(qualified / "assets", published / "assets")
     shutil.copyfile(qualified / "index.html", published / "index.html")
+    files = [published / "index.html", *sorted((published / "assets").iterdir())]
+    hashes = {path.relative_to(published).as_posix(): sha256(path.read_bytes()).hexdigest()
+              for path in files}
+    manifest = {"schema": "viewer-publication/v1", "source_sha": source_sha,
+                "qualified_run_id": run_id, "files": hashes}
+    (published / MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                                      encoding="utf-8")
+    check_published(published)
     return entry
 
 
@@ -86,9 +147,14 @@ if __name__ == "__main__":
     try:
         if len(sys.argv) == 3 and sys.argv[1] == "check":
             print(check_bundle(Path(sys.argv[2]), guide=True))
-        elif len(sys.argv) == 4 and sys.argv[1] == "stage":
-            print(stage_bundle(Path(sys.argv[2]), Path(sys.argv[3])))
+        elif len(sys.argv) == 3 and sys.argv[1] == "check-published":
+            check_published(Path(sys.argv[2]))
+            print("Published viewer files match the recorded qualification.")
+        elif len(sys.argv) == 6 and sys.argv[1] == "stage":
+            print(stage_bundle(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4],
+                               int(sys.argv[5])))
         else:
-            raise ValueError("usage: viewer_pages.py check VIEWER or stage QUALIFIED PAGES_VIEWER")
+            raise ValueError("usage: viewer_pages.py check VIEWER | check-published VIEWER | "
+                             "stage QUALIFIED PAGES_VIEWER SHA RUN")
     except (OSError, ValueError) as error:
         raise SystemExit(f"viewer-pages: {error}") from error

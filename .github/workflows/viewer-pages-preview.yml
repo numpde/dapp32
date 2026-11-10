@@ -159,15 +159,18 @@ jobs:
             exit 2
           fi
 
-          # Preserve viewer/deploy.html, every docs file and the root site.
-          # Replace old hashed assets rather than accumulating dead bundles.
-          entry="$(python3 -B source/tools/viewer_pages.py stage qualified site/viewer)"
+          # Viewer owns only its index, hashed assets and provenance manifest.
+          # Stage records this exact build's source/run and SHA-256 file hashes.
+          # Documentation owns deploy.html and the rest of the Pages site.
+          entry="$(python3 -B source/tools/viewer_pages.py stage qualified site/viewer "$GITHUB_SHA" "$GITHUB_RUN_ID")"
           echo "entry_js=$entry" >> "$GITHUB_OUTPUT"
           cd site
-          git add -A -- viewer/index.html viewer/assets
+          # The accompanying provenance manifest is published atomically with
+          # the viewer bytes; no other Pages files may enter this commit.
+          git add -A -- viewer/index.html viewer/assets viewer/viewer-publication.json
           while IFS= read -r changed_file; do
             case "$changed_file" in
-              viewer/index.html|viewer/assets/*) ;;
+              viewer/index.html|viewer/viewer-publication.json|viewer/assets/*) ;;
               *) echo "::error::Viewer publisher attempted to change $changed_file" >&2; exit 2 ;;
             esac
           done < <(git diff --cached --name-only)
