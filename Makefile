@@ -825,7 +825,7 @@ $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
 .PHONY: wallet/addresses/with-keys wallet/addresses wallet/addresses/check release/rpc/list help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
-.PHONY: rpc/indexer/up rpc/indexer/logs rpc/indexer/down
+.PHONY: rpc/catalog/probe rpc/indexer/up rpc/indexer/logs rpc/indexer/down
 
 help:
 	@printf '%s\n' \
@@ -1062,6 +1062,8 @@ help:
 	  '    Use RELEASE_VIEWER_COMPOSE_PROJECT_NAME and RELEASE_VIEWER_PORT for another viewer instance.' \
 	  '  make viewer/release/down INSTANCE=/absolute/instance  Stop only this instance viewer.' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
+	  '  make rpc/catalog/probe            Test keyless catalog endpoints; update tracked docs/public/deployment/rpc/capabilities.json.' \
+	  '    Uses a pinned, contained Python probe. May pull that pinned image; sends no keys, writes only the one report.' \
 	  '  make rpc/indexer/up              Start a read-only RPC proxy for contract log indexing.' \
 	  '    Requires RPC_URL_FILE: an absolute, owner-only file outside the checkout, owned by LOCAL_UID.' \
 	  '    Set RPC_INDEXER_COMPOSE_PROJECT_NAME per chain; the default is dapps-rpc-indexer.' \
@@ -2127,6 +2129,12 @@ cast/live/block-number/read:
 	fi; \
 	chmod 0444 "$$rpc_url_file"; \
 	$(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml up --build --abort-on-container-exit --exit-code-from cast-rpc cast-rpc
+
+# Probe all catalog entries (key-required services are documented, never contacted).
+# The publisher verifies complete coverage before atomic replacement of one tracked report.
+rpc/catalog/probe:
+	@$(LANE_GUARD); \
+	python3 -I -B tools/rpc_catalog_probe.py publish "$${CAM_DOCKER_ENDPOINT:?Docker context was not selected}"
 
 rpc/indexer/up:
 	@$(LANE_GUARD); \

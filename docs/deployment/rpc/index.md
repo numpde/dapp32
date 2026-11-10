@@ -4,6 +4,30 @@ description: "Separate private deployment RPC, browser-public reads and the rest
 outline: false
 ---
 
+<script setup>
+import { onMounted, onBeforeUnmount } from 'vue'
+
+let dispose
+let active = false
+
+onMounted(async () => {
+  active = true
+  try {
+    const { mountCapabilities } = await import('./capabilities.js')
+    const cleanup = mountCapabilities()
+    if (active) dispose = cleanup
+    else cleanup()
+  } catch {
+    if (active) document.querySelector('#capability-status').textContent = 'Could not load the RPC results viewer. Open the JSON report instead.'
+  }
+})
+
+onBeforeUnmount(() => {
+  active = false
+  dispose?.()
+})
+</script>
+
 # Choose RPC access
 
 <div class="ported-guide">
@@ -19,6 +43,20 @@ outline: false
 <p>Use <a href="../networks/">the network table</a>, which reads the same <a href="https://github.com/numpde/dapp32/blob/main/js/packages/cam-viewer/src/rpc-catalog.json">source catalog</a> as the tools. It contains chain IDs, gas tokens, service templates, explorers and dated primary references. To list it in a source checkout:</p>
 <pre><code>make release/rpc/list DOCKER_CONTEXT=your-local-context</code></pre>
 <p>The catalog is not a live service test. A shared no-key service can limit traffic or methods. An authenticated URL needs your provider credentials and plan. Check historical-state retention as well as ordinary latest-state access: verification may need the deployment block.</p>
+<h2 id="recorded-rpc-capabilities">Recorded RPC capabilities</h2>
+<p>The measurements below come from the <code>rpc/catalog/probe</code> read-only experiment, not from the network catalog's reference dates. The probe checks recent block data, limited event-log queries, hash-addressed calls, and historical reads 4,096 blocks behind the sampled head. Credential-required services are listed but not tested. A method accepting one sample does not prove complete historical state, correct event logs, reliable finality, or future availability.</p>
+<p id="capability-status" role="status" aria-live="polite">Loading recorded RPC measurements…</p>
+<p id="capability-source"><a href="https://github.com/numpde/dapp32/blob/main/docs/public/deployment/rpc/capabilities.json">Open the recorded JSON</a></p>
+<div id="capability-results" hidden>
+  <p id="capability-summary"></p>
+  <div class="table-scroll" role="region" aria-label="Recorded RPC capability results" tabindex="0">
+    <table>
+      <thead><tr><th scope="col">Network</th><th scope="col">Provider and URL</th><th scope="col">Chain ID check</th><th scope="col">Event logs: range / block hash</th><th scope="col">Calls: block hash / historical</th><th scope="col">Detailed checks</th></tr></thead>
+      <tbody id="capability-rows"></tbody>
+    </table>
+  </div>
+</div>
+<noscript><p>Enable JavaScript to view the measured method results, or read the <a href="https://github.com/numpde/dapp32/blob/main/docs/public/deployment/rpc/capabilities.json">JSON report</a>.</p></noscript>
 <h2 id="use-a-custom-endpoint">Select the deployment endpoint through the instance</h2>
 <p>Run the current setup procedure with the app and private instance:</p>
 <pre><code>make pay-to-play/release/setup \
