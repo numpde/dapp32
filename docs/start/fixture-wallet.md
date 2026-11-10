@@ -25,11 +25,13 @@ outline: false
   DOCKER_CONTEXT=your-local-context COMPOSE_PROJECT_NAME=cam-demo \
   FIXTURE_WALLET_APP=escrow \
   CDP_ORIGIN=http://127.0.0.1:9222</code></pre>
+<div class="table-scroll" role="region" aria-label="Table: App value / Selector accounts" tabindex="0">
 <table><thead><tr><th>App value</th><th>Selector accounts</th><th>Initial account</th></tr></thead><tbody>
 <tr><td><code>pay-to-play</code></td><td>admin, customer, relayer, recipient</td><td>customer</td></tr>
 <tr><td><code>escrow</code></td><td>client, contractor, arbitrator</td><td>client</td></tr>
 <tr><td><code>bike-nft</code></td><td>seller, mechanic, buyer</td><td>seller</td></tr>
 </tbody></table>
+</div>
 <p>The launcher reads the existing demo's saved deployment volume and finds tabs matching its origin, host and local chain. One match is selected automatically; several matches prompt in the terminal. It checks the manifest, ABIs and original contract bindings and refuses a tab that already has a wallet. You do not need to copy a tab ID, manifest hash or contract address.</p>
 <p>Keep the attachment terminal running. Its account labels are not permissions: the contracts decide what those addresses may do. Attachment does not fund accounts. In particular, arrange local test gas for Bike's mechanic and buyer before asking them to send.</p>
 <h2 id="send">3. Connect, choose a role and confirm in the browser</h2>

@@ -11,6 +11,7 @@ outline: false
 
 <p>Run source Make targets from the repository root, after <a href="./">locked dependency setup</a>, adding <code>DOCKER_CONTEXT=your-local-context</code>. These are explicit application checks. Ordinary documentation edits do not start chains or wallet tests.</p>
 <h2 id="source">Source and generated resources</h2>
+<div class="table-scroll" role="region" aria-label="Table: Target / Evidence or effect" tabindex="0">
 <table><thead><tr><th>Target</th><th>Evidence or effect</th></tr></thead><tbody>
 <tr><td><code>cam/conformance/check</code></td><td>Manifest/resource integrity, ABI joins, route arguments, UI composition and typeflow.</td></tr>
 <tr><td><code>cam/abi/export</code></td><td>Writes manifest-declared ABIs and refreshes integrity pins. Inspect the Git diff; a second export should be unchanged.</td></tr>
@@ -19,6 +20,7 @@ outline: false
 <tr><td><code>dapps/build</code>, <code>dapps/scripts/build</code>, <code>dapps/tests</code></td><td>Solidity compilation, deterministic/fuzz tests and stateful invariants.</td></tr>
 <tr><td><code>tests</code></td><td>Full automatic campaigns, including disposable real-RPC scenarios and the networked dependency-egress check.</td></tr>
 </tbody></table>
+</div>
 <p>For Escrow formatting and release-tool work, use <code>escrow/format</code>, <code>dapps/format/check</code> and <code>escrow/release/check</code> as applicable. Formatting and export targets can change source resources; they are not merely read-only assertions. Dependency installation stays a separate, explicit networked step.</p>
 <h2 id="payment">Pay-to-Play: actual settlement and recovery</h2>
 <pre><code>make pay-to-play/local/recovery/run DOCKER_CONTEXT=your-local-context</code></pre>
@@ -43,11 +45,13 @@ outline: false
   VIEWER_URL='the full printed GUI URL' \
   EXPECTED_CAM_URI='the expected manifest URI' \
   EXPECTED_CAM_HASH='the expected 0x-prefixed SHA-256'</code></pre>
+<div class="table-scroll" role="region" aria-label="Table: Target / What it may change" tabindex="0">
 <table><thead><tr><th>Target</th><th>What it may change</th></tr></thead><tbody>
 <tr><td><code>escrow/live/browser/check</code></td><td>Owns a test tab; checks reads, navigation, integrity and layout. No wallet-signed writes.</td></tr>
 <tr><td><code>escrow/live/browser/fixture-writes/check</code></td><td>Owns test tabs and submits local transactions, including dispute/withdrawal and rejection or uncertain-response recovery.</td></tr>
 <tr><td><code>pay-to-play/live/browser/check</code></td><td>Submits local payment/withdrawal/refund transactions and tests voucher drafts, events, integrity and narrow layout.</td></tr>
 </tbody></table>
+</div>
 <p>The signing lanes require chain 31337 and matching fixture resources; use only state you can discard. They close their own tabs but leave your existing browser and GUI services running. Their injected providers do not qualify a real wallet extension's confirmation interface or physical-pointer interaction.</p>
 <p>Payment browser coverage includes a separate zero-wait recovery channel, not every recovery operation; renewal and retirement also have contract, viewer and real-RPC coverage. A passing local campaign establishes local behavior, not delivered work or a public service's readiness.</p>
 <p>Source: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/Makefile">supported entrypoints</a>. For another repository's service tests, use <a href="payment-fixture.html">the fixture handoff</a>, not the manual browser launcher.</p>

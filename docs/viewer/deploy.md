@@ -56,12 +56,14 @@ curl --fail --show-error https://viewer.example.org/healthz</code></pre>
 <pre><code>make viewer/down DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE" VIEWER_COMPOSE_PROJECT_NAME=cam-viewer</code></pre>
 <p>Stopping removes this viewer's runtime, not its images or on-chain state. Remove its Caddy site block and reload Caddy when retiring the hostname; do not stop a shared proxy serving other sites.</p>
 <h2 id="troubleshoot">Check the failing boundary</h2>
+<div class="table-scroll" role="region" aria-label="Table: Symptom / Next check" tabindex="0">
 <table><thead><tr><th>Symptom</th><th>Next check</th></tr></thead><tbody>
 <tr><td>Required local base image missing</td><td>Repeat explicit acquisition for the Dockerfiles at your selected revision and context.</td></tr>
 <tr><td>Container fails before health</td><td>Check the image exists on that engine, port ownership, and the kernel's per-namespace MPTCP setting. Do not remove confinement to hide the failure.</td></tr>
 <tr><td>Loopback health works; HTTPS fails</td><td>Check DNS, firewall, Caddy configuration and <code>journalctl -u caddy</code>.</td></tr>
 <tr><td>Viewer loads; app does not</td><td>Check browser console/network errors, chain/host coordinates, browser RPC access, resource CORS and Download scope.</td></tr>
 </tbody></table>
+</div>
 <p>Implementation baseline: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/viewer_image_build.sh">image builder</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/compose/viewer.yml">portable runtime</a> and the <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/Makefile">viewer Make targets</a>. Hosting CAM resources and deploying contracts are <a href="../deployment/">separate tasks</a>.</p>
 
 </div>

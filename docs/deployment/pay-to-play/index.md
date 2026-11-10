@@ -11,11 +11,13 @@ outline: false
 
 <p>Choose these settings before following <a href="../new-instance.html">Deploy a new instance</a> with the <code>pay-to-play</code> prefix. Hosting a new viewer or publishing compatible navigation is not a reason to replace the payment contract.</p>
 <h2 id="deploy-a-release">Choose independent authorities</h2>
+<div class="table-scroll" role="region" aria-label="Table: Setting / Meaning" tabindex="0">
 <table><thead><tr><th>Setting</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>INTENDED_PAYMENT_ADMIN</code></td><td>Creates service channels and changes their payees/collectors. This account does not acquire customer voucher-signing or refund-destination authority.</td></tr>
 <tr><td><code>INTENDED_CAM_ROOT_OWNER</code></td><td>Changes workflow resources and contract bindings. It can differ from the payment administrator.</td></tr>
 <tr><td><code>NULL_CLAIM_PERIOD</code></td><td>Reserve channel 0's fixed withdrawal wait, from 0 to 2,592,000 seconds. Zero means no wait. Service channels receive their own fixed waits later.</td></tr>
 </tbody></table>
+</div>
 <p>The business operation creates <code>PayToPlay</code> with reserve channel 0. It does not create service channels or register customer keys. The separate <code>PayToPlayUI</code> projection supplies signing details; the CAM root binds both.</p>
 <p>Use the shared procedure to prepare, host and publish the exact bundle. At an intentionally selected hosting pause, repeat the same operation and enter the hosted URI when prompted; do not start another deployment. Independent projection-deployer and CAM-owner configurations are described in <a href="../../reference/operations.html#configuration">operation inputs</a>.</p>
 <h2 id="handoffs">Accept each nominated ownership separately</h2>

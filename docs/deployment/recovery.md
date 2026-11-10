@@ -13,6 +13,7 @@ outline: false
 <dl><dt>Run on</dt><dd>The release workstation, in the source checkout selected by the saved operation.</dd><dt>Requires</dt><dd>The whole private instance, its referenced configuration and chain access. Signing continuations also require the recorded approval image and authorized signer.</dd><dt>Changes</dt><dd>Read-only reconciliation writes evidence locally. Resuming an unfinished signing phase can submit the remaining transactions, with fresh approval.</dd><dt>Success</dt><dd>The selected operation has verified final artifacts, or an unresolved outcome is identified without creating a replacement deployment.</dd></dl>
 <nav aria-label="Guide sections"><a href="#choose">Choose the failure</a> · <a href="#inspect">Inspect</a> · <a href="#records">Finish records</a> · <a href="#resume">Resume</a> · <a href="#stop">Stop</a></nav>
 <h2 id="choose">Choose the failure, not a new deployment</h2>
+<div class="table-scroll" role="region" aria-label="Table: What happened? / Next action" tabindex="0">
 <table><thead><tr><th>What happened?</th><th>Next action</th></tr></thead><tbody>
 <tr><td>The command printed a bundle directory and stopped for its URL.</td><td>This is the <a href="new-instance.html">hosting pause</a>. Host those exact files, repeat the same command and select the saved work.</td></tr>
 <tr><td>A transaction hash exists but its outcome is unknown.</td><td>Inspect its chain receipt and retained broadcast/approval records. Do not approve a replacement creation merely because the RPC response was lost.</td></tr>
@@ -22,6 +23,7 @@ outline: false
 <tr><td>Source verification failed after deployment.</td><td>Retry <code>release/source/publish</code>. This does not require contract replacement.</td></tr>
 <tr><td>Cleanup could not finish.</td><td>Keep the reported project identity, private inputs and logs. Restore access to that engine before attempting owned cleanup.</td></tr>
 </tbody></table>
+</div>
 <h2 id="inspect">1. Inspect the retained operation</h2>
 <p>Use the same context and instance as the failed command. These examples use Pay-to-Play; substitute <code>escrow</code> or <code>bike-nft</code> for that app's commands.</p>
 <pre><code>CTX=your-local-context &amp;&amp;

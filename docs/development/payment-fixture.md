@@ -25,6 +25,7 @@ make --no-print-directory -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/up \
 <p><code>up</code> refuses existing resources under the ID: it neither resumes nor redeploys into them. Omitting the ID generates one, but caller allocation makes recovery independent of receiving stdout. Projects use the separate <code>dapps-pay-to-play-fixture-</code> prefix, not the GUI/scenario project.</p>
 <h2 id="descriptor">2. Use the returned facts, not assumed addresses</h2>
 <p><code>up</code> and <code>info</code> emit one JSON line, bounded to 1 MiB, with diagnostics on stderr. <code>--no-print-directory</code> prevents Make's directory banner from corrupting stdout.</p>
+<div class="table-scroll" role="region" aria-label="Table: Descriptor field / Use" tabindex="0">
 <table><thead><tr><th>Descriptor field</th><th>Use</th></tr></thead><tbody>
 <tr><td><code>schema</code>, <code>fixtureId</code></td><td>Require <code>pay-to-play.local-fixture.v1</code> and retain the exact lifecycle handle.</td></tr>
 <tr><td><code>composeProject</code>, <code>dockerNetwork</code></td><td>Identify owned resources and the existing network your consumer joins.</td></tr>
@@ -32,6 +33,7 @@ make --no-print-directory -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/up \
 <tr><td><code>contracts.CamRoot</code>, <code>contracts.PayToPlay</code>, <code>contracts.PayToPlayUI</code></td><td>Each includes address, mined deployment block and creation transaction. PayToPlay also contains its matching <code>abi</code>.</td></tr>
 <tr><td><code>publicFixtureAccounts</code></td><td>Admin, customer, relayer and payee addresses and deliberately public test keys.</td></tr>
 </tbody></table>
+</div>
 <p>The exporter checks chain identity, successful deployment receipts at their recorded blocks, deployed code and the payment creation input. The ABI comes from the Forge invocation that deployed it, retained in the fixture volume—not a substituted current ABI. This is fixture provenance, not a general remote-code verification service.</p>
 <h2 id="connect">3. Attach and run the actual service tests</h2>
 <p>Declare an external Compose network whose name is the returned <code>dockerNetwork</code>, and give your test service the returned <code>rpcUrl</code>. No RPC port is exposed on the host. Network peers can invoke Anvil's test-only mutation methods; admit only trusted fixture clients.</p>

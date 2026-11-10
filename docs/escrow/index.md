@@ -12,11 +12,13 @@ outline: false
 <p>A client locks payment for one contractor milestone. The contractor accepts and submits work; the client approves or disputes it. Settlement gives one party <strong>withdrawable credit</strong>. That party then sends a separate withdrawal transaction to receive coins.</p>
 <nav aria-label="Guide sections"><a href="#create">Create</a> · <a href="#work">Submit work</a> · <a href="#dispute">Review or dispute</a> · <a href="#phases">Deadlines</a> · <a href="#withdraw">Withdraw</a> · <a href="#try">Try locally</a></nav>
 <h2 id="parties">Agree on the three parties first</h2>
+<div class="table-scroll" role="region" aria-label="Table: Party / Responsibility" tabindex="0">
 <table><thead><tr><th>Party</th><th>Responsibility</th></tr></thead><tbody>
 <tr><td>Client</td><td>Creates and funds; approves work or opens a dispute.</td></tr>
 <tr><td>Contractor</td><td>Accepts the agreement and submits work evidence.</td></tr>
 <tr><td>Arbitrator</td><td>Awards the whole disputed amount to either party before the arbitration deadline.</td></tr>
 </tbody></table>
+</div>
 <p>Addresses must be pairwise distinct. Contractor and arbitrator must be nonzero and not the escrow contract. The client chooses the arbitrator; there is no on-chain acknowledgement or fee for that role. Agree on participation and terms before committing money.</p>
 <h2 id="create">1. Create and fund as client</h2>
 <p><a href="../use/">Open the selected app</a> and connect the client wallet. Choose <strong>Create an agreement</strong>. Enter an exact reference unique to this client on this escrow contract; it cannot be reused after closure and is limited to 128 UTF-8 bytes.</p>
@@ -31,12 +33,14 @@ outline: false
 <p>For a dispute, the arbitrator can choose <strong>Award escrow to client</strong> or <strong>Award escrow to contractor</strong> before its deadline. There is no split award, appeal or second submission. If arbitration times out, anyone can finalize to the recipient fixed at creation. <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrow.sol#L172-L237">Review, arbitration and timeout source</a>.</p>
 <h2 id="phases">When a deadline passes</h2>
 <p>Before-deadline actions require the executing block's time to be strictly earlier than the deadline. At or after it, a timeout transaction becomes available. Time passing does not submit that transaction automatically.</p>
+<div class="table-scroll" role="region" aria-label="Table: State and clock starts / Normal action" tabindex="0">
 <table><thead><tr><th>State and clock starts</th><th>Normal action</th><th>Timeout credits</th></tr></thead><tbody>
 <tr><td>Funded — creation</td><td>Contractor accepts; client can cancel.</td><td>Client</td></tr>
 <tr><td>Accepted — acceptance</td><td>Contractor submits work.</td><td>Client</td></tr>
 <tr><td>Submitted — submission</td><td>Client approves or disputes.</td><td>Contractor</td></tr>
 <tr><td>Disputed — dispute</td><td>Arbitrator awards to one party.</td><td>The recipient fixed at creation</td></tr>
 </tbody></table>
+</div>
 <p>Refresh to read the latest action availability. Disabled controls describe the last read, not a guarantee about a future transaction. The contract checks role, state and deadline again. Terminal states cannot reopen; there are no extensions, amendments or multiple milestones in this contract. <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow/src/CamEscrow.sol#L343-L391">Authoritative action conditions</a>.</p>
 <h2 id="withdraw">4. Withdraw the credited payment</h2>
 <p>Settlement closes the agreement and adds its whole amount to the beneficiary's credit. It does <strong>not</strong> send coins to that wallet. Connect the beneficiary account and choose <strong>View credit for viewed account</strong>.</p>

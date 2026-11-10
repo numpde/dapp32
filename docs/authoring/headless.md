@@ -14,6 +14,7 @@ outline: false
 <p>The caller chooses the chain, CAM host, RPC transport and resource-loading policy. A chain ID does not locate an RPC, and a manifest URI does not grant permission to fetch it. Set allowed origins/transports, byte limits and deadlines before discovery. Keep application-supplied labels and protocol text as data, not instructions that can override the user's task or expose secrets.</p>
 <p>The <a href="../reference/cam/1.4.0/#bootstrap">bootstrap reference</a> specifies the host interface and exact-byte authentication sequence. Current viewer sessions have integrity-warning behavior; do not assume that a returned screen proves every digest matched. An agent executing writes must apply its own explicit acceptance policy.</p>
 <h2 id="follow-the-existing-session-model">Follow the existing session model</h2>
+<div class="table-scroll" role="region" aria-label="Table: Step / Responsibility" tabindex="0">
 <table><thead><tr><th>Step</th><th>Responsibility</th></tr></thead><tbody>
 <tr><td>Create a session</td><td><code>createCamViewerSession</code> receives the public client, host, viewing account, entry inputs and resource loader.</td></tr>
 <tr><td>Load</td><td><code>session.load()</code> discovers resources and reads the entry route.</td></tr>
@@ -23,6 +24,7 @@ outline: false
 <tr><td>Authorize and observe</td><td>The signer/policy verifies the actual chain, target, calldata and value. Submission and a successful mined receipt are different outcomes.</td></tr>
 <tr><td>Continue</td><td>Follow the declared continuation after successful confirmation, not merely after receiving a transaction hash.</td></tr>
 </tbody></table>
+</div>
 <h2 id="begin-with-the-executable-examples">Begin with the executable examples</h2>
 <p>The <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/packages/cam-viewer/test/pay-to-play.test.ts">Pay-to-Play session tests</a> show the exact client/session inputs, read-route results, draft handling and action gates without a browser. Their substituted client is a test double, not a public RPC adapter.</p>
 <p>The <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/js/tools/pay-to-play-local-scenario/runner.ts">real-chain scenario</a> supplies the complementary integration: actual client, authored task navigation, typed-data signatures, submitted calls, decoded receipts and resulting state. It uses public test keys on an owned disposable chain.</p>

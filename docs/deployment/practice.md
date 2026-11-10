@@ -10,11 +10,13 @@ outline: false
 
 
 <p>These procedures use public fixture keys and local test coins. For a first browser interaction, use the shorter <a href="../start/local-wallet.html">local-wallet tutorial</a>; it is not a release rehearsal.</p>
+<div class="table-scroll" role="region" aria-label="Table: Purpose / State and authority" tabindex="0">
 <table><thead><tr><th>Purpose</th><th>State and authority</th></tr></thead><tbody>
 <tr><td><a href="#persistent">Manual local release</a></td><td>Shared chain 31338 stays running across commands. You approve ordinary release transactions.</td></tr>
 <tr><td><a href="#isolated">Automatic release rehearsal</a></td><td>An owned chain 31338 is created and removed for the run. Only fixture transactions are approved.</td></tr>
 <tr><td><a href="#approval">Approval rejection/success checks</a></td><td>An explicit reviewed approval image is tested in its own disposable chain; no public broadcast.</td></tr>
 </tbody></table>
+</div>
 <h2 id="persistent">Keep a local release between commands</h2>
 <p>Install the locked dependencies through <a href="../development/">source setup</a>. In the source checkout, select one local context and project and use them for every command below:</p>
 <pre><code>CTX=your-local-context &amp;&amp;

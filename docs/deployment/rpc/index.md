@@ -34,11 +34,13 @@ onBeforeUnmount(() => {
 
 
 <p>A chain ID identifies a network; it does not locate its RPC service. Provider access, blockchain gas and wallet authority are separate requirements.</p>
+<div class="table-scroll" role="region" aria-label="Table: Use / Endpoint boundary" tabindex="0">
 <table><thead><tr><th>Use</th><th>Endpoint boundary</th></tr></thead><tbody>
 <tr><td>Operator deployment</td><td>A complete RPC URL in private instance configuration. It must support reads, fee/gas queries, signed-transaction submission and receipt lookup.</td></tr>
 <tr><td>Browser viewer</td><td>A browser-accessible endpoint with the appropriate CORS/HTTPS behavior. Do not put a private credential into a shared viewer link.</td></tr>
 <tr><td>Contract indexing</td><td>The separate restricted proxy below; event/block reads only, no transaction submission.</td></tr>
 </tbody></table>
+</div>
 <h2 id="use-a-catalog-endpoint">Find the network and available service choices</h2>
 <p>Use <a href="../networks/">the network table</a>, which reads the same <a href="https://github.com/numpde/dapp32/blob/main/js/packages/cam-viewer/src/rpc-catalog.json">source catalog</a> as the tools. It contains chain IDs, gas tokens, service templates, explorers and dated primary references. To list it in a source checkout:</p>
 <pre><code>make release/rpc/list DOCKER_CONTEXT=your-local-context</code></pre>
@@ -104,6 +106,7 @@ networks:
 
 <p>Do not add a default/egress network or share the proxy's network namespace: those can create an unintended internet route. Give the indexer its own database role; keep provider credentials and signing keys out of it. The proxy needs no database access.</p>
 <h3 id="indexing-capacity">Use bounded polling and handle refusal</h3>
+<div class="table-scroll" role="region" aria-label="Table: Indexing profile / Limit" tabindex="0">
 <table><thead><tr><th>Indexing profile</th><th>Limit</th></tr></thead><tbody>
 <tr><td>Active connections, including health probes</td><td>4</td></tr>
 <tr><td>JSON-RPC batch items</td><td>100</td></tr>
@@ -112,6 +115,7 @@ networks:
 <tr><td>Complete upstream operation</td><td>60 seconds</td></tr>
 <tr><td>Whole accepted client connection</td><td>90 seconds</td></tr>
 </tbody></table>
+</div>
 <p>Health probes share capacity. A full worker set rejects new connections, with HTTP 503 and Retry-After when a response can be delivered. Start with low combined indexer concurrency; reduce block ranges for response-size or deadline failures. These limits do not enforce a provider's per-second or daily quota.</p>
 <p>The proxy does not retry, cache or switch upstreams. Read-only clients can use bounded backoff. See <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/compose/rpc-indexer.yml">the profile</a> before changing limits together with container memory/PID budgets.</p>
 <h3 id="stop-indexer">Inspect or stop the owned service</h3>

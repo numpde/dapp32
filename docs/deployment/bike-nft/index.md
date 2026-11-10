@@ -11,12 +11,14 @@ outline: false
 
 <p>Use these choices with <a href="../new-instance.html">Deploy a new instance</a>, substituting the <code>bike-nft</code> prefix. The normal release creates an <strong>empty collection</strong>; only the disposable demo registers the sample components.</p>
 <h2 id="release-policy">Choose the authorities before setup</h2>
+<div class="table-scroll" role="region" aria-label="Table: Authority / What it controls" tabindex="0">
 <table><thead><tr><th>Authority</th><th>What it controls</th></tr></thead><tbody>
 <tr><td>CAM root owner</td><td>Manifest publication and contract bindings.</td></tr>
 <tr><td>Components administrator</td><td>Roles on the ERC-721 collection, including its pauser and configurer.</td></tr>
 <tr><td>Manager administrator</td><td>Registry roles, including pauser, configurer and registrars.</td></tr>
 <tr><td>Registrars</td><td>Create serial records and mint components to their intended owners.</td></tr>
 </tbody></table>
+</div>
 <p>Select explicit pauser/configurer addresses on both contracts and one or more unique registrars. The same account may hold several chosen roles; an unselected deployer role is not an intended standing permission. The release grants the manager the collection's mint/URI-setter roles and removes deployer operational roles unless explicitly selected.</p>
 <p><code>COMPONENTS_ADMIN_DELAY</code> and <code>MANAGER_ADMIN_DELAY</code> are positive transfer delays. Public setup proposes 259,200 seconds (three days) for each and preserves prior choices when revisited. They delay administrator transfers, not ordinary pausing, configuration or role grants.</p>
 <h2 id="token-and-collection-metadata">Choose collection identity and metadata</h2>
@@ -29,11 +31,13 @@ outline: false
 <p>A compatible projection or workflow update can reuse Components and Manager through <a href="../update.html">the update procedure</a>. Updating the browser alone does not change contracts or add missing deployment-handover routes to an old publication.</p>
 <h2 id="handoffs">Accept three independent handovers</h2>
 <p>When a final authority differs from its creator, deployment submits a nomination, not acceptance. In <strong>Deployment handovers</strong>, connect the nominated wallet and inspect the exact target contract, current authority and acceptance time.</p>
+<div class="table-scroll" role="region" aria-label="Table: Target / Nominee action" tabindex="0">
 <table><thead><tr><th>Target</th><th>Nominee action</th></tr></thead><tbody>
 <tr><td><code>CamRoot</code></td><td><code>acceptOwnership()</code>; no CAM acceptance delay.</td></tr>
 <tr><td><code>BicycleComponents</code></td><td><code>acceptDefaultAdminTransfer()</code> after its own delay.</td></tr>
 <tr><td><code>BicycleComponentManager</code></td><td><code>acceptDefaultAdminTransfer()</code> after its own delay.</td></tr>
 </tbody></table>
+</div>
 <p>Refresh handovers after chain time passes the deadline, review and send the relevant action, then inspect its successful receipt and updated authority. The old authority remains active until acceptance. No handover is needed when the creator is also the explicitly intended final authority.</p>
 <p>For direct calls, Components/Manager addresses are in the business artifact; the root address is in the final CAM publication. Later administrator replacement uses that contract's <code>beginDefaultAdminTransfer</code> followed by nominee acceptance after its current delay. These transfers do not automatically change operational role holders.</p>
 <h2 id="release-verification">Verify history, then inspect current state</h2>

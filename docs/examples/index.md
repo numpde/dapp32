@@ -18,11 +18,13 @@ outline: false
 </div></section>
 <section id="local-demos"><h2>Local demos</h2>
 <p>Each launcher creates its own disposable Anvil chain on ID 31337, deploys the app, serves its CAM files and prints a viewer URL. It does not attach a wallet automatically. Complete <a href="../development/">source setup</a> first.</p>
+<div class="table-scroll" role="region" aria-label="Table: App / Start" tabindex="0">
 <table><thead><tr><th>App</th><th>Start</th><th>Stop</th></tr></thead><tbody>
 <tr><td>Pay-to-Play</td><td><code>make pay-to-play/local/demo/gui/up</code></td><td><code>make pay-to-play/local/demo/gui/down</code></td></tr>
 <tr><td>Escrow</td><td><code>make escrow/local/demo/gui/up</code></td><td><code>make escrow/local/demo/gui/down</code></td></tr>
 <tr><td>Bike NFT</td><td><code>make bike-nft/local/demo/gui/up</code></td><td><code>make bike-nft/local/demo/gui/down</code></td></tr>
 </tbody></table>
+</div>
 <p>Add <code>DOCKER_CONTEXT=your-local-context</code> and use the same <code>COMPOSE_PROJECT_NAME</code> for startup, wallet attachment and shutdown. Keep the foreground launcher running and open its entire printed URL. Closing the browser tab does not stop the fixture.</p>
 <p>The <a href="../start/local-wallet.html">complete wallet tutorial</a> shows the separate browser profile, attachment, actor selection and transaction approval. The other app guides retain their app-specific exercises. All fixture keys are public test identities; never use them with real funds.</p>
 <p>To rehearse the actual operator approval/publication process rather than just explore an app, use the <a href="../deployment/#rehearse-the-release-locally">isolated release rehearsal</a>. Its deployment process and chain are separate from these demos.</p>

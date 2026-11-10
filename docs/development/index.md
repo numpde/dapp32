@@ -20,6 +20,7 @@ make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <p>Replace <code>your-local-context</code> with the engine you intend to use. Omit the argument only when you want the interactive chooser. Noninteractive commands need the context on the Make command line. Each operation resolves that engine once and uses the same endpoint for child operations and cleanup.</p>
 <p>Dependency installation is explicitly networked. The offline checks do not install missing dependencies for you. For the standalone viewer, only JavaScript dependencies are needed; its <a href="../viewer/deploy.html#build">build guide</a> also acquires its pinned base images explicitly.</p>
 <h2 id="choose-the-relevant-validation">Choose the relevant validation</h2>
+<div class="table-scroll" role="region" aria-label="Table: Change / Validation" tabindex="0">
 <table><thead><tr><th>Change</th><th>Validation</th></tr></thead><tbody>
 <tr><td>Authored CAM files</td><td><code>make cam/conformance/check</code>; refresh resource pins after edits.</td></tr>
 <tr><td>Repository/tooling</td><td><code>make tests/checks</code>; relevant integration tests for changed behavior.</td></tr>
@@ -27,6 +28,7 @@ make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <tr><td>Complete fixture qualification</td><td><code>make tests</code>, which also runs networked checks and disposable local scenarios.</td></tr>
 <tr><td>Documentation changes</td><td><code>python3 -B -m unittest discover -v -s tests/checks -t . -p 'test_docs_*.py'</code>; the docs candidate workflow builds the site and checks generated routes.</td></tr>
 </tbody></table>
+</div>
 <p>Add your context to source Make commands. Run <code>make help</code> for prerequisites and current target options. README-only CI uses its lightweight length check, not application integration.</p>
 <h2 id="host-prerequisites-and-private-files">Host prerequisites and private files</h2>
 <p>Isolated Compose services disable Multipath TCP, so the kernel must expose the per-network-namespace <code>net.mptcp.enabled</code> setting. Host-network browser tools instead share the host's settings.</p>
