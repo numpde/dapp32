@@ -1704,14 +1704,14 @@ cam/abi/export: dapps/deps/verify
 # Standalone Makefile copies used by unrelated checks need not contain docs.mk.
 # The docs target nevertheless refuses an incomplete checkout explicitly.
 -include tools/make/docs.mk
-.PHONY: docs/build
 ifeq ($(origin docs_build_impl),undefined)
-docs/build:
-	@printf "%s\n" "Missing tools/make/docs.mk; cannot build docs" >&2; exit 2
-else
+define docs_build_impl
+@printf '%s\n' 'Missing tools/make/docs.mk; cannot build docs' >&2; exit 2
+endef
+endif
+.PHONY: docs/build
 docs/build:
 	$(docs_build_impl)
-endif
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status
 viewer/image/build:
