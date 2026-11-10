@@ -60,7 +60,7 @@ def artifact_fixture(root: Path) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(DOCS / path, destination)
     catalog = artifact / "gallery/deployments.json"
-    catalog.write_text(json.dumps({"deployments": [{"app": "fixture"}]}))
+    catalog.write_bytes((DOCS / "public/gallery/deployments.json").read_bytes())
     redirect = artifact / "deployments/index.html"
     redirect.parent.mkdir(parents=True, exist_ok=True)
     redirect.write_text("<!doctype html><html><body>Gallery redirect</body></html>")

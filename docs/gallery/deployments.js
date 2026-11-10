@@ -172,6 +172,7 @@ function deploymentCard(deployment, viewer, previewViewer, catalog, embedded = f
     working.textContent = '';
     working.removeAttribute('aria-label');
     bindingStatus.hidden = true;
+    bindingStatus.setAttribute('aria-busy', 'false');
     retryBindings.hidden = true;
     customRPC.removeAttribute('aria-invalid');
     contracts.replaceChildren(contractRow('CAM root', deployment.host, deployment.hostSource, deployment.hostVerificationUrl));
@@ -183,6 +184,7 @@ function deploymentCard(deployment, viewer, previewViewer, catalog, embedded = f
     const signal = AbortSignal.any([attempt.signal, AbortSignal.timeout(10000)]);
     bindingStatus.hidden = false;
     bindingStatus.setAttribute('role', 'status');
+    bindingStatus.setAttribute('aria-busy', 'true');
     bindingStatus.textContent = 'Loading contracts…';
     try {
       if (!rpcSelect.value && !customRPC.validity.valid) throw new Error('Enter a valid RPC URL.');
@@ -203,11 +205,13 @@ function deploymentCard(deployment, viewer, previewViewer, catalog, embedded = f
       if (attempt.signal.aborted) return;
       contracts.append(...rows);
       bindingStatus.hidden = true;
+      bindingStatus.setAttribute('aria-busy', 'false');
       working.textContent = '✓';
       working.setAttribute('aria-label', 'RPC working');
     } catch (error) {
       if (attempt.signal.aborted) return;
       bindingStatus.setAttribute('role', 'alert');
+      bindingStatus.setAttribute('aria-busy', 'false');
       bindingStatus.textContent = `Cannot load contract addresses: ${error.message}`;
       if (!rpcSelect.value) customRPC.setAttribute('aria-invalid', 'true');
       retryBindings.hidden = false;
@@ -272,6 +276,25 @@ function groupDeployments(deployments) {
   return [...groups.values()];
 }
 
+function galleryGroup(deployments, content) {
+  const group = element('section', undefined, 'gallery-app-group');
+  group.id = deployments[0].appId || deployments[0].id;
+  group.setAttribute('aria-label', deployments[0].name);
+  group.append(content);
+  return group;
+}
+
+function loadingCard() {
+  const card = element('div', undefined, 'gallery-loading-card');
+  card.setAttribute('aria-hidden', 'true');
+  card.append(
+    element('span', undefined, 'gallery-loading-heading'),
+    element('span', undefined, 'gallery-loading-line'),
+    element('span', undefined, 'gallery-loading-line short'),
+  );
+  return card;
+}
+
 let selectableGroups = [];
 function selectionFromHash() {
   const id = decodeURIComponent(location.hash.slice(1));
@@ -293,10 +316,13 @@ async function load() {
   retry.hidden = true;
   status.hidden = false;
   status.setAttribute('role', 'status');
+  status.setAttribute('aria-busy', 'true');
+  status.classList.add('is-loading');
   status.textContent = 'Loading deployments…';
   selectableGroups.forEach(group => group.cancel());
   selectableGroups = [];
-  list.replaceChildren();
+  list.setAttribute('aria-busy', 'true');
+  list.replaceChildren(loadingCard(), loadingCard());
   try {
     const [data, catalog] = await Promise.all([readJSON('./deployments.json'), readJSON(catalogURL)]);
     const groups = groupDeployments(data.deployments);
@@ -305,7 +331,7 @@ async function load() {
     for (const deployments of groups) {
       if (deployments.length === 1) {
         const card = deploymentCard(deployments[0], data.viewer, data.previewViewer, catalog);
-        rendered.push(card);
+        rendered.push(galleryGroup(deployments, card));
         continue;
       }
       if (deployments.some(deployment => !/^\d{4}-\d{2}-\d{2}$/.test(deployment.deployedAt))) {
@@ -345,16 +371,21 @@ async function load() {
       });
       show(ordered.some(item => item.id === requested) ? requested : ordered[0].id);
       selectableGroups.push({ ids: new Set(ordered.map(item => item.id)), latest: ordered[0].id, show, cancel: () => active?.cancelBindings() });
-      rendered.push(group);
+      rendered.push(galleryGroup(deployments, group));
     }
-    list.append(...rendered);
+    list.replaceChildren(...rendered);
+    list.setAttribute('aria-busy', 'false');
+    status.setAttribute('aria-busy', 'false');
+    status.classList.remove('is-loading');
     status.textContent = rendered.length ? '' : 'No deployments are listed yet.';
     status.hidden = rendered.length > 0;
-    if (requested && data.deployments.some(deployment => deployment.id === requested)) {
-      document.getElementById(requested)?.closest('.deployment')?.scrollIntoView();
-    }
+    if (requested) document.getElementById(requested)?.scrollIntoView({ block: 'start' });
   } catch (error) {
+    list.replaceChildren();
+    list.setAttribute('aria-busy', 'false');
     status.setAttribute('role', 'alert');
+    status.setAttribute('aria-busy', 'false');
+    status.classList.remove('is-loading');
     status.textContent = `Cannot load deployments: ${error.message}`;
     retry.hidden = false;
   }
