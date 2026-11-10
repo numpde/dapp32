@@ -3,6 +3,7 @@ import { checkActionStyles } from './action-style-browser-check.mjs'
 import { checkNftMetadata } from './nft-metadata-browser-check.mjs'
 import { checkStartupErrors } from './error-reporting-browser-check.mjs'
 import { checkViewerConnection } from './connection-browser-check.mjs'
+import { checkViewerAppearance } from './appearance-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, decodeEventLog, decodeFunctionData, encodeFunctionData, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
@@ -577,6 +578,7 @@ try {
   tamper = false
   await call('Fetch.disable', {})
   phase = 'action presentation fixture'
+  await checkViewerAppearance({ call, evaluate, viewerURL: viewer.href })
   await checkActionStyles({ call, evaluate, viewerURL: viewer.href })
   await checkNftMetadata({ call, evaluate, viewerURL: viewer.href })
   await checkViewerConnection({ call, evaluate, viewerURL: viewer.href })

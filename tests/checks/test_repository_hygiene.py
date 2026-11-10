@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 import tomllib
 import unittest
 from hashlib import sha256
@@ -201,10 +202,17 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_forbidden_text_patterns_are_absent(self) -> None:
         research_sources = self.verified_research_source_paths()
+        # The published site and deployment operators legitimately use the
+        # repository name. Generic CAM libraries must not acquire that coupling.
+        generic_packages = (
+            path for path in iter_repo_text_files()
+            if path.is_relative_to(repo_path("js/packages")) or path.is_relative_to(repo_path("dapps/cam"))
+        )
         self.assert_no_matches(
             FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS,
             allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
             additional_paths=research_sources,
+            candidate_paths=generic_packages,
         )
         markers = [re.compile(re.escape(marker)) for marker in LICENSE_MARKERS]
         research_license_lines = {
@@ -270,7 +278,10 @@ class RepositoryHygieneTest(unittest.TestCase):
             ), patch(__name__ + ".read_text", return_value=reference), patch.object(
                 self, "verified_research_source_paths", return_value=()
             ):
-                self.test_forbidden_text_patterns_are_absent()
+                self.assert_no_matches(
+                    FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS,
+                    allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
+                )
 
     def test_recorded_artifact_exceptions_do_not_hide_branding_or_other_hygiene_failures(self) -> None:
         artifact = "/tmp/dapp" + "32-walkthrough-record.mjs"
@@ -292,7 +303,13 @@ class RepositoryHygieneTest(unittest.TestCase):
                 self, "verified_research_source_paths", return_value=()
             ):
                 with self.assertRaisesRegex(AssertionError, reason):
-                    self.test_forbidden_text_patterns_are_absent()
+                    if reason == "forbidden project name":
+                        self.assert_no_matches(
+                            FORBIDDEN_NAME_PATTERNS, reason, ALLOWED_FORBIDDEN_NAME_LITERALS,
+                            allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
+                        )
+                    else:
+                        self.test_forbidden_text_patterns_are_absent()
 
     def test_js_build_outputs_are_not_materialized_on_host(self) -> None:
         failures: list[str] = []
@@ -685,10 +702,11 @@ class RepositoryHygieneTest(unittest.TestCase):
         self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...],
         *, allowed_artifact_paths: dict[Path, tuple[str, ...]] | None = None,
         additional_paths: tuple[Path, ...] | None = None,
+        candidate_paths: Iterable[Path] | None = None,
     ) -> None:
         failures: list[str] = []
 
-        paths = set(iter_repo_text_files())
+        paths = set(iter_repo_text_files() if candidate_paths is None else candidate_paths)
         if additional_paths is not None:
             paths.update(additional_paths)
         for path in sorted(paths):

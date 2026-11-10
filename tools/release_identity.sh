@@ -54,17 +54,25 @@ release_select_container_identity() {
 # container identity. The caller's LOCAL_UID/GID continue to mean host IDs.
 # Only a selection made in THIS shell for THIS engine is sufficient.
 release_with_mapped_owner() {
-  local supplied="${LOCAL_UID-}:${LOCAL_GID-}" host="$(id -u):$(id -g)"
-  # An EXIT trap may run while a mapped Compose invocation is still scoped.
-  # Both the host identity and an already-verified mapped identity are safe;
-  # unrelated inherited numbers are not.
-  if [[ $# -eq 0 ||
-        "${_release_identity_endpoint-}" != "${CAM_DOCKER_ENDPOINT-}" ||
-        "${_release_identity_host-}" != "$host" ||
-        ( "$supplied" != "$host" && "$supplied" != "${_release_identity_pair-}" ) ||
-        "${_release_identity_userns-}" != default ||
-        -z "${_release_identity_pair-}" ||
-        "${_release_identity_pair-}" != "${RELEASE_CONTAINER_UID-}:${RELEASE_CONTAINER_GID-}" ]]; then
+  # An EXIT trap can execute before identity selection completed. Check the
+  # selection's presence before using its values under Bash nounset.
+  if [[ $# -eq 0 || ! -v LOCAL_UID || ! -v LOCAL_GID ||
+        ! -v CAM_DOCKER_ENDPOINT || ! -v _release_identity_endpoint ||
+        ! -v _release_identity_host || ! -v _release_identity_userns ||
+        ! -v _release_identity_pair || ! -v RELEASE_CONTAINER_UID ||
+        ! -v RELEASE_CONTAINER_GID ]]; then
+    printf '%s\n' 'Private bind mount requires a verified container identity for the selected local Docker engine.' >&2
+    return 2
+  fi
+  local supplied="$LOCAL_UID:$LOCAL_GID" host="$(id -u):$(id -g)"
+  # Host and mapped identity may both appear during a nested cleanup scope,
+  # but stale identities cannot cross Docker endpoints or owners.
+  if [[ "$_release_identity_endpoint" != "$CAM_DOCKER_ENDPOINT" ||
+        "$_release_identity_host" != "$host" ||
+        ( "$supplied" != "$host" && "$supplied" != "$_release_identity_pair" ) ||
+        "$_release_identity_userns" != default ||
+        -z "$_release_identity_pair" ||
+        "$_release_identity_pair" != "$RELEASE_CONTAINER_UID:$RELEASE_CONTAINER_GID" ]]; then
     printf '%s\n' 'Private bind mount requires a verified container identity for the selected local Docker engine.' >&2
     return 2
   fi

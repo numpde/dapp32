@@ -228,13 +228,16 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "phases": [],
             "held": False,
         }))
-        docker = root / "docker"
-        docker.write_text(
-            "#!/usr/bin/env bash\n"
-            f'if [[ $1 == context ]]; then exec "{ROOT / "tests/fixtures/docker-context/docker"}" "$@"; fi\n'
-            'exec "$PYTHON" "$CASE_ROOT/docker.py" "$@"\n'
+        # The offline checks container mounts /tmp with noexec. Invoke the
+        # fake Docker peer through an interpreted Bash startup file, including
+        # nested cleanup shells, rather than executing a /tmp script directly.
+        bash_env = root / "fake-docker.bash"
+        bash_env.write_text(
+            'docker() {\n'
+            f'  if [[ "$1" == context ]]; then "{ROOT / "tests/fixtures/docker-context/docker"}" "$@";\n'
+            '  else "$PYTHON" "$CASE_ROOT/docker.py" "$@"; fi\n'
+            '}\n'
         )
-        docker.chmod(0o755)
         endpoint = "unix:///tmp/docs-test-selected.sock"
         environment = {
             **os.environ,
@@ -243,7 +246,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "CAM_DOCKER_ENDPOINT": endpoint,
             "ENDPOINT": endpoint,
             "TRACE": str(root / "selector-trace"),
-            "PATH": f"{root}:{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
+            "PATH": f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
+            "BASH_ENV": str(bash_env),
             "DOCS_OUTPUT_DIR": str(root / "output"),
         }
         # The real identity selector is tested separately against rootless/rootful

@@ -200,13 +200,12 @@ exit "$status"
                         self.assertNotIn("detail-0\n", result.stderr)
                         self.assertIn("detail-99", result.stderr)
 
-    def test_preparation_is_retryable_only_until_signing_authority_can_start(self):
-        for failure in ("reserve", "sync", "approval"):
+    def test_preparation_marker_survives_reservation_and_approval_start_failures(self):
+        for failure in ("reserve", "approval"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "output/plan").mkdir(parents=True)
-                script = r'''
-source "$LAUNCHER"
+                script = r'''source "$LAUNCHER"
 ceremony_root="$CASE_ROOT"
 ceremony_source="$CASE_ROOT/source"
 release_operation=contracts
@@ -221,14 +220,9 @@ compose_release() {
     printf '{}\n' > "$RELEASE_APPROVAL_REFERENCE_FILE"
   elif [[ "$*" == 'up --no-start '* && "$FAILURE" == reserve ]]; then return 7
   elif [[ "${@: -1}" == release-approval ]]; then
-    [[ ! -e "$CASE_ROOT/output/preparation-only" ]] || return 90
+    [[ -f "$CASE_ROOT/output/preparation-only" ]] || return 90
     return 8
   fi
-}
-sync() {
-  [[ ! -e "$CASE_ROOT/output/preparation-only" ]] || return 91
-  printf 'sync\n' >> "$CASE_ROOT/events"
-  [[ "$FAILURE" != sync ]]
 }
 release_approval_prepare escrow fixture "$(printf 'a%.0s' {1..40})" 31338 "$CASE_ROOT/output"
 [[ -f "$CASE_ROOT/output/preparation-only" ]] || exit 92
@@ -237,13 +231,34 @@ release_approval_run "$CASE_ROOT/output"
                 result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
                                         env={**os.environ, "LAUNCHER": str(LAUNCHER), "CASE_ROOT": str(root), "FAILURE": failure},
                                         capture_output=True, text=True, timeout=10)
-                self.assertEqual({"reserve": 7, "sync": 1, "approval": 8}[failure], result.returncode, result.stdout + result.stderr)
-                self.assertEqual(failure == "reserve", (root / "output/preparation-only").exists(), result.stdout + result.stderr)
+                self.assertEqual({"reserve": 7, "approval": 8}[failure], result.returncode, result.stdout + result.stderr)
+                self.assertTrue((root / "output/preparation-only").exists(), result.stdout + result.stderr)
                 events = (root / "events").read_text().splitlines()
                 approval = "up -d --no-build --no-deps release-approval"
                 self.assertEqual(failure == "approval", approval in events)
-                if failure == "approval": self.assertLess(events.index("sync"), events.index(approval))
                 self.assertFalse(any(event.endswith(" deploy-release") for event in events))
+
+    def test_signing_boundary_removes_preparation_marker_before_sync(self):
+        for fail_sync in (False, True):
+            with self.subTest(fail_sync=fail_sync), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                output = root / "output"
+                output.mkdir()
+                (output / "preparation-only").write_text("pending\n")
+                script = r'''source "$LAUNCHER"
+sync() {
+  printf '%s\n' "$*" > "$CASE_ROOT/sync-args"
+  [[ "$FAIL_SYNC" == 0 ]]
+}
+release_approval_end_preparation "$CASE_ROOT/output"
+'''
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT,
+                                        env={**os.environ, "LAUNCHER": str(LAUNCHER), "CASE_ROOT": str(root),
+                                             "FAIL_SYNC": str(int(fail_sync))},
+                                        capture_output=True, text=True, timeout=10)
+                self.assertEqual(int(fail_sync), result.returncode, result.stdout + result.stderr)
+                self.assertFalse((output / "preparation-only").exists())
+                self.assertEqual(f"-f -- {output}", (root / "sync-args").read_text().strip())
 
     def test_failed_cam_keyless_completion_preserves_evidence_without_self_retry_advice(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -347,7 +362,7 @@ release_approval_run "$CASE_ROOT/output"
                     process = self.launch(script, env)
                     stdout, stderr = process.communicate(timeout=10)
                     self.assertNotEqual(0, process.returncode, stdout + stderr)
-                    self.assertIn("Verification sent no transactions", stderr)
+                    self.assertIn("verification sent no transactions", stderr.lower())
                     if phase != "cam":
                         self.assertIn("Do not repeat deployment", stderr)
                     diagnostics = "".join(path.read_text() for path in (root / "output").glob("*-verification-*/verification.log"))
@@ -356,16 +371,18 @@ release_approval_run "$CASE_ROOT/output"
                     events = (root / "events").read_text().splitlines()
                     self.assertEqual(1, sum(event.startswith("up ") and event.endswith(" deploy-release") for event in events))
                     self.assertEqual(0 if failure == "proxy" else 1, sum(event.endswith(" release-artifact") for event in events))
-                    command = next(line.strip() for line in stderr.splitlines() if "make " in line)
-                    command = command[command.index("make "):]
-                    expected = ["make", f"bike-nft/release/{phase}/artifact"]
                     if phase == "cam":
-                        expected += ["CONFIG=" + env["CONFIG"], "CAM_RECORDS=" + str(root / "output"),
-                                     "CAM_BUNDLE=" + str(root / "prepared")]
+                        # Without a usable attempt record, a guessed retry command
+                        # could cause duplicate on-chain effects.
+                        self.assertNotIn("make bike-nft/release/cam/artifact", stderr)
+                        self.assertIn("Review the retained verification log", stderr)
                     else:
-                        expected += [("CONTRACT_RECORDS=" if phase == "contracts" else "UI_RECORDS=") + str(root / "output"),
-                                     "CONFIG=" + env["CONFIG"]]
-                    self.assertEqual(expected, shlex.split(command))
+                        command = next(line.strip() for line in stderr.splitlines() if "make " in line)
+                        command = command[command.index("make "):]
+                        expected = ["make", f"bike-nft/release/{phase}/artifact",
+                                    ("CONTRACT_RECORDS=" if phase == "contracts" else "UI_RECORDS=") + str(root / "output"),
+                                    "CONFIG=" + env["CONFIG"]]
+                        self.assertEqual(expected, shlex.split(command))
 
     def test_artifact_completion_copies_prepared_dependencies_and_rejects_unsafe_paths_first(self):
         for case in ("default", "prepared", "missing", "symlink"):
@@ -1626,7 +1643,7 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
             self.assertIn(f"OUTPUT_DIR={root / 'release/cam/continuation'}", calls[-1])
             self.assertEqual(1, len(list((root / "release/cam").glob("continuation-preparation-*/records/diagnostics"))))
 
-    def expired_cam_approval(self, records: Path, app: str, *, events: str = "expired") -> None:
+    def expired_cam_approval(self, records: Path, app: str, *, events: str) -> None:
         import json
 
         # One durable pending decision closed without approval or transmission.
@@ -1687,7 +1704,7 @@ release_full "$APP" "$OPERATION" "$CASE_ROOT/release"
                                        FAIL_TARGET=f"{app}/release/cam/publish")
                 self.assertEqual(23, first.returncode, first.stderr)
                 attempt = root / "release/cam"
-                self.expired_cam_approval(attempt, app)
+                self.expired_cam_approval(attempt, app, events="expired")
                 resumed, calls = self.invoke(root, app=app, operation="full", uri=True)
                 self.assertEqual(0, resumed.returncode, resumed.stderr)
                 self.assertEqual(

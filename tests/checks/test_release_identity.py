@@ -125,13 +125,13 @@ release_with_mapped_owner true || status=$?
 
 
     def test_release_configuration_private_mounts_use_the_mapped_identity(self):
-        from .common import rendered_compose_config
+        from .common import rendered_compose_config, compose_sequence_or_empty
         config = rendered_compose_config("compose/release/config.yml")
         private_roots = ("/tmp/release-config-stage", "/tmp/release-config.json")
         consumers = {}
         for name, service in config["services"].items():
             sources = [
-                mount["source"] for mount in service.get("volumes", ())
+                mount["source"] for mount in compose_sequence_or_empty(service, "volumes")
                 if mount["type"] == "bind"
                 and any(mount["source"] == root or mount["source"].startswith(root + "/")
                         for root in private_roots)
@@ -145,7 +145,7 @@ release_with_mapped_owner true || status=$?
 
 
     def test_standard_release_compositions_map_every_operator_private_bind(self):
-        from .common import ROOT, rendered_compose_config
+        from .common import ROOT, rendered_compose_config, compose_sequence_or_empty
 
         # The real Makefile composes these layers for contracts, UI, CAM,
         # artifact completion and CAM bundle preparation. Point all retained
@@ -174,7 +174,7 @@ release_with_mapped_owner true || status=$?
                 consumers = {}
                 for name, service in config["services"].items():
                     private = [
-                        mount["source"] for mount in service.get("volumes", ())
+                        mount["source"] for mount in compose_sequence_or_empty(service, "volumes")
                         if mount["type"] == "bind"
                         and not Path(mount["source"]).is_relative_to(ROOT)
                     ]
