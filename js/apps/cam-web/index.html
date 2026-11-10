@@ -3,6 +3,14 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <script>
+      // Apply a saved override before the first paint.
+      try {
+        const saved = localStorage.getItem("cam-viewer-appearance")
+        if (saved === "light" || saved === "dark") document.documentElement.dataset.appearance = saved
+      } catch { /* System appearance remains available without storage. */ }
+    </script>
     <title>CAM Viewer</title>
   </head>
   <body>

@@ -8,6 +8,7 @@ import { checkAddressEntry } from '../apps/cam-web/test/known-addresses-browser-
 import { checkActionStyles } from '../apps/cam-web/test/action-style-browser-check.mjs'
 import { checkNftMetadata } from '../apps/cam-web/test/nft-metadata-browser-check.mjs'
 import { checkViewerConnection } from '../apps/cam-web/test/connection-browser-check.mjs'
+import { checkViewerAppearance } from '../apps/cam-web/test/appearance-browser-check.mjs'
 
 function localURL(value, label) {
   const url = new URL(requireHttpURL(value, label).href)
@@ -45,7 +46,7 @@ async function main() {
     await call('Page.enable', {})
     await call('Runtime.enable', {})
     await call('Emulation.setFocusEmulationEnabled', { enabled: true })
-    for (const check of [checkAddressEntry, checkChoiceField, checkTransactionLabels, checkActionStyles, checkNftMetadata, checkViewerConnection]) {
+    for (const check of [checkViewerAppearance, checkAddressEntry, checkChoiceField, checkTransactionLabels, checkActionStyles, checkNftMetadata, checkViewerConnection]) {
       console.log(`Running ${check.name}`)
       await call('Emulation.setFocusEmulationEnabled', { enabled: true })
       console.log(JSON.stringify(await check({ call, evaluate, viewerURL: viewer.href })))
