@@ -278,7 +278,10 @@ class RepositoryHygieneTest(unittest.TestCase):
             ), patch(__name__ + ".read_text", return_value=reference), patch.object(
                 self, "verified_research_source_paths", return_value=()
             ):
-                self.test_forbidden_text_patterns_are_absent()
+                self.assert_no_matches(
+                    FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS,
+                    allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
+                )
 
     def test_recorded_artifact_exceptions_do_not_hide_branding_or_other_hygiene_failures(self) -> None:
         artifact = "/tmp/dapp" + "32-walkthrough-record.mjs"
@@ -300,7 +303,13 @@ class RepositoryHygieneTest(unittest.TestCase):
                 self, "verified_research_source_paths", return_value=()
             ):
                 with self.assertRaisesRegex(AssertionError, reason):
-                    self.test_forbidden_text_patterns_are_absent()
+                    if reason == "forbidden project name":
+                        self.assert_no_matches(
+                            FORBIDDEN_NAME_PATTERNS, reason, ALLOWED_FORBIDDEN_NAME_LITERALS,
+                            allowed_artifact_paths=ALLOWED_FORBIDDEN_NAME_IDENTIFIERS,
+                        )
+                    else:
+                        self.test_forbidden_text_patterns_are_absent()
 
     def test_js_build_outputs_are_not_materialized_on_host(self) -> None:
         failures: list[str] = []
