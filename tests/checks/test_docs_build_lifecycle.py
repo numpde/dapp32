@@ -275,7 +275,10 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             # boundary; the lifecycle fixture otherwise removes its state.
             result = subprocess.CompletedProcess(
                 result.args, result.returncode, result.stdout,
-                result.stderr + f"\nFake Docker calls: {calls!r}\nFake Docker state: {state!r}\n",
+                result.stderr + f"\nFake Docker calls: {calls!r}\nFake Docker state: {state!r}\n"
+                + f"Expanded command: {expanded.stdout[:4000]!r}\n"
+                + f"Runtime stdout: {result.stdout[:1200]!r}\n"
+                + f"Selected environment: {[(k, environment.get(k)) for k in ('BASH_ENV', 'MAKEFLAGS', 'DOCKER_HOST')]!r}\n",
             )
         return result, calls, state
 
