@@ -9,11 +9,13 @@ if (process.argv.length !== 3 || !root || !isAbsolute(root)) {
 }
 const architecture = JSON.parse(await readFile(join(root, '.vitepress/architecture.json'), 'utf8'))
 const sections = architecture.sections
-// Landing pages have one owner but are not duplicated in their sidebars.
-const pages = sections.flatMap(section => [
+const home = architecture.home
+// The root is a declared parent page; the six section landings are its
+// children, not duplicate top-level navigation tabs.
+const pages = [home, ...sections.flatMap(section => [
   section.landing,
   ...section.groups.flatMap(group => group.kind === 'pages' ? group.pages : []),
-])
+])]
 const retired = architecture.retired
 
 function isSource(value) {
@@ -34,7 +36,13 @@ const usedSources = new Set()
 const usedTargets = new Set()
 function ownPage(page, sectionId) {
   if (!isSource(page.source) || !isSource(page.route)) throw new Error('Invalid page')
-  if (!page.route.startsWith(sectionId + '/')) throw new Error('Wrong page section')
+  if (sectionId === null) {
+    if (page.source !== 'index.md' || page.route !== 'index.md') {
+      throw new Error('Site root must own index.md at the root URL')
+    }
+  } else if (!page.route.startsWith(sectionId + '/')) {
+    throw new Error('Wrong page section')
+  }
   if (usedSources.has(page.source) || usedTargets.has(page.route)) {
     throw new Error('Page has multiple homes: ' + page.source)
   }
@@ -45,6 +53,10 @@ function ownPage(page, sectionId) {
   assertCanonical(canonical)
   if (original !== canonical) oldToNew.set(original, canonical)
 }
+if (architecture.version !== 3 || !home || !home.text) {
+  throw new Error('Missing or invalid site-root ownership')
+}
+ownPage(home, null)
 for (const section of sections) {
   if (!/^[a-z][a-z0-9-]*$/.test(section.id)) throw new Error('Unsafe section ID')
   if (section.landing.route !== section.id + '/index.md') throw new Error('Invalid section landing')
@@ -67,7 +79,7 @@ for (const [source, target] of Object.entries(retired)) {
   usedSources.add(source)
   oldToNew.set(pageUrl(source), target)
 }
-if (architecture.version !== 2 || sections.length !== 6 || pages.length < sections.length) {
+if (architecture.version !== 3 || sections.length !== 6 || pages.length < sections.length + 1) {
   throw new Error('Unexpected documentation page inventory')
 }
 async function markdownFiles(directory, prefix = '') {
@@ -82,7 +94,7 @@ async function markdownFiles(directory, prefix = '') {
   return files
 }
 const observed = new Set(await markdownFiles(root))
-const expected = new Set([...usedSources, 'index.md'])
+const expected = new Set(usedSources)
 if (observed.size !== expected.size
     || [...observed].some(source => !expected.has(source))) {
   throw new Error('Documentation pages lack exactly one navigation owner: '
@@ -114,7 +126,8 @@ for (const original of observed) {
     continue
   }
   const page = pages.find(item => item.source === original)
-  const canonical = page?.route ?? original
+  if (!page) throw new Error('Unowned Markdown page: ' + original)
+  const canonical = page.route
   const file = join(root, original)
   let content = await readFile(file, 'utf8')
   content = content.replace(/\b(href|src)=(["'])([^"'<>]+)\2/g,

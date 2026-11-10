@@ -84,7 +84,7 @@ def check_links(site: Path, pages: list[tuple[str, str]], retired: dict[str, str
             cached[relative] = result
         return cached[relative]
 
-    for _, canonical in [("index.md", "index.md"), *pages]:
+    for _, canonical in pages:
         original_html = html_path(canonical).as_posix()
         base = "https://numpde.github.io/dapp32/" + original_html
         for href in parsed(original_html).hrefs:
@@ -138,8 +138,8 @@ def architecture_model(source: Path, *, definition: dict | None = None) -> dict:
     model = definition if definition is not None else json.loads(
         (source / ".vitepress/architecture.json").read_text(encoding="utf-8")
     )
-    if set(model) != {"version", "sections", "retired"} or model["version"] != 2:
-        raise ValueError("Expected architecture schema version 2")
+    if set(model) != {"version", "home", "sections", "retired"} or model["version"] != 3:
+        raise ValueError("Expected architecture schema version 3, including the site root")
     return model
 
 
@@ -168,9 +168,16 @@ def canonical_pages(source: Path, *, definition: dict | None = None) -> tuple[li
     if [s.get("id") for s in sections] != ["start", "gallery", "use", "build", "deploy", "reference"]:
         raise ValueError("Unexpected top-level documentation hierarchy")
 
-    mapped: list[tuple[str, str]] = []
-    sources: set[str] = set()
-    targets: set[str] = set()
+    home = model["home"]
+    if (not isinstance(home, dict) or set(home) != {"source", "route", "text"}
+            or home["source"] != "index.md" or home["route"] != "index.md"
+            or not isinstance(home["text"], str) or not home["text"].strip()
+            or not (source / home["source"]).is_file()):
+        raise ValueError("Site root must declare the existing index.md at /")
+
+    mapped: list[tuple[str, str]] = [(home["source"], home["route"])]
+    sources: set[str] = {home["source"]}
+    targets: set[str] = {home["route"]}
 
     def own(page: dict, section: str) -> None:
         if set(page) != {"source", "route", "text"}:
@@ -191,11 +198,13 @@ def canonical_pages(source: Path, *, definition: dict | None = None) -> tuple[li
         mapped.append((original, canonical))
 
     for section in sections:
-        if set(section) != {"id", "label", "landing", "groups"}:
-            raise ValueError(f"Section must have id, label, landing and groups: {section.get('id')}")
+        if set(section) != {"id", "label", "summary", "landing", "groups"}:
+            raise ValueError(f"Section must have id, label, summary, landing and groups: {section.get('id')}")
         section_id = section["id"]
         if not isinstance(section["label"], str) or not section["label"].strip():
             raise ValueError(f"Unlabeled section: {section_id}")
+        if not isinstance(section["summary"], str) or not section["summary"].strip():
+            raise ValueError(f"Section has no homepage summary: {section_id}")
         landing = section["landing"]
         if landing["route"] != section_id + "/index.md":
             raise ValueError(f"Missing section landing: {section_id}")
@@ -233,7 +242,7 @@ def canonical_pages(source: Path, *, definition: dict | None = None) -> tuple[li
     if any(path in sources for path in retired):
         raise ValueError("A retired guide still has a canonical owner")
     observed = {path.relative_to(source).as_posix() for path in source.rglob("*.md")}
-    expected = sources | set(retired) | {"index.md"}
+    expected = sources | set(retired)
     if observed != expected:
         raise ValueError(f"Documentation inventory differs from routes: "
                          f"missing={sorted(expected - observed)}, unowned={sorted(observed - expected)}")
@@ -256,6 +265,52 @@ def sidebar_links(source: Path, section: str) -> list[str]:
         else:
             raise ValueError(f"Unsupported sidebar group type: {group}")
     return links
+
+
+class HomeCards(HTMLParser):
+    """Find the actual server-rendered homepage section cards."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.depth = 0
+        self.cards: list[dict[str, str | list[str]]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        if self.depth:
+            self.depth += 1
+            if tag == "a" and values.get("href"):
+                hrefs = self.cards[-1]["hrefs"]
+                assert isinstance(hrefs, list)
+                hrefs.append(str(values["href"]))
+        elif tag == "section" and "home-section-card" in str(values.get("class", "")).split():
+            self.depth = 1
+            self.cards.append({"section": str(values.get("data-section")), "hrefs": [], "text": ""})
+
+    def handle_data(self, data: str) -> None:
+        if self.depth:
+            self.cards[-1]["text"] += data
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.depth:
+            self.depth -= 1
+
+
+def check_home_cards(source: Path, site: Path) -> None:
+    """Home's six cards must exactly mirror the six declared sections."""
+    observed = HomeCards()
+    observed.feed((site / "index.html").read_text(encoding="utf-8"))
+    model = architecture_model(source)
+    expected = []
+    for section in model["sections"]:
+        landing = "/dapp32/" + route_url(section["landing"]["route"])
+        expected.append((section["id"], [landing]))
+    actual = [(card["section"], card["hrefs"]) for card in observed.cards]
+    if actual != expected:
+        raise ValueError(f"Homepage section cards disagree with navigation inventory: {actual} != {expected}")
+    for card, section in zip(observed.cards, model["sections"]):
+        if section["label"] not in card["text"] or section["summary"] not in card["text"]:
+            raise ValueError(f"Homepage card text disagrees with section metadata: {section['id']}")
 
 
 class SidebarLinks(HTMLParser):
@@ -299,7 +354,8 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
     ):
         raise ValueError("Build artifact attempts to publish control files or viewer")
     pages, retired = canonical_pages(source)
-    for original, canonical in [("index.md", "index.md"), *pages]:
+    check_home_cards(source, site)
+    for original, canonical in pages:
         output = html_path(canonical)
         if not (site / output).is_file() or (site / output).stat().st_size < 100:
             raise ValueError(f"Missing generated page: {output}")
@@ -307,7 +363,7 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
         rendered = (site / output).read_text(encoding="utf-8")
         parser = Navigation()
         parser.feed(rendered)
-        section = canonical.split("/", 1)[0] if canonical != "index.md" else None
+        section = canonical.split("/", 1)[0] if canonical != architecture_model(source)["home"]["route"] else None
         sidebar = SidebarLinks()
         sidebar.feed(rendered)
         expected_sidebar = sidebar_links(source, section) if section else []

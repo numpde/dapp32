@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from tools.docs_site import (check, check_published, stage, canonical_pages,
-                             html_path, route_url, sidebar_links)
+                             architecture_model, html_path, route_url, sidebar_links)
 
 from .common import ROOT
 
@@ -20,11 +20,21 @@ def artifact_fixture(root: Path) -> Path:
     artifact = root / "built"
     artifact.mkdir()
     pages, retired = canonical_pages(DOCS)
-    for original, canonical in [("index.md", "index.md"), *pages]:
+    home = architecture_model(DOCS)["home"]
+    for original, canonical in pages:
         output = html_path(canonical)
         target = artifact / output
         target.parent.mkdir(parents=True, exist_ok=True)
         ids = ""
+        if canonical == home["route"]:
+            sections = architecture_model(DOCS)["sections"]
+            cards = ''.join(
+                '<section class="card home-section-card" data-section="' + section["id"] + '">'
+                '<h2><a href="/dapp32/' + route_url(section["landing"]["route"]) + '">'
+                + section["label"] + '</a></h2><p>' + section["summary"] + '</p></section>'
+                for section in sections
+            )
+            ids = '<div class="grid two">' + cards + '</div>'
         if output == Path("gallery/index.html"):
             catalog = json.loads((DOCS / "public/gallery/deployments.json").read_text(encoding="utf-8"))
             apps = {item["appId"]: item["name"] for item in catalog["deployments"]}
@@ -38,7 +48,7 @@ def artifact_fixture(root: Path) -> Path:
         if output == Path("deploy/networks/index.html"):
             ids = ''.join(f'<div id="{name}"></div>'
                           for name in ("load-status", "reference", "networks", "network-jump"))
-        section = canonical.split("/", 1)[0] if canonical != "index.md" else None
+        section = canonical.split("/", 1)[0] if canonical != home["route"] else None
         active_nav = ('<a class="VPNavBarMenuLink active" href="/dapp32/' + section + '/">Section</a>'
                       if section else '')
         breadcrumb = ('<nav aria-label="Breadcrumb"><a href="/dapp32/">Home</a></nav>'
@@ -171,6 +181,40 @@ class DocsPublishedTests(unittest.TestCase):
                 '<a href="/dapp32/use/pay-to-play/">Page</a>', ''))
             with self.assertRaisesRegex(ValueError, "Sidebar contains"):
                 check(DOCS, site, published=False)
+
+    def test_home_directory_matches_all_six_section_definitions(self) -> None:
+        sections = architecture_model(DOCS)["sections"]
+        with tempfile.TemporaryDirectory() as directory:
+            site = artifact_fixture(Path(directory))
+            html = (site / "index.html").read_text(encoding="utf-8")
+            self.assertEqual(6, html.count('class="card home-section-card"'))
+            for section in sections:
+                self.assertIn('data-section="' + section["id"] + '"', html)
+                self.assertIn('href="/dapp32/' + route_url(section["landing"]["route"]) + '"', html)
+            check(DOCS, site, published=False)
+
+    def test_home_directory_rejects_missing_duplicate_and_unowned_cards(self) -> None:
+        sections = architecture_model(DOCS)["sections"]
+        for name, change in (
+            ("missing",
+             lambda html: html.replace('data-section="gallery"', 'data-section="missing"')),
+            ("duplicate",
+             lambda html: html.replace('data-section="gallery"', 'data-section="start"')),
+            ("wrong destination",
+             lambda html: html.replace('href="/dapp32/gallery/"', 'href="/dapp32/use/"')),
+            ("wrong label",
+             lambda html: html.replace('>' + sections[0]["label"] + '</a>', '>Wrong section</a>')),
+            ("wrong summary",
+             lambda html: html.replace(sections[0]["summary"], "Mismatched section description")),
+        ):
+            with self.subTest(change=name), tempfile.TemporaryDirectory() as directory:
+                site = artifact_fixture(Path(directory))
+                home = site / "index.html"
+                altered = change(home.read_text(encoding="utf-8"))
+                self.assertNotEqual(altered, home.read_text(encoding="utf-8"))
+                home.write_text(altered, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "Homepage"):
+                    check(DOCS, site, published=False)
 
     def test_internal_links_and_anchors_are_validated(self) -> None:
         for href, error in (

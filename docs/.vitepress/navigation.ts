@@ -7,18 +7,26 @@ export type Page = { source: string; route: string; text: string }
 type PagesGroup = { kind: 'pages'; title: string; parent?: string; collapsed?: boolean; pages: Page[] }
 type CatalogGroup = { kind: 'catalog'; title: string; catalog: string; anchor: string }
 type Group = PagesGroup | CatalogGroup
-type Section = { id: string; label: string; landing: Page; groups: Group[] }
+type Section = { id: string; label: string; summary: string; landing: Page; groups: Group[] }
 type Crumb = { text: string; href?: string }
 const sections = architecture.sections as Section[]
+export const homePage = architecture.home as Page
 
 export function pageLink(route: string): string {
   return route.endsWith('/index.md')
     ? '/' + route.slice(0, -'index.md'.length)
     : '/' + route.replace(/\.md$/, '.html')
 }
-export const pages = sections.flatMap(section => [
+export const pages = [homePage, ...sections.flatMap(section => [
   section.landing, ...section.groups.flatMap(group => group.kind === 'pages' ? group.pages : []),
-])
+])]
+export const homeHref = pageLink(homePage.route)
+export const homeSections = sections.map(section => ({
+  id: section.id,
+  label: section.label,
+  summary: section.summary,
+  href: pageLink(section.landing.route),
+}))
 
 function catalogItems(section: Section, group: CatalogGroup) {
   if (section.id !== 'gallery' || group.catalog !== 'gallery/deployments.json'
@@ -70,7 +78,7 @@ export const sidebar = Object.fromEntries(sections.map(section => [
 // Root links are the top navigation's job; they are not repeated as children.
 // Breadcrumb parents must be real authored pages, never a category title.
 export function breadcrumbsFor(relativePath: string): Crumb[] {
-  if (relativePath === 'index.md') return []
+  if ([homePage.source, homePage.route].includes(relativePath)) return []
   for (const section of sections) {
     if ([section.landing.source, section.landing.route].includes(relativePath)) return []
     for (const group of section.groups) {
@@ -78,7 +86,7 @@ export function breadcrumbsFor(relativePath: string): Crumb[] {
       const current = group.pages.find(page => page.source === relativePath || page.route === relativePath)
       if (!current) continue
       const trail: Crumb[] = [
-        { text: 'Home', href: '/' },
+        { text: homePage.text, href: homeHref },
         { text: section.label, href: pageLink(section.landing.route) },
       ]
       if (group.parent && group.parent !== section.landing.source && group.parent !== current.source) {

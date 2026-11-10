@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "sections": [
     {
       "id": "start",
@@ -37,7 +37,8 @@
         "source": "start/index.md",
         "route": "start/index.md",
         "text": "How it works"
-      }
+      },
+      "summary": "How the viewer, workflows and contracts fit together, plus a local wallet tutorial."
     },
     {
       "id": "gallery",
@@ -54,7 +55,8 @@
         "source": "gallery/index.md",
         "route": "gallery/index.md",
         "text": "Browse deployments"
-      }
+      },
+      "summary": "Browse published testnet applications, select a release and open it in the viewer."
     },
     {
       "id": "use",
@@ -121,7 +123,8 @@
         "source": "use/index.md",
         "route": "use/index.md",
         "text": "Choose an app or host"
-      }
+      },
+      "summary": "Open an existing app and follow its Pay-to-Play, Escrow or Bike NFT workflow."
     },
     {
       "id": "build",
@@ -176,7 +179,8 @@
         "source": "authoring/index.md",
         "route": "build/index.md",
         "text": "Edit a workflow"
-      }
+      },
+      "summary": "Author workflows, integrate services and validate changes in a source checkout."
     },
     {
       "id": "deploy",
@@ -267,7 +271,8 @@
         "source": "deployment/index.md",
         "route": "deploy/index.md",
         "text": "Choose a deployment task"
-      }
+      },
+      "summary": "Deploy contracts, publish updates, host the viewer and recover interrupted releases."
     },
     {
       "id": "reference",
@@ -316,10 +321,16 @@
         "source": "reference/index.md",
         "route": "reference/index.md",
         "text": "Reference index"
-      }
+      },
+      "summary": "Find the precise CAM protocol rules, operational records and diagnostics."
     }
   ],
   "retired": {
     "deployment/manual.md": "deploy/"
+  },
+  "home": {
+    "source": "index.md",
+    "route": "index.md",
+    "text": "Home"
   }
 }

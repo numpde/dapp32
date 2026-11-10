@@ -16,7 +16,7 @@ DOCS = ROOT / "docs"
 def source_pages() -> tuple[str, ...]:
     # Same canonical inventory used by VitePress, redirects and the site verifier.
     pages, retired = canonical_pages(DOCS)
-    return ("index.md", *(source for source, _ in pages), *retired)
+    return (*(source for source, _ in pages), *retired)
 
 
 REFERENCE_VERSIONS = ("1.1.0", "1.2.0", "1.3.0", "1.4.0")

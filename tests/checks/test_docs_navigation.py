@@ -22,7 +22,8 @@ class DocsNavigationTests(unittest.TestCase):
 
     def test_six_sections_have_one_landing_and_only_local_sidebar_destinations(self) -> None:
         model = self.architecture
-        self.assertEqual(2, model["version"])
+        self.assertEqual(3, model["version"])
+        self.assertEqual({"source": "index.md", "route": "index.md", "text": "Home"}, model["home"])
         self.assertEqual(
             ["start", "gallery", "use", "build", "deploy", "reference"],
             [section["id"] for section in model["sections"]],
@@ -37,6 +38,8 @@ class DocsNavigationTests(unittest.TestCase):
                      for page in group.get("pages", [])],
                 )
                 self.assertTrue(section["groups"])
+                self.assertIsInstance(section["summary"], str)
+                self.assertTrue(section["summary"].strip())
                 for link in sidebar_links(DOCS, section_id):
                     self.assertTrue(link.startswith("/dapp32/" + section_id + "/"), link)
                 for group in section["groups"]:
@@ -54,7 +57,7 @@ class DocsNavigationTests(unittest.TestCase):
         self.assertEqual(len(pages), len({route for _, route in pages}))
         self.assertEqual(
             {path.relative_to(DOCS).as_posix() for path in DOCS.rglob("*.md")},
-            {"index.md"} | {source for source, _ in pages} | set(retired),
+            {source for source, _ in pages} | set(retired),
         )
 
     def test_gallery_collection_has_no_handwritten_sidebar_links(self) -> None:
@@ -75,6 +78,13 @@ class DocsNavigationTests(unittest.TestCase):
 
     def test_catalog_and_sidebar_ownership_violations_fail_closed(self) -> None:
         for name, change, error in (
+            ("missing home", lambda m: m.pop("home"), "architecture schema version 3"),
+            ("wrong home route", lambda m: m["home"].update(route="start/index.md"),
+             "Site root must declare"),
+            ("home duplicates a section", lambda m: m["home"].update(
+                source="start/index.md", route="index.md"), "Site root must declare"),
+            ("missing homepage summary", lambda m: m["sections"][0].pop("summary"),
+             "Section must have"),
             ("cross-section page",
              lambda m: m["sections"][0]["groups"][0]["pages"][0].update(route="use/wrong.md"),
              "Duplicate or misplaced"),
@@ -125,10 +135,11 @@ class DocsNavigationTests(unittest.TestCase):
         aliases = {html_path(source) for source, target in pages if source != target}
         aliases |= {html_path(source) for source in retired}
         self.assertFalse(canonical & aliases)
-        self.assertEqual(1 + len(pages), len(canonical | {Path("index.html")}))
+        self.assertEqual(len(pages), len(canonical))
+        self.assertIn(Path("index.html"), canonical)
         self.assertTrue(all(route_url(page).startswith(("start/", "gallery/", "use/",
                                                          "build/", "deploy/", "reference/"))
-                            for _, page in pages))
+                            for _, page in pages if page != self.architecture["home"]["route"]))
 
     def test_all_ui_surfaces_use_one_navigation_projection(self) -> None:
         config = (DOCS / ".vitepress/config.mts").read_text(encoding="utf-8")
@@ -144,13 +155,26 @@ class DocsNavigationTests(unittest.TestCase):
         self.assertIn("import architecture from './architecture.json'", navigation)
         self.assertIn("import deploymentCatalog from '../public/gallery/deployments.json'", navigation)
         self.assertIn("section.landing", navigation)
+        self.assertIn("export const homePage = architecture.home", navigation)
+        self.assertIn("export const homeSections = sections.map(", navigation)
+        self.assertIn("homePage, ...sections.flatMap(", navigation)
+        self.assertIn("{ text: homePage.text, href: homeHref }", navigation)
         self.assertIn("group.kind === 'catalog'", navigation)
         self.assertIn("export function breadcrumbsFor(", navigation)
         self.assertIn("import { breadcrumbsFor } from '../navigation'", breadcrumbs)
         self.assertNotIn("architecture.json", breadcrumbs)
         self.assertIn("section.landing", prepare)
+        self.assertIn("ownPage(home, null)", prepare)
+        self.assertIn("const pages = [home, ...sections.flatMap(", prepare)
         self.assertIn("architecture.json", prepare)
         self.assertIn("prepare-navigation.mjs /work/js/docs", compose)
+        homepage = (DOCS / "index.md").read_text(encoding="utf-8")
+        component = (DOCS / ".vitepress/theme/HomeSections.vue").read_text(encoding="utf-8")
+        self.assertIn("import HomeSections from './.vitepress/theme/HomeSections.vue'", homepage)
+        self.assertIn("<HomeSections />", homepage)
+        self.assertNotIn('<div class="grid two">', homepage)
+        self.assertIn("homeSections } from '../navigation'", component)
+        self.assertIn("v-for=\"section in homeSections\"", component)
         self.assertIn("Related tasks:", gallery)
         for destination in ("../use/", "../examples/", "../deployment/networks/"):
             self.assertIn(destination, gallery)
