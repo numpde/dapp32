@@ -14,6 +14,8 @@ on:
       - Makefile
       - tools/make/docs.mk
       - tools/docs_site.py
+      - tools/pages_integrity.py
+      - tests/checks/test_pages_integrity.py
       - 'tests/checks/test_docs_*.py'
   pull_request:
     paths:
@@ -25,6 +27,8 @@ on:
       - Makefile
       - tools/make/docs.mk
       - tools/docs_site.py
+      - tools/pages_integrity.py
+      - tests/checks/test_pages_integrity.py
       - 'tests/checks/test_docs_*.py'
   workflow_dispatch:
 
@@ -93,7 +97,7 @@ jobs:
           include-hidden-files: true
 
   publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: qualify
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -101,9 +105,11 @@ jobs:
     concurrency:
       group: gh-pages-publication
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
       pages: write
+      actions: read
     steps:
       - name: Check out qualified source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -145,16 +151,14 @@ jobs:
       - name: Validate, stage and update gh-pages without touching the viewer
         id: publication
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(git -C source rev-parse HEAD)" = "$GITHUB_SHA"
 
-          # Never publish a superseded source revision.
-          current="$(git -C site ls-remote origin refs/heads/main | cut -f1)"
-          if [[ "$current" != "$GITHUB_SHA" ]]; then
-            echo "::error::A newer source revision exists; refuse stale documentation publication." >&2
-            exit 2
-          fi
+          # Do not strand a qualified build after an unrelated main commit.
+          PYTHONPATH=source python3 -B -m tools.pages_integrity current docs
           python3 -B source/tools/docs_site.py check source/docs qualified
           python3 -B source/tools/docs_site.py stage source/docs qualified site "$GITHUB_SHA" "$GITHUB_RUN_ID"
           cd site
@@ -171,13 +175,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Publish qualified docs from $GITHUB_SHA (run $GITHUB_RUN_ID)"
-          # Check again immediately before the update. git push is non-forced,
-          # and therefore refuses concurrent gh-pages publication.
-          current="$(git ls-remote origin refs/heads/main | cut -f1)"
-          if [[ "$current" != "$GITHUB_SHA" ]]; then
-            echo "::error::Source main changed during staging; refuse stale publication." >&2
-            exit 2
-          fi
+          # Recheck qualification; the non-forced push protects concurrent gh-pages updates.
+          PYTHONPATH=../source python3 -B -m tools.pages_integrity current docs
           git push origin HEAD:refs/heads/gh-pages
           echo 'changed=true' >> "$GITHUB_OUTPUT"
           echo "published_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"

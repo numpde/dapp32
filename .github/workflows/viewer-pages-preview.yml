@@ -6,7 +6,9 @@ on:
     paths:
       - .github/workflows/viewer-pages-preview.yml
       - tools/viewer_pages.py
+      - tools/pages_integrity.py
       - tests/checks/test_viewer_pages.py
+      - tests/checks/test_pages_integrity.py
       - js/apps/cam-web/**
       - js/packages/cam-*/**
       - js/package.json
@@ -21,7 +23,9 @@ on:
     paths:
       - .github/workflows/viewer-pages-preview.yml
       - tools/viewer_pages.py
+      - tools/pages_integrity.py
       - tests/checks/test_viewer_pages.py
+      - tests/checks/test_pages_integrity.py
       - js/apps/cam-web/**
   workflow_dispatch:
 
@@ -29,8 +33,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: viewer-pages-preview
-  cancel-in-progress: false
+  group: viewer-pages-preview-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   candidate:
@@ -106,9 +110,11 @@ jobs:
     concurrency:
       group: gh-pages-publication
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
       pages: write
+      actions: read
     steps:
       - name: Check out the exact qualified source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -150,24 +156,25 @@ jobs:
       - name: Stage and publish only qualified viewer application files
         id: publication
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(git -C source rev-parse HEAD)" = "$GITHUB_SHA"
-          current="$(git -C site ls-remote origin refs/heads/main | cut -f1)"
-          if [[ "$current" != "$GITHUB_SHA" ]]; then
-            echo "::error::A newer source revision exists; refuse stale viewer publication." >&2
-            exit 2
-          fi
+          PYTHONPATH=source python3 -B -m tools.pages_integrity current viewer
 
-          # Preserve viewer/deploy.html, every docs file and the root site.
-          # Replace old hashed assets rather than accumulating dead bundles.
-          entry="$(python3 -B source/tools/viewer_pages.py stage qualified site/viewer)"
+          # Viewer owns only its index, hashed assets and provenance manifest.
+          # Stage records this exact build's source/run and SHA-256 file hashes.
+          # Documentation owns deploy.html and the rest of the Pages site.
+          entry="$(python3 -B source/tools/viewer_pages.py stage qualified site/viewer "$GITHUB_SHA" "$GITHUB_RUN_ID")"
           echo "entry_js=$entry" >> "$GITHUB_OUTPUT"
           cd site
-          git add -A -- viewer/index.html viewer/assets
+          # The accompanying provenance manifest is published atomically with
+          # the viewer bytes; no other Pages files may enter this commit.
+          git add -A -- viewer/index.html viewer/assets viewer/viewer-publication.json
           while IFS= read -r changed_file; do
             case "$changed_file" in
-              viewer/index.html|viewer/assets/*) ;;
+              viewer/index.html|viewer/viewer-publication.json|viewer/assets/*) ;;
               *) echo "::error::Viewer publisher attempted to change $changed_file" >&2; exit 2 ;;
             esac
           done < <(git diff --cached --name-only)
@@ -180,12 +187,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Publish qualified viewer from $GITHUB_SHA (run $GITHUB_RUN_ID)"
-          # A non-forced push also protects concurrent updates to the Pages branch.
-          current="$(git ls-remote origin refs/heads/main | cut -f1)"
-          if [[ "$current" != "$GITHUB_SHA" ]]; then
-            echo "::error::Source main changed during publication; refuse stale viewer." >&2
-            exit 2
-          fi
+          # Recheck qualification; the non-forced push protects concurrent gh-pages updates.
+          PYTHONPATH=../source python3 -B -m tools.pages_integrity current viewer
           git push origin HEAD:refs/heads/gh-pages
           echo 'changed=true' >> "$GITHUB_OUTPUT"
           echo "published_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"

@@ -91,6 +91,7 @@ def previous_site(root: Path) -> Path:
     (site / "viewer/assets").mkdir(parents=True)
     (site / "viewer/index.html").write_text("independent viewer")
     (site / "viewer/assets/entry.js").write_text("independent viewer assets")
+    (site / "viewer/viewer-publication.json").write_text('{"schema":"viewer-publication/v1"}')
     (site / "viewer/deploy.html").write_text("old hosting guide")
     (site / "gallery").mkdir()
     (site / "gallery/index.html").write_text("old gallery")
@@ -113,12 +114,14 @@ class DocsPublishedTests(unittest.TestCase):
             site = previous_site(root)
             original_viewer = (site / "viewer/index.html").read_bytes()
             original_asset = (site / "viewer/assets/entry.js").read_bytes()
+            original_provenance = (site / "viewer/viewer-publication.json").read_bytes()
 
             stage(DOCS, built, site, "a" * 40, "1234")
             check_published(DOCS, site)
 
             self.assertEqual(original_viewer, (site / "viewer/index.html").read_bytes())
             self.assertEqual(original_asset, (site / "viewer/assets/entry.js").read_bytes())
+            self.assertEqual(original_provenance, (site / "viewer/viewer-publication.json").read_bytes())
             self.assertFalse((site / "site.css").exists())
             self.assertFalse((site / "check_pages.py").exists())
             self.assertFalse((site / ".github/workflows/pages-navigation.yml").exists())
@@ -129,6 +132,7 @@ class DocsPublishedTests(unittest.TestCase):
             self.assertEqual(1234, manifest["qualified_run_id"])
             self.assertEqual("a" * 40, manifest["source_sha"])
             self.assertNotIn("viewer/index.html", manifest["files"])
+            self.assertNotIn("viewer/viewer-publication.json", manifest["files"])
 
     def test_staging_never_modifies_pages_workflow_definitions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

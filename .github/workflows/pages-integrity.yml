@@ -1,0 +1,113 @@
+name: Published Pages integrity
+
+on:
+  workflow_run:
+    workflows:
+      - Documentation qualification and automatic publication
+      - Viewer qualification and automatic Pages publication
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/pages-integrity.yml
+      - tools/pages_integrity.py
+      - tools/viewer_pages.py
+      - tools/docs_site.py
+      - tests/checks/test_pages_integrity.py
+      - tests/checks/test_viewer_pages.py
+      - tests/checks/test_docs_site.py
+
+# Independent, read-only observation. This workflow never repairs or publishes.
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  unit:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check publisher provenance and read-only audit contracts
+        run: python3 -B -m unittest discover -v -s tests/checks -t . -p 'test_*pages*.py'
+
+  verify:
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Choose the completed publisher, or both for scheduled audits
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISHER: ${{ github.event.workflow_run.name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == workflow_run ]]; then
+            case "$PUBLISHER" in
+              'Documentation qualification and automatic publication') component=docs ;;
+              'Viewer qualification and automatic Pages publication') component=viewer ;;
+              *) echo "::error::Unexpected publisher: $PUBLISHER" >&2; exit 2 ;;
+            esac
+          else
+            component=all
+          fi
+          printf 'component=%s\n' "$component" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the read-only verifier from main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          path: source
+          persist-credentials: false
+
+      - name: Check out the published snapshot
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: gh-pages
+          path: site
+          persist-credentials: false
+
+      - name: Identify the documentation source recorded by its publisher
+        if: steps.scope.outputs.component != 'viewer'
+        id: docs-revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          manifest = json.loads(Path('site/docs-publication.json').read_text(encoding='utf-8'))
+          revision = manifest['source_sha']
+          if not isinstance(revision, str) or re.fullmatch(r'[0-9a-f]{40}', revision) is None:
+              raise SystemExit('Invalid published documentation source revision')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as stream:
+              stream.write(f'sha={revision}\n')
+          PY
+
+      - name: Check out the exact documentation source for structural checks
+        if: steps.scope.outputs.component != 'viewer'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ steps.docs-revision.outputs.sha }}
+          path: docs-source
+          persist-credentials: false
+
+      - name: Verify provenance, qualification freshness and every published HTTPS hash
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPONENT: ${{ steps.scope.outputs.component }}
+        run: |
+          set -euo pipefail
+          cd source
+          python3 -B -m tools.pages_integrity "$COMPONENT" ../site ../docs-source/docs
