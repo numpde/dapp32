@@ -25,10 +25,6 @@ permissions:
   contents: read
   actions: read
 
-concurrency:
-  group: published-pages-integrity
-  cancel-in-progress: true
-
 jobs:
   unit:
     if: github.event_name == 'pull_request'

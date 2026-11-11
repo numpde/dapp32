@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 from tools import pages_integrity
 
+from .common import ROOT
+
 
 REPOSITORY = "numpde/dapp32"
 WORKFLOW = "Viewer qualification and automatic Pages publication"
@@ -46,6 +48,10 @@ def api_with_runs(new_job: str):
 
 
 class PublicationIntegrityTest(unittest.TestCase):
+    def test_independent_publisher_audits_are_never_canceled_by_another_audit(self) -> None:
+        workflow = (ROOT / ".github/workflows/pages-integrity.yml").read_text(encoding="utf-8")
+        self.assertNotIn("\nconcurrency:\n", workflow)
+
     def test_fails_when_newer_candidate_qualified_but_its_publication_is_pending(self) -> None:
         # Success of the whole workflow would miss a qualified candidate whose
         # publication step failed; the independent check must detect the lag.
