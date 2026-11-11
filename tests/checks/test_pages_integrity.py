@@ -32,7 +32,7 @@ def recorded_manifest() -> dict:
             "qualified_run_id": 101, "files": {"index.html": "0" * 64}}
 
 
-def api_with_runs(new_job: str, *, current_status: str = "completed"):
+def api_with_runs(new_job: str, *, current_status: str):
     records = [run(102, NEW_SHA, status="completed"), run(101, OLD_SHA, status=current_status)]
     def read(path: str) -> dict:
         if "/runs?" in path:
@@ -62,7 +62,7 @@ class PublicationIntegrityTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "qualification superseded"):
             pages_integrity.check_current_qualification(
-                "viewer", OLD_SHA, 101, api_with_runs("success")
+                "viewer", OLD_SHA, 101, api_with_runs("success", current_status="completed")
             )
 
     def test_independent_publisher_audits_are_never_canceled_by_another_audit(self) -> None:
@@ -74,14 +74,14 @@ class PublicationIntegrityTest(unittest.TestCase):
         # publication step failed; the independent check must detect the lag.
         with self.assertRaisesRegex(ValueError, f"latest qualified={NEW_SHA}"):
             pages_integrity.check_freshness("viewer", recorded_manifest(), REPOSITORY,
-                                            api_with_runs("success"))
+                                            api_with_runs("success", current_status="completed"))
 
     def test_unqualified_newer_run_does_not_make_published_source_stale(self) -> None:
         pages_integrity.check_freshness("viewer", recorded_manifest(), REPOSITORY,
-                                        api_with_runs("failure"))
+                                        api_with_runs("failure", current_status="completed"))
 
     def test_in_progress_newer_candidate_does_not_prematurely_report_drift(self) -> None:
-        reader = api_with_runs("success")
+        reader = api_with_runs("success", current_status="completed")
         def in_progress(path: str) -> dict:
             response = reader(path)
             if "/runs?" in path:
@@ -95,7 +95,7 @@ class PublicationIntegrityTest(unittest.TestCase):
         manifest["source_sha"] = NEW_SHA
         with self.assertRaisesRegex(ValueError, "recorded run 101 did not qualify"):
             pages_integrity.check_freshness("viewer", manifest, REPOSITORY,
-                                            api_with_runs("success"))
+                                            api_with_runs("success", current_status="completed"))
 
     def test_verifies_docs_with_existing_source_aware_checker(self) -> None:
         with TemporaryDirectory() as directory:

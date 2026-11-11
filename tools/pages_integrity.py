@@ -57,7 +57,7 @@ def qualified_job(jobs: list[dict], job_name: str) -> bool:
 
 
 def latest_qualified_source(component: str, get_json: Callable[[str], dict],
-                            *, completed_only: bool = True) -> dict:
+                            *, completed_only: bool) -> dict:
     """Find the newest successful component qualification on main.
 
     The auditor excludes in-progress runs to avoid transient drift alarms.
@@ -114,7 +114,7 @@ def check_freshness(component: str, manifest: dict, repository: str,
             or not qualified_job(jobs, job_name)):
         raise ValueError(f"{component}: recorded run {run_id} did not qualify source {manifest['source_sha']}")
 
-    latest = latest_qualified_source(component, get_json)
+    latest = latest_qualified_source(component, get_json, completed_only=True)
     if manifest["source_sha"] != latest["head_sha"]:
         raise ValueError(f"{component}: stale publication; "
                          f"published={manifest['source_sha']} (run {run_id}), "
