@@ -315,7 +315,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertIn("gh api -X POST", publisher)
         self.assertLess(publisher.index("Verify the configured Pages source"),
                         publisher.index("git push origin HEAD:refs/heads/gh-pages"))
-        self.assertIn("git ls-remote origin refs/heads/main", publisher)
+        self.assertEqual(2, publisher.count("tools.pages_integrity current docs"))
+        self.assertIn("actions: read", publisher)
         self.assertIn("pages/builds/latest", publisher)
         self.assertNotIn("gh pr create", publisher)
         self.assertNotIn('branch="docs/', publisher)
@@ -331,6 +332,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertIn("pages: write", viewer_publisher)
         self.assertIn("group: gh-pages-publication", viewer_publisher)
         self.assertIn("queue: max", viewer_publisher)
+        self.assertEqual(2, viewer_publisher.count("tools.pages_integrity current viewer"))
+        self.assertIn("actions: read", viewer_publisher)
         self.assertIn("git push origin HEAD:refs/heads/gh-pages", viewer_publisher)
         self.assertIn("pages/builds/latest", viewer_publisher)
         self.assertNotIn("gh pr create", viewer_publisher)

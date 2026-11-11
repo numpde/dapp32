@@ -32,8 +32,8 @@ def recorded_manifest() -> dict:
             "qualified_run_id": 101, "files": {"index.html": "0" * 64}}
 
 
-def api_with_runs(new_job: str):
-    records = [run(102, NEW_SHA, status="completed"), run(101, OLD_SHA, status="completed")]
+def api_with_runs(new_job: str, *, current_status: str = "completed"):
+    records = [run(102, NEW_SHA, status="completed"), run(101, OLD_SHA, status=current_status)]
     def read(path: str) -> dict:
         if "/runs?" in path:
             return {"workflow_runs": records}
@@ -48,6 +48,16 @@ def api_with_runs(new_job: str):
 
 
 class PublicationIntegrityTest(unittest.TestCase):
+    def test_publisher_uses_latest_qualified_run_not_unrelated_main_head(self) -> None:
+        # The publishing run is still in progress, but its candidate is qualified.
+        pages_integrity.check_current_qualification(
+            "viewer", OLD_SHA, 101, api_with_runs("failure", current_status="in_progress")
+        )
+        with self.assertRaisesRegex(ValueError, "qualification superseded"):
+            pages_integrity.check_current_qualification(
+                "viewer", OLD_SHA, 101, api_with_runs("success")
+            )
+
     def test_independent_publisher_audits_are_never_canceled_by_another_audit(self) -> None:
         workflow = (ROOT / ".github/workflows/pages-integrity.yml").read_text(encoding="utf-8")
         self.assertNotIn("\nconcurrency:\n", workflow)

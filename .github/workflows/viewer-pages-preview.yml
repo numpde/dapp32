@@ -110,6 +110,7 @@ jobs:
     permissions:
       contents: write
       pages: write
+      actions: read
     steps:
       - name: Check out the exact qualified source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -151,14 +152,12 @@ jobs:
       - name: Stage and publish only qualified viewer application files
         id: publication
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(git -C source rev-parse HEAD)" = "$GITHUB_SHA"
-          current="$(git -C site ls-remote origin refs/heads/main | cut -f1)"
-          if [[ "$current" != "$GITHUB_SHA" ]]; then
-            echo "::error::A newer source revision exists; refuse stale viewer publication." >&2
-            exit 2
-          fi
+          PYTHONPATH=source python3 -B -m tools.pages_integrity current viewer
 
           # Viewer owns only its index, hashed assets and provenance manifest.
           # Stage records this exact build's source/run and SHA-256 file hashes.
@@ -184,12 +183,8 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Publish qualified viewer from $GITHUB_SHA (run $GITHUB_RUN_ID)"
-          # A non-forced push also protects concurrent updates to the Pages branch.
-          current="$(git ls-remote origin refs/heads/main | cut -f1)"
-          if [[ "$current" != "$GITHUB_SHA" ]]; then
-            echo "::error::Source main changed during publication; refuse stale viewer." >&2
-            exit 2
-          fi
+          # Recheck qualification; the non-forced push protects concurrent gh-pages updates.
+          PYTHONPATH=../source python3 -B -m tools.pages_integrity current viewer
           git push origin HEAD:refs/heads/gh-pages
           echo 'changed=true' >> "$GITHUB_OUTPUT"
           echo "published_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"

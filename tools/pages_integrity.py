@@ -56,19 +56,20 @@ def qualified_job(jobs: list[dict], job_name: str) -> bool:
                for job in jobs)
 
 
-def latest_qualified_source(component: str, get_json: Callable[[str], dict]) -> dict:
-    """Find the newest finished main run that successfully built this component.
+def latest_qualified_source(component: str, get_json: Callable[[str], dict],
+                            *, completed_only: bool = True) -> dict:
+    """Find the newest successful component qualification on main.
 
-    We do not require the *publishing* job to succeed: that would hide exactly
-    the drift this auditor is meant to detect. In-progress runs are excluded
-    until publication has had an opportunity to complete.
+    The auditor excludes in-progress runs to avoid transient drift alarms.
+    A publisher includes them: its own qualification has succeeded while its
+    publication job is still running. Publication success is not required.
     """
     workflow, job_name, _ = COMPONENTS[component]
     for page in range(1, 6):
         response = get_json(f"actions/workflows/{workflow}/runs?branch=main&per_page=100&page={page}")
         runs = response["workflow_runs"]
         for run in runs:
-            if (run.get("status") != "completed"
+            if ((completed_only and run.get("status") != "completed")
                     or run.get("event") not in ("push", "workflow_dispatch")
                     or run.get("head_branch") != "main"):
                 continue
@@ -78,6 +79,20 @@ def latest_qualified_source(component: str, get_json: Callable[[str], dict]) -> 
         if len(runs) < 100:
             break
     raise ValueError(f"No successful main qualification found for {component}")
+
+
+def check_current_qualification(component: str, source_sha: str, run_id: int,
+                                get_json: Callable[[str], dict]) -> None:
+    """Reject publication when a newer successful qualification supersedes it.
+
+    A later main commit that did not trigger this component's workflow
+    does not invalidate its qualified artifact.
+    """
+    latest = latest_qualified_source(component, get_json, completed_only=False)
+    if latest["id"] != run_id or latest["head_sha"] != source_sha:
+        raise ValueError(f"{component}: qualification superseded; "
+                         f"publishing={source_sha} (run {run_id}), "
+                         f"latest={latest['head_sha']} (run {latest['id']})")
 
 
 def check_freshness(component: str, manifest: dict, repository: str,
@@ -185,6 +200,16 @@ def verify(site: Path, docs_source: Path | None, components: tuple[str, ...],
 
 
 def main() -> None:
+    if len(sys.argv) == 3 and sys.argv[1] == "current" and sys.argv[2] in COMPONENTS:
+        try:
+            repository = os.environ["GITHUB_REPOSITORY"]
+            check_current_qualification(
+                sys.argv[2], os.environ["GITHUB_SHA"], int(os.environ["GITHUB_RUN_ID"]),
+                github_reader(repository, os.environ["GH_TOKEN"]),
+            )
+        except (OSError, ValueError, KeyError) as error:
+            raise SystemExit(f"Pages qualification check failed: {error}") from error
+        return
     if len(sys.argv) != 4 or sys.argv[1] not in (*COMPONENTS, "all"):
         raise SystemExit("usage: python -m tools.pages_integrity docs|viewer|all SITE DOCS_SOURCE")
     selected = tuple(COMPONENTS) if sys.argv[1] == "all" else (sys.argv[1],)
