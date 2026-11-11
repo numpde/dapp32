@@ -271,10 +271,50 @@ the repo unchanged or update the appropriate note.
 
 ## Change Discipline
 
-- Inspect the tree first with `git status -sb`.
-- Make small, focused edits.
-- Add or update focused tests/fixtures when behavior changes.
-- Run the narrowest relevant Docker-backed check available.
+- Inspect `git status -sb`, the branch, and revision before editing; inspect
+  linked worktrees before integration or cleanup. Preserve others' staged and
+  unstaged edits.
+- Use `delegated-repo-change`: define one small slice with intended behavior,
+  owning boundary, allowed files, preserved contracts, rejection conditions,
+  and focused validation. Workers investigate and propose without editing;
+  only the coordinator edits and integrates. Deliberate throughout the change.
+- After each meaningful edit, give the actual dirty diff and slice contract to
+  a fresh independent auditor before continuing; use additional independent
+  auditors for risky boundaries. Challenge the premise and original goal,
+  including whether the change should exist. Require evidence, consequences,
+  and the smallest durable correction; adjudicate findings rather than voting.
+- Audit against repository/protocol contracts and applicable `code-beauty`,
+  `self-explanatory-code`, `anti-slop`, and focused skills for errors, comments,
+  reader-facing text, containers, or UI. For consequential refactors, use
+  `end-state-refactoring`: check the whole authority chain and realistic next
+  changes against falsifiable completion criteria, beyond individual slices.
+- Apply relevant QA/QC skills one at a time: verify findings, fix confirmed
+  issues, validate, and recheck. Revisit reviews affected by later edits;
+  repeat until a full pass finds no new actionable issues. Stay within scope.
+- Make source structure expose ownership, states, ordering, and effects. Use
+  precise names, meaningful grouping, economical expressions, and comments
+  explaining intent or constraints. Preserve evaluation order and public
+  contracts during style edits. Errors must carry useful causes and known or
+  uncertain effects to the caller, with appropriate redaction.
+- Name each promise and the evidence that proves it. Mechanical checks do not
+  establish sound design or readability; mocks, source checks, artifact tests,
+  rehearsals, and live observations prove different claims. Add or update
+  focused tests/fixtures when behavior changes; for bugs, demonstrate a
+  regression failing for the intended reason before the fix and passing
+  afterward. Use controlled events for concurrency tests.
+- Run the narrowest relevant Docker-backed check on the final files; rerun
+  affected checks after later edits. Broaden only for concrete risk. Report
+  failures, unresolved findings, and checks not run without overstating proof.
+- Commit each coherent, audited, validated slice locally without accumulating
+  adjacent work. Stage explicit paths and inspect the exact staged diff and
+  file list. Use an imperative subject and a body explaining the problem,
+  solution, and rationale; put validation results and limits in the handoff.
+- Fold corrective iterations into their owning unpublished coordinator commit;
+  preserve distinct conceptual slices and any requested regression-test/fix
+  history. Never rewrite user-owned, shared, or published history. Temporary
+  non-green slices need a named expected failure and bounded closure plan,
+  with no usable partially migrated runtime, data, or security boundary;
+  finish green. Delegation authorizes local commits, not pushes or deployments.
 - Do not modify unrelated files.
 - Do not revert others' edits unless explicitly requested.
 - Do not use destructive git commands unless explicitly requested.
