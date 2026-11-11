@@ -100,7 +100,13 @@ button:not(.timestamp-options):not(:disabled):active {
   margin-bottom: 16px;
 }
 .appearance-control { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.86rem; }
-.appearance-control select { width: auto; min-width: 7rem; }
+.appearance-switch { display: inline-grid; place-items: center; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; }
+.appearance-track { position: relative; width: 40px; height: 22px; border: 1px solid var(--control-border); border-radius: 999px; background: var(--input-bg); }
+.appearance-knob { position: absolute; top: 1px; left: 1px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--panel); color: var(--ink); }
+.appearance-switch[aria-checked="true"] .appearance-knob { transform: translateX(18px); }
+@media (prefers-reduced-motion: no-preference) {
+  .appearance-knob { transition: transform 150ms ease; }
+}
 
 .connection-form { display: grid; gap: 8px; min-width: 0; }
 .rpc-input-row { display: grid; grid-template-columns: minmax(0, 1fr) 20px; align-items: center; gap: 8px; min-width: 0; }
