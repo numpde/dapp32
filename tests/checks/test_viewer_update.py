@@ -47,6 +47,7 @@ class ViewerUpdateTest(unittest.TestCase):
         self.fail_cleanup = False
         self.fail_public = False
         self.fail_retention_tag = False
+        self.missing_updater = False
         for name, replacement in (("run", self.run_peer), ("docker", self.docker_peer),
                                   ("make", self.make_peer), ("public_revision", self.public_peer)):
             mock = patch.object(updater, name, replacement)
@@ -66,6 +67,8 @@ class ViewerUpdateTest(unittest.TestCase):
             return self.target
         if args[:2] == ("git", "show"):
             return "changed model" if self.changed_runtime and args[2].startswith(NEW) else "stable model"
+        if args[:2] == ("git", "cat-file") and self.missing_updater:
+            raise subprocess.CalledProcessError(128, args)
         return ""
 
     def docker_peer(self, *args):
@@ -131,6 +134,13 @@ class ViewerUpdateTest(unittest.TestCase):
         updater.update()
         self.assertIn(("git", "checkout", "--detach", OLD), self.calls)
         self.assertFalse(any(call[0] == "make" for call in self.calls))
+
+    def test_historical_source_cannot_remove_the_timer_entrypoint(self):
+        self.missing_updater = True
+        with self.assertRaisesRegex(ValueError, "no viewer updater"):
+            updater.update()
+        self.assertFalse(any(call[:2] == ("git", "checkout") for call in self.calls))
+        self.assertEqual(OLD_ID, self.container["Image"])
 
     def test_dirty_source_and_runtime_migrations_stop_before_build(self):
         for dirty, changed, message in ((" M source", False, "local source"), ("", True, "migrate runtime")):

@@ -215,6 +215,12 @@ def update() -> None:
     target = run("git", "rev-parse", "--verify", "FETCH_HEAD^{commit}")
     if not REVISION.fullmatch(target):
         raise ValueError("Fetched deployment branch did not resolve to one exact source revision")
+    # Historical viewer releases predate this entrypoint. Checking them out
+    # would remove the controller that the next timer attempt needs to run.
+    try:
+        run("git", "cat-file", "-e", target + ":tools/viewer_update.py")
+    except subprocess.CalledProcessError as error:
+        raise ValueError("Selected revision has no viewer updater; keep deploy/viewer on updater-capable source or migrate manually") from error
     container = live_viewer(project)
     bindings = container["HostConfig"]["PortBindings"].get("8080/tcp")
     if bindings != [{"HostIp": os.environ["VIEWER_BIND_HOST"], "HostPort": os.environ["VIEWER_PORT"]}]:
