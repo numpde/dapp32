@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Export one viewer image; retire the disposable compiler project and image.
 set -euo pipefail
 
 image=${1:?Pass the local viewer image name}
@@ -29,7 +30,7 @@ compose=(docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}"
 cleanup() {
   local status=$?
   trap - EXIT
-  if ! timeout -k 15s 60s bash "$repo_root/tools/compose_cleanup.sh" "$project" -- "${compose[@]}"; then
+  if ! timeout -k 15s 60s bash "$repo_root/tools/compose_cleanup.sh" "$project" --rmi local -- "${compose[@]}"; then
     printf 'Viewer build cleanup failed for project %s; temporary files retained at %s.\n' "$project" "$work_dir" >&2
     if (( status == 0 )); then status=1; fi
     exit "$status"
@@ -47,5 +48,8 @@ timeout 180s "${compose[@]}" run --no-deps --pull never --name "$project-builder
 # Docker copies as the invoking host user, independent of rootless UID mapping.
 docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" cp "$project-builder:/out/site" "$work_dir/site"
 cp "$repo_root/containers/viewer/"{Dockerfile,nginx.conf,.dockerignore} "$work_dir/"
-timeout 120s docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" build --network=none --pull=false --tag "$image" "$work_dir"
+timeout 120s docker --host "${CAM_DOCKER_ENDPOINT:?Docker context was not selected}" build --network=none --pull=false \
+  --build-arg "VIEWER_REVISION=$VITE_CAM_WEB_BUILD_REVISION" \
+  --build-arg "VIEWER_PROJECT=${VIEWER_COMPOSE_PROJECT_NAME:?Set the viewer project}" \
+  --build-arg "VIEWER_MODIFIED=$VITE_CAM_WEB_BUILD_MODIFIED" --tag "$image" "$work_dir"
 printf 'Built local viewer image %s. No image was published.\n' "$image"

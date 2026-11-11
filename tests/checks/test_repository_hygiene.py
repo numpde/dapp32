@@ -42,8 +42,6 @@ ALLOWED_FORBIDDEN_NAME_IDENTIFIERS = {
     repo_path("Makefile"): ("dapp" + "32-viewer:local",),
     repo_path("README.md"): ("`dapp" + "32-viewer:local`",),
     repo_path("tests/checks/silent_defaults/test_ops.py"): ("dapp" + "32-viewer:local",),
-    repo_path("tests/checks/test_toolchain_versions.py"): ("dapp" + "32-viewer-builder:local",),
-    repo_path("compose/viewer-image.yml"): ("dapp" + "32-viewer-builder:local",),
     repo_path("containers/viewer/Dockerfile"): ("https://github.com/numpde/dapp" + "32",),
     # Existing Docker images are identified by this label at build and reuse time.
     repo_path("tools/release_tool_images.sh"): (

@@ -338,6 +338,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         }
         config = rendered_compose_config("compose/viewer-image.yml", env=metadata)
         builder = config["services"]["viewer-build"]
+        self.assertNotIn("image", builder, "the disposable compiler uses a project-owned image")
         for name, value in metadata.items():
             self.assertEqual(value, builder["environment"][name], "the compiled viewer receives its build identity")
         self.assertEqual("none", builder["network_mode"])

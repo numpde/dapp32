@@ -42,14 +42,6 @@ class ToolchainVersionTest(unittest.TestCase):
                 if not self.is_pinned_image_reference(image):
                     failures.append(f"{path}:{line_number}: Dockerfile FROM image must be tag-and-digest pinned: {image}")
             for line_number, image in self.compose_images(text):
-                # These two images are local artifacts, not registry inputs.
-                # Their bases remain subject to the Dockerfile pin checks.
-                if path == repo_path("compose/viewer-image.yml") and image == "dapp32-viewer-builder:local":
-                    builder = rendered_compose_config("compose/viewer-image.yml")["services"]["viewer-build"]
-                    self.assertEqual(str(repo_path("containers/node-deps")), builder["build"]["context"])
-                    self.assertEqual("none", builder["build"]["network"])
-                    self.assertEqual("none", builder["network_mode"])
-                    continue
                 if path == repo_path("compose/docs.yml") and image == "dapp32-docs-builder:${DOCS_IMAGE_TAG:?missing_DOCS_IMAGE_TAG}":
                     # A local build image is not a remote tag. Every consumer
                     # uses the same per-operation image with pulls forbidden.

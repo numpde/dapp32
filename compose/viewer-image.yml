@@ -1,7 +1,6 @@
 # Compile the checkout offline; only the project-owned output volume is writable.
 services:
   viewer-build:
-    image: dapp32-viewer-builder:local
     extends:
       file: fragments/node-workspace.yml
       service: offline-node-workspace
