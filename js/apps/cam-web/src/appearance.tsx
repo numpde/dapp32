@@ -31,15 +31,12 @@ export function AppearanceControl(): ReactElement {
     } catch { /* The choice still applies to this page. */ }
   }
 
-  return <div className="appearance-control">
-    <span>Appearance</span>
-    <button type="button" role="switch" className="appearance-switch"
-      aria-label="Dark appearance" aria-checked={dark}
-      title={dark ? "Switch to light appearance" : "Switch to dark appearance"}
-      onClick={() => selectAppearance(dark ? "light" : "dark")}>
-      <span className="appearance-track" aria-hidden="true">
-        <span className="appearance-knob"><Icon name={dark ? "moon" : "sun"} /></span>
-      </span>
-    </button>
-  </div>
+  return <button type="button" role="switch" className="appearance-switch"
+    aria-label="Dark appearance" aria-checked={dark}
+    title={dark ? "Switch to light appearance" : "Switch to dark appearance"}
+    onClick={() => selectAppearance(dark ? "light" : "dark")}>
+    <span className="appearance-track" aria-hidden="true">
+      <span className="appearance-knob"><Icon name={dark ? "moon" : "sun"} /></span>
+    </span>
+  </button>
 }
