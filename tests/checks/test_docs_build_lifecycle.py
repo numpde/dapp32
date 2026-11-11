@@ -322,6 +322,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
         self.assertFalse((ROOT / ".github/workflows/docs-publish.yml").exists())
 
         viewer = (ROOT / ".github/workflows/viewer-pages-preview.yml").read_text(encoding="utf-8")
+        self.assertIn("group: viewer-pages-preview-${{ github.ref }}", viewer)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", viewer)
         viewer_publisher = viewer.split("  publish:\n", 1)[1]
         self.assertIn("github.event_name == 'push'", viewer_publisher)
         self.assertIn("github.ref == 'refs/heads/main'", viewer_publisher)

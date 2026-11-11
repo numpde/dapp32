@@ -29,8 +29,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: viewer-pages-preview
-  cancel-in-progress: false
+  group: viewer-pages-preview-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   candidate:
