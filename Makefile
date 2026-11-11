@@ -3,6 +3,8 @@ override define reject_external_make_expression
 $(and $(filter command line environment environment override,$(origin $(1))),$(findstring $$,$(value $(1))),$(error $(1) must not contain Make expression syntax))
 endef
 $(call reject_external_make_expression,VIEWER_PUBLIC_ORIGIN)
+$(call reject_external_make_expression,VIEWER_BIND_HOST)
+$(call reject_external_make_expression,VIEWER_PORT)
 override COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME VIEWER_COMPOSE_PROJECT_NAME RELEASE_VIEWER_COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
 $(foreach name,LOCAL_UID LOCAL_GID ALLOW_UPDATE DOCS_OUTPUT_DIR DOCKERFILES $(COMPOSE_PROJECT_NAME_VARS) ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN CAM_URI CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS VIEWER_TERMINAL_MOCK,$(call reject_external_make_expression,$(name)))
 
@@ -113,7 +115,12 @@ unexport $(filter BASH_FUNC_%,$(.VARIABLES))
 ifneq ($(filter-out default undefined,$(origin MAKECMDGOALS)),)
 $(error MAKECMDGOALS is reserved for Make's own goal list)
 endif
-ifneq ($(filter-out help release/rpc/list,$(MAKECMDGOALS)),)
+# User-unit management needs filesystem/systemd access, not an engine probe.
+# A mixed invocation still selects Docker for any other requested lane.
+override VIEWER_UPDATE_UNIT_TARGETS := viewer/update/unit-files/create \
+  viewer/update/timer/enable-and-start viewer/update/timer/disable-and-stop \
+  viewer/update/timer/status viewer/update/service/logs/recent
+ifneq ($(filter-out help release/rpc/list $(VIEWER_UPDATE_UNIT_TARGETS),$(MAKECMDGOALS)),)
 ifneq ($(filter command line,$(origin DOCKER_HOST) $(origin DOCKER_TLS) $(origin DOCKER_TLS_VERIFY) $(origin DOCKER_CERT_PATH) $(origin DOCKER_COMPOSE) $(origin BUILDX_BUILDER) $(origin BUILDX_CONFIG) $(origin COMPOSE_BAKE)),)
 $(error Select the Docker engine with DOCKER_CONTEXT=<local-context>, not Docker endpoint or command overrides)
 endif
@@ -1007,7 +1014,7 @@ help:
 	  '    and REFUND_STATE_DIR: an existing directory outside the repo, owned by you, with mode 0700.' \
 	  '    Keep that directory for safe retries. Configuration examples: js/tools/pay-to-play-refunds/README.md.' \
 	  '' \
-	  'Run the static viewer from this host checkout (no release or publishing):' \
+	  'Build, run and automatically update the stand-alone viewer:' \
 	  '  make viewer/image/build         Build dapp32-viewer:local offline from the current checkout.' \
 	  '    Requires installed locked dependencies (make js/deps/install) and locally available pinned base images.' \
 	  '    The footer records the source revision and UTC build time; modified checkouts are labelled.' \
@@ -1016,6 +1023,15 @@ help:
 	  '  make viewer/update              Fetch deploy/viewer; build, replace, verify and clean this viewer if needed.' \
 	  '    Requires a clean deployment checkout, an existing labeled viewer, XDG_RUNTIME_DIR and VIEWER_PUBLIC_ORIGIN=https://host.' \
 	  '    Serializes attempts; keeps one rollback image; runtime Compose changes need manual migration.' \
+	  '  make viewer/update/unit-files/create       Create configured user service/timer files; refuse existing files; reload systemd without activation.' \
+	  '    Requires explicit DOCKER_CONTEXT, VIEWER_COMPOSE_PROJECT_NAME, VIEWER_BIND_HOST, VIEWER_PORT and VIEWER_PUBLIC_ORIGIN.' \
+	  '    Uses this checkout as the service working directory and XDG_CONFIG_HOME/systemd/user (normally ~/.config/systemd/user).' \
+	  '  make viewer/update/timer/enable-and-start  Enable future user-manager activation, then start the timer; a due update may run immediately.' \
+	  '  make viewer/update/timer/disable-and-stop  Disable automatic activation, then stop the timer; an update already running continues.' \
+	  '  make viewer/update/timer/status            Show timer state/scheduling and the last update-service result.' \
+	  '  make viewer/update/service/logs/recent     Print the update service last 100 journal entries and exit without following.' \
+	  '    Management recipes do not select a Docker engine; the update service uses its configured context.' \
+	  '    After logout/reboot, unattended updates require lingering and an available engine.' \
 	  '  make viewer/down                Stop this viewer; does not touch chains or development viewers.' \
 	  '  make viewer/browser/check       Check shared UI, NFT previews and connections in an owned browser tab.' \
 	  '    Requires CDP_ORIGIN and VIEWER_URL from a running local GUI demo with its default download scope.' \
@@ -1729,6 +1745,25 @@ docs/build:
 	$(docs_build_impl)
 
 .PHONY: viewer/image/build viewer/up viewer/down viewer/status viewer/update
+.PHONY: viewer/update/unit-files/create viewer/update/timer/enable-and-start viewer/update/timer/disable-and-stop viewer/update/timer/status viewer/update/service/logs/recent
+viewer/update/unit-files/create:
+	$(foreach name,DOCKER_CONTEXT VIEWER_COMPOSE_PROJECT_NAME VIEWER_BIND_HOST VIEWER_PORT VIEWER_PUBLIC_ORIGIN,$(and $(filter-out command line environment override,$(origin $(name))),$(error $(name) must be supplied explicitly for viewer/update/unit-files/create)))
+	@python3 -I -B tools/viewer_unit_files.py $(call docker_shell_quote,$(DOCKER_CONTEXT_INPUT))
+
+viewer/update/timer/enable-and-start:
+	@systemctl --user enable --now cam-viewer-update.timer
+
+viewer/update/timer/disable-and-stop:
+	@systemctl --user disable --now cam-viewer-update.timer
+
+viewer/update/timer/status:
+	@systemctl --user show cam-viewer-update.timer -p Id -p LoadState -p UnitFileState -p ActiveState
+	@systemctl --user list-timers --all --no-pager cam-viewer-update.timer
+	@systemctl --user show cam-viewer-update.service -p Id -p LoadState -p ActiveState -p Result -p ExecMainStatus
+
+viewer/update/service/logs/recent:
+	@journalctl --user -u cam-viewer-update.service -n 100 --no-pager
+
 viewer/update:
 	@$(LANE_GUARD); \
 	flock -n --verbose "$${XDG_RUNTIME_DIR:?Set XDG_RUNTIME_DIR to the user runtime directory}/cam-viewer-update.lock" \
