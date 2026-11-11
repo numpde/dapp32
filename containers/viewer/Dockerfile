@@ -11,9 +11,13 @@ LABEL org.opencontainers.image.source="https://github.com/numpde/dapp32" \
       com.cam.viewer.project="${VIEWER_PROJECT}" \
       com.cam.role="viewer"
 
-COPY nginx.conf /etc/nginx/nginx.conf
-COPY site/ /srv/viewer/
+# Build staging may use a restrictive host umask. Publication modes belong to
+# the image so its non-root runtime can always read configuration and assets.
+COPY --chmod=0644 nginx.conf /etc/nginx/nginx.conf
+COPY --chmod=u=rwX,go=rX site/ /srv/viewer/
 USER 101:101
+# Fail during the offline build if this user cannot load the packaged config.
+RUN ["nginx", "-t"]
 EXPOSE 8080
 ENTRYPOINT ["nginx"]
 CMD ["-g", "daemon off;"]

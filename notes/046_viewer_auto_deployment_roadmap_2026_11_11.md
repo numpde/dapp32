@@ -25,7 +25,12 @@ dependency on the separate auto-cleanup daemon.
 The following records the delivered slices and their acceptance criteria.
 Failure paths have focused offline regressions; successful build, replacement,
 public-revision observation, helper cleanup and scheduled no-op behavior were
-also observed on the server. No failure was deliberately injected into production.
+also observed on the server. An unintended scheduled activation failure also
+exercised automatic rollback: a restrictive service umask made the staged nginx
+configuration unreadable by the runtime user. The service now preserves source
+readability; native Docker COPY modes own published resource permissions, and
+nginx checks its packaged configuration as the runtime user during image build.
+No failure was deliberately injected into production.
 
 ## 1. Make creating commands clean up their own obsolete resources
 
