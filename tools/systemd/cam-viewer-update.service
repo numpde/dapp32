@@ -1,0 +1,14 @@
+# Production operator configuration for dapp32@agentic; no release state files.
+[Unit]
+Description=Update the dapp32 viewer from deploy/viewer
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/deploy/dapp32
+ExecStart=/usr/bin/make --no-print-directory viewer/update DOCKER_CONTEXT=rootless VIEWER_COMPOSE_PROJECT_NAME=dapps-viewer VIEWER_BIND_HOST=172.30.80.1 VIEWER_PORT=18080 VIEWER_PUBLIC_ORIGIN=https://app.dapp32.com
+TimeoutStartSec=25min
+TimeoutStopSec=240s
+UMask=0077
+StandardOutput=journal
+StandardError=journal

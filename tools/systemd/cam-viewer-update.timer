@@ -1,0 +1,10 @@
+[Unit]
+Description=Poll the viewer deployment branch
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=1min
+Unit=cam-viewer-update.service
+
+[Install]
+WantedBy=timers.target

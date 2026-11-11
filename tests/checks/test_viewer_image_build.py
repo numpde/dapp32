@@ -11,6 +11,7 @@ from .common import ROOT
 
 
 class ViewerImageBuildTest(unittest.TestCase):
+    # silent-defaults: allow-default -- Cases override only the simulated failure or source state they exercise.
     def build(self, directory: str, *, build_status: int = 0, cleanup_status: int = 0, modified: bool = False):
         # Shell peers replace engine and Git access; the launcher and its EXIT
         # trap remain real, including preservation of the primary failure.

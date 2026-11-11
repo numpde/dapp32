@@ -2,6 +2,7 @@
 override define reject_external_make_expression
 $(and $(filter command line environment environment override,$(origin $(1))),$(findstring $$,$(value $(1))),$(error $(1) must not contain Make expression syntax))
 endef
+$(call reject_external_make_expression,VIEWER_PUBLIC_ORIGIN)
 override COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME VIEWER_COMPOSE_PROJECT_NAME RELEASE_VIEWER_COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
 $(foreach name,LOCAL_UID LOCAL_GID ALLOW_UPDATE DOCS_OUTPUT_DIR DOCKERFILES $(COMPOSE_PROJECT_NAME_VARS) ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN ESCROW_GUI_PORT ESCROW_GUI_BIND_HOST ESCROW_GUI_ORIGIN PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN CAM_URI CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS VIEWER_TERMINAL_MOCK,$(call reject_external_make_expression,$(name)))
 
@@ -164,7 +165,7 @@ VIEWER_IMAGE ?= dapp32-viewer:local
 VIEWER_BIND_HOST ?= 127.0.0.1
 VIEWER_PORT ?= 8080
 VIEWER_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-viewer
-export VIEWER_IMAGE VIEWER_BIND_HOST VIEWER_PORT VIEWER_COMPOSE_PROJECT_NAME
+export VIEWER_IMAGE VIEWER_BIND_HOST VIEWER_PORT VIEWER_COMPOSE_PROJECT_NAME VIEWER_PUBLIC_ORIGIN
 RELEASE_ARTIFACT_NODE_MODULES_DIR ?= $(CURDIR)/js/node_modules
 export RELEASE_ARTIFACT_NODE_MODULES_DIR
 override ACTUAL_UID := $(shell id -u)
@@ -1012,6 +1013,9 @@ help:
 	  '    The footer records the source revision and UTC build time; modified checkouts are labelled.' \
 	  '  make viewer/up                  Start the built image at http://127.0.0.1:8080; no build or pull.' \
 	  '  make viewer/status              Show this viewer container and its health.' \
+	  '  make viewer/update              Fetch deploy/viewer; build, replace, verify and clean this viewer if needed.' \
+	  '    Requires a clean deployment checkout, an existing labeled viewer, XDG_RUNTIME_DIR and VIEWER_PUBLIC_ORIGIN=https://host.' \
+	  '    Serializes attempts; keeps one rollback image; runtime Compose changes need manual migration.' \
 	  '  make viewer/down                Stop this viewer; does not touch chains or development viewers.' \
 	  '  make viewer/browser/check       Check shared UI, NFT previews and connections in an owned browser tab.' \
 	  '    Requires CDP_ORIGIN and VIEWER_URL from a running local GUI demo with its default download scope.' \
@@ -1299,7 +1303,7 @@ js/deps/install:
 	cleanup() { \
 	  status="$$?"; \
 	  if [[ -n "$$package_input_dir" ]]; then \
-	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/package-deps.yml,$$status); \
+	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/package-deps.yml,$$status,--rmi local); \
 	    rm -rf "$$package_input_dir"; \
 	  fi; \
 	  if [[ "$$status" != "0" && "$$created_package_lock_placeholder" == "1" ]]; then \
@@ -1724,7 +1728,12 @@ endif
 docs/build:
 	$(docs_build_impl)
 
-.PHONY: viewer/image/build viewer/up viewer/down viewer/status
+.PHONY: viewer/image/build viewer/up viewer/down viewer/status viewer/update
+viewer/update:
+	@$(LANE_GUARD); \
+	flock -n --verbose "$${XDG_RUNTIME_DIR:?Set XDG_RUNTIME_DIR to the user runtime directory}/cam-viewer-update.lock" \
+	  timeout -k 240s 1200s python3 -I -B tools/viewer_update.py
+
 viewer/image/build:
 	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); bash tools/viewer_image_build.sh "$$VIEWER_IMAGE"
 
