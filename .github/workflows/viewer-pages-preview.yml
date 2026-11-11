@@ -18,6 +18,7 @@ on:
       - containers/node-deps/**
       - containers/viewer/**
       - tools/viewer_image_build.sh
+      - tools/base_images.py
       - Makefile
   pull_request:
     paths:
@@ -62,11 +63,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for dockerfile in containers/node-deps/Dockerfile containers/viewer/Dockerfile; do
-            base="$(awk '$1 == "FROM" { print $2 }' "source/$dockerfile")"
-            test -n "$base"
-            docker --host "$CAM_DOCKER_ENDPOINT" pull "$base"
-          done
+          make -C source base-images/pull DOCKER_CONTEXT=default \
+            DOCKERFILES="containers/node-deps/Dockerfile containers/https-egress-proxy/Dockerfile containers/viewer/Dockerfile"
       - name: Install checksum-locked JavaScript dependencies
         run: make -C source js/deps/install DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-pages-preview
       - name: Compile using the existing confined viewer image build

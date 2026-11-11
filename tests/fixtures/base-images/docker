@@ -1,0 +1,29 @@
+#!/usr/bin/env python3
+"""Supply authored native target responses; never parse the fixture Dockerfiles."""
+import json
+import os
+from pathlib import Path
+import sys
+
+arguments = sys.argv[1:]
+if arguments[:2] == ["context", "inspect"]:
+    print(os.environ["ENDPOINT"])
+    sys.exit(0)
+if arguments[:2] != ["--host", os.environ["ENDPOINT"]]:
+    sys.exit(91)
+command = arguments[2:]
+if command[:2] == ["buildx", "build"]:
+    if "--call=targets,format=json" not in command or "--quiet" not in command:
+        sys.exit(92)
+    dockerfile = command[command.index("--file") + 1]
+    response = json.loads(Path(os.environ["NATIVE_TARGETS"]).read_text())[dockerfile]
+    if "status" in response:
+        print(f"native discovery failed for {dockerfile}", file=sys.stderr)
+        sys.exit(response["status"])
+    print(json.dumps(response))
+elif command[0] == "pull":
+    with Path(os.environ["PULL_LOG"]).open("a") as log:
+        print(" ".join(arguments), file=log)
+    sys.exit(int(os.environ["PULL_STATUS"]))
+else:
+    sys.exit(93)

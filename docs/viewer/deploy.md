@@ -12,20 +12,22 @@ outline: false
 <p>Two hosted versions are available: <a href="https://app.dapp32.com/">the stand-alone viewer</a>, deployed independently, and the <a href="./">Pages preview</a>, built from recent reviewed source and updated ahead of the stand-alone release. The preview is for early testing and may change sooner; inspect all contract details before authorizing transactions. Each origin requires its own wallet permission and browser-accessible RPC/resources.</p>
 <p>The Pages preview is published automatically from qualified <code>main</code> builds. CI records its source revision, qualification run and exact built file hashes, then independently checks the published and HTTPS-served bytes. See <a href="../development/#published-site-integrity">Published-site integrity and drift</a>. Those checks cover the Pages preview only; they do not deploy or monitor your independently hosted viewer.</p>
 <p>Serve the generic browser application at your own HTTPS hostname. This hosts <strong>viewer software only</strong>: no blockchain, CAM bundle, contract deployment, wallet or private instance directory is created.</p>
-<dl><dt>Run on</dt><dd>The Linux server, as its non-root Docker operator. Use that server's local Docker context, not a remote workstation context.</dd><dt>Requires</dt><dd>Git, Make, Bash, Docker with Compose; the kernel setting <code>net.mptcp.enabled</code>; a hostname you control; host-side Caddy for the HTTPS example.</dd><dt>Changes</dt><dd>A local image, a viewer container/network and the hostname's proxy configuration.</dd><dt>Success</dt><dd>The HTTPS health endpoint responds, the viewer setup page loads, and a known compatible app opens through a browser-readable RPC.</dd></dl>
+<dl><dt>Run on</dt><dd>The Linux server, as its non-root Docker operator. Use that server's local Docker context, not a remote workstation context.</dd><dt>Requires</dt><dd>Git, Make, Bash, Python 3, Docker with Compose and Buildx; the kernel setting <code>net.mptcp.enabled</code>; a hostname you control; host-side Caddy for the HTTPS example.</dd><dt>Changes</dt><dd>A local image, a viewer container/network and the hostname's proxy configuration.</dd><dt>Success</dt><dd>The HTTPS health endpoint responds, the viewer setup page loads, and a known compatible app opens through a browser-readable RPC.</dd></dl>
 <nav aria-label="Guide sections"><a href="#build">Build</a> · <a href="#run">Run</a> · <a href="#https">HTTPS</a> · <a href="#open">Open an app</a> · <a href="#maintain">Update or stop</a> · <a href="#troubleshoot">Troubleshoot</a></nav>
 <h2 id="build">1. Build a known source revision</h2>
 <p>Clone the repository on the server and check out the reviewed commit you intend to serve. Use a clean checkout so the revision identifies its actual content. In that checkout, set the context and acquire the exact base images named by its Dockerfiles:</p>
 <pre><code>CTX=your-local-context &amp;&amp;
 test "$(git rev-parse --show-toplevel)" = "$PWD" &amp;&amp;
 test -z "$(git status --porcelain)" &amp;&amp;
-docker --context "$CTX" pull "$(sed -n 's/^FROM \([^ ]*\).*/\1/p' containers/node-deps/Dockerfile)" &amp;&amp;
-docker --context "$CTX" pull "$(sed -n 's/^FROM \([^ ]*\).*/\1/p' containers/viewer/Dockerfile)" &amp;&amp;
+make base-images/pull DOCKER_CONTEXT="$CTX" \
+  DOCKERFILES="containers/node-deps/Dockerfile containers/https-egress-proxy/Dockerfile containers/viewer/Dockerfile" &amp;&amp;
 make js/deps/install DOCKER_CONTEXT="$CTX" &amp;&amp;
 REV=$(git rev-parse --short=12 HEAD) &amp;&amp;
 IMAGE="cam-viewer:$REV" &amp;&amp;
 make viewer/image/build DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE"</code></pre>
 <p>Replace <code>your-local-context</code> with a local entry from <code>docker context ls</code>. Image acquisition and locked dependency installation are the networked preparation steps. The viewer builder then runs offline. It does not publish the image or install missing dependencies implicitly. Solidity dependencies are not needed just to build the viewer.</p>
+<p><code>base-images/pull</code> requires host Python 3 (standard library only) and Docker Buildx. Without <code>DOCKERFILES</code>, it discovers all Dockerfiles under <code>containers/</code>. Docker's native <code>--call=targets,format=json</code> parser identifies the stages without running build instructions; BuildKit may acquire a declared syntax frontend during discovery. The command checks all returned bases for literal digest pins before pulling each distinct external image once. Earlier stages and <code>scratch</code> need no pull; unresolved variables and explicit stage platforms are rejected. Package downloads remain separate.</p>
+<p>Downloaded bases stay in the selected Docker engine's cache. Other builds can use the same images, so acquisition does not delete images or containers. Resource cleanup belongs to the command that owns those resources.</p>
 <h2 id="run">2. Start it on loopback</h2>
 <p>Continue in the same shell. Record the resulting image ID for updates and rollback, then start the existing runtime:</p>
 <pre v-pre><code>docker --context "$CTX" image inspect "$IMAGE" --format '{{.Id}}' &amp;&amp;
