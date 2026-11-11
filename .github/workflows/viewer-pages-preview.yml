@@ -6,7 +6,9 @@ on:
     paths:
       - .github/workflows/viewer-pages-preview.yml
       - tools/viewer_pages.py
+      - tools/pages_integrity.py
       - tests/checks/test_viewer_pages.py
+      - tests/checks/test_pages_integrity.py
       - js/apps/cam-web/**
       - js/packages/cam-*/**
       - js/package.json
@@ -21,7 +23,9 @@ on:
     paths:
       - .github/workflows/viewer-pages-preview.yml
       - tools/viewer_pages.py
+      - tools/pages_integrity.py
       - tests/checks/test_viewer_pages.py
+      - tests/checks/test_pages_integrity.py
       - js/apps/cam-web/**
   workflow_dispatch:
 

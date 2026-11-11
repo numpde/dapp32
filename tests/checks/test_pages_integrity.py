@@ -48,6 +48,13 @@ def api_with_runs(new_job: str, *, current_status: str = "completed"):
 
 
 class PublicationIntegrityTest(unittest.TestCase):
+    def test_changes_to_shared_qualification_checker_trigger_both_publishers(self) -> None:
+        for name in ("docs-pages-candidate.yml", "viewer-pages-preview.yml"):
+            with self.subTest(workflow=name):
+                workflow = (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
+                self.assertEqual(2, workflow.count("- tools/pages_integrity.py"))
+                self.assertEqual(2, workflow.count("- tests/checks/test_pages_integrity.py"))
+
     def test_publisher_uses_latest_qualified_run_not_unrelated_main_head(self) -> None:
         # The publishing run is still in progress, but its candidate is qualified.
         pages_integrity.check_current_qualification(

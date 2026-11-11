@@ -14,6 +14,8 @@ on:
       - Makefile
       - tools/make/docs.mk
       - tools/docs_site.py
+      - tools/pages_integrity.py
+      - tests/checks/test_pages_integrity.py
       - 'tests/checks/test_docs_*.py'
   pull_request:
     paths:
@@ -25,6 +27,8 @@ on:
       - Makefile
       - tools/make/docs.mk
       - tools/docs_site.py
+      - tools/pages_integrity.py
+      - tests/checks/test_pages_integrity.py
       - 'tests/checks/test_docs_*.py'
   workflow_dispatch:
 
