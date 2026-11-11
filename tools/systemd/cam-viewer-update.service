@@ -1,12 +1,12 @@
-# Production operator configuration for dapp32@agentic; no release state files.
+# Example only: configure the installed copy for the deployment host.
 [Unit]
-Description=Update the dapp32 viewer from deploy/viewer
+Description=Update the viewer from deploy/viewer
 After=docker.service
 
 [Service]
 Type=oneshot
 WorkingDirectory=%h/deploy/dapp32
-ExecStart=/usr/bin/make --no-print-directory viewer/update DOCKER_CONTEXT=rootless VIEWER_COMPOSE_PROJECT_NAME=dapps-viewer VIEWER_BIND_HOST=172.30.80.1 VIEWER_PORT=18080 VIEWER_PUBLIC_ORIGIN=https://app.dapp32.com
+ExecStart=/usr/bin/make --no-print-directory viewer/update DOCKER_CONTEXT=rootless VIEWER_COMPOSE_PROJECT_NAME=cam-viewer VIEWER_BIND_HOST=127.0.0.1 VIEWER_PORT=8080 VIEWER_PUBLIC_ORIGIN=https://viewer.example.org
 TimeoutStartSec=25min
 TimeoutStopSec=240s
 # Git source is public and must be readable by non-root build containers.

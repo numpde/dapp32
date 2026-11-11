@@ -39,6 +39,8 @@ class ViewerUpdateTest(unittest.TestCase):
         self.container = {"Image": OLD_ID, "State": {"Running": True, "Health": {"Status": "healthy"}}}
         self.container["HostConfig"] = {"PortBindings": {"8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8080"}]}}
         self.target = NEW
+        self.main = "e" * 40
+        self.ancestry_status = 0
         self.dirty = ""
         self.changed_runtime = False
         self.fail_build = False
@@ -64,7 +66,11 @@ class ViewerUpdateTest(unittest.TestCase):
         if args[:3] == ("git", "status", "--porcelain"):
             return self.dirty
         if args[:2] == ("git", "rev-parse"):
-            return self.target
+            return self.main if args[3] == "refs/remotes/origin/main^{commit}" else self.target
+        if args[:2] == ("git", "merge-base"):
+            self.assertEqual(("git", "merge-base", "--is-ancestor", self.target, self.main), args)
+            if self.ancestry_status:
+                raise subprocess.CalledProcessError(self.ancestry_status, args)
         if args[:2] == ("git", "show"):
             return "changed model" if self.changed_runtime and args[2].startswith(NEW) else "stable model"
         if args[:2] == ("git", "cat-file") and self.missing_updater:
@@ -123,6 +129,10 @@ class ViewerUpdateTest(unittest.TestCase):
 
     def test_success_rotates_rollback_only_after_public_observation(self):
         updater.update()
+        self.assertIn(("git", "fetch", "--atomic", "--no-tags", "origin",
+                       "refs/heads/main:refs/remotes/origin/main",
+                       "refs/heads/deploy/viewer:refs/remotes/origin/deploy/viewer"), self.calls)
+        self.assertIn(("git", "merge-base", "--is-ancestor", NEW, self.main), self.calls)
         self.assertEqual(NEW_ID, self.container["Image"])
         self.assertIn(REPOSITORY + ":rollback", self.images[OLD_ID]["RepoTags"])
         self.assertIn(REPOSITORY + ":current", self.images[NEW_ID]["RepoTags"])
@@ -140,6 +150,18 @@ class ViewerUpdateTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no viewer updater"):
             updater.update()
         self.assertFalse(any(call[:2] == ("git", "checkout") for call in self.calls))
+        self.assertEqual(OLD_ID, self.container["Image"])
+
+    def test_out_of_main_release_is_rejected_before_checkout_or_runtime_access(self):
+        self.ancestry_status = 1
+        with self.assertRaisesRegex(ValueError, "outside main"):
+            updater.update()
+        self.assertFalse(any(call[:2] == ("git", "checkout") or call[0] in ("make", "container", "image") for call in self.calls))
+
+    def test_ancestry_probe_failure_is_not_reported_as_a_branch_policy_violation(self):
+        self.ancestry_status = 128
+        with self.assertRaises(subprocess.CalledProcessError):
+            updater.update()
         self.assertEqual(OLD_ID, self.container["Image"])
 
     def test_dirty_source_and_runtime_migrations_stop_before_build(self):

@@ -56,6 +56,11 @@ the repo unchanged or update the appropriate note.
 ## Branch Posture
 
 - `main` is the clean rebuild branch.
+- `deploy/viewer` selects a viewer release from `main` and must never be ahead
+  of it. Commit on `main`, publish `main` first, then fast-forward
+  `deploy/viewer` to a commit already contained in remote `main`. Never publish
+  implementation commits only on the deployment branch. The updater refuses
+  deployment commits outside `main`; this is not a server-side push restriction.
 - `gh-pages` owns the published documentation and has independent history.
 - `main` and `gh-pages` are protected against deletion and force pushes.
 - The tag `archive/poc-2026-05-20` preserves the historical proof of concept;

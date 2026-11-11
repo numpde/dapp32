@@ -211,10 +211,21 @@ def update() -> None:
         raise ValueError("Set VIEWER_PUBLIC_ORIGIN to an HTTPS origin without credentials, path, query or fragment")
     if run("git", "status", "--porcelain", "--untracked-files=all"):
         raise ValueError("Viewer update refuses local source changes; preserve them before retrying")
-    run("git", "fetch", "--no-tags", "origin", "refs/heads/deploy/viewer")
-    target = run("git", "rev-parse", "--verify", "FETCH_HEAD^{commit}")
-    if not REVISION.fullmatch(target):
-        raise ValueError("Fetched deployment branch did not resolve to one exact source revision")
+    run("git", "fetch", "--atomic", "--no-tags", "origin",
+        "refs/heads/main:refs/remotes/origin/main",
+        "refs/heads/deploy/viewer:refs/remotes/origin/deploy/viewer")
+    target = run("git", "rev-parse", "--verify", "refs/remotes/origin/deploy/viewer^{commit}")
+    main = run("git", "rev-parse", "--verify", "refs/remotes/origin/main^{commit}")
+    if not REVISION.fullmatch(target) or not REVISION.fullmatch(main):
+        raise ValueError("Fetched deployment and main branches must each resolve to one exact source revision")
+    # The release branch selects published main history; it is not a separate
+    # development line. Check immutable commits from the same atomic fetch.
+    try:
+        run("git", "merge-base", "--is-ancestor", target, main)
+    except subprocess.CalledProcessError as error:
+        if error.returncode == 1:
+            raise ValueError("Deployment revision is outside main; publish main first, then promote a commit already contained in main") from error
+        raise
     # Historical viewer releases predate this entrypoint. Checking them out
     # would remove the controller that the next timer attempt needs to run.
     try:

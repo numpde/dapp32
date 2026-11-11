@@ -8,7 +8,8 @@ for the maintained interface, failure behavior and recovery commands.
 
 ## Goal and completed foundation
 
-Advancing `deploy/viewer` authorizes a viewer release to `app.dapp32.com`.
+Publish to `main` first. `deploy/viewer` must point to a commit already contained
+in `main`; advancing it authorizes a viewer release to `app.dapp32.com`.
 The server should notice the change, build the selected revision, replace the
 viewer, and automatically retire obsolete resources that this repo owns.
 Keep the current release and one known-good rollback release. The VPS has
@@ -97,8 +98,10 @@ paths behave as stated, with bounded execution and useful failure output.
 
 ## 4. Prepare the deployment checkout and perform one manual update
 
-On `dapp32@agentic`, create `/home/dapp32/deploy/dapp32`. Preserve
-`/home/dapp32/repos/dapp32`; do not move it. Refresh the selected rootless
+Create a dedicated deployment checkout on the server. Preserve existing
+development checkouts; do not move them. Keep the host account, full checkout
+paths and private listener settings in the installed service configuration.
+Refresh the selected rootless
 Docker endpoint, installed prerequisites, proxy routing, runtime settings and
 available space before making changes. Earlier host observations are dated.
 
