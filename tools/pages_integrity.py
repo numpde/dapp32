@@ -5,6 +5,8 @@ Each publisher owns one manifest and the files it produces:
   complete file inventory, generated navigation and immutable references.
 * viewer/viewer-publication.json covers the standalone Pages viewer bundle;
   viewer_pages checks its index, compiled assets and their exact hashes.
+Both manifests are also checked as publicly served files, but cannot contain
+their own digest.
 
 This module owns neither artifact and never repairs publication. It checks
 three independent facts: the recorded CI run qualified the recorded source,
@@ -111,9 +113,15 @@ def local_files(component: str, site: Path, docs_source: Path | None) -> tuple[d
             raise ValueError("Documentation source checkout is required")
         docs_site.check_published(docs_source, site)
         manifest = read_manifest(site / docs_site.MANIFEST)
-        return manifest, manifest["files"]
+        files = dict(manifest["files"])
+        files[docs_site.MANIFEST] = sha256((site / docs_site.MANIFEST).read_bytes()).hexdigest()
+        return manifest, files
     manifest = viewer_pages.check_published(site / "viewer")
-    return manifest, {f"viewer/{path}": digest for path, digest in manifest["files"].items()}
+    files = {f"viewer/{path}": digest for path, digest in manifest["files"].items()}
+    files[f"viewer/{viewer_pages.MANIFEST}"] = sha256(
+        (site / "viewer" / viewer_pages.MANIFEST).read_bytes()
+    ).hexdigest()
+    return manifest, files
 
 
 def fetch_public_bytes(relative: str, expected_size: int) -> bytes:

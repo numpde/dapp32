@@ -305,7 +305,7 @@ class DocsBuildLifecycleTests(unittest.TestCase):
     def test_docs_publish_automatically_from_main_without_candidate_branches(self) -> None:
         source = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")
         publisher = source.split("  publish:\n", 1)[1]
-        self.assertIn("if: github.event_name == 'push' && github.ref == 'refs/heads/main'", publisher)
+        self.assertIn("if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'", publisher)
         self.assertIn("needs: qualify", publisher)
         self.assertIn("pages: write", publisher)
         self.assertIn("actions/download-artifact@", publisher)

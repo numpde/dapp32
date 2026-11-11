@@ -87,7 +87,23 @@ class PublicationIntegrityTest(unittest.TestCase):
                 received, files = pages_integrity.local_files("docs", site, source)
             checked.assert_called_once_with(source, site)
             self.assertEqual(manifest, received)
-            self.assertEqual(manifest["files"], files)
+            self.assertEqual({**manifest["files"], "docs-publication.json": sha256(
+                (site / "docs-publication.json").read_bytes()
+            ).hexdigest()}, files)
+
+    def test_verifies_viewer_manifest_as_a_publicly_served_file(self) -> None:
+        with TemporaryDirectory() as directory:
+            site = Path(directory)
+            (site / "viewer").mkdir()
+            manifest = recorded_manifest()
+            provenance = site / "viewer/viewer-publication.json"
+            provenance.write_text(json.dumps(manifest), encoding="utf-8")
+            with patch.object(pages_integrity.viewer_pages, "check_published", return_value=manifest):
+                received, files = pages_integrity.local_files("viewer", site, None)
+            self.assertEqual(manifest, received)
+            self.assertEqual({"viewer/index.html": manifest["files"]["index.html"],
+                              "viewer/viewer-publication.json": sha256(provenance.read_bytes()).hexdigest()},
+                             files)
 
     def test_served_bytes_must_match_all_recorded_files(self) -> None:
         with TemporaryDirectory() as directory:
@@ -104,8 +120,11 @@ class PublicationIntegrityTest(unittest.TestCase):
             self.assertEqual({(name, len(value)) for name, value in data.items()},
                              set(visited))
             with patch.object(pages_integrity.time, "sleep"):
+                data["asset.js"] = b"x" * len(data["asset.js"])
+                with self.assertRaisesRegex(ValueError, "different bytes: asset.js"):
+                    pages_integrity.check_served_files(site, files, fetch)
                 data["asset.js"] = b"tampered"
-                with self.assertRaisesRegex(ValueError, "asset.js"):
+                with self.assertRaisesRegex(ValueError, "different bytes: asset.js"):
                     pages_integrity.check_served_files(site, files, fetch)
                 def inaccessible(name: str, size: int) -> bytes:
                     raise OSError("HTTPS service unavailable")

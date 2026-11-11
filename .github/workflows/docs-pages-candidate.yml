@@ -93,7 +93,7 @@ jobs:
           include-hidden-files: true
 
   publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: qualify
     runs-on: ubuntu-24.04
     timeout-minutes: 15
