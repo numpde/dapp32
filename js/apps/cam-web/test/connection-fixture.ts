@@ -2,9 +2,12 @@ import { createElement } from "react"
 import { createRoot } from "react-dom/client"
 import { decodeFunctionData, encodeAbiParameters, encodeFunctionResult, parseAbi, sha256, toFunctionSelector, zeroAddress, zeroHash } from "viem"
 import { App } from "../src/App.tsx"
+import { publicRpcEndpoints } from "@cam/viewer"
 import "../src/styles.css"
 
 const scenario = new URL(location.href).searchParams.get("scenario")
+const chainId = scenario === "public-rpc" ? 43113 : 31337
+const rpcURL = scenario === "public-rpc" ? publicRpcEndpoints(`eip155:${chainId}`)[0]!.url : "https://rpc.fixture.test"
 const resourceBase = new URL("/connection-fixture-resources/", location.href)
 const host = "0x0000000000000000000000000000000000000001"
 const target = "0x0000000000000000000000000000000000000002"
@@ -69,7 +72,7 @@ window.fetch = async (input, init) => {
     }
     return new Response(bytes)
   }
-  if (!["https://rpc.fixture.test", "https://candidate.fixture.test", "https://next.fixture.test"].includes(url.origin)) throw new Error(`Unexpected fixture endpoint: ${url.origin}`)
+  if (![new URL(rpcURL).origin, "https://candidate.fixture.test", "https://next.fixture.test"].includes(url.origin)) throw new Error(`Unexpected fixture endpoint: ${url.origin}`)
   const rpc = JSON.parse(String(init?.body)) as { method: string; id: number; params: [{ data: `0x${string}` }] }
   if (url.origin === "https://candidate.fixture.test" && rpc.method === "eth_chainId" && state.holdCandidate) {
     state.candidateStarted = true
@@ -77,7 +80,7 @@ window.fetch = async (input, init) => {
     return Response.json({ jsonrpc: "2.0", id: rpc.id, result: "0xa869" })
   }
   let result: string | Record<string, unknown>
-  if (rpc.method === "eth_chainId") result = "0x7a69"
+  if (rpc.method === "eth_chainId") result = `0x${chainId.toString(16)}`
   else if (rpc.method === "eth_getCode") result = String(rpc.params[0]).toLowerCase() === "0x0000000000000000000000000000000000000004" ? "0x" : "0x6000"
   else if (rpc.method === "eth_call") {
     const data = rpc.params[0].data
@@ -121,7 +124,7 @@ const provider = {
   async request({ method }: { method: string }) {
     if (method === "eth_requestAccounts" && holdConnection) await new Promise<void>(resolve => { releaseConnection = resolve })
     if (method === "eth_requestAccounts" || method === "eth_accounts") return [wallet]
-    if (method === "eth_chainId") return "0x7a69"
+    if (method === "eth_chainId") return `0x${chainId.toString(16)}`
     if (method === "wallet_switchEthereumChain") return null
     if (method === "eth_sendTransaction" || method === "wallet_sendTransaction") {
       state.sends++
@@ -162,7 +165,7 @@ Object.assign(window, { ethereum: scenario === "no-wallet" ? undefined : provide
   emit(event: string, value: unknown) { listeners.get(event)?.forEach(listener => listener(value)) },
 } })
 const url = new URL(location.href)
-url.search = new URLSearchParams({ chainId: "eip155:31337", host, rpcUrl: "https://rpc.fixture.test" }).toString()
+url.search = new URLSearchParams({ chainId: `eip155:${chainId}`, host, rpcUrl: rpcURL }).toString()
 if (scenario === "choose-rpc") url.searchParams.delete("rpcUrl")
 if (scenario === "invalid-rpc") url.searchParams.set("rpcUrl", "not a URL")
 if (scenario === "bare") url.search = ""
