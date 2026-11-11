@@ -96,13 +96,13 @@ class PublicationIntegrityTest(unittest.TestCase):
             (site / "asset.js").write_bytes(b"published javascript")
             data = {"index.html": b"published html", "asset.js": b"published javascript"}
             files = {name: sha256(value).hexdigest() for name, value in data.items()}
-            visited = []
+            visited: list[tuple[str, int]] = []
             def fetch(name: str, size: int) -> bytes:
-                visited.append(name)
-                self.assertEqual(len(data[name]), size)
+                visited.append((name, size))
                 return data[name]
             pages_integrity.check_served_files(site, files, fetch)
-            self.assertEqual(set(files), set(visited))
+            self.assertEqual({(name, len(value)) for name, value in data.items()},
+                             set(visited))
             with patch.object(pages_integrity.time, "sleep"):
                 data["asset.js"] = b"tampered"
                 with self.assertRaisesRegex(ValueError, "asset.js"):
