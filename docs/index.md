@@ -6,6 +6,7 @@ outline: false
 
 <script setup lang="ts">
 import HomeSections from './.vitepress/theme/HomeSections.vue'
+import architectureSvg from './.vitepress/theme/assets/dapp32-architecture.svg?raw'
 </script>
 
 # What is dapp32?
@@ -60,8 +61,10 @@ can be self-hosted or not.
 
 <h2>How they fit together</h2>
 
-<p><strong>Opening an application:</strong><br>Viewer → CAM root → CAM → contract reads → rendered interface.</p>
-<p><strong>Executing an action:</strong><br>Interface → prepared transaction → wallet approval → business contract.</p>
+<figure class="architecture-diagram">
+  <div class="architecture-scroll" role="region" aria-label="dapp32 application architecture" tabindex="0" v-html="architectureSvg"></div>
+</figure>
+
 <p>The business contracts remain authoritative throughout.</p>
 
 <p>

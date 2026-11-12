@@ -178,3 +178,22 @@
 /* Inline resource paths may exceed a phone viewport; fenced commands still scroll. */
 .vp-doc .ported-guide code { overflow-wrap: anywhere; }
 .vp-doc .ported-guide pre code { overflow-wrap: normal; }
+
+/* The viewer diagram is inline so its SVG colors follow the VitePress theme toggle. */
+.vp-doc .ported-guide .architecture-diagram { margin: 1.25rem 0 1.6rem; }
+.vp-doc .ported-guide .architecture-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.vp-doc .ported-guide .architecture-scroll:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
+}
+.vp-doc .ported-guide .architecture-diagram svg {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  height: auto;
+}

@@ -130,7 +130,7 @@ for (const original of observed) {
   const canonical = page.route
   const file = join(root, original)
   let content = await readFile(file, 'utf8')
-  content = content.replace(/\b(href|src)=(["'])([^"'<>]+)\2/g,
+  content = content.replace(/(?<![:\w-])(href|src)=(["'])([^"'<>]+)\2/g,
     (_whole, attribute, quote, url) =>
       attribute + '=' + quote + rewriteLink(url, original, canonical) + quote)
   content = content.replace(/\]\(([^)\s]+)\)/g,
