@@ -197,9 +197,3 @@
   min-width: 680px;
   height: auto;
 }
-.vp-doc .ported-guide .architecture-diagram figcaption {
-  margin-top: .25rem;
-  text-align: right;
-  color: var(--vp-c-text-2);
-  font-size: .875rem;
-}
