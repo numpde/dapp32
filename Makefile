@@ -857,14 +857,15 @@ help:
 	  'Choose checks and tests:' \
 	  '  make tests                      Run all self-contained tests, including external network checks' \
 	  '                                  and disposable fixture deployments; cleanup runs on exit.' \
-	  '  make ci                         Run offline Solidity formatting/build/tests and JS CI checks.' \
+	  '  make ci                         Run repository checks, Solidity campaigns and JS CI checks.' \
+	  '  make ci/qualification           Run the Solidity and JS CI campaigns without repository checks.' \
 	  '  make tests/checks               Check repository rules, source files and rendered Compose settings.' \
 	  '  make tests/checks/anvil-compose  Check only the Anvil container configuration.' \
 	  '  make tests/live                 Qualify local-engine identity and external dependency egress; no deployment.' \
 	  '  make tests/live/dependency-egress  Test which download destinations dependency containers can reach.' \
 	  '  make tests/live/release-identity  Check private host-file access on the selected Docker engine.' \
 	  '  make dapps/tests                Run Solidity unit/scenario tests, random-input tests and state invariants.' \
-	  '  make dapps/tests/unit-scenario   Run Solidity unit/scenario tests plus repository checks.' \
+	  '  make dapps/tests/unit-scenario   Run Solidity unit/scenario tests.' \
 	  '  make dapps/tests/fuzz            Exercise Solidity functions with generated inputs.' \
 	  '  make dapps/tests/invariant       Check Solidity invariants across generated transaction sequences.' \
 	  '  make dapps/tests/coverage        Run Solidity unit/scenario tests and print source coverage.' \
@@ -1844,7 +1845,7 @@ cam/integrity/refresh:
 	$(CAM_RESOURCE_OUTPUT_GUARD); \
 	$(call cam_integrity_refresh,)
 
-dapps/tests/unit-scenario: dapps/deps/verify tests/checks cam/abi/check
+dapps/tests/unit-scenario: dapps/deps/verify cam/abi/check
 	$(call compose_run,forge.yml,forge-test)
 
 dapps/tests/fuzz: dapps/deps/verify
@@ -2113,7 +2114,9 @@ network/local/viewer/down:
 	viewer_app=unused; viewer_artifact=/dev/null; viewer_resource_origin=https://unused.invalid; \
 	$(call local_release_viewer_compose,down --timeout 10)
 
-ci: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
+.PHONY: ci/qualification
+ci: tests/checks ci/qualification
+ci/qualification: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
 
 # Pin the checked local daemon so ambient contexts cannot receive mnemonic input.
 define wallet_compose

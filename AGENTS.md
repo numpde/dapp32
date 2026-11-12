@@ -207,8 +207,8 @@ the repo unchanged or update the appropriate note.
   `containers/checks/`: no network, read-only repo mount, read-only root
   filesystem, non-root user, no capabilities, bounded memory/PIDs, and no
   Python bytecode writes.
-- `make dapps/tests/unit-scenario` must include `make tests/checks` before Forge unit tests, so routine
-  hygiene cannot be skipped accidentally.
+- `make tests` and `make ci` include `make tests/checks` independently of
+  the Solidity unit and scenario tests.
 - Put text/repo-shape checks here, not in Solidity tests. Examples: compiler
   pragma consistency, forbidden names, secret patterns, Compose posture, and
   dependency metadata consistency.
