@@ -86,7 +86,9 @@ jobs:
           test -s site/viewer/deploy.html
           docker --host "$CAM_DOCKER_ENDPOINT" create --name "$container" --network none --read-only --cap-drop ALL --security-opt no-new-privileges "$image" >/dev/null
           rm -rf -- site/viewer/assets
-          docker --host "$CAM_DOCKER_ENDPOINT" cp "$container:/srv/viewer/." site/viewer/
+          # Extract as the runner; tar applies directory modes after writing their contents.
+          docker --host "$CAM_DOCKER_ENDPOINT" cp "$container:/srv/viewer/." - \
+            | tar --extract --file=- --directory=site/viewer --no-same-owner
           python3 -B source/tools/viewer_pages.py check site/viewer
 
       - name: Retain the reviewed static candidate
