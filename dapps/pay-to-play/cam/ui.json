@@ -1711,7 +1711,19 @@
             {
               "element": "Text",
               "props": {
-                "text": "Use these details in an external EIP-712 signer to authorize the voucher. The domain identifies the payment contract, the key must match the registered signer, and the message contains the exact payment fields."
+                "text": "The viewer shows the payment details to sign and the address of the registered signing key."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Use a separate signing tool that supports EIP-712, Ethereum’s format for signing structured information. Give it the exact field names, types, and values from Voucher signing details, and sign with the registered key. Paste the signature it produces into the collection form."
+              }
+            },
+            {
+              "element": "Text",
+              "props": {
+                "text": "Use primary type Voucher with these fields in order: customer (address), channelId (uint256), cumulativeTotal (uint256), invoiceHash (bytes32). The account and channel identify customer and channelId. Enter cumulativeTotal as the exact integer in wei, and use the invoice hash shown under Voucher message. The domain fields are name (string), version (string), chainId (uint256), verifyingContract (address); use the values under Signing domain."
               }
             },
             {
@@ -1814,13 +1826,33 @@
                 {
                   "element": "Text",
                   "props": {
-                    "text": "Review the voucher’s exact message before signing. Its total includes earlier voucher payments, and its invoice hash identifies a reference rather than a separate charge."
+                    "text": "Review the voucher’s exact message before signing. Its total includes earlier voucher payments, and its invoice hash identifies a reference rather than a separate charge. The signing hash is a fingerprint of the domain and message; the external signer produces the signature to paste into the collection form."
                   }
                 },
                 {
                   "element": "Text",
                   "props": {
-                    "text": "Sign the full EIP-712 Voucher in an external tool using the domain and registered key above. The signing hash is for comparison, not a signature. Compare the domain’s verifyingContract with the payment target in transaction review. The guide contains the full schema and local signing command. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee or allocate a collection among invoices."
+                    "text": "Compare the Signing domain payment contract (verifyingContract) with the payment target in transaction review. The invoice hash does not bind the current payee or allocate a collection among invoices."
+                  }
+                },
+                {
+                  "element": "Text",
+                  "props": {
+                    "text": "Hypothetical example: Alice’s highest previously authorized total in channel 1 is 20 wei, and all 20 wei has been collected. Alice authorizes a cumulative total of 30 wei using an agreed invoice’s hash. Bob controls her registered voucher key. Bob enters Alice’s address as customer, 1 as channelId, 30 as cumulativeTotal and that invoice hash as invoiceHash, and copies the displayed signing domain. Bob signs this Voucher using EIP-712 and gives the signature to the collector. The collector enters the same total, invoice hash and signature in the collection form. Up to 10 more wei can be collected, subject to the available balance and collection limit. Use your own account, channel, values and registered key for an actual voucher."
+                  }
+                },
+                {
+                  "element": "Uri",
+                  "props": {
+                    "label": "EIP-712 standard: typed structured data signing",
+                    "value": "https://eips.ethereum.org/EIPS/eip-712"
+                  }
+                },
+                {
+                  "element": "Uri",
+                  "props": {
+                    "label": "MetaMask developer guide: EIP-712 signing requests",
+                    "value": "https://docs.metamask.io/metamask-connect/evm/guides/sign-data/"
                   }
                 }
               ]
