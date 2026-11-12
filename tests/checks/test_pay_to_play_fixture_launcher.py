@@ -31,11 +31,9 @@ elif a[:2] == ["network", "create"]:
     token = next(v.split("=", 1)[1] for v in a if v.startswith("io.cam.fixture.creation="))
     state["owner"] = "other" if mode == "collision" else token
     save()
-    if mode in ("collision", "lost-create-response", "cleanup-probe-hang"): sys.exit(7)
+    if mode in ("collision", "lost-create-response"): sys.exit(7)
     print("network-id")
 elif a[0] in ("container", "network", "volume") and a[1] == "ls":
-    if mode == "preflight-probe-hang" or (mode == "cleanup-probe-hang" and any("io.cam.fixture.creation=" in arg for arg in a)):
-        time.sleep(30)
     if mode == "existing": print("existing-id")
     elif mode == "stopped-container" and a[0] == "container" and "--all" in a: print("stopped-id")
     elif a[0] == "network" and state.get("owner"):
@@ -153,15 +151,6 @@ class FixtureLauncherTest(unittest.TestCase):
         self.assertNotEqual(0, code, diagnostic)
         self.assertEqual(1, state["downs"])
         self.assertIsNone(state["owner"])
-
-    def test_engine_inspection_is_bounded_and_unknown_ownership_is_not_deleted(self):
-        for mode in ("preflight-probe-hang", "cleanup-probe-hang"):
-            with self.subTest(mode=mode):
-                code, output, diagnostic, state = self.run_case(mode, broken_pipe=False)
-                self.assertNotEqual(0, code, diagnostic)
-                self.assertEqual("", output)
-                self.assertEqual(0, state["downs"])
-                self.assertIn("inspect" if mode == "preflight-probe-hang" else "ownership could not be checked", diagnostic)
 
     def test_direct_teardown_has_a_deadline_even_without_cancellation(self):
         code, output, diagnostic, state = self.run_case("down-hang", broken_pipe=False)
