@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 
 from .common import ROOT
@@ -15,7 +16,7 @@ setUpModule, tearDownModule = docker_environment_fixture()
 
 
 EXECUTOR = r'''
-import json, os, pathlib, sys
+import json, os, pathlib, signal, sys
 root = pathlib.Path(os.environ["CASE_ROOT"])
 state_path = root / "state.json"
 state = json.loads(state_path.read_text())
@@ -41,6 +42,16 @@ elif a[0] in ("container", "network", "volume") and a[1] == "ls":
         if filters and filters[0].split("=", 2)[2] == state["owner"]: print("network-id")
 elif a[0] == "compose":
     if "down" in a:
+        if mode == "down-timeout":
+            def stopped(signum, frame):
+                state["downStopped"] = True
+                save()
+                sys.exit(0)
+            signal.signal(signal.SIGTERM, stopped)
+            state["downStarted"] = True
+            state["downPid"] = os.getpid()
+            save()
+            signal.pause()
         state["owner"] = None
         state["downs"] += 1
         save()
@@ -77,6 +88,13 @@ export -f docker setsid timeout
 exec bash tools/pay_to_play_fixture.sh up
 '''
 
+DOWN_BOOT = r'''
+docker() { python3 "$CASE_EXECUTOR" "$@"; }
+export -f docker
+export FIXTURE_ID=owned-test
+exec bash tools/pay_to_play_fixture.sh down
+'''
+
 
 class FixtureLauncherTest(unittest.TestCase):
     def run_case(self, mode, *, broken_pipe):
@@ -94,7 +112,8 @@ class FixtureLauncherTest(unittest.TestCase):
                     process.stdout.close()
                     code = process.wait(timeout=15)
                 return code, "", (root / "stderr").read_text(), json.loads(state.read_text())
-            result = subprocess.run(["bash", "-euo", "pipefail", "-c", BOOT], cwd=ROOT, env=env, capture_output=True, text=True, timeout=15)
+            script = DOWN_BOOT if mode == "down-timeout" else BOOT
+            result = subprocess.run(["bash", "-euo", "pipefail", "-c", script], cwd=ROOT, env=env, capture_output=True, text=True, timeout=90 if mode == "down-timeout" else 15)
             return result.returncode, result.stdout, result.stderr, json.loads(state.read_text())
 
     def test_success_returns_only_one_json_line_and_leaves_fixture_owned_by_caller(self):
@@ -135,3 +154,21 @@ class FixtureLauncherTest(unittest.TestCase):
         self.assertNotEqual(0, code, diagnostic)
         self.assertEqual(1, state["downs"])
         self.assertIsNone(state["owner"])
+
+    def test_direct_teardown_times_out_and_stops_the_owned_command(self):
+        started = time.monotonic()
+        code, output, diagnostic, state = self.run_case("down-timeout", broken_pipe=False)
+        self.assertGreaterEqual(time.monotonic() - started, 55)
+        self.assertNotEqual(0, code, diagnostic)
+        self.assertEqual("", output)
+        self.assertIs(state.get("downStarted"), True)
+        self.assertIs(state.get("downStopped"), True)
+        status = Path(f'/proc/{state["downPid"]}/status')
+        try:
+            process_status = status.read_text()
+        except FileNotFoundError:
+            process_status = None
+        if process_status is not None:
+            self.assertRegex(process_status, r"(?m)^State:\s+Z")
+        self.assertEqual(0, state["downs"])
+        self.assertIn("Fixture operation failed", diagnostic)
