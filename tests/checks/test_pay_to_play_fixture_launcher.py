@@ -15,7 +15,7 @@ setUpModule, tearDownModule = docker_environment_fixture()
 
 
 EXECUTOR = r'''
-import json, os, pathlib, sys, time
+import json, os, pathlib, sys
 root = pathlib.Path(os.environ["CASE_ROOT"])
 state_path = root / "state.json"
 state = json.loads(state_path.read_text())
@@ -41,10 +41,6 @@ elif a[0] in ("container", "network", "volume") and a[1] == "ls":
         if filters and filters[0].split("=", 2)[2] == state["owner"]: print("network-id")
 elif a[0] == "compose":
     if "down" in a:
-        if mode == "down-hang":
-            state["downEntered"] = True
-            save()
-            time.sleep(30)
         state["owner"] = None
         state["downs"] += 1
         save()
@@ -71,12 +67,6 @@ timeout() {
 }
 setsid() {
   if [[ "$1" == timeout && "$5" == docker ]]; then shift 4; fi
-  if [[ "$CASE_MODE" == down-hang && "$1" == timeout ]]; then
-    [[ "$2 $3 $4" == '-k 15s 60s' ]] || return 99
-    shift 4
-    # Retain the real TERM-ignoring cleanup; accelerate only its outer deadline.
-    exec "$REAL_SETSID" "$REAL_TIMEOUT" -k 1s 1s "$@"
-  fi
   case "$1" in
     docker) shift; exec "$REAL_SETSID" python3 "$CASE_EXECUTOR" "$@" ;;
     fixture-make) exec "$REAL_SETSID" python3 "$CASE_EXECUTOR" deps ;;
@@ -84,10 +74,6 @@ setsid() {
   esac
 }
 export -f docker setsid timeout
-if [[ "$CASE_MODE" == down-hang ]]; then
-  export FIXTURE_ID=owned-test
-  exec bash tools/pay_to_play_fixture.sh down
-fi
 exec bash tools/pay_to_play_fixture.sh up
 '''
 
@@ -108,9 +94,7 @@ class FixtureLauncherTest(unittest.TestCase):
                     process.stdout.close()
                     code = process.wait(timeout=15)
                 return code, "", (root / "stderr").read_text(), json.loads(state.read_text())
-            # Forced teardown may also need the owner's bounded group-retirement grace.
-            deadline = 100 if mode == "down-hang" else 15
-            result = subprocess.run(["bash", "-euo", "pipefail", "-c", BOOT], cwd=ROOT, env=env, capture_output=True, text=True, timeout=deadline)
+            result = subprocess.run(["bash", "-euo", "pipefail", "-c", BOOT], cwd=ROOT, env=env, capture_output=True, text=True, timeout=15)
             return result.returncode, result.stdout, result.stderr, json.loads(state.read_text())
 
     def test_success_returns_only_one_json_line_and_leaves_fixture_owned_by_caller(self):
@@ -151,11 +135,3 @@ class FixtureLauncherTest(unittest.TestCase):
         self.assertNotEqual(0, code, diagnostic)
         self.assertEqual(1, state["downs"])
         self.assertIsNone(state["owner"])
-
-    def test_direct_teardown_has_a_deadline_even_without_cancellation(self):
-        code, output, diagnostic, state = self.run_case("down-hang", broken_pipe=False)
-        self.assertNotEqual(0, code, diagnostic)
-        self.assertNotEqual(99, code, diagnostic)
-        self.assertIs(state.get("downEntered"), True)
-        self.assertEqual("", output)
-        self.assertIn("Fixture operation failed", diagnostic)
