@@ -9,7 +9,11 @@ outline: false
 <div class="ported-guide">
 
 
-<p>Deposit into your position, authorize cumulative payments with a registered key, and recover unused funds. A position is one <strong>balance owner + channel ID</strong>; the account viewing it can be someone else.</p>
+<p>Pay-to-Play lets customers deposit money and pay for services from that balance.</p>
+<p>For example, a customer deposits $100 worth of the chain's native currency to use an AI service. The deposit is held <strong>on-chain</strong> in a smart contract that tracks the customer's balance.</p>
+<p>Each time the customer makes a purchase, they authorize a payment by signing a digital voucher <strong>off-chain</strong>, without submitting a blockchain transaction. The service collects the payment by submitting that voucher to the smart contract, which verifies it and transfers the authorized amount <strong>on-chain</strong>.</p>
+<p>Invoices, purchases and service delivery are managed <strong>off-chain</strong>. Each voucher includes an invoice reference, while the smart contract tracks the cumulative amount collected.</p>
+<p>Customers can add funds, withdraw unused money after a waiting period, or recover their remaining balance when the payment arrangement ends. Each balance belongs to one owner within one payment channel.</p>
 <p>This guide describes source <a href="https://github.com/numpde/dapp32/tree/2c8f962c8b0c34eced55a60bc421952ebe445d9c">2c8f962c</a>, including invoice-bound v2 vouchers, collector-gated payments and positive-credit withdrawal restarts. An older non-upgradeable deployment retains its original behavior; verify the deployed contract before relying on these instructions.</p>
 <nav aria-label="Guide sections"><a href="#use">Choose a task</a> · <a href="#example">Payment example</a> · <a href="#withdrawals">Withdraw</a> · <a href="#recovery">Recover</a> · <a href="#integrate">Integrate</a> · <a href="#local">Try locally</a></nav>
 <h2 id="use">Choose a task</h2>

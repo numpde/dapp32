@@ -9,7 +9,11 @@ outline: false
 <div class="ported-guide">
 
 
-<p id="what">An authorized registrar records a component's serial and mints its ERC-721 token to an owner. The owner can maintain its record, grant limited workshop access or transfer the NFT. The contract does not inspect the physical component or prove its authenticity.</p>
+<p id="what">Bike NFT is a digital registry for bicycles and bicycle components, such as frames, motors, batteries and suspension parts.</p>
+<p>An authorized registrar creates a record for a component using its serial number. Registration creates a unique digital token (NFT) <strong>on-chain</strong>, associated with that component.</p>
+<p>The blockchain records the component's serial number, token ownership, service status and missing-report status. Owners can transfer their tokens when selling components, with each transfer recorded <strong>on-chain</strong>.</p>
+<p>Additional component information, such as descriptions, photographs, specifications and supporting documents, is stored <strong>off-chain</strong>. The on-chain registry links to this information, allowing it to be maintained without storing entire documents on the blockchain.</p>
+<p>Owners can also authorize workshops to update specific component information. These permissions are managed <strong>on-chain</strong>, can be limited in scope and duration, and can be revoked by the owner.</p>
 <nav id="workflow" aria-label="Guide sections"><a href="#lookup">Look up</a> · <a href="#register">Register</a> · <a href="metadata.html">Metadata</a> · <a href="ownership.html">Handover and workshops</a> · <a href="#reports">Reports</a> · <a href="#try">Try locally</a></nav>
 <h2 id="lookup">Find the component before acting</h2>
 <p><a href="../use/">Open the intended chain and CAM host</a>. Enter the exact serial, including case and spaces, and choose <strong>Look up component</strong>. Check its owner, collection, token ID, service state and missing-report state.</p>

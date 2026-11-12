@@ -9,7 +9,12 @@ outline: false
 <div class="ported-guide">
 
 
-<p>A client locks payment for one contractor milestone. The contractor accepts and submits work; the client approves or disputes it. Settlement gives one party <strong>withdrawable credit</strong>. That party then sends a separate withdrawal transaction to receive coins.</p>
+<p>Escrow lets two parties make an agreement and hold the payment in a smart contract until the agreement is settled.</p>
+<p>For example, a client hires a developer to build a website for $2,000. The client deposits the money <strong>on-chain</strong>, where the smart contract holds it until the agreement is settled.</p>
+<p>The agreement identifies the parties, payment amount, deadlines and rules for releasing the money. These are recorded <strong>on-chain</strong>, while detailed contract documents are stored <strong>off-chain</strong>, with their references and cryptographic hashes recorded on-chain.</p>
+<p>The developer accepts the agreement and later submits the completed work. The work itself remains <strong>off-chain</strong>, while its submission is recorded on-chain.</p>
+<p>The client can approve the work or raise a dispute. If there is a dispute, a designated arbitrator decides whether the client or developer receives the money.</p>
+<p>Approvals, disputes, decisions and settlement are recorded <strong>on-chain</strong>. Once the agreement is settled, the recipient can withdraw the funds from the smart contract.</p>
 <nav aria-label="Guide sections"><a href="#create">Create</a> · <a href="#work">Submit work</a> · <a href="#dispute">Review or dispute</a> · <a href="#phases">Deadlines</a> · <a href="#withdraw">Withdraw</a> · <a href="#try">Try locally</a></nav>
 <h2 id="parties">Agree on the three parties first</h2>
 <div class="table-scroll" role="region" aria-label="Table: Party / Responsibility" tabindex="0">
