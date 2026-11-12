@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+
+unit_scenario() {
+  found_tests=0
+  for dir in */test/unit */test/scenario; do
+    if [ -d "$dir" ] && [ -n "$(find "$dir" -name '*.sol' -print -quit)" ]; then
+      found_tests=1
+      forge test --offline --match-path "$dir/**/*.sol" -vvv
+    fi
+  done
+  if [ "$found_tests" -eq 0 ]; then
+    printf '%s\n' 'forge-test: no dapp unit/scenario test directories found' >&2
+    exit 2
+  fi
+}
+
+fuzz() { forge test --offline --match-path '*/test/fuzz/**/*.sol' -vvv; }
+invariant() { forge test --offline --match-path '*/test/invariant/**/*.sol' -vvv; }
+
+case "${1-}" in
+  unit-scenario) unit_scenario ;;
+  fuzz) fuzz ;;
+  invariant) invariant ;;
+  all) unit_scenario; fuzz; invariant ;;
+  *) printf '%s\n' 'Choose unit-scenario, fuzz, invariant or all.' >&2; exit 2 ;;
+esac

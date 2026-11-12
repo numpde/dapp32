@@ -40,6 +40,8 @@ RUN set -eux; \
   rm -rf /tmp/solc-bootstrap /tmp/foundry-cache; \
   chmod -R a+rX /usr/local/share/svm
 
+COPY --chmod=0755 forge-tests /usr/local/bin/forge-tests
+
 # Compose runs this image with a numeric host UID/GID, read-only rootfs, tmpfs
 # caches, and network disabled for normal checks.
 ENTRYPOINT []

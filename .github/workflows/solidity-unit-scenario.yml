@@ -6,6 +6,7 @@ on:
       - .github/workflows/solidity-unit-scenario.yml
       - Makefile
       - compose/forge.yml
+      - containers/foundry/**
       - compose/deps.yml
       - dapps/**/*.sol
       - dapps/**/test/**
@@ -19,6 +20,7 @@ on:
       - .github/workflows/solidity-unit-scenario.yml
       - Makefile
       - compose/forge.yml
+      - containers/foundry/**
       - compose/deps.yml
       - dapps/**/*.sol
       - dapps/**/test/**

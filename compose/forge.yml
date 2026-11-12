@@ -108,50 +108,23 @@ services:
         fi
         forge build --offline "$@"
 
-  # Routine Solidity tests for every dapp. Unit and scenario tests share the
-  # same offline posture; fuzz and invariant tests keep their heavier lanes.
+  # Individual lanes and the combined CI lane use the same campaign definitions.
   forge-test:
     <<: *forge_base
-    command:
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        found_tests=0
-        for dir in */test/unit */test/scenario; do
-          if [ -d "$$dir" ] && [ -n "$$(find "$$dir" -name '*.sol' -print -quit)" ]; then
-            found_tests=1
-            forge test --offline --match-path "$$dir/**/*.sol" -vvv
-          fi
-        done
-        if [ "$$found_tests" -eq 0 ]; then
-          printf '%s\n' 'forge-test: no dapp unit/scenario test directories found' >&2
-          exit 2
-        fi
+    command: ["forge-tests", "unit-scenario"]
 
-  # Fuzz tests are separated as a Make target because they are usually heavier
-  # than unit tests, but they keep the same offline container posture.
   forge-fuzz:
     <<: *forge_base
-    command:
-      - "forge"
-      - "test"
-      - "--offline"
-      - "--match-path"
-      - "*/test/fuzz/**/*.sol"
-      - "-vvv"
+    command: ["forge-tests", "fuzz"]
 
-  # Invariant tests are also heavier and often state-machine oriented. They
-  # still run offline and read-only by default.
   forge-invariant:
     <<: *forge_base
-    command:
-      - "forge"
-      - "test"
-      - "--offline"
-      - "--match-path"
-      - "*/test/invariant/**/*.sol"
-      - "-vvv"
+    command: ["forge-tests", "invariant"]
+
+  # One tmpfs cache lets Forge reuse compilation across all three campaigns.
+  forge-test-all:
+    <<: *forge_base
+    command: ["forge-tests", "all"]
 
   # Coverage reports over the same routine test convention as forge-test,
   # keeping it out of Soldeer's dependencies/ tree.

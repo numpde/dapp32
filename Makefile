@@ -865,6 +865,7 @@ help:
 	  '  make tests/live/dependency-egress  Test which download destinations dependency containers can reach.' \
 	  '  make tests/live/release-identity  Check private host-file access on the selected Docker engine.' \
 	  '  make dapps/tests                Run Solidity unit/scenario tests, random-input tests and state invariants.' \
+	  '  make dapps/tests/combined       Run the same Solidity campaigns with one temporary compiler cache.' \
 	  '  make dapps/tests/unit-scenario   Run Solidity unit/scenario tests.' \
 	  '  make dapps/tests/fuzz            Exercise Solidity functions with generated inputs.' \
 	  '  make dapps/tests/invariant       Check Solidity invariants across generated transaction sequences.' \
@@ -1854,6 +1855,10 @@ dapps/tests/fuzz: dapps/deps/verify
 dapps/tests/invariant: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-invariant)
 
+.PHONY: dapps/tests/combined
+dapps/tests/combined: dapps/deps/verify cam/abi/check
+	$(call compose_run,forge.yml,forge-test-all)
+
 cam/live/integration/fuzz/run:
 	@$(LANE_GUARD); \
 	$(CAM_INTEGRATION_INPUT_GUARD); \
@@ -2116,7 +2121,7 @@ network/local/viewer/down:
 
 .PHONY: ci/qualification
 ci: tests/checks ci/qualification
-ci/qualification: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
+ci/qualification: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build dapps/tests/combined js/ci
 
 # Pin the checked local daemon so ambient contexts cannot receive mnemonic input.
 define wallet_compose
