@@ -2,6 +2,8 @@ name: README checks
 
 on:
   push:
+    branches-ignore: [deploy/viewer]
+    tags: ['**']
     paths:
       - README.md
       - tests/checks/test_readme.py

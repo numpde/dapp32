@@ -2,6 +2,8 @@ name: Solidity unit and fixture checks
 
 on:
   push:
+    branches-ignore: [deploy/viewer]
+    tags: ['**']
     paths:
       - .github/workflows/solidity-unit-scenario.yml
       - Makefile

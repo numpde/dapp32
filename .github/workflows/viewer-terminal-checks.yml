@@ -2,6 +2,8 @@ name: Viewer terminal checks
 
 on:
   push:
+    branches-ignore: [deploy/viewer]
+    tags: ['**']
     paths:
       - .github/workflows/viewer-terminal-checks.yml
       - Makefile

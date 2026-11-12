@@ -2,6 +2,8 @@ name: Source publication checks
 
 on:
   push:
+    branches-ignore: [deploy/viewer]
+    tags: ['**']
     paths:
       - .github/workflows/source-publication-checks.yml
       - js/tools/release-compiled-contract.ts

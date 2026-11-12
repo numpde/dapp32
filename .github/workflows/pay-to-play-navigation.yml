@@ -2,6 +2,8 @@ name: Pay-to-Play navigation
 
 on:
   push:
+    branches-ignore: [deploy/viewer]
+    tags: ['**']
     paths:
       - .github/workflows/pay-to-play-navigation.yml
       - Makefile

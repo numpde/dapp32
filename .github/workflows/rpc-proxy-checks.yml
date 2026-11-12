@@ -2,6 +2,8 @@ name: RPC proxy checks
 
 on:
   push:
+    branches-ignore: [deploy/viewer]
+    tags: ['**']
     paths:
       - .github/workflows/rpc-proxy-checks.yml
       - containers/rpc-proxy/**
