@@ -6,40 +6,37 @@ import { assertDialogLayout, assertStableLayout, assertSingleLineControlSizing }
 
 export async function checkRpcSelect({ call, evaluate, viewerURL }) {
   const url = new URL('/test/connection-fixture.html?scenario=public-rpc', viewerURL).href
-  try {
-    await navigateBrowserDocument({ call, url, description: 'the public RPC selector',
-      ready: () => evaluate(`!!document.querySelector('.status-select [aria-label="RPC connection checked"]')`) })
-    for (const width of [320, 900]) {
-      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
-      assert(await evaluate(`(() => {
-        const select = document.querySelector('#rpc-endpoint-choice');
-        const box = select.getBoundingClientRect();
-        const tick = document.querySelector('.status-select [aria-label="RPC connection checked"]').getBoundingClientRect();
-        const textEnd = box.right - parseFloat(getComputedStyle(select).paddingInlineEnd);
-        return tick.left >= textEnd && tick.right < box.right && tick.top >= box.top && tick.bottom <= box.bottom
-          && document.documentElement.scrollWidth <= innerWidth;
-      })()`), `RPC acknowledgement fits inside the dropdown without covering its text at ${width}px`)
-      if (process.env.PROOF_DIR) {
-        const screenshot = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
-        await writeFile(join(process.env.PROOF_DIR, `rpc-select-${width}.png`), Buffer.from(screenshot.data, 'base64'))
-      }
-    }
-    const point = await evaluate(`(() => {
+  await navigateBrowserDocument({ call, url, description: 'the public RPC selector',
+    ready: () => evaluate(`!!document.querySelector('.status-select [aria-label="RPC connection checked"]')`) })
+  for (const width of [320, 900]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+    assert(await evaluate(`(() => {
+      const select = document.querySelector('#rpc-endpoint-choice');
+      const box = select.getBoundingClientRect();
       const tick = document.querySelector('.status-select [aria-label="RPC connection checked"]').getBoundingClientRect();
-      return { x: tick.x + tick.width / 2, y: tick.y + tick.height / 2 };
-    })()`)
-    await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 })
-    await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 })
-    for (const [key, number] of [['End', 35], ['Enter', 13]]) {
-      await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: number })
-      await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: number })
+      const textEnd = box.right - parseFloat(getComputedStyle(select).paddingInlineEnd);
+      return tick.left >= textEnd && tick.right < box.right && tick.top >= box.top && tick.bottom <= box.bottom
+        && document.documentElement.scrollWidth <= innerWidth;
+    })()`), `RPC acknowledgement fits inside the dropdown without covering its text at ${width}px`)
+    if (process.env.PROOF_DIR) {
+      const screenshot = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+      await writeFile(join(process.env.PROOF_DIR, `rpc-select-${width}.png`), Buffer.from(screenshot.data, 'base64'))
     }
-    await waitForBrowserCondition(() => evaluate(`!!document.querySelector('#rpc-endpoint-url')
-      && !document.querySelector('.status-select [aria-label="RPC connection checked"]')`), 'choosing a custom RPC through the native dropdown')
-    return { rpcSelect: 'inset acknowledgement, native selection and custom draft', widths: [320, 900] }
-  } finally {
-    await call('Emulation.clearDeviceMetricsOverride')
   }
+  const point = await evaluate(`(() => {
+    const tick = document.querySelector('.status-select [aria-label="RPC connection checked"]').getBoundingClientRect();
+    return { x: tick.x + tick.width / 2, y: tick.y + tick.height / 2 };
+  })()`)
+  await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 })
+  await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 })
+  for (const [key, number] of [['End', 35], ['Enter', 13]]) {
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code: key, windowsVirtualKeyCode: number })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code: key, windowsVirtualKeyCode: number })
+  }
+  await waitForBrowserCondition(() => evaluate(`!!document.querySelector('#rpc-endpoint-url')
+    && !document.querySelector('.status-select [aria-label="RPC connection checked"]')`), 'choosing a custom RPC through the native dropdown')
+  await call('Emulation.clearDeviceMetricsOverride')
+  return { rpcSelect: 'inset acknowledgement, native selection and custom draft', widths: [320, 900] }
 }
 
 export async function checkViewerConnection({ call, evaluate, viewerURL }) {
