@@ -6,6 +6,7 @@ import * as fixture from './escrow-browser-fixture.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
 import { checkNftMetadata } from './nft-metadata-browser-check.mjs'
 import { checkViewerConnection } from './connection-browser-check.mjs'
+import { checkViewerAppearance } from './appearance-browser-check.mjs'
 import { checkStartupErrors } from './error-reporting-browser-check.mjs'
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 
@@ -295,6 +296,7 @@ for (const check of [checkActionStyles, checkTimestampStatus, checkNftMetadata, 
 
   test(`${check.name} retains the primary and independent cleanup failures`, async () => {
     const primary = new Error('fixture operation failed')
+    const touch = new Error('touch restoration failed')
     const metrics = new Error('viewport restoration failed')
     const navigation = new Error('viewer restoration failed')
     const calls = []
@@ -302,15 +304,40 @@ for (const check of [checkActionStyles, checkTimestampStatus, checkNftMetadata, 
       viewerURL,
       call: async (method, params) => {
         calls.push(method)
+        if (method === 'Emulation.setTouchEmulationEnabled' && params.enabled === false) throw touch
         if (method === 'Emulation.clearDeviceMetricsOverride') throw metrics
         if (method === 'Page.navigate') throw params.url === viewerURL ? navigation : primary
       },
       evaluate: async () => ({ href: viewerURL, readyState: 'complete' }),
     }), error => error instanceof AggregateError && error.errors[0] === primary
-      && error.errors.includes(metrics) && error.errors.includes(navigation))
+      && error.errors.includes(metrics) && error.errors.includes(navigation)
+      && (check !== checkViewerConnection || error.errors.includes(touch)))
     assert.equal(calls.filter(method => method === 'Page.navigate').length, 2, 'viewport failure must not skip viewer restoration')
   })
 }
+
+test('appearance retains the original failure and attempts every independent restoration', async () => {
+  const primary = new Error('appearance storage change failed')
+  const storage = new Error('storage restoration failed')
+  const metrics = new Error('viewport restoration failed')
+  const media = new Error('media restoration failed')
+  await assert.rejects(checkViewerAppearance({
+    viewerURL,
+    call: async method => {
+      if (method === 'Page.navigate') return { loaderId: 'appearance' }
+      if (method === 'Page.getFrameTree') return { frameTree: { frame: { loaderId: 'appearance' } } }
+      if (method === 'Emulation.clearDeviceMetricsOverride') throw metrics
+      if (method === 'Emulation.setEmulatedMedia') throw media
+    },
+    evaluate: async expression => {
+      if (expression === "localStorage.getItem('cam-viewer-appearance')") return 'dark'
+      if (expression === "localStorage.removeItem('cam-viewer-appearance')") throw primary
+      if (expression.includes('const previous =')) throw storage
+      return true
+    },
+  }), error => error instanceof AggregateError && error.errors[0] === primary
+    && [storage, metrics, media].every(failure => error.errors.includes(failure)))
+})
 
 test('timestamp keyboard focus is released even when enabling it has an uncertain outcome', async () => {
   const uncertain = new Error('focus acknowledgement lost')

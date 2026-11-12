@@ -44,6 +44,7 @@ export async function checkViewerAppearance({ call, evaluate, viewerURL }) {
   }
 
   let previousStorage
+  const failures = []
   try {
     await open()
     previousStorage = await evaluate(`localStorage.getItem('${key}')`)
@@ -90,16 +91,21 @@ export async function checkViewerAppearance({ call, evaluate, viewerURL }) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false })
       assert.equal((await state()).overflow, false, `appearance switch fits ${width}px`)
     }
-    return { appearance: 'light/dark switch, implicit OS default, persistence and keyboard', widths: [320, 900] }
-  } finally {
+  } catch (error) { failures.push(error) }
+  finally {
     if (previousStorage !== undefined) {
-      await evaluate(`(() => {
-        const previous = ${JSON.stringify(previousStorage)};
-        if (previous === null) localStorage.removeItem('${key}');
-        else localStorage.setItem('${key}', previous);
-      })()`)
+      try {
+        await evaluate(`(() => {
+          const previous = ${JSON.stringify(previousStorage)};
+          if (previous === null) localStorage.removeItem('${key}');
+          else localStorage.setItem('${key}', previous);
+        })()`)
+      } catch (error) { failures.push(error) }
     }
-    await call('Emulation.clearDeviceMetricsOverride')
-    await call('Emulation.setEmulatedMedia', { features: [] })
+    try { await call('Emulation.clearDeviceMetricsOverride') } catch (error) { failures.push(error) }
+    try { await call('Emulation.setEmulatedMedia', { features: [] }) } catch (error) { failures.push(error) }
   }
+  if (failures.length === 1) throw failures[0]
+  if (failures.length > 1) throw new AggregateError(failures, 'Appearance check and restoration failures')
+  return { appearance: 'light/dark switch, implicit OS default, persistence and keyboard', widths: [320, 900] }
 }

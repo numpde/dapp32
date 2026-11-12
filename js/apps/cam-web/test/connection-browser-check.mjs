@@ -346,7 +346,10 @@ export async function checkViewerConnection({ call, evaluate, viewerURL }) {
     }
     return { sameAccountReviewPreserved: true, publicReadSubject: true, selectedZeroDistinct: true, walletRecovery: true, walletDuringStartup: true, unverifiedWarning: true, earlyIntegrityWarning: true, failedIntegrityRetained: true, staleIntegrityDiscarded: true, loadedByteVerification: true, sends: 0 }
   } catch (error) { failures.push(error) }
-  finally { await finishDisplayFixture({ call, evaluate, viewerURL, failures }) }
+  finally {
+    try { await call('Emulation.setTouchEmulationEnabled', { enabled: false }) } catch (error) { failures.push(error) }
+    await finishDisplayFixture({ call, evaluate, viewerURL, failures })
+  }
 }
 
 async function checkResourceHelp({ call, evaluate, wait, label }) {
@@ -358,52 +361,48 @@ async function checkResourceHelp({ call, evaluate, wait, label }) {
     await wait(`!(${visible})`)
     assert(await evaluate(`!!document.querySelector('.resources dialog[open]')`), 'Escape dismisses the help without closing its modal')
   }
-  try {
-    for (const width of [1280, 320]) {
-      await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
-      const icon = await evaluate(`(()=>{
-        const heading=document.querySelector('.resources dialog[open] .verification-heading'),title=heading.querySelector('h2').getBoundingClientRect(),button=heading.querySelector('.resource-info'),box=button.getBoundingClientRect(),svg=button.querySelector('svg').getBoundingClientRect();
-        return {x:(box.left+box.right)/2,y:(box.top+box.bottom)/2,aligned:Math.abs((title.top+title.bottom-box.top-box.bottom)/2)<1,gap:box.left-title.right,target:box.width>=28&&box.height>=28,centered:Math.abs((svg.left+svg.right-box.left-box.right)/2)<1&&Math.abs((svg.top+svg.bottom-box.top-box.bottom)/2)<1};
-      })()`)
-      assert(icon.aligned && icon.centered && icon.target && icon.gap >= 7 && icon.gap <= 9, `the information icon aligns with the heading and has a comfortable target at ${width}px`)
-      assert(await evaluate(`Array.from(document.querySelectorAll('svg')).every(icon => {
-        const style=getComputedStyle(icon),size=Number(icon.getAttribute('width'));
-        return icon.getAttribute('aria-hidden')==='true'&&icon.getAttribute('focusable')==='false'&&icon.tabIndex<0&&[16,18].includes(size)&&Number(icon.getAttribute('height'))===size&&style.fill==='none'&&style.strokeWidth==='1.8px';
-      })`), 'decorative icons have explicit dimensions, consistent strokes and no separate accessible or focus target')
-      await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: icon.x, y: icon.y })
-      await wait(visible)
-      const help = await evaluate(`(()=>{
-        const popup=document.querySelector('.resource-info-popup'),box=popup.getBoundingClientRect(),dialog=document.querySelector('.resources dialog[open]'),bounds=dialog.getBoundingClientRect(),hit=document.elementFromPoint((box.left+box.right)/2,(box.top+box.bottom)/2);
-        return {text:popup.textContent,inside:dialog.contains(popup),fits:box.left>=bounds.left&&box.right<=bounds.right&&box.top>=bounds.top&&box.bottom<=bounds.bottom,visible:popup===hit||popup.contains(hit),x:(box.left+box.right)/2,y:(box.top+box.bottom)/2};
-      })()`)
-      assert(help.inside && help.fits && help.visible, `help stays visible inside the native modal at ${width}px`)
-      assert(!/hash|fingerprint/i.test(help.text), 'the help defines the file without explaining hashes')
-      if (label === 'Manifest') assert(help.text.includes('manifest is the app’s setup document') && help.text.includes('contract calls'))
-      else assert(help.text.includes('UI (user interface) file') && help.text.includes('screens, fields, and buttons'))
-      await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: help.x, y: help.y })
-      assert(await evaluate(visible), 'moving from the icon onto its help keeps the text readable')
-      await closeHelp()
-      await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 })
-      await evaluate(`document.querySelector('.resources dialog[open] .resource-info').focus()`)
-      await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
-      await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
-      await wait(visible)
-      await closeHelp()
-      assert(await evaluate(`document.activeElement===document.querySelector('.resources dialog[open] .resource-info')`), 'keyboard dismissal keeps focus on the information control')
-      await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
-      await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: icon.x, y: icon.y }] })
-      await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-      await wait(visible)
-      await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
-      await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: icon.x, y: icon.y }] })
-      await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-      await wait(`!(${visible})`)
-      await call('Emulation.setTouchEmulationEnabled', { enabled: false })
-    }
-  } finally {
+  for (const width of [1280, 320]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false })
+    const icon = await evaluate(`(()=>{
+      const heading=document.querySelector('.resources dialog[open] .verification-heading'),title=heading.querySelector('h2').getBoundingClientRect(),button=heading.querySelector('.resource-info'),box=button.getBoundingClientRect(),svg=button.querySelector('svg').getBoundingClientRect();
+      return {x:(box.left+box.right)/2,y:(box.top+box.bottom)/2,aligned:Math.abs((title.top+title.bottom-box.top-box.bottom)/2)<1,gap:box.left-title.right,target:box.width>=28&&box.height>=28,centered:Math.abs((svg.left+svg.right-box.left-box.right)/2)<1&&Math.abs((svg.top+svg.bottom-box.top-box.bottom)/2)<1};
+    })()`)
+    assert(icon.aligned && icon.centered && icon.target && icon.gap >= 7 && icon.gap <= 9, `the information icon aligns with the heading and has a comfortable target at ${width}px`)
+    assert(await evaluate(`Array.from(document.querySelectorAll('svg')).every(icon => {
+      const style=getComputedStyle(icon),size=Number(icon.getAttribute('width'));
+      return icon.getAttribute('aria-hidden')==='true'&&icon.getAttribute('focusable')==='false'&&icon.tabIndex<0&&[16,18].includes(size)&&Number(icon.getAttribute('height'))===size&&style.fill==='none'&&style.strokeWidth==='1.8px';
+    })`), 'decorative icons have explicit dimensions, consistent strokes and no separate accessible or focus target')
+    await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: icon.x, y: icon.y })
+    await wait(visible)
+    const help = await evaluate(`(()=>{
+      const popup=document.querySelector('.resource-info-popup'),box=popup.getBoundingClientRect(),dialog=document.querySelector('.resources dialog[open]'),bounds=dialog.getBoundingClientRect(),hit=document.elementFromPoint((box.left+box.right)/2,(box.top+box.bottom)/2);
+      return {text:popup.textContent,inside:dialog.contains(popup),fits:box.left>=bounds.left&&box.right<=bounds.right&&box.top>=bounds.top&&box.bottom<=bounds.bottom,visible:popup===hit||popup.contains(hit),x:(box.left+box.right)/2,y:(box.top+box.bottom)/2};
+    })()`)
+    assert(help.inside && help.fits && help.visible, `help stays visible inside the native modal at ${width}px`)
+    assert(!/hash|fingerprint/i.test(help.text), 'the help defines the file without explaining hashes')
+    if (label === 'Manifest') assert(help.text.includes('manifest is the app’s setup document') && help.text.includes('contract calls'))
+    else assert(help.text.includes('UI (user interface) file') && help.text.includes('screens, fields, and buttons'))
+    await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: help.x, y: help.y })
+    assert(await evaluate(visible), 'moving from the icon onto its help keeps the text readable')
+    await closeHelp()
+    await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 })
+    await evaluate(`document.querySelector('.resources dialog[open] .resource-info').focus()`)
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' })
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 })
+    await wait(visible)
+    await closeHelp()
+    assert(await evaluate(`document.activeElement===document.querySelector('.resources dialog[open] .resource-info')`), 'keyboard dismissal keeps focus on the information control')
+    await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 })
+    await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: icon.x, y: icon.y }] })
+    await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await wait(visible)
+    await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))')
+    await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: icon.x, y: icon.y }] })
+    await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await wait(`!(${visible})`)
     await call('Emulation.setTouchEmulationEnabled', { enabled: false })
-    await call('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false })
   }
+  await call('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false })
 }
 
 
