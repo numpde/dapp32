@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from urllib.parse import urlparse
@@ -82,7 +84,8 @@ MODULE_SPECIFIER_RE = re.compile(
 class PackageInstallIdentityTest(unittest.TestCase):
     """Installed dependencies and format outputs must use the selected engine's host-owner mapping."""
 
-    def run_lane(self, target: str, mapped: str, *, host_identity: bool, unwritable: bool, allow_update: bool):
+    @contextmanager
+    def lane_fixture(self, target: str, mapped: str, *, unwritable: bool):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("compose", "containers", "dapps", "docs", "js/apps", "js/packages",
@@ -123,6 +126,16 @@ class PackageInstallIdentityTest(unittest.TestCase):
                        PATH=f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
                        TRACE=os.devnull, ENDPOINT="unix:///tmp/context-fixture.sock", FAKE_MODE="",
                        DOCKER_DELEGATE=str(delegate))
+            output_path = root / ("dapps/dependencies" if target == "dapps/deps/install"
+                                  else "js/node_modules")
+            try:
+                yield root, env, events, output_path
+            finally:
+                if unwritable:
+                    output.chmod(0o700)
+
+    def run_lane(self, target: str, mapped: str, *, host_identity: bool, unwritable: bool, allow_update: bool):
+        with self.lane_fixture(target, mapped, unwritable=unwritable) as (root, env, events, output_path):
             uid = str(os.getuid()) if host_identity else str(os.getuid() + 1)
             gid = str(os.getgid())
             result = subprocess.run(
@@ -132,10 +145,6 @@ class PackageInstallIdentityTest(unittest.TestCase):
                 cwd=root, env=env, capture_output=True, text=True, timeout=25,
             )
             calls = events.read_text().splitlines()
-            if unwritable:
-                output.chmod(0o700)
-            output_path = root / ("dapps/dependencies" if target == "dapps/deps/install"
-                                  else "js/node_modules")
             return result, calls, output_path.exists()
 
     def test_each_dependency_stage_uses_one_measured_engine_identity(self):
@@ -174,6 +183,74 @@ class PackageInstallIdentityTest(unittest.TestCase):
                             self.assertTrue(call.endswith(f"--user {mapped} {service}"), call)
                         self.assertFalse(any(call.startswith("info ") for call in calls),
                                          "Docker rootless flag must not choose the writer identity")
+
+    def test_competing_installs_cannot_enter_the_same_checkout(self):
+        # The first Make process holds the lock while its fake Docker stage
+        # is blocked. The second must not invoke Docker or tear down the first
+        # process's project, even when it is a different dependency installer.
+        pairs = (
+            ("dapps/deps/install", "js/deps/install"),
+            ("js/deps/install", "dapps/deps/install"),
+            ("js/deps/install", "js/deps/install"),
+        )
+        for first_target, second_target in pairs:
+            with self.subTest(first=first_target, second=second_target), self.lane_fixture(
+                first_target, f"{os.getuid()}:{os.getgid()}", unwritable=False
+            ) as (root, env, events, _):
+                entered = root / "entered"
+                released = root / "released"
+                (root / "compose.sh").write_text(
+                    'printf "compose %s\\n" "$*" >> "$TEST_EVENTS"\n'
+                    'printf "compose-project=%s\\n" "$COMPOSE_PROJECT_NAME" >> "$TEST_EVENTS"\n'
+                    'if [[ " $* " == *" soldeer-stage "* || " $* " == *" package-stage "* ]]; then\n'
+                    '  touch "$CASE_ENTERED"\n'
+                    '  for attempt in {1..1000}; do\n'
+                    '    [[ -f "$CASE_RELEASED" ]] && break\n'
+                    '    sleep .01\n'
+                    '  done\n'
+                    '  [[ -f "$CASE_RELEASED" ]] || exit 25\n'
+                    'fi\n'
+                )
+                env.update(CASE_ENTERED=str(entered), CASE_RELEASED=str(released))
+                common = [
+                    "LOCAL_UID=" + str(os.getuid()),
+                    "LOCAL_GID=" + str(os.getgid()),
+                    "DOCKER_CONTEXT=fixture",
+                    "ALLOW_UPDATE=0",
+                ]
+                command = lambda target: [
+                    "make", "--no-print-directory", "-f", str(ROOT / "Makefile"), target, *common
+                ]
+                first = subprocess.Popen(command(first_target), cwd=root, env=env,
+                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                try:
+                    deadline = time.monotonic() + 6
+                    while not entered.exists() and first.poll() is None and time.monotonic() < deadline:
+                        time.sleep(.01)
+                    self.assertTrue(entered.exists(), "first installer never entered Docker stage")
+                    previous_calls = events.read_text()
+                    contender = subprocess.run(
+                        command(second_target), cwd=root, env=env,
+                        capture_output=True, text=True, timeout=12,
+                    )
+                    self.assertEqual(2, contender.returncode, contender.stdout + contender.stderr)
+                    self.assertIn("Dependency install lock is busy.", contender.stderr)
+                    self.assertEqual(previous_calls, events.read_text(),
+                                     "contender must not call Docker or retire foreign resources")
+                finally:
+                    released.touch()
+                    stdout, stderr = first.communicate(timeout=20)
+                    if first.poll() is None:
+                        first.kill()
+                        first.communicate()
+                self.assertEqual(0, first.returncode, stdout + stderr)
+                calls = events.read_text().splitlines()
+                project_values = [
+                    call.removeprefix("compose-project=")
+                    for call in calls if call.startswith("compose-project=")
+                ]
+                self.assertEqual(1, len(set(project_values)), project_values)
+                self.assertEqual(1, len([line for line in calls if " down " in line]), calls)
 
     def test_missing_or_invalid_mapping_stops_before_install_or_output_creation(self):
         for mapped in ("refused", "bad:identity", "1000:", ":1000"):
