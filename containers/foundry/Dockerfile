@@ -24,7 +24,7 @@ USER root
 
 ARG TARGETARCH
 ARG SOLC_VERSION=0.8.35
-ARG SOLC_AMD64_SHA256=fa8ac9a32d301ad023a36ee5a29f8e291fe3200c60244e43c142539e82a617f4
+ARG SOLC_AMD64_SHA256=ea9752658df513d9f3266115622a0fa131c11b297b6edc645b9e76b5cef92dd4
 
 # SVM finds installed compiler versions under $XDG_DATA_HOME/svm.
 ENV XDG_DATA_HOME=/usr/local/share
@@ -38,7 +38,6 @@ COPY --from=solc-release /usr/bin/solc /usr/local/share/svm/0.8.35/solc-0.8.35
 
 RUN set -eux; \
   test "${TARGETARCH}" = "amd64"; \
-  sha256sum /usr/local/share/svm/0.8.35/solc-0.8.35; \
   printf '%s  %s\n' "${SOLC_AMD64_SHA256}" /usr/local/share/svm/0.8.35/solc-0.8.35 | sha256sum -c -; \
   /usr/local/share/svm/0.8.35/solc-0.8.35 --version | grep -F 'Version: 0.8.35+'; \
   mkdir -p /tmp/solc-bootstrap/src; \
