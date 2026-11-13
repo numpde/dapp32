@@ -884,6 +884,7 @@ help:
 	  '  make pay-to-play/release/check   Typecheck and test Pay-to-Play deployment/verification tools offline.' \
 	  '  make escrow/release/check        Typecheck and test Escrow deployment/verification tools offline.' \
 	  '  make pay-to-play/refunds/check   Typecheck and test the refund worker offline.' \
+	  '  make pay-to-play/refunds/network/live/check  Prove signer isolation and RPC method gating on the selected engine.' \
 	  '  make wallet/addresses           Prompt privately for a MetaMask phrase; print accounts 1-10 and paths.' \
 	  '    Input and derivation run offline in a local Foundry container; remote Docker endpoints are rejected.' \
 	  '    Wait for the Recovery phrase prompt, then enter or paste the 12 words on one line.' \
@@ -1833,6 +1834,11 @@ viewer/down:
 
 viewer/status:
 	$(call production_viewer_compose,ps)
+
+.PHONY: pay-to-play/refunds/network/live/check
+pay-to-play/refunds/network/live/check:
+	@$(LANE_GUARD); \
+	bash tests/live/refund_network.sh
 
 .PHONY: viewer/browser/check
 viewer/browser/check:
