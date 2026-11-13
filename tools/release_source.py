@@ -19,13 +19,23 @@ SOURCE_REQUEST_MAX_BYTES = 8 * 1024 * 1024
 MATCH_LABELS = {"exact_match": "exact match", "match": "code matches; metadata differs"}
 
 
+class NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Never follow a verifier redirect to an unreviewed endpoint."""
+
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        return None
+
+
 def request_json(method, path, body=None):
+
     encoded = None if body is None else json.dumps(body).encode()
     request = urllib.request.Request(API + path, data=encoded, method=method, headers={
         "Content-Type": "application/json",
         "User-Agent": "cam-source-publication/1 (+https://numpde.github.io/dapp32/)",
     })
-    with urllib.request.urlopen(request, timeout=30) as response:
+    # The verifier is fixed by API; a response redirect is not permission to
+    # contact another origin, even when no signing credentials are present.
+    with urllib.request.build_opener(NoRedirects()).open(request, timeout=30) as response:
         content = response.read(MAX_RESPONSE + 1)
     if len(content) > MAX_RESPONSE:
         raise ValueError("Public verifier response exceeds 1 MiB; no success was recorded.")
