@@ -1,0 +1,22 @@
+# Source publication and approval-image JavaScript tests, without runner Node/npm.
+services:
+  source-publication-check:
+    extends:
+      file: fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work/js
+    volumes:
+      - ../js:/input/js:ro
+      - ../js/node_modules:/work/js/node_modules:ro
+      - ../containers/release-approval:/work/containers/release-approval:ro
+      - ../tools:/work/tools:ro
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:packages
+        ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json
+        node --test --experimental-strip-types tools/release-approval/source-publication.test.ts
+        node --test --experimental-strip-types /work/containers/release-approval/prepare-context.test.mjs

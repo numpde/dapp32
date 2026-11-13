@@ -80,26 +80,17 @@ concurrency:
 jobs:
   checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - name: Check out source without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - name: Run focused source publication tests
-        run: python3 -m unittest -v tests.checks.test_release_source tests.checks.test_release_identity tests.checks.test_release_approval_image tests.checks.test_release_approval_diagnostics tests.checks.test_release_cam tests.checks.test_release_source_launcher tests.checks.test_release_instance_launcher tests.checks.test_release_instance tests.checks.test_release_lifecycle.ReleaseFullCompositionTests tests.checks.test_release_lifecycle.ReleaseLifecycleTest.test_failed_cam_keyless_completion_preserves_evidence_without_self_retry_advice
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '24'
-      - name: Install locked JavaScript dependencies
-        run: npm ci --ignore-scripts
-        working-directory: js
-      - name: Check release TypeScript and original-metadata tests
-        working-directory: js
-        run: |
-          npm run build:packages
-          ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json
-          node --test --experimental-strip-types tools/release-approval/source-publication.test.ts
-      - name: Qualify approval image host builder under non-root runner
-        run: node --experimental-strip-types --test containers/release-approval/prepare-context.test.mjs
+      - name: Acquire pinned check and dependency images
+        run: >-
+          make base-images/pull DOCKER_CONTEXT=default
+          DOCKERFILES="containers/checks/Dockerfile containers/node-deps/Dockerfile containers/https-egress-proxy/Dockerfile"
+      - name: Install locked JavaScript dependencies through confined staging
+        run: make js/deps/install DOCKER_CONTEXT=default
+      - name: Run exact source-publication test set in offline containers
+        run: make source-publication/check DOCKER_CONTEXT=default

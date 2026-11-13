@@ -854,6 +854,7 @@ help:
 	  '    Installs serialize checkout writes and clean only their own disposable Compose project.' \
 	  '  make dapps/deps/verify           Check installed Solidity files against committed checksums.' \
 	  '  make js/deps/graph/check         Check installed JS packages against the lockfile offline.' \
+	  '  make source-publication/check    Run original-source and approval-builder tests in offline containers.' \
 	  '' \
 	  'Choose checks and tests:' \
 	  '  make tests                      Run all self-contained tests, including external network checks' \
@@ -1423,6 +1424,12 @@ js/deps/install:
 	reject_unsafe_package_targets; \
 	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$package_user" "$apply_service"
 
+.PHONY: source-publication/check
+source-publication/check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm --no-deps -T checks -I -B -m unittest -v tests.checks.test_release_source tests.checks.test_release_identity tests.checks.test_release_approval_image tests.checks.test_release_approval_diagnostics tests.checks.test_release_cam tests.checks.test_release_source_launcher tests.checks.test_release_instance_launcher tests.checks.test_release_instance tests.checks.test_release_lifecycle.ReleaseFullCompositionTests tests.checks.test_release_lifecycle.ReleaseLifecycleTest.test_failed_cam_keyless_completion_preserves_evidence_without_self_retry_advice; \
+	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/source-publication-check.yml run --build --rm --no-deps -T source-publication-check
 js/deps/graph/check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
 
