@@ -1,4 +1,6 @@
 import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -45,6 +47,48 @@ def run_prepared_publication(directory, prepared, original, request, *, artifact
 
 
 class SourcePublicationTest(unittest.TestCase):
+
+    def test_source_publisher_never_follows_verifier_redirects(self):
+        class UnexpectedDestination(BaseHTTPRequestHandler):
+            visits = 0
+
+            def do_POST(self):
+                UnexpectedDestination.visits += 1
+                self.send_response(200)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        class RedirectingVerifier(BaseHTTPRequestHandler):
+            target = ""
+
+            def do_POST(self):
+                self.send_response(307)
+                self.send_header("Location", RedirectingVerifier.target)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), UnexpectedDestination) as destination:
+            RedirectingVerifier.target = f"http://127.0.0.1:{destination.server_address[1]}/outside"
+            with ThreadingHTTPServer(("127.0.0.1", 0), RedirectingVerifier) as verifier:
+                workers = [Thread(target=server.serve_forever, daemon=True) for server in (destination, verifier)]
+                for worker in workers:
+                    worker.start()
+                try:
+                    with patch.object(release_source, "API", f"http://127.0.0.1:{verifier.server_address[1]}"):
+                        with self.assertRaises(urllib.error.HTTPError) as error:
+                            release_source.request_json("POST", "/verify", {"payload": "not forwarded"})
+                        self.assertEqual(307, error.exception.code)
+                    self.assertEqual(0, UnexpectedDestination.visits)
+                finally:
+                    verifier.shutdown()
+                    destination.shutdown()
+                    for worker in workers:
+                        worker.join(timeout=2)
+
     def test_manual_and_automatic_origins_resume_the_same_wire_request_job(self):
         with tempfile.TemporaryDirectory() as directory:
             legacy = {**CONTRACT, "role": "camRoot", "sourceCommit": "a" * 40}
