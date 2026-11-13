@@ -239,10 +239,12 @@ class PackageInstallIdentityTest(unittest.TestCase):
                                      "contender must not call Docker or retire foreign resources")
                 finally:
                     released.touch()
-                    stdout, stderr = first.communicate(timeout=20)
-                    if first.poll() is None:
+                    try:
+                        stdout, stderr = first.communicate(timeout=20)
+                    except subprocess.TimeoutExpired:
                         first.kill()
-                        first.communicate()
+                        stdout, stderr = first.communicate()
+                        self.fail("first installer did not complete after its stage was released")
                 self.assertEqual(0, first.returncode, stdout + stderr)
                 calls = events.read_text().splitlines()
                 project_values = [
@@ -251,6 +253,47 @@ class PackageInstallIdentityTest(unittest.TestCase):
                 ]
                 self.assertEqual(1, len(set(project_values)), project_values)
                 self.assertEqual(1, len([line for line in calls if " down " in line]), calls)
+
+    def test_unresolved_cleanup_retains_inputs_and_primary_failure(self):
+        for target in ("dapps/deps/install", "js/deps/install"):
+            for apply_fails in (False, True):
+                with self.subTest(target=target, apply_fails=apply_fails), self.lane_fixture(
+                    target, f"{os.getuid()}:{os.getgid()}", unwritable=False
+                ) as (root, env, events, _):
+                    delegate = root / "compose.sh"
+                    delegate.write_text(
+                        'printf "compose %s\\n" "$*" >> "$TEST_EVENTS"\n'
+                        'printf "compose-project=%s\\n" "$COMPOSE_PROJECT_NAME" >> "$TEST_EVENTS"\n'
+                        'if [[ " $* " == *" down "* ]]; then exit 17; fi\n'
+                        'if [[ "$TEST_FAIL_APPLY" == 1 ]]; then\n'
+                        '  case " $* " in\n'
+                        '    *" soldeer-apply-locked "*|*" package-apply-locked "*) exit 23 ;;\n'
+                        '  esac\n'
+                        'fi\n'
+                    )
+                    env["TEST_FAIL_APPLY"] = "1" if apply_fails else "0"
+                    result = subprocess.run(
+                        ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
+                         target, f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid()}",
+                         "DOCKER_CONTEXT=fixture", "ALLOW_UPDATE=0"],
+                        cwd=root, env=env, capture_output=True, text=True, timeout=25,
+                    )
+                    self.assertEqual(23 if apply_fails else 17, result.returncode,
+                                     result.stdout + result.stderr)
+                    kind = "Solidity" if target.startswith("dapps") else "JavaScript"
+                    self.assertIn(kind + " dependency cleanup incomplete", result.stderr)
+                    calls = events.read_text().splitlines()
+                    projects = [line.split("=", 1)[1] for line in calls
+                                if line.startswith("compose-project=")]
+                    self.assertEqual(1, len(set(projects)), projects)
+                    self.assertIn(projects[0], result.stderr)
+                    self.assertEqual(1, len([line for line in calls if " down " in line]), calls)
+                    if target.startswith("js"):
+                        match = re.search(r"Retained staging inputs: (/tmp/\\S+)", result.stderr)
+                        self.assertIsNotNone(match, result.stderr)
+                        stage = Path(match.group(1))
+                        self.assertTrue(stage.is_dir(), "failed cleanup must retain mounted inputs")
+                        self.addCleanup(shutil.rmtree, stage)
 
     def test_missing_or_invalid_mapping_stops_before_install_or_output_creation(self):
         for mapped in ("refused", "bad:identity", "1000:", ":1000"):

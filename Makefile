@@ -1241,11 +1241,19 @@ dapps/deps/install:
 	$(dependency_install_lock); \
 	cleanup() { \
 	  status="$$?"; \
-	if [[ -n "$$compose_project" ]]; then \
-	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(call cleanup_disposable_project,$compose_project,-f $(COMPOSE_DIR)/deps.yml,$status,--rmi local); \
-	fi; \
-	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
-	  if [[ "$$status" != "0" && -n "$$created_dependency_metadata_placeholders" ]]; then \
+	  cleanup_status=0; \
+	  if [[ -n "$$compose_project" ]]; then \
+	    COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(call disposable_cleanup_command,$$compose_project,-f $(COMPOSE_DIR)/deps.yml,--rmi local) || cleanup_status="$$?"; \
+	  fi; \
+	  if [[ -n "$$compose_directory" ]]; then \
+	    rmdir -- "$$compose_directory" || { if [[ "$$cleanup_status" == 0 ]]; then cleanup_status=2; fi; }; \
+	  fi; \
+	  if [[ "$$cleanup_status" != 0 ]]; then \
+	    printf 'Solidity dependency cleanup incomplete for Compose project %s; mounted inputs retained.\n' "$$compose_project" >&2; \
+	    if [[ "$$status" == 0 ]]; then status="$$cleanup_status"; fi; \
+	    exit "$$status"; \
+	  fi; \
+	  if [[ "$$status" != 0 && -n "$$created_dependency_metadata_placeholders" ]]; then \
 	    rm -f $$created_dependency_metadata_placeholders; \
 	  fi; \
 	  exit "$$status"; \
@@ -1346,14 +1354,21 @@ js/deps/install:
 	$(dependency_install_lock); \
 	cleanup() { \
 	  status="$$?"; \
-	  if [[ -n "$$package_input_dir" ]]; then \
-	if [[ -n "$$compose_project" ]]; then \
-	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$compose_project,-f $(COMPOSE_DIR)/package-deps.yml,$status,--rmi local); \
-	fi; \
-	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
-	    rm -rf "$$package_input_dir"; \
+	  cleanup_status=0; \
+	  if [[ -n "$$compose_project" ]]; then \
+	    COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(call disposable_cleanup_command,$$compose_project,-f $(COMPOSE_DIR)/package-deps.yml,--rmi local) || cleanup_status="$$?"; \
 	  fi; \
-	  if [[ "$$status" != "0" && "$$created_package_lock_placeholder" == "1" ]]; then \
+	  if [[ -n "$$compose_directory" ]]; then \
+	    rmdir -- "$$compose_directory" || { if [[ "$$cleanup_status" == 0 ]]; then cleanup_status=2; fi; }; \
+	  fi; \
+	  if [[ "$$cleanup_status" != 0 ]]; then \
+	    printf 'JavaScript dependency cleanup incomplete for Compose project %s; mounted inputs retained.\n' "$$compose_project" >&2; \
+	    if [[ -n "$$package_input_dir" ]]; then printf 'Retained staging inputs: %s\n' "$$package_input_dir" >&2; fi; \
+	    if [[ "$$status" == 0 ]]; then status="$$cleanup_status"; fi; \
+	    exit "$$status"; \
+	  fi; \
+	  if [[ -n "$$package_input_dir" ]]; then rm -rf "$$package_input_dir"; fi; \
+	  if [[ "$$status" != 0 && "$$created_package_lock_placeholder" == 1 ]]; then \
 	    rm -f "$(PACKAGE_LOCK_FILE)"; \
 	  fi; \
 	  exit "$$status"; \
