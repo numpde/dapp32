@@ -80,7 +80,10 @@ async function run() {
     const fields = line.trim().split(/\s+/);
     return fields[0] === "0".repeat(32) && fields[1] === "00";
   })) {
-    throw new Error("Worker network has an IPv6 default route");
+    throw new Error("Worker IPv6 route entries: " + ipv6.filter(line => {
+      const fields = line.trim().split(/\s+/);
+      return fields[0] === "0".repeat(32) && fields[1] === "00";
+    }).join(" | "));
   }
 
   const proxy = "http://refund-rpc-proxy:8080";
