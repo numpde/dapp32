@@ -1024,6 +1024,7 @@ help:
 	  '    Requires installed locked dependencies (make js/deps/install) and locally available pinned base images.' \
 	  '    The footer records the source revision and UTC build time; modified checkouts are labelled.' \
 	  '  make viewer/up                  Start the built image at http://127.0.0.1:8080; no build or pull.' \
+	  '  make viewer/network/live/check   Test published HTTP ingress and absence of an IPv4 default route.' \
 	  '  make viewer/status              Show this viewer container and its health.' \
 	  '  make viewer/update              Fetch deploy/viewer; build, replace, verify and clean this viewer if needed.' \
 	  '    Requires a clean deployment checkout, an existing labeled viewer, XDG_RUNTIME_DIR and VIEWER_PUBLIC_ORIGIN=https://host.' \
@@ -1833,6 +1834,11 @@ viewer/down:
 
 viewer/status:
 	$(call production_viewer_compose,ps)
+
+.PHONY: viewer/network/live/check
+viewer/network/live/check:
+	@$(LANE_GUARD); \
+	bash tests/live/viewer_network.sh
 
 .PHONY: viewer/browser/check
 viewer/browser/check:

@@ -9,6 +9,7 @@ on:
       - containers/rpc-proxy/**
       - containers/checks/**
       - compose/**
+      - tests/live/viewer_network.sh
       - '!compose/docs.yml'
       - tests/checks/**
       - '!tests/checks/test_docs_*.py'
@@ -21,6 +22,7 @@ on:
       - containers/rpc-proxy/**
       - containers/checks/**
       - compose/**
+      - tests/live/viewer_network.sh
       - '!compose/docs.yml'
       - tests/checks/**
       - '!tests/checks/test_docs_*.py'
@@ -46,3 +48,14 @@ jobs:
           persist-credentials: false
       - name: Run the offline, resource-limited checks container
         run: make tests/checks DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=rpc-proxy-checks
+
+  static-viewer-network:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Prove published ingress without general container egress
+        run: make viewer/network/live/check DOCKER_CONTEXT=default
