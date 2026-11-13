@@ -70,6 +70,15 @@ class ConfinementBoundariesTest(unittest.TestCase):
             self.assertEqual(plan["environment"][key], proxy["environment"][key])
         self.assertNotIn("secrets", worker, "Worker should only receive protected bind files")
 
+    def test_refund_fixture_uses_the_execute_proxy_policy(self) -> None:
+        production = rendered_compose_config(REFUND_FILES)["services"]["refund-rpc-proxy"]
+        fixture = rendered_compose_config((
+            "compose/pay-to-play/local/deploy.yml", "compose/pay-to-play/local/http.yml",
+            "compose/pay-to-play/local/scenario.yml", "compose/pay-to-play/local/recovery-scenario.yml",
+        ))["services"]["refund-fixture-proxy"]
+        for key in ("RPC_ALLOWED_METHODS", "RPC_PROXY_MAX_REQUEST_BYTES", "RPC_PROXY_MAX_RESPONSE_BYTES", "RPC_PROXY_MAX_QUEUED_REQUESTS"):
+            self.assertEqual(production["environment"][key].split(), fixture["environment"][key].split(), key)
+
     def test_docs_site_checker_only_reads_its_three_inputs(self) -> None:
         config = rendered_compose_config("compose/docs-site-check.yml")
         checker = config["services"]["docs-site-check"]

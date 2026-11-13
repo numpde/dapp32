@@ -7,7 +7,24 @@ on:
     paths:
       - .github/workflows/rpc-proxy-checks.yml
       - containers/rpc-proxy/**
+      - containers/foundry/**
+      - containers/node-deps/**
+      - containers/https-egress-proxy/**
       - js/tools/pay-to-play-refunds/**
+      - js/tools/pay-to-play-local-scenario/**
+      - js/tools/pay-to-play-vouchers/**
+      - js/tools/input.ts
+      - js/packages/**
+      - js/package.json
+      - js/package-lock.json
+      - dapps/pay-to-play/**
+      - dapps/cam/**
+      - dapps/foundry.toml
+      - dapps/soldeer.lock
+      - dapps/remappings.txt
+      - dapps/dependency-checksums.txt
+      - dapps/_patches/**
+      - tests/fixtures/pay-to-play/**
       - containers/checks/**
       - compose/**
       - tests/live/refund_network.sh
@@ -22,7 +39,24 @@ on:
     paths:
       - .github/workflows/rpc-proxy-checks.yml
       - containers/rpc-proxy/**
+      - containers/foundry/**
+      - containers/node-deps/**
+      - containers/https-egress-proxy/**
       - js/tools/pay-to-play-refunds/**
+      - js/tools/pay-to-play-local-scenario/**
+      - js/tools/pay-to-play-vouchers/**
+      - js/tools/input.ts
+      - js/packages/**
+      - js/package.json
+      - js/package-lock.json
+      - dapps/pay-to-play/**
+      - dapps/cam/**
+      - dapps/foundry.toml
+      - dapps/soldeer.lock
+      - dapps/remappings.txt
+      - dapps/dependency-checksums.txt
+      - dapps/_patches/**
+      - tests/fixtures/pay-to-play/**
       - containers/checks/**
       - compose/**
       - tests/live/refund_network.sh
@@ -71,6 +105,10 @@ jobs:
         run: make pay-to-play/refunds/check DOCKER_CONTEXT=default
       - name: Launch actual read-only refund plan against a locally rejected upstream
         run: bash tests/live/refund_plan_smoke.sh default
+      - name: Install locked Solidity dependencies
+        run: make dapps/deps/install DOCKER_CONTEXT=default
+      - name: Exercise a signed refund and recovery through the RPC gate
+        run: make pay-to-play/local/recovery/run DOCKER_CONTEXT=default
 
   refund-network:
     runs-on: ubuntu-24.04

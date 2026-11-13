@@ -1,8 +1,32 @@
 # Overlay for the existing disposable local scenario. Retains its network,
 # deployment dependencies, read-only mounts and public fixture-account grants.
 services:
+  refund-fixture-proxy:
+    extends:
+      file: ../../fragments/release-rpc-proxy.yml
+      service: release-rpc-proxy-base
+    entrypoint: [python3, /fixture/refund_rpc_proxy.py]
+    environment:
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getCode
+        eth_getLogs eth_call eth_getTransactionCount eth_estimateGas
+        eth_getTransactionReceipt eth_getTransactionByHash
+        eth_feeHistory eth_gasPrice eth_maxPriorityFeePerGas eth_sendRawTransaction
+      RPC_PROXY_MAX_REQUEST_BYTES: "262144"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "2097152"
+      RPC_PROXY_MAX_QUEUED_REQUESTS: "4"
+    volumes:
+      - ../../../tests/fixtures/pay-to-play/refund_rpc_proxy.py:/fixture/refund_rpc_proxy.py:ro
+    networks:
+      - pay-to-play_local
+
   pay-to-play-local-scenario:
     sysctls: {net.mptcp.enabled: "0"}
+    depends_on:
+      refund-fixture-proxy:
+        condition: service_healthy
+    environment:
+      PAY_TO_PLAY_REFUND_PROXY_URL: http://refund-fixture-proxy:8080
     volumes:
       - ../../../dapps/pay-to-play/cam/abi:/work/dapps/pay-to-play/cam/abi:ro
     command:

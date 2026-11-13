@@ -27,6 +27,9 @@ async function main() {
   const rpcURL = requireHttpURL(requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RPC_URL"), "fixture RPC")
   assert.equal(rpcURL.protocol, "http:")
   assert(["pay-to-play-anvil", "127.0.0.1", "localhost", "[::1]"].includes(new URL(rpcURL.href).hostname))
+  const refundProxy = requireHttpURL(requiredEnv(process.env, "PAY_TO_PLAY_REFUND_PROXY_URL"), "fixture refund proxy")
+  assert.equal(refundProxy.href, "http://refund-fixture-proxy:8080/")
+  const fixtureControl = (path: string) => fetch(new URL(path, refundProxy.href), { signal: AbortSignal.timeout(3000) })
   const broadcast = record(parseJsonBytes(new Uint8Array(readFileSync(requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_BROADCAST_PATH")))))
   assert(Array.isArray(broadcast.transactions))
   function deployed(name: string): Address {
@@ -263,35 +266,69 @@ async function main() {
       gasLimit: "300000", maxFeePerGas: "10000000000", maxPriorityFeePerGas: "1000000000",
     }), { mode: 0o600 })
     writeFileSync(keyFile, requiredEnv(process.env, "PAY_TO_PLAY_PAYEE_PRIVATE_KEY"), { mode: 0o600 })
-    async function cli(execute: boolean) {
+    async function cli(execute: boolean, stopAfterDrop: boolean) {
       phase = "refund CLI"
-      const env: NodeJS.ProcessEnv = { REFUND_CONFIG_FILE: configFile, REFUND_RPC_PROXY_URL: rpcURL.href, REFUND_EXECUTE: execute ? "YES" : "NO" }
+      const env: NodeJS.ProcessEnv = { REFUND_CONFIG_FILE: configFile, REFUND_RPC_PROXY_URL: refundProxy.href, REFUND_EXECUTE: execute ? "YES" : "NO" }
       if (execute) { env.REFUND_PRIVATE_KEY_FILE = keyFile; env.REFUND_STATE_DIR = directory }
-      const result = await new Promise<{ code: number; stdout: string }>(resolve => {
-        execFile(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("../pay-to-play-refunds/runner.ts", import.meta.url))],
+      let child: ReturnType<typeof execFile>
+      const finished = new Promise<{ code: number; signal: string | null; stdout: string }>(resolve => {
+        child = execFile(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("../pay-to-play-refunds/runner.ts", import.meta.url))],
           { env, timeout: 90_000, maxBuffer: 262_144 }, (error, stdout) => {
-            resolve({ code: error ? (typeof error.code === "number" ? error.code : -1) : 0, stdout })
+            resolve({ code: error ? (typeof error.code === "number" ? error.code : -1) : 0, signal: error && error.signal ? error.signal : null, stdout })
           })
       })
+      if (stopAfterDrop) {
+        let dropped = ""
+        try {
+          for (let attempt = 0; attempt < 200 && !dropped; attempt++) {
+            dropped = await (await fixtureControl("/fixture/dropped")).text()
+            if (!dropped) await new Promise(resolve => setTimeout(resolve, 100))
+          }
+          assert.match(dropped, /^0x[0-9a-f]{64}$/, "fixture must observe an accepted refund")
+          assert(child!.kill("SIGTERM"), "worker must still be running after its response is dropped")
+        } catch (error) {
+          child!.kill("SIGTERM")
+          await finished
+          throw error
+        }
+      }
+      const result = await finished
       const events = result.stdout.trim().split("\n").filter(Boolean).map(line => record(JSON.parse(line)))
       const batches = events.filter(event => event.event === "batch")
+      if (stopAfterDrop) {
+        assert.equal(result.signal, "SIGTERM")
+        return { code: result.code, events, batch: undefined }
+      }
       assert.equal(batches.length, 1, "CLI must report one bounded batch")
-      return { code: result.code, batch: batches[0]! }
+      return { code: result.code, events, batch: batches[0]! }
     }
-    const dry = await cli(false)
+    const dry = await cli(false, false)
     assert.equal(dry.code, 0)
-    assert.equal(dry.batch.due, 2)
-    assert.equal(dry.batch.submitted, 0)
-    const first = await cli(true)
+    assert.equal(dry.batch!.due, 2)
+    assert.equal(dry.batch!.submitted, 0)
+    const first = await cli(true, false)
     assert.equal(first.code, 2)
-    assert.equal(first.batch.confirmed, 1)
-    assert.equal(first.batch.deferred, 1)
-    const second = await cli(true)
+    assert.equal(first.batch!.confirmed, 1)
+    assert.equal(first.batch!.deferred, 1)
+    assert.equal(await (await fixtureControl("/fixture/sends")).text(), "1")
+    assert.equal((await fixtureControl("/fixture/arm-drop")).status, 204)
+    const interrupted = await cli(true, true)
+    assert.notEqual(interrupted.code, 0)
+    assert.equal(await (await fixtureControl("/fixture/sends")).text(), "2")
+    const dropped = await (await fixtureControl("/fixture/dropped")).text()
+    const firstJournal = record(JSON.parse(readFileSync(join(directory, "refunds.json"), "utf8")))
+    assert.equal(record(firstJournal.pending).hash, dropped, "the dropped response must match the pending journal")
+    // Remove any lock left by the stopped worker only after it has exited.
+    rmSync(join(directory, "refunds.lock"), { recursive: true, force: true })
+    assert.equal((await fixtureControl("/fixture/release-receipts")).status, 204)
+    const second = await cli(true, false)
     assert.equal(second.code, 0)
-    assert.equal(second.batch.confirmed, 1)
-    const third = await cli(true)
+    assert(second.events.some(event => event.event === "receipt" && event.hash === dropped && event.status === "confirmed"))
+    assert.equal(second.batch!.confirmed, 0)
+    const third = await cli(true, false)
     assert.equal(third.code, 0)
-    assert.equal(third.batch.due, 0)
+    assert.equal(third.batch!.due, 0)
+    assert.equal(await (await fixtureControl("/fixture/sends")).text(), "2")
     const journal = record(JSON.parse(readFileSync(join(directory, "refunds.json"), "utf8")))
     assert.equal(journal.pending, null)
     assert.equal(record(journal.lastReceipt).status, "confirmed")
@@ -305,7 +342,7 @@ async function main() {
 const rename=fs.renameSync;fs.renameSync=(source,target)=>{if(target.endsWith('/refunds.json'))throw Object.assign(new Error('SECRET_FAULT_BODY'),{code:'EACCES',syscall:'rename'});return rename(source,target)};syncBuiltinESMExports();`)
     const failed = await new Promise<{ code: number; stdout: string; stderr: string }>(resolve => {
       execFile(process.execPath, ["--import", fault, "--experimental-strip-types", fileURLToPath(new URL("../pay-to-play-refunds/runner.ts", import.meta.url))], {
-        env: { REFUND_CONFIG_FILE: configFile, REFUND_RPC_PROXY_URL: rpcURL.href, REFUND_EXECUTE: "YES", REFUND_PRIVATE_KEY_FILE: keyFile, REFUND_STATE_DIR: directory },
+        env: { REFUND_CONFIG_FILE: configFile, REFUND_RPC_PROXY_URL: refundProxy.href, REFUND_EXECUTE: "YES", REFUND_PRIVATE_KEY_FILE: keyFile, REFUND_STATE_DIR: directory },
         timeout: 90_000, maxBuffer: 262_144,
       }, (error, stdout, stderr) => resolve({ code: error ? (typeof error.code === "number" ? error.code : -1) : 0, stdout, stderr }))
     })
