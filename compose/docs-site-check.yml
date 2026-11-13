@@ -3,11 +3,22 @@ services:
     extends:
       file: checks.yml
       service: checks
-    volumes:
+    # Replace the inherited repository-wide mount with only actual inputs.
+    volumes: !override
+      - type: bind
+        source: ../docs
+        target: /work/docs
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../tools/docs_site.py
+        target: /work/docs_site.py
+        read_only: true
+        bind: {create_host_path: false}
       - type: bind
         source: ${DOCS_SITE_DIR:?missing_DOCS_SITE_DIR}
         target: /site
         read_only: true
         bind:
           create_host_path: false
-    command: ["-I", "-B", "tools/docs_site.py", "check", "docs", "/site"]
+    command: ["-I", "-B", "/work/docs_site.py", "check", "docs", "/site"]
