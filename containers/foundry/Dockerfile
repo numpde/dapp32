@@ -38,6 +38,7 @@ COPY --from=solc-release /usr/bin/solc /usr/local/share/svm/0.8.35/solc-0.8.35
 
 RUN set -eux; \
   test "${TARGETARCH}" = "amd64"; \
+  sha256sum /usr/local/share/svm/0.8.35/solc-0.8.35; \
   printf '%s  %s\n' "${SOLC_AMD64_SHA256}" /usr/local/share/svm/0.8.35/solc-0.8.35 | sha256sum -c -; \
   /usr/local/share/svm/0.8.35/solc-0.8.35 --version | grep -F 'Version: 0.8.35+'; \
   mkdir -p /tmp/solc-bootstrap/src; \

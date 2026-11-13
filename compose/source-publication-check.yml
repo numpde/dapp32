@@ -19,4 +19,5 @@ services:
         npm run build:packages
         ./node_modules/.bin/tsc -p tools/release-approval/tsconfig.json
         node --test --experimental-strip-types tools/release-approval/source-publication.test.ts
-        node --test --experimental-strip-types /work/containers/release-approval/prepare-context.test.mjs
+        cd /work
+        node --test --experimental-strip-types containers/release-approval/prepare-context.test.mjs
