@@ -28,20 +28,6 @@ outline: false
 
 ## Documentation authoring
 
-Use CommonMark syntax for ordinary headings, paragraphs, links, lists and fenced code blocks. Separate blocks with blank lines. Prefer Markdown for content so VitePress can generate heading anchors and check guide links.
-
-When converting an existing page, preserve its published fragment IDs. VitePress supports explicit heading IDs with `## Heading {#existing-id}`; this is a VitePress extension, not portable CommonMark syntax. Check generated IDs before changing headings that other pages may link to.
-
-Keep HTML or Vue components when needed for structure or behavior, such as a definition list or interactive diagram. When mixing HTML blocks and Markdown, separate them with blank lines and check the rendered result. If VitePress cannot resolve a guide URL, link to its Markdown source. Use an HTML link for the independently published viewer, which is not a VitePress page.
-
-Build and check the site with the selected local Docker context:
-
-```sh
-docs_output="$(mktemp -d)"
-make docs/build DOCKER_CONTEXT=your-local-context DOCS_OUTPUT_DIR="$docs_output"
-make docs/site/check DOCKER_CONTEXT=your-local-context DOCS_SITE_DIR="$docs_output/site"
-```
-
-Replace `your-local-context` with your Docker context. The build leaves the generated site in the temporary directory for inspection; remove that directory when finished.
+See [documentation authoring in the source-checkout guide](../development/#documentation-authoring).
 
 </div>
