@@ -2636,11 +2636,24 @@ require_protected_release_file "$${REFUND_CONFIG_FILE:?Set REFUND_CONFIG_FILE}" 
 require_protected_release_file "$${RPC_URL_FILE:?Set RPC_URL_FILE}" RPC_URL_FILE RPC_URL_FILE
 endef
 
+define refund_compose_ownership
+refund_project_dir="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-refunds.XXXXXXXX")"; \
+refund_project="dapp32-refunds-$${refund_project_dir##*.}"; \
+export COMPOSE_PROJECT_NAME="$$refund_project"; \
+refund_cleanup() { status="$$?"; \
+  $(call cleanup_disposable_project,$$refund_project,$(1),$$status); \
+  rmdir -- "$$refund_project_dir"; \
+  exit "$$status"; \
+}; \
+trap refund_cleanup EXIT
+endef
+
 pay-to-play/refunds/plan:
 	@$(refund_input_guards); \
 	$(select_host_output_identity); \
+	$(call refund_compose_ownership,$(REFUND_PLAN_COMPOSE_FILES)); \
 	LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing verified container UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing verified container GID}" \
-	  env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_PLAN_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+	  env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_PLAN_COMPOSE_FILES) run --build --rm -T pay-to-play-refunds
 
 pay-to-play/refunds/run:
 	@$(refund_input_guards); \
@@ -2652,8 +2665,9 @@ pay-to-play/refunds/run:
 	if [[ ! -d "$$state" || "$$(stat -c %a -- "$$state")" != 700 || "$$(stat -c %u -- "$$state")" != "$(LOCAL_UID)" ]]; then printf '%s\n' 'Pre-create REFUND_STATE_DIR owned by LOCAL_UID with mode 0700.' >&2; exit 2; fi; \
 	case "$$state" in "$$(pwd -P)"|"$$(pwd -P)"/*) printf '%s\n' 'REFUND_STATE_DIR must be outside the repository.' >&2; exit 2 ;; esac; \
 	$(select_host_output_identity); \
+	$(call refund_compose_ownership,$(REFUND_EXECUTE_COMPOSE_FILES)); \
 	LOCAL_UID="$${RELEASE_CONTAINER_UID:?missing verified container UID}" LOCAL_GID="$${RELEASE_CONTAINER_GID:?missing verified container GID}" \
-	  env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_EXECUTE_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+	  env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_EXECUTE_COMPOSE_FILES) run --build --rm -T pay-to-play-refunds
 
 # Reuse the maintained fixture lifecycle and its existing account grants. The
 # overlay replaces only the scenario command; no live RPC or signing key mounts.
