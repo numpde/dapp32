@@ -84,6 +84,9 @@ async function run() {
   }
 
   const proxy = "http://refund-rpc-proxy:8080";
+  if (process.env.REFUND_RPC_PROXY_URL !== proxy) {
+    throw new Error("Worker has a different configured proxy endpoint");
+  }
   const health = await fetch(proxy + "/healthz", { signal: AbortSignal.timeout(3000) });
   if (health.status !== 204) throw new Error(`Internal RPC proxy health returned HTTP ${health.status}`);
 

@@ -31,16 +31,11 @@ class ConfinementBoundariesTest(unittest.TestCase):
         self.assertEqual("NO", worker["environment"]["REFUND_EXECUTE"])
 
         worker_mounts = {entry["target"]: entry for entry in worker["volumes"]}
-        self.assertIn("/run/secrets/refund-rpc", worker_mounts)
-        self.assertTrue(worker_mounts["/run/secrets/refund-rpc"]["read_only"])
-        self.assertEqual(
-            repo_path("compose/pay-to-play/refunds/rpc-proxy-url.txt"),
-            Path(worker_mounts["/run/secrets/refund-rpc"]["source"]),
-        )
+        self.assertNotIn("/run/secrets/refund-rpc", worker_mounts)
         self.assertNotIn("/run/secrets/refund-relayer", worker_mounts)
+        self.assertNotIn("RPC_URL_FILE", worker["environment"])
         self.assertEqual(
-            "http://refund-rpc-proxy:8080",
-            read_text(repo_path("compose/pay-to-play/refunds/rpc-proxy-url.txt")).strip(),
+            "http://refund-rpc-proxy:8080", worker["environment"]["REFUND_RPC_PROXY_URL"],
         )
 
         self.assertEqual("refund_rpc_url", proxy["secrets"][0]["source"])

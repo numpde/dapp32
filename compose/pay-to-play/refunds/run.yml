@@ -14,7 +14,7 @@ services:
     environment:
       REFUND_EXECUTE: "NO"
       REFUND_CONFIG_FILE: /run/secrets/refund-config
-      RPC_URL_FILE: /run/secrets/refund-rpc
+      REFUND_RPC_PROXY_URL: http://refund-rpc-proxy:8080
     volumes:
       - ../../../js:/input/js:ro
       - ../../../js/node_modules:/work/js/node_modules:ro
@@ -22,12 +22,6 @@ services:
       - type: bind
         source: "${REFUND_CONFIG_FILE:?missing_REFUND_CONFIG_FILE}"
         target: /run/secrets/refund-config
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ./rpc-proxy-url.txt
-        target: /run/secrets/refund-rpc
         read_only: true
         bind:
           create_host_path: false

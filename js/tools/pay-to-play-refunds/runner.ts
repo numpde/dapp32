@@ -34,7 +34,7 @@ async function main() {
   try { configValue = parseJsonBytes(new TextEncoder().encode(configText)) }
   catch (cause) { throw new RefundWorkerError("Refund configuration must be unambiguous valid JSON", { cause }) }
   const config = parseConfig(configValue)
-  const rpcURL = requireHttpURL(readProtectedFile(required("RPC_URL_FILE"), 8192).trim(), "RPC_URL_FILE").href
+  const rpcURL = requireHttpURL(required("REFUND_RPC_PROXY_URL"), "REFUND_RPC_PROXY_URL").href
   // Intentional policy: absence of an execution grant selects a read-only plan.
   let mode = process.env.REFUND_EXECUTE
   if (mode === undefined) mode = "NO"
