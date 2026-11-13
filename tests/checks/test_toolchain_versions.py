@@ -173,6 +173,11 @@ class ToolchainVersionTest(unittest.TestCase):
         expected_solc = self.foundry_toml_solc_version()
         actual_solc = self.dockerfile_solc_version(repo_path("containers/foundry/Dockerfile"))
         self.assertEqual(expected_solc, actual_solc, "containers/foundry/Dockerfile SOLC_VERSION must match dapps/foundry.toml")
+        bootstrap = read_text(repo_path("containers/foundry/Dockerfile"))
+        self.assertIn("RUN --network=none set -eux;", bootstrap)
+        self.assertIn("sha256sum -c -;", bootstrap)
+        self.assertIn("forge build --root /tmp/solc-bootstrap --offline;", bootstrap)
+
 
     def pinned_image_refs(self, image: str) -> list[PinnedImageRef]:
         refs: list[PinnedImageRef] = []

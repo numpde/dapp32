@@ -35,7 +35,8 @@ RUN mkdir -p /foundry-broadcast /input /out /work \
 
 COPY --from=solc-release /usr/bin/solc /usr/local/share/svm/0.8.35/solc-0.8.35
 
-RUN set -eux; \
+# The compiler is already present by digest; no build instruction may fetch it.
+RUN --network=none set -eux; \
   test "${TARGETARCH}" = "amd64"; \
   printf '%s  %s\n' ea9752658df513d9f3266115622a0fa131c11b297b6edc645b9e76b5cef92dd4 /usr/local/share/svm/0.8.35/solc-0.8.35 | sha256sum -c -; \
   /usr/local/share/svm/0.8.35/solc-0.8.35 --version | grep -F 'Version: 0.8.35+'; \
