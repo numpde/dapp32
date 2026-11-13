@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -318,8 +318,9 @@ async function main() {
     const dropped = await (await fixtureControl("/fixture/dropped")).text()
     const firstJournal = record(JSON.parse(readFileSync(join(directory, "refunds.json"), "utf8")))
     assert.equal(record(firstJournal.pending).hash, dropped, "the dropped response must match the pending journal")
-    // Remove any lock left by the stopped worker only after it has exited.
-    rmSync(join(directory, "refunds.lock"), { recursive: true, force: true })
+    // A stopped worker leaves one empty journal lock directory. Do not silently
+    // remove unexpected contents or accept a lock that was already missing.
+    rmdirSync(join(directory, "refunds.lock"))
     assert.equal((await fixtureControl("/fixture/release-receipts")).status, 204)
     const second = await cli(true, false)
     assert.equal(second.code, 0)
