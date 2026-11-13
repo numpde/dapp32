@@ -851,6 +851,7 @@ help:
 	  '  make js/deps/install             Install locked JS dependencies into js/node_modules/.' \
 	  '    Add ALLOW_UPDATE=1 to either install only when updating its lock metadata is intended.' \
 	  '    Solidity updates also rewrite remappings/checksums; JS updates rewrite js/package-lock.json.' \
+	  '    Installs serialize checkout writes and clean only their own disposable Compose project.' \
 	  '  make dapps/deps/verify           Check installed Solidity files against committed checksums.' \
 	  '  make js/deps/graph/check         Check installed JS packages against the lockfile offline.' \
 	  '' \
@@ -1220,9 +1221,18 @@ dapps/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
 	created_dependency_metadata_placeholders=""; \
+	compose_project=""; \
+	compose_directory=""; \
+	install_lock="$$(git rev-parse --git-path dapp32-install.lock)"; \
+	if [[ -L "$$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
+	exec 9>"$$install_lock"; \
+	flock -w 600 9 || { printf "%s\n" "Dependency install lock is busy." >&2; exit 2; }; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(DEPS_COMPOSE_ENV) $(call cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/deps.yml,$$status); \
+	if [[ -n "$$compose_project" ]]; then \
+	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(call cleanup_disposable_project,$$compose_project,-f $(COMPOSE_DIR)/deps.yml,$$status); \
+	fi; \
+	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
 	  if [[ "$$status" != "0" && -n "$$created_dependency_metadata_placeholders" ]]; then \
 	    rm -f $$created_dependency_metadata_placeholders; \
 	  fi; \
@@ -1293,11 +1303,12 @@ dapps/deps/install:
 	mkdir -p $(DEPENDENCIES_DIR); \
 	test -d $(DEPENDENCIES_DIR); \
 	reject_unsafe_dependency_targets; \
-	$(DEPS_COMPOSE_ENV) $(call cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/deps.yml,0); \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-stage; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify-stage; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" "$$apply_service"; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify
+	compose_directory="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
+	compose_project="dapp32-solidity-deps-$${compose_directory##*.}"; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-stage; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify-stage; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" "$$apply_service"; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify
 
 .PHONY: base-images/pull
 # This helper must work even when container bases are missing. Docker owns
@@ -1318,10 +1329,19 @@ js/deps/install:
 	$(ALLOW_UPDATE_GUARD); \
 	package_input_dir=""; \
 	created_package_lock_placeholder="0"; \
+	compose_project=""; \
+	compose_directory=""; \
+	install_lock="$$(git rev-parse --git-path dapp32-install.lock)"; \
+	if [[ -L "$$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
+	exec 9>"$$install_lock"; \
+	flock -w 600 9 || { printf "%s\n" "Dependency install lock is busy." >&2; exit 2; }; \
 	cleanup() { \
 	  status="$$?"; \
 	  if [[ -n "$$package_input_dir" ]]; then \
-	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/package-deps.yml,$$status,--rmi local); \
+	if [[ -n "$$compose_project" ]]; then \
+	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$$compose_project,-f $(COMPOSE_DIR)/package-deps.yml,$$status); \
+	fi; \
+	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
 	    rm -rf "$$package_input_dir"; \
 	  fi; \
 	  if [[ "$$status" != "0" && "$$created_package_lock_placeholder" == "1" ]]; then \
@@ -1388,8 +1408,9 @@ js/deps/install:
 	  mkdir -p "$$package_input_dir/$$package_dir"; \
 	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
 	done < <(find $(JS_DIR)/packages $(JS_DIR)/apps -mindepth 2 -maxdepth 2 -name package.json | sort); \
-	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME),-f $(COMPOSE_DIR)/package-deps.yml,0); \
-	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" package-stage; \
+	compose_directory="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
+	compose_project="dapp32-package-deps-$${compose_directory##*.}"; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" package-stage; \
 	reject_unsafe_package_targets; \
 	mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"; \
 	test -d "$(PACKAGE_NODE_MODULES_DIR)"; \
@@ -1399,7 +1420,7 @@ js/deps/install:
 	fi; \
 	test -f "$(PACKAGE_LOCK_FILE)"; \
 	reject_unsafe_package_targets; \
-	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" "$$apply_service"
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" "$$apply_service"
 
 js/deps/graph/check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
