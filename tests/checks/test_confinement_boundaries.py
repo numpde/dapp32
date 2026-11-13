@@ -117,6 +117,11 @@ class ConfinementBoundariesTest(unittest.TestCase):
 
         service = rendered_compose_config("compose/source-publication-check.yml")["services"]["source-publication-check"]
         self.assertEqual("none", service["network_mode"])
+        self.assertEqual("none", service["build"]["network"])
+        self.assertEqual(
+            str(repo_path("containers/node-deps")), service["build"]["context"],
+        )
+
         self.assertTrue(service["read_only"])
         self.assertTrue(all(mount["read_only"] for mount in service["volumes"]))
         self.assertEqual(["ALL"], service["cap_drop"])

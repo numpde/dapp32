@@ -4,6 +4,9 @@ services:
     extends:
       file: fragments/node-workspace.yml
       service: offline-node-workspace
+    # All RUN instructions use only the acquired digest-pinned Node base.
+    build:
+      network: none
     working_dir: /work/js
     volumes:
       - ../js:/input/js:ro
