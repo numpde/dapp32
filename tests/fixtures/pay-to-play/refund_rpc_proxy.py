@@ -13,12 +13,10 @@ SEND_COUNT = "/tmp/refund-sends"
 class FixtureConnection(http.client.HTTPConnection):
     def request(self, method, url, body=None, headers=None, **kwargs):
         self.rpc_method = json.loads(body).get("method")
+        super().request(method, url, body=body, headers=headers, **kwargs)
         if self.rpc_method == "eth_sendRawTransaction":
             with open(SEND_COUNT, "a", encoding="ascii") as counts:
                 counts.write("1\n")
-        if headers is None:
-            raise ValueError("Fixture proxy requires explicit upstream headers")
-        return super().request(method, url, body=body, headers=headers, **kwargs)
 
     def getresponse(self):
         response = super().getresponse()
