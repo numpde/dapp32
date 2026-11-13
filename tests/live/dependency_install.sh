@@ -30,18 +30,16 @@ case " $* " in
     printf '%s\n' 'Timed out waiting to release installer stage.' >&2
     exit 2 ;;
 esac
-exec "$INSTALL_TEST_REAL_DOCKER" "$@"
-SHIM
-cat >"$scratch/bin/bash" <<'SHIM'
-#!/bin/bash
-if [[ ${1-} == tools/compose_cleanup.sh ]]; then
-  if /bin/bash "$@"; then result=0; else result=$?; fi
+# Record the actual Compose down outcome; no Bash process interception is
+# necessary to prove which failure code the installer preserves.
+if [[ " $* " == *" compose "*" down "* ]]; then
+  if "$INSTALL_TEST_REAL_DOCKER" "$@"; then result=0; else result=$?; fi
   printf '%s\n' "$result" > "$INSTALL_TEST_DIR/cleanup-status"
   exit "$result"
 fi
-exec /bin/bash "$@"
+exec "$INSTALL_TEST_REAL_DOCKER" "$@"
 SHIM
-chmod 0700 "$scratch/bin/docker" "$scratch/bin/bash"
+chmod 0700 "$scratch/bin/docker"
 
 blocker="dapp32-installer-test-$(printf '%s' "$scratch" | sha256sum | cut -c1-20)"
 blocker_id=
