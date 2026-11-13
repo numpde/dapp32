@@ -140,8 +140,10 @@ function rewriteMarkdownLinks(value, rewrite) {
       continue
     }
     const start = opening + 2
-    const angle = value[start] === '<'
-    const destinationStart = start + (angle ? 1 : 0)
+    let position = start
+    while (/\s/.test(value[position] ?? '')) position++
+    const angle = value[position] === '<'
+    const destinationStart = position + (angle ? 1 : 0)
     let end = destinationStart
     let depth = 0
     while (end < value.length) {
@@ -163,18 +165,19 @@ function rewriteMarkdownLinks(value, rewrite) {
     if (valid && value[after] !== ')') {
       let position = after
       while (/\s/.test(value[position] ?? '')) position++
-      const delimiter = value[position]
-      valid = position > after && ['"', "'", '('].includes(delimiter)
-      if (valid) {
-        const closing = delimiter === '(' ? ')' : delimiter
-        position++
-        while (position < value.length && (value[position] !== closing || escapedAt(value, position))) {
+      if (value[position] !== ')') {
+        const delimiter = value[position]
+        valid = position > after && ['"', "'", '('].includes(delimiter)
+        if (valid) {
+          const closing = delimiter === '(' ? ')' : delimiter
           position++
+          while (position < value.length
+              && (value[position] !== closing || escapedAt(value, position))) position++
+          if (position >= value.length) valid = false
+          position++
+          while (/\s/.test(value[position] ?? '')) position++
+          if (value[position] !== ')') valid = false
         }
-        if (position >= value.length) valid = false
-        position++
-        while (/\s/.test(value[position] ?? '')) position++
-        if (value[position] !== ')') valid = false
       }
     }
     if (!valid) {
@@ -185,6 +188,18 @@ function rewriteMarkdownLinks(value, rewrite) {
     output += value.slice(cursor, destinationStart) + rewrite(value.slice(destinationStart, end))
     cursor = end
   }
+}
+
+function rewriteReferenceDefinitions(value, rewrite) {
+  // A reference destination participates in navigation even when the link
+  // label appears elsewhere in the page.
+  return value.replace(/^([ \t]{0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|[^\s<>\n]+)(?=\s|$)/gm,
+    (_match, prefix, destination) => {
+      const angled = destination.startsWith('<') && destination.endsWith('>')
+      const url = angled ? destination.slice(1, -1) : destination
+      const rewritten = rewrite(url)
+      return prefix + (angled ? '<' + rewritten + '>' : rewritten)
+    })
 }
 
 function rewriteProse(value, rewrite) {
@@ -204,7 +219,7 @@ function rewriteProse(value, rewrite) {
       return segment.replace(/(?<![:\w-])(href|src)=(["'])([^"'<>]+)\2/g,
         (_match, attribute, quote, url) => attribute + '=' + quote + rewrite(url) + quote)
     }
-    return rewriteMarkdownLinks(segment, rewrite)
+    return rewriteMarkdownLinks(rewriteReferenceDefinitions(segment, rewrite), rewrite)
   }).join('')
 }
 
@@ -227,52 +242,82 @@ function rewriteOutsideInlineCode(value, rewrite) {
 
 function rewriteDocumentLinks(content, rewrite) {
   const lines = content.match(/[^\n]*\n|[^\n]+$/g) ?? []
+  const output = []
+  let prose = ''
   let frontmatter = false
   let fence = null
   let rawBlock = null
   let comment = false
-  return lines.map((line, index) => {
+
+  function flushProse() {
+    if (prose) output.push(rewriteOutsideInlineCode(prose, rewrite))
+    prose = ''
+  }
+  function preserve(line) {
+    flushProse()
+    output.push(line)
+  }
+
+  for (const [index, line] of lines.entries()) {
     const trimmed = line.trim()
     if (index === 0 && trimmed === '---') {
       frontmatter = true
-      return line
+      preserve(line)
+      continue
     }
     if (frontmatter) {
       if (trimmed === '---') frontmatter = false
-      return line
+      preserve(line)
+      continue
     }
     if (comment) {
       if (line.includes('-->')) comment = false
-      return line
+      preserve(line)
+      continue
     }
     if (rawBlock) {
       if (new RegExp('</' + rawBlock + '\\s*>', 'i').test(line)) rawBlock = null
-      return line
+      preserve(line)
+      continue
     }
     if (fence) {
       const close = new RegExp('^ {0,3}' + fence.marker + '{' + fence.length + ',}\\s*$')
       if (close.test(trimmed)) fence = null
-      return line
+      preserve(line)
+      continue
     }
     const openingFence = /^ {0,3}(`{3,}|~{3,})/.exec(line)
     if (openingFence) {
       fence = { marker: openingFence[1][0], length: openingFence[1].length }
-      return line
+      preserve(line)
+      continue
     }
-    if (/^(?: {4}|\t)/.test(line)) return line
+    if (/^(?: {4}|\t)/.test(line)) {
+      preserve(line)
+      continue
+    }
     if (trimmed.startsWith('<!--')) {
       comment = !trimmed.includes('-->')
-      return line
+      preserve(line)
+      continue
     }
     const startRaw = /<(pre|script|style|textarea)(?:\s|>)/i.exec(line)
     if (startRaw) {
       if (!new RegExp('</' + startRaw[1] + '\\s*>', 'i').test(line.slice(startRaw.index))) {
         rawBlock = startRaw[1]
       }
-      return line
+      preserve(line)
+      continue
     }
-    return rewriteOutsideInlineCode(line, rewrite)
-  }).join('')
+    if (!trimmed) {
+      flushProse()
+      output.push(line)
+      continue
+    }
+    prose += line
+  }
+  flushProse()
+  return output.join('')
 }
 
 for (const original of observed) {
