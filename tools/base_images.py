@@ -48,9 +48,10 @@ def selected_dockerfiles(root: Path, selection: str | None) -> list[Path]:
         # Buildx can acquire a Dockerfile syntax frontend during stage discovery,
         # before FROM-image pin checks. Use the built-in frontend instead.
         for line in path.read_text(encoding="utf-8").splitlines():
-            if line.startswith("# syntax="):
+            stripped = line.lstrip()
+            if re.match(r"#\s*syntax\s*=", stripped, re.IGNORECASE):
                 raise ValueError(f"External Dockerfile syntax frontend is prohibited: {name!r}")
-            if line.strip() and not line.startswith("#"):
+            if stripped and not stripped.startswith("#"):
                 break
         dockerfiles.append(Path(name))
     return dockerfiles
