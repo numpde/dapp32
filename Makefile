@@ -2650,8 +2650,8 @@ require_protected_release_file "$${RPC_URL_FILE:?Set RPC_URL_FILE}" RPC_URL_FILE
 endef
 
 define refund_compose_ownership
-refund_project_dir="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-refunds.XXXXXXXX")"; \
-refund_project="dapp32-refunds-$${refund_project_dir##*.}"; \
+refund_project_dir="$$(mktemp -d /tmp/dapp32-refunds.XXXXXXXX)"; \
+refund_project="dapp32-refunds-$$(printf '%s' "$$refund_project_dir" | sha256sum | cut -c1-20)"; \
 export COMPOSE_PROJECT_NAME="$$refund_project"; \
 refund_cleanup() { status="$$?"; \
   $(call cleanup_disposable_project,$$refund_project,$(1),$$status); \
