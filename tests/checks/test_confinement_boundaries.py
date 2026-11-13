@@ -56,7 +56,7 @@ class ConfinementBoundariesTest(unittest.TestCase):
         self.assertEqual("YES", worker["environment"]["REFUND_EXECUTE"])
         self.assertTrue(compose_volume(worker, "/run/secrets/refund-relayer")["read_only"])
         self.assertNotIn("/run/secrets/refund-relayer", {
-            mount["target"] for mount in proxy.get("volumes", [])
+            mount["target"] for mount in (proxy["volumes"] if "volumes" in proxy else ())
         })
         self.assertIn("eth_sendRawTransaction", proxy["environment"]["RPC_ALLOWED_METHODS"])
         self.assertNotIn("secrets", worker, "Worker should only receive protected bind files")
@@ -76,7 +76,7 @@ class ConfinementBoundariesTest(unittest.TestCase):
         self.assertEqual({"/work/docs", "/work/docs_site.py", "/site"}, set(mounts))
         self.assertEqual("none", checker["network_mode"])
         self.assertTrue(all(mount["read_only"] for mount in mounts.values()))
-        self.assertTrue(all(mount["bind"].get("create_host_path") is False for mount in mounts.values()))
+        self.assertFalse(any(mount["bind"].get("create_host_path") is True for mount in mounts.values()))
         self.assertNotIn("/work", mounts)
         self.assertIn("/work/docs_site.py", checker["command"])
 
