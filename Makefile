@@ -1225,20 +1225,20 @@ dapps/deps/install:
 	created_dependency_metadata_placeholders=""; \
 	compose_project=""; \
 	compose_directory=""; \
-	install_lock="$(git rev-parse --git-path dapp32-install.lock)"; \
-	if [[ -L "$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
-	exec 9>"$install_lock"; \
+	install_lock="$$(git rev-parse --git-path dapp32-install.lock)"; \
+	if [[ -L "$$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
+	exec 9>"$$install_lock"; \
 	flock -w 600 9 || { printf "%s\n" "Dependency install lock is busy." >&2; exit 2; }; \
 	cleanup() { \
-	  status="$?"; \
-	if [[ -n "$compose_project" ]]; then \
-	  COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(call cleanup_disposable_project,$compose_project,-f $(COMPOSE_DIR)/deps.yml,$status); \
+	  status="$$?"; \
+	if [[ -n "$$compose_project" ]]; then \
+	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(call cleanup_disposable_project,$$compose_project,-f $(COMPOSE_DIR)/deps.yml,$$status); \
 	fi; \
-	if [[ -n "$compose_directory" ]]; then rmdir -- "$compose_directory"; fi; \
-	  if [[ "$status" != "0" && -n "$created_dependency_metadata_placeholders" ]]; then \
-	    rm -f $created_dependency_metadata_placeholders; \
+	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
+	  if [[ "$$status" != "0" && -n "$$created_dependency_metadata_placeholders" ]]; then \
+	    rm -f $$created_dependency_metadata_placeholders; \
 	  fi; \
-	  exit "$status"; \
+	  exit "$$status"; \
 	}; \
 	reject_unsafe_dependency_targets() { \
 	  if [[ -L "$(DEPENDENCIES_DIR)" ]]; then \
@@ -1254,24 +1254,24 @@ dapps/deps/install:
 	    exit 2; \
 	  fi; \
 	  for file in $(DEPENDENCY_METADATA_FILES); do \
-	    if [[ -L "$file" ]]; then \
-	      printf 'Refusing dependency install because metadata file is a symlink: %s\n' "$file" >&2; \
+	    if [[ -L "$$file" ]]; then \
+	      printf 'Refusing dependency install because metadata file is a symlink: %s\n' "$$file" >&2; \
 	      exit 2; \
 	    fi; \
-	    if [[ -e "$file" && ! -f "$file" ]]; then \
-	      printf 'Refusing dependency install because metadata target exists and is not a file: %s\n' "$file" >&2; \
+	    if [[ -e "$$file" && ! -f "$$file" ]]; then \
+	      printf 'Refusing dependency install because metadata target exists and is not a file: %s\n' "$$file" >&2; \
 	      exit 2; \
 	    fi; \
 	  done; \
 	}; \
 	trap cleanup EXIT; \
 	reject_unsafe_dependency_targets; \
-	case "$ALLOW_UPDATE" in \
+	case "$$ALLOW_UPDATE" in \
 	  0) \
 	    apply_service="soldeer-apply-locked"; \
 	    for file in $(DEPENDENCY_METADATA_FILES); do \
-	      if [[ ! -f "$file" ]]; then \
-	        printf 'Missing locked dependency metadata: %s\n' "$file" >&2; \
+	      if [[ ! -f "$$file" ]]; then \
+	        printf 'Missing locked dependency metadata: %s\n' "$$file" >&2; \
 	        printf '%s\n' 'Run make dapps/deps/install ALLOW_UPDATE=1 only if creating or updating dependency metadata is intended.' >&2; \
 	        exit 2; \
 	      fi; \
@@ -1285,19 +1285,19 @@ dapps/deps/install:
 	if [[ ! -d "$(DEPENDENCIES_DIR)" && ! -w "$(DAPPS_DIR)" ]]; then \
 	  printf '%s\n' 'dapps must be writable before dependencies can be created.' >&2; exit 2; \
 	fi; \
-	if [[ "$ALLOW_UPDATE" == 1 ]]; then \
+	if [[ "$$ALLOW_UPDATE" == 1 ]]; then \
 	  for file in $(DEPENDENCY_METADATA_FILES); do \
-	    if [[ -e "$file" && ( ! -O "$file" || ! -w "$file" ) ]]; then \
-	      printf 'Dependency metadata is not owned and writable: %s\n' "$file" >&2; exit 2; \
+	    if [[ -e "$$file" && ( ! -O "$$file" || ! -w "$$file" ) ]]; then \
+	      printf 'Dependency metadata is not owned and writable: %s\n' "$$file" >&2; exit 2; \
 	    fi; \
 	  done; \
 	fi; \
 	$(select_host_output_identity); \
-	if [[ "$ALLOW_UPDATE" == 1 ]]; then \
+	if [[ "$$ALLOW_UPDATE" == 1 ]]; then \
 	  for file in $(DEPENDENCY_METADATA_FILES); do \
-	    if [[ ! -e "$file" ]]; then \
-	      touch "$file"; \
-	      created_dependency_metadata_placeholders="$created_dependency_metadata_placeholders $file"; \
+	    if [[ ! -e "$$file" ]]; then \
+	      touch "$$file"; \
+	      created_dependency_metadata_placeholders="$$created_dependency_metadata_placeholders $$file"; \
 	    fi; \
 	  done; \
 	fi; \
@@ -1305,12 +1305,12 @@ dapps/deps/install:
 	mkdir -p $(DEPENDENCIES_DIR); \
 	test -d $(DEPENDENCIES_DIR); \
 	reject_unsafe_dependency_targets; \
-	compose_directory="$(mktemp -d "${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
-	compose_project="dapp32-solidity-deps-${compose_directory##*.}"; \
-	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" soldeer-stage; \
-	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" soldeer-verify-stage; \
-	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" "$apply_service"; \
-	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$mapped_user" soldeer-verify
+	compose_directory="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
+	compose_project="dapp32-solidity-deps-$${compose_directory##*.}"; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-stage; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify-stage; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" "$$apply_service"; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify
 
 .PHONY: base-images/pull
 # This helper must work even when container bases are missing. Docker owns
@@ -1333,23 +1333,23 @@ js/deps/install:
 	created_package_lock_placeholder="0"; \
 	compose_project=""; \
 	compose_directory=""; \
-	install_lock="$(git rev-parse --git-path dapp32-install.lock)"; \
-	if [[ -L "$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
-	exec 9>"$install_lock"; \
+	install_lock="$$(git rev-parse --git-path dapp32-install.lock)"; \
+	if [[ -L "$$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
+	exec 9>"$$install_lock"; \
 	flock -w 600 9 || { printf "%s\n" "Dependency install lock is busy." >&2; exit 2; }; \
 	cleanup() { \
-	  status="$?"; \
-	  if [[ -n "$package_input_dir" ]]; then \
-	if [[ -n "$compose_project" ]]; then \
-	  COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$package_input_dir" $(call cleanup_disposable_project,$compose_project,-f $(COMPOSE_DIR)/package-deps.yml,$status); \
+	  status="$$?"; \
+	  if [[ -n "$$package_input_dir" ]]; then \
+	if [[ -n "$$compose_project" ]]; then \
+	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$$compose_project,-f $(COMPOSE_DIR)/package-deps.yml,$$status); \
 	fi; \
-	if [[ -n "$compose_directory" ]]; then rmdir -- "$compose_directory"; fi; \
-	    rm -rf "$package_input_dir"; \
+	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
+	    rm -rf "$$package_input_dir"; \
 	  fi; \
-	  if [[ "$status" != "0" && "$created_package_lock_placeholder" == "1" ]]; then \
+	  if [[ "$$status" != "0" && "$$created_package_lock_placeholder" == "1" ]]; then \
 	    rm -f "$(PACKAGE_LOCK_FILE)"; \
 	  fi; \
-	  exit "$status"; \
+	  exit "$$status"; \
 	}; \
 	reject_unsafe_package_targets() { \
 	  if [[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]; then \
@@ -1371,7 +1371,7 @@ js/deps/install:
 	}; \
 	trap cleanup EXIT; \
 	reject_unsafe_package_targets; \
-	case "$ALLOW_UPDATE" in \
+	case "$$ALLOW_UPDATE" in \
 	  0) \
 	    apply_service="package-apply-locked"; \
 	    if [[ ! -f "$(PACKAGE_LOCK_FILE)" ]]; then \
@@ -1388,41 +1388,41 @@ js/deps/install:
 	if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" && ! -w "$(JS_DIR)" ]]; then \
 	  printf '%s\n' 'js must be writable before node_modules can be created.' >&2; exit 2; \
 	fi; \
-	if [[ "$ALLOW_UPDATE" == 1 && -e "$(PACKAGE_LOCK_FILE)" && ( ! -O "$(PACKAGE_LOCK_FILE)" || ! -w "$(PACKAGE_LOCK_FILE)" ) ]]; then \
+	if [[ "$$ALLOW_UPDATE" == 1 && -e "$(PACKAGE_LOCK_FILE)" && ( ! -O "$(PACKAGE_LOCK_FILE)" || ! -w "$(PACKAGE_LOCK_FILE)" ) ]]; then \
 	  printf '%s\n' 'js/package-lock.json must be owned and writable for an intentional update.' >&2; exit 2; \
 	fi; \
 	$(select_host_output_identity); \
-	package_user="$mapped_user"; \
-	package_input_dir="$(mktemp -d)"; \
-	cp "$(PACKAGE_MANIFEST_FILE)" "$package_input_dir/package.json"; \
-	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$package_input_dir/package-lock.json"; fi; \
+	package_user="$$mapped_user"; \
+	package_input_dir="$$(mktemp -d)"; \
+	cp "$(PACKAGE_MANIFEST_FILE)" "$$package_input_dir/package.json"; \
+	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$$package_input_dir/package-lock.json"; fi; \
 	while IFS= read -r manifest; do \
-	  if [[ -L "$manifest" ]]; then \
-	    printf 'Refusing package dependency install because package manifest is a symlink: %s\n' "$manifest" >&2; \
+	  if [[ -L "$$manifest" ]]; then \
+	    printf 'Refusing package dependency install because package manifest is a symlink: %s\n' "$$manifest" >&2; \
 	    exit 2; \
 	  fi; \
-	  if [[ ! -f "$manifest" ]]; then \
-	    printf 'Refusing package dependency install because package manifest is not a file: %s\n' "$manifest" >&2; \
+	  if [[ ! -f "$$manifest" ]]; then \
+	    printf 'Refusing package dependency install because package manifest is not a file: %s\n' "$$manifest" >&2; \
 	    exit 2; \
 	  fi; \
-	  package_dir="${manifest%/package.json}"; \
-	  package_dir="${package_dir#$(JS_DIR)/}"; \
-	  mkdir -p "$package_input_dir/$package_dir"; \
-	  cp "$manifest" "$package_input_dir/$package_dir/package.json"; \
+	  package_dir="$${manifest%/package.json}"; \
+	  package_dir="$${package_dir#$(JS_DIR)/}"; \
+	  mkdir -p "$$package_input_dir/$$package_dir"; \
+	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
 	done < <(find $(JS_DIR)/packages $(JS_DIR)/apps -mindepth 2 -maxdepth 2 -name package.json | sort); \
-	compose_directory="$(mktemp -d "${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
-	compose_project="dapp32-package-deps-${compose_directory##*.}"; \
-	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$package_user" package-stage; \
+	compose_directory="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
+	compose_project="dapp32-package-deps-$${compose_directory##*.}"; \
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" package-stage; \
 	reject_unsafe_package_targets; \
 	mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"; \
 	test -d "$(PACKAGE_NODE_MODULES_DIR)"; \
-	if [[ "$ALLOW_UPDATE" = "1" && ! -e "$(PACKAGE_LOCK_FILE)" ]]; then \
+	if [[ "$$ALLOW_UPDATE" = "1" && ! -e "$(PACKAGE_LOCK_FILE)" ]]; then \
 	  touch "$(PACKAGE_LOCK_FILE)"; \
 	  created_package_lock_placeholder=1; \
 	fi; \
 	test -f "$(PACKAGE_LOCK_FILE)"; \
 	reject_unsafe_package_targets; \
-	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$package_user" "$apply_service"
+	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" "$$apply_service"
 
 .PHONY: source-publication/check
 source-publication/check:
