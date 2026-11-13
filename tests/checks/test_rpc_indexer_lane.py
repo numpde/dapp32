@@ -40,10 +40,12 @@ release_select_container_identity() {
         self.upstream.chmod(0o600)
         self.calls = self.directory / "compose-calls"
         self.history = self.directory / "compose-history"
+        self.context_history = self.directory / "compose-context-history"
         self.stub = self.directory / "compose-stub.sh"
         self.stub.write_text(
             'printf "%s\\n" "$@" > "$COMPOSE_CALLS"\n'
             'printf "%s\\n" "$*" >> "$COMPOSE_HISTORY"\n'
+            'printf "project=%s\\nuid=%s\\ngid=%s\\n" "$COMPOSE_PROJECT_NAME" "$LOCAL_UID" "$LOCAL_GID" >> "$COMPOSE_CONTEXT_HISTORY"\n'
             'printf "project=%s\\nuid=%s\\ngid=%s\\ninput=%s\\nuri=%s\\norigin=%s\\nresource_origin=%s\\n" "$COMPOSE_PROJECT_NAME" "$LOCAL_UID" "$LOCAL_GID" "${RPC_URL_FILE-}" "${CAM_URI-}" "${BIKE_NFT_GUI_ORIGIN-}" "${CAM_VIEWER_RESOURCE_ORIGIN-}" >> "$COMPOSE_CALLS"\n'
             'if [[ ${TEST_FAIL_ABI_CHECK-} == 1 && ${*: -1} == forge-abi-check ]]; then exit 12; fi\n'
             'if [[ ${TEST_FAIL_BROWSER_CHECK-} == 1 && ${*: -1} == browser-ui-check ]]; then exit 12; fi\n'
@@ -61,6 +63,7 @@ release_select_container_identity() {
             "RPC_INDEXER_COMPOSE_PROJECT_NAME": "rpc-base-sepolia",
             "COMPOSE_CALLS": str(self.calls),
             "COMPOSE_HISTORY": str(self.history),
+            "COMPOSE_CONTEXT_HISTORY": str(self.context_history),
             "PATH": f"{repo_path('tests/fixtures/docker-context')}:{os.environ['PATH']}",
             "TRACE": os.devnull, "ENDPOINT": "unix:///tmp/context-fixture.sock", "FAKE_MODE": "",
             "DOCKER_DELEGATE": str(self.stub),
@@ -323,6 +326,8 @@ release_select_container_identity() {
             for operation in ("plan", "run"):
                 with self.subTest(engine=engine, operation=operation):
                     self.calls.unlink(missing_ok=True)
+                    self.history.unlink(missing_ok=True)
+                    self.context_history.unlink(missing_ok=True)
                     result = self.make("pay-to-play/refunds/" + operation, self.upstream,
                         extra_environment={"TEST_ENGINE": engine,
                                            "REFUND_CONFIG_FILE": str(config),
@@ -334,9 +339,15 @@ release_select_container_identity() {
                         self.assertFalse(self.calls.exists(), result.stderr)
                     else:
                         self.assertEqual(0, result.returncode, result.stderr)
-                        calls = self.calls.read_text().splitlines()
-                        self.assertIn(f"uid={0 if engine == 'rootless' else os.getuid()}", calls)
-                        self.assertIn(f"gid={0 if engine == 'rootless' else os.getgid()}", calls)
+                        commands = self.history.read_text().splitlines()
+                        runs = [line for line in commands if line.endswith("-T pay-to-play-refunds")]
+                        self.assertEqual(1, len(runs), commands)
+                        contexts = self.context_history.read_text().splitlines()
+                        self.assertIn(f"uid={0 if engine == 'rootless' else os.getuid()}", contexts[:3])
+                        self.assertIn(f"gid={0 if engine == 'rootless' else os.getgid()}", contexts[:3])
+                        project = next(line.removeprefix("project=") for line in contexts[:3] if line.startswith("project="))
+                        self.assertTrue(project.startswith("dapp32-refunds-"), project)
+                        self.assertTrue(any(f"--project-name {project} down" in command for command in commands), commands)
         self.assertEqual(0o700, state.stat().st_mode & 0o777)
         self.assertEqual(0o600, key.stat().st_mode & 0o777)
         self.assertEqual(os.getuid(), state.stat().st_uid)

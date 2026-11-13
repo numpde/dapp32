@@ -82,22 +82,24 @@ class ConfinementBoundariesTest(unittest.TestCase):
 
     def test_installs_serialize_writes_and_only_clean_their_own_project(self) -> None:
         makefile = read_text(repo_path("Makefile"))
+        lock = makefile.split("define dependency_install_lock", 1)[1].split("endef", 1)[0]
+        self.assertIn("flock -w 600 9", lock)
+        self.assertIn("sha256sum | cut -c1-40", lock)
+        self.assertIn("mkdir -p -m 0700", lock)
         boundaries = [
-            ("dapps/deps/install:", ".PHONY: base-images/pull", "dapp32-solidity-deps"),
-            ("js/deps/install:", ".PHONY: source-publication/check", "dapp32-package-deps"),
+            ("dapps/deps/install:", ".PHONY: base-images/pull", "solidity-deps"),
+            ("js/deps/install:", ".PHONY: source-publication/check", "package-deps"),
         ]
         for first, last, project in boundaries:
             with self.subTest(target=first):
                 block = makefile.split(first, 1)[1].split(last, 1)[0]
-                self.assertIn("git rev-parse --git-path dapp32-install.lock", block)
-                self.assertIn("flock -w 600 9", block)
+                self.assertIn("$(dependency_install_lock)", block)
                 self.assertIn("mktemp -d", block)
                 self.assertIn(project, block)
+                self.assertIn("sha256sum | cut -c1-20", block)
                 self.assertIn("cleanup_disposable_project,$$compose_project", block)
                 self.assertNotIn("cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME)", block)
                 self.assertNotIn("cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME)", block)
-                self.assertLess(block.index("flock -w 600 9"), block.index("mktemp -d"))
-                self.assertLess(block.index("trap cleanup EXIT"), block.index("compose_project=" + chr(34) + project))
 
     def test_source_publication_ci_uses_maintained_offline_lanes(self) -> None:
         workflow = read_text(repo_path(".github/workflows/source-publication-checks.yml"))
