@@ -57,6 +57,17 @@ jobs:
       - name: Run Solidity and JavaScript CI campaigns
         run: make ci/qualification DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=full-offline-ci
 
+  installer-ownership:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Exercise concurrent installers and recovery on Docker
+        run: make tests/live/dependency-install DOCKER_CONTEXT=default
+
   complete-offline-qualification:
     if: always()
     needs: [repository-checks, qualification]

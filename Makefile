@@ -865,6 +865,7 @@ help:
 	  '  make tests/checks/anvil-compose  Check only the Anvil container configuration.' \
 	  '  make tests/live                 Qualify local-engine identity and external dependency egress; no deployment.' \
 	  '  make tests/live/dependency-egress  Test which download destinations dependency containers can reach.' \
+	  '  make tests/live/dependency-install  Exercise installer ownership and teardown on the selected engine.' \
 	  '  make tests/live/release-identity  Check private host-file access on the selected Docker engine.' \
 	  '  make dapps/tests                Run Solidity unit/scenario tests, random-input tests and state invariants.' \
 	  '  make dapps/tests/combined       Run the same Solidity campaigns with one temporary compiler cache.' \
@@ -1617,7 +1618,11 @@ viewer/terminal/mock/down:
 tests/checks:
 	$(call compose_run,checks.yml,checks)
 
-tests/live: tests/live/dependency-egress tests/live/release-identity
+tests/live: tests/live/dependency-egress tests/live/release-identity tests/live/dependency-install
+
+.PHONY: tests/live/dependency-install
+tests/live/dependency-install:
+	@$(LANE_GUARD); bash tests/live/dependency_install.sh package; bash tests/live/dependency_install.sh solidity
 
 .PHONY: tests/live/release-identity
 # The runner owns the confined worker and cleanup; Make owns the one

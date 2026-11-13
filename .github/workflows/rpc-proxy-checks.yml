@@ -8,6 +8,7 @@ on:
       - .github/workflows/rpc-proxy-checks.yml
       - containers/rpc-proxy/**
       - containers/foundry/**
+      - containers/foundry-deps/**
       - containers/node-deps/**
       - containers/https-egress-proxy/**
       - js/tools/pay-to-play-refunds/**
@@ -40,6 +41,7 @@ on:
       - .github/workflows/rpc-proxy-checks.yml
       - containers/rpc-proxy/**
       - containers/foundry/**
+      - containers/foundry-deps/**
       - containers/node-deps/**
       - containers/https-egress-proxy/**
       - js/tools/pay-to-play-refunds/**

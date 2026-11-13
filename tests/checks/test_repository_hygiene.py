@@ -428,7 +428,7 @@ class RepositoryHygieneTest(unittest.TestCase):
     def test_live_checks_are_make_owned_and_exposed_in_the_aggregate(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         self.assertEqual(
-            ("tests/live/dependency-egress", "tests/live/release-identity"),
+            ("tests/live/dependency-egress", "tests/live/release-identity", "tests/live/dependency-install"),
             self.make_target_prereqs(makefile, "tests/live"),
         )
         recipe = self.make_target_recipe(makefile, "tests/live/release-identity")
