@@ -495,7 +495,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         expected_secrets = {
             ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
             ("compose/release/setup-rpc.yml", "rpc-proxy", "rpc_url", "rpc_url"),
-            (makefile_compose_unit("REFUND_PLAN_COMPOSE_FILES"), "refund-rpc-proxy", "refund_rpc_url", "rpc_url"),
+            ("compose/pay-to-play/refunds/run.yml", "refund-rpc-proxy", "refund_rpc_url", "rpc_url"),
             (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "refund-rpc-proxy", "refund_rpc_url", "rpc_url"),
         }
         for files in (*release_deployment_units(), *release_rehearsal_units()):

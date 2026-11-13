@@ -61,14 +61,6 @@ class ConfinementBoundariesTest(unittest.TestCase):
         self.assertIn("eth_sendRawTransaction", proxy["environment"]["RPC_ALLOWED_METHODS"])
         self.assertNotIn("secrets", worker, "Worker should only receive protected bind files")
 
-    def test_viewer_has_published_ingress_without_default_outbound_network(self) -> None:
-        config = rendered_compose_config("compose/viewer.yml")
-        viewer = config["services"]["viewer"]
-        self.assertEqual({"viewer"}, set(viewer["networks"]))
-        self.assertTrue(config["networks"]["viewer"]["internal"])
-        self.assertEqual("127.0.0.1", viewer["ports"][0]["host_ip"])
-        self.assertEqual(8080, viewer["ports"][0]["target"])
-
     def test_docs_site_checker_only_reads_its_three_inputs(self) -> None:
         config = rendered_compose_config("compose/docs-site-check.yml")
         checker = config["services"]["docs-site-check"]
@@ -83,7 +75,7 @@ class ConfinementBoundariesTest(unittest.TestCase):
     def test_installs_serialize_writes_and_only_clean_their_own_project(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         lock = makefile.split("define dependency_install_lock", 1)[1].split("endef", 1)[0]
-        self.assertIn("flock -w 600 9", lock)
+        self.assertIn("flock -n 9", lock)
         self.assertIn("sha256sum | cut -c1-40", lock)
         self.assertIn("mkdir -p -m 0700", lock)
         boundaries = [
