@@ -63,6 +63,7 @@ compose up --build -d refund-rpc-proxy
 
 node_probe="$(cat <<'JS'
 const { readFileSync, existsSync } = require("node:fs");
+const net = require("node:net");
 
 async function run() {
   const routes = readFileSync("/proc/net/route", "utf8").trim().split("\n").slice(1);
@@ -76,15 +77,25 @@ async function run() {
   const ipv6 = existsSync("/proc/net/ipv6_route")
     ? readFileSync("/proc/net/ipv6_route", "utf8").trim().split("\n")
     : [];
-  if (ipv6.some(line => {
+  const usableDefault = ipv6.filter(line => {
     const fields = line.trim().split(/\s+/);
-    return fields[0] === "0".repeat(32) && fields[1] === "00";
-  })) {
-    throw new Error("Worker IPv6 route entries: " + ipv6.filter(line => {
-      const fields = line.trim().split(/\s+/);
-      return fields[0] === "0".repeat(32) && fields[1] === "00";
-    }).join(" | "));
+    const flags = Number.parseInt(fields[8], 16);
+    // Linux exposes an ::/0 reject placeholder on loopback (flags 0x200).
+    // It is not a route that can carry traffic outside the namespace.
+    return fields[0] === "0".repeat(32) && fields[1] === "00"
+      && fields[9] !== "lo" && (flags & 0x200) === 0;
+  });
+  if (usableDefault.length) {
+    throw new Error("Worker has a usable IPv6 default route: " + usableDefault.join(" | "));
   }
+
+  const ipv6Egress = await new Promise(resolve => {
+    const socket = net.connect({ host: "2606:4700:4700::1111", family: 6, port: 443, timeout: 2000 });
+    socket.once("connect", () => { socket.destroy(); resolve(true); });
+    socket.once("timeout", () => { socket.destroy(); resolve(false); });
+    socket.once("error", () => resolve(false));
+  });
+  if (ipv6Egress) throw new Error("Worker established a direct external IPv6 TCP connection");
 
   const proxy = "http://refund-rpc-proxy:8080";
   if (process.env.REFUND_RPC_PROXY_URL !== proxy) {
