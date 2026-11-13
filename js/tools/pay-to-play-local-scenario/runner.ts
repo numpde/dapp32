@@ -11,6 +11,7 @@ import { createCamResourceLoader, isRecordObject, parseJsonBytes, toInertValue }
 import type { InertRecord } from "../../packages/cam-protocol/dist/index.js"
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from "../pay-to-play-vouchers/protocol.ts"
 import { requiredEnv } from "../input.ts"
+import { formForWrite } from "./form_routes.ts"
 
 const roles = ["admin", "customer", "relayer", "payee"] as const
 type Role = typeof roles[number]
@@ -85,13 +86,6 @@ async function main(): Promise<void> {
   async function task(route: string) {
     const selected = view()
     await session.navigate(route, inert({ customer: selected.customer, channelId: selected.channelId }))
-  }
-  const formForWrite: Record<string, string> = {
-    registerVoucherKey: "voucherPaymentsForm", fund: "depositForm",
-    requestWithdrawal: "withdrawalForm", setWithdrawal: "withdrawalForm",
-    withdraw: "withdrawalForm", move: "withdrawalForm",
-    collect: "voucherPaymentsForm", setCollector: "channelSettingsForm",
-    setPayee: "channelSettingsForm",
   }
   async function write(role: Role, route: string, state: Record<string, unknown>) {
     const inspected = view()

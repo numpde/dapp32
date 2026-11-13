@@ -13,6 +13,7 @@ import { createCamResourceLoader, isRecordObject, parseJsonBytes, requireHttpURL
 import { discoverCustomers, runRefundBatch, type Position, type Report } from "../pay-to-play-refunds/core.ts"
 import { hashInvoice, voucherForInvoice } from "../pay-to-play-vouchers/protocol.ts"
 import { requiredEnv } from "../input.ts"
+import { formForWrite } from "./form_routes.ts"
 
 let phase = "configuration"
 function record(value: unknown): Record<string, unknown> {
@@ -75,11 +76,7 @@ async function main() {
   }
   async function write(role: Role, route: string, state: Record<string, unknown>) {
     phase = route
-    const forms: Record<string, string> = {
-      registerVoucherKey: "voucherPaymentsForm", collect: "voucherPaymentsForm",
-      fund: "depositForm", requestWithdrawal: "withdrawalForm", move: "withdrawalForm",
-    }
-    const form = forms[route]
+    const form = formForWrite[route]
     if (form) {
       const selected = view()
       await session.navigate(form, inert({ customer: selected.customer, channelId: selected.channelId }))
