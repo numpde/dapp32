@@ -7,13 +7,14 @@ endpoint=${CAM_DOCKER_ENDPOINT:?Select a local Docker engine through Make}
 mode=${1:?Pass package or solidity}
 [[ $endpoint == unix:///* ]] || { printf '%s\n' 'A local Unix Docker engine is required.' >&2; exit 2; }
 real_docker=$(command -v docker)
+real_timeout=$(command -v timeout)
 scratch=$(mktemp -d /tmp/dapp32-installer-test.XXXXXXXX)
 trap 'rm -rf -- "$scratch"' EXIT
 checkout=$scratch/checkout
 mkdir "$checkout" "$scratch/bin"
 git -C "$root" ls-files -z | tar -C "$root" --null -T - -cf - | tar -C "$checkout" -xf -
 
-export INSTALL_TEST_REAL_DOCKER="$real_docker" INSTALL_TEST_DIR="$scratch"
+export INSTALL_TEST_REAL_DOCKER="$real_docker" INSTALL_TEST_REAL_TIMEOUT="$real_timeout" INSTALL_TEST_DIR="$scratch"
 cat >"$scratch/bin/docker" <<'SHIM'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -30,16 +31,18 @@ case " $* " in
     printf '%s\n' 'Timed out waiting to release installer stage.' >&2
     exit 2 ;;
 esac
-# Record the actual Compose down outcome; no Bash process interception is
-# necessary to prove which failure code the installer preserves.
-if [[ " $* " == *" compose "*" down "* ]]; then
-  if "$INSTALL_TEST_REAL_DOCKER" "$@"; then result=0; else result=$?; fi
+exec "$INSTALL_TEST_REAL_DOCKER" "$@"
+SHIM
+cat >"$scratch/bin/timeout" <<'SHIM'
+#!/usr/bin/env bash
+if [[ " $* " == *" bash tools/compose_cleanup.sh "* ]]; then
+  if "$INSTALL_TEST_REAL_TIMEOUT" "$@"; then result=0; else result=$?; fi
   printf '%s\n' "$result" > "$INSTALL_TEST_DIR/cleanup-status"
   exit "$result"
 fi
-exec "$INSTALL_TEST_REAL_DOCKER" "$@"
+exec "$INSTALL_TEST_REAL_TIMEOUT" "$@"
 SHIM
-chmod 0700 "$scratch/bin/docker"
+chmod 0700 "$scratch/bin/docker" "$scratch/bin/timeout"
 
 blocker="dapp32-installer-test-$(printf '%s' "$scratch" | sha256sum | cut -c1-20)"
 blocker_id=
@@ -152,7 +155,7 @@ run_pair() {
       grep -Fq 'JavaScript dependency cleanup incomplete' "$scratch/first.log"
       grep -Fq "Retained staging inputs: $input" "$scratch/first.log"
       grep -Fq 'Error 2' "$scratch/first.log"
-      # The real cleanup helper returned 1, so Make's reported 2 is the apply error.
+      # The complete cleanup command returned 1, so Make's 2 is the apply error.
       [[ $(cat "$scratch/cleanup-status") == 1 ]]
       [[ -d $input ]]
     else
