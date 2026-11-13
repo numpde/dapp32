@@ -30,5 +30,7 @@ services:
       retries: 3
       start_period: 2s
 
+# Static nginx serves local files; it needs published ingress, not outbound routing.
 networks:
-  viewer: {}
+  viewer:
+    internal: true
