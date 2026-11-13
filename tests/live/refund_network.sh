@@ -60,7 +60,7 @@ async function run() {
 
   const proxy = "http://refund-rpc-proxy:8080";
   const health = await fetch(proxy + "/healthz", { signal: AbortSignal.timeout(3000) });
-  if (health.status !== 200) throw new Error("Internal RPC proxy is not healthy");
+  if (health.status !== 204) throw new Error(`Internal RPC proxy health returned HTTP ${health.status}`);
 
   const rejected = await fetch(proxy, {
     method: "POST",
