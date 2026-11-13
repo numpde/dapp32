@@ -11,6 +11,7 @@ on:
       - containers/checks/**
       - compose/**
       - tests/live/refund_network.sh
+      - tests/live/refund_plan_smoke.sh
       - '!compose/docs.yml'
       - tests/checks/**
       - '!tests/checks/test_docs_*.py'
@@ -25,6 +26,7 @@ on:
       - containers/checks/**
       - compose/**
       - tests/live/refund_network.sh
+      - tests/live/refund_plan_smoke.sh
       - '!compose/docs.yml'
       - tests/checks/**
       - '!tests/checks/test_docs_*.py'
@@ -67,6 +69,8 @@ jobs:
         run: make js/deps/install DOCKER_CONTEXT=default
       - name: Typecheck and test the actual refund worker
         run: make pay-to-play/refunds/check DOCKER_CONTEXT=default
+      - name: Launch actual read-only refund plan against a locally rejected upstream
+        run: bash tests/live/refund_plan_smoke.sh default
 
   refund-network:
     runs-on: ubuntu-24.04

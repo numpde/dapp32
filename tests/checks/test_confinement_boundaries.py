@@ -116,6 +116,7 @@ class ConfinementBoundariesTest(unittest.TestCase):
         )
         self.assertIn("make js/deps/install DOCKER_CONTEXT=default", workflow)
         self.assertIn("make pay-to-play/refunds/check DOCKER_CONTEXT=default", workflow)
+        self.assertIn("tests/live/refund_plan_smoke.sh", workflow)
 
     def test_source_publication_ci_uses_maintained_offline_lanes(self) -> None:
         workflow = read_text(repo_path(".github/workflows/source-publication-checks.yml"))
