@@ -7,6 +7,9 @@ on:
       - .github/workflows/docs-pages-candidate.yml
       - docs/**
       - compose/docs.yml
+      - compose/docs-site-check.yml
+      - compose/checks.yml
+      - containers/checks/**
       - compose/fragments/node-workspace.yml
       - containers/node-deps/**
       - js/package.json
@@ -22,6 +25,9 @@ on:
       - .github/workflows/docs-pages-candidate.yml
       - docs/**
       - compose/docs.yml
+      - compose/docs-site-check.yml
+      - compose/checks.yml
+      - containers/checks/**
       - js/package.json
       - js/package-lock.json
       - Makefile
@@ -50,14 +56,16 @@ jobs:
           path: source
           persist-credentials: false
 
-      - name: Pull reviewed Node build base
+      - name: Pull reviewed build and check bases
         shell: bash
         run: |
           set -euo pipefail
-          base="$(awk '$1 == "FROM" { print $2 }' source/containers/node-deps/Dockerfile)"
-          test -n "$base"
           CAM_DOCKER_ENDPOINT="$(bash source/tools/docker_context.sh "command line" default undefined "" 0)"
-          docker --host "$CAM_DOCKER_ENDPOINT" pull "$base"
+          for dockerfile in source/containers/node-deps/Dockerfile source/containers/checks/Dockerfile; do
+            base="$(awk '$1 == "FROM" { print $2 }' "$dockerfile")"
+            test -n "$base"
+            docker --host "$CAM_DOCKER_ENDPOINT" pull "$base"
+          done
 
       - name: Install existing checksum-locked dependencies
         shell: bash
@@ -85,7 +93,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -B source/tools/docs_site.py check source/docs docs-output/site
+          make -C source docs/site/check DOCKER_CONTEXT=default DOCS_SITE_DIR="$GITHUB_WORKSPACE/docs-output/site"
 
       - name: Retain exact qualified site
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
