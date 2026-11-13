@@ -192,6 +192,7 @@ class PackageInstallIdentityTest(unittest.TestCase):
             ("dapps/deps/install", "js/deps/install"),
             ("js/deps/install", "dapps/deps/install"),
             ("js/deps/install", "js/deps/install"),
+            ("dapps/deps/install", "dapps/deps/install"),
         )
         for first_target, second_target in pairs:
             with self.subTest(first=first_target, second=second_target), self.lane_fixture(
@@ -297,6 +298,29 @@ class PackageInstallIdentityTest(unittest.TestCase):
                         stage = Path(match.group(1))
                         self.assertTrue(stage.is_dir(), "failed cleanup must retain mounted inputs")
                         self.addCleanup(shutil.rmtree, stage)
+
+    def test_rejected_inputs_never_touch_a_shared_compose_project(self):
+        # This was the original destructive-cleanup defect: a failed preflight
+        # must not call project-wide down before any project was acquired.
+        for target in ("dapps/deps/install", "js/deps/install"):
+            with self.subTest(target=target), self.lane_fixture(
+                target, f"{os.getuid()}:{os.getgid()}", unwritable=False
+            ) as (root, env, events, _):
+                lockfile = root / ("dapps/soldeer.lock" if target.startswith("dapps")
+                                   else "js/package-lock.json")
+                lockfile.unlink()
+                result = subprocess.run(
+                    ["make", "--no-print-directory", "-f", str(ROOT / "Makefile"),
+                     target, f"LOCAL_UID={os.getuid()}", f"LOCAL_GID={os.getgid()}",
+                     "DOCKER_CONTEXT=fixture", "ALLOW_UPDATE=0"],
+                    cwd=root, env=env, capture_output=True, text=True, timeout=15,
+                )
+                self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                self.assertIn("Missing locked", result.stderr)
+                self.assertFalse(
+                    any(call.startswith("compose ") for call in events.read_text().splitlines()),
+                    "An unowned project must never be inspected or removed on validation failure",
+                )
 
     def test_missing_or_invalid_mapping_stops_before_install_or_output_creation(self):
         for mapped in ("refused", "bad:identity", "1000:", ":1000"):
