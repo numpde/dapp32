@@ -35,9 +35,14 @@ async function withPreparedGuide(source, inspect) {
     await writeFile(join(root, 'start/index.md'), '# Start\n')
     await writeFile(join(root, 'authoring/example.md'), source)
 
+    const referenceDirectory = join(root, 'reference/cam/1.4.0')
+    await mkdir(referenceDirectory, { recursive: true })
+    await writeFile(join(referenceDirectory, 'index.html'),
+      '<!doctype html><html><body>Immutable specification</body></html>\n')
+
     const run = spawnSync(process.execPath, [prepare, root], { encoding: 'utf8' })
     assert.equal(run.status, 0, run.stderr || run.stdout)
-    await inspect(await readFile(join(root, 'authoring/example.md'), 'utf8'))
+    await inspect(await readFile(join(root, 'authoring/example.md'), 'utf8'), root)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -94,4 +99,86 @@ test('preserve escaped Markdown and Vue or data-bound attributes', async () => {
   ].join('\n')
   const expected = source.replace('<a href="../start/" title=', '<a href="./" title=')
   await withPreparedGuide(source, actual => assert.equal(actual, expected))
+})
+
+test('rebase live Markdown, image, reference, and multiline destinations', async () => {
+  const source = [
+    '# Guide',
+    '',
+    '[ordinary](../start/) and ![icon](../start/icon.svg)',
+    '[angle](<../start/> "Start page") and [titled](../start/ "Start")',
+    '[reference][start-page]',
+    '',
+    '[start-page]: ../start/ "Start"',
+    '',
+    '[multiline](',
+    '  ../start/',
+    ')',
+    '',
+  ].join('\n')
+  const expected = [
+    '# Guide',
+    '',
+    '[ordinary](./) and ![icon](./icon.svg)',
+    '[angle](<./> "Start page") and [titled](./ "Start")',
+    '[reference][start-page]',
+    '',
+    '[start-page]: ./ "Start"',
+    '',
+    '[multiline](',
+    '  ./',
+    ')',
+    '',
+  ].join('\n')
+  await withPreparedGuide(source, actual => assert.equal(actual, expected))
+})
+
+test('preserve literal Markdown, comments, raw HTML blocks, and Vue bindings', async () => {
+  const source = [
+    '---',
+    'description: "A [link](../start/) in metadata"',
+    '---',
+    '',
+    '# Guide',
+    '',
+    '```md',
+    '[literal](../start/)',
+    '```',
+    '',
+    '~~~html',
+    '<a href="../start/">example</a>',
+    '~~~',
+    '',
+    '    [indented](../start/)',
+    '',
+    '<!--',
+    '[commented](../start/)',
+    '-->',
+    '',
+    '<pre>',
+    '<a href="../start/">preformatted</a>',
+    '</pre>',
+    '',
+    '<script>',
+    'const sample = "[literal](../start/)"',
+    '</script>',
+    '',
+    '<AppLink :href="selected" data-href="../start/" />',
+    '',
+    '[real](../start/)',
+    '',
+  ].join('\n')
+  const expected = source.replace('[real](../start/)', '[real](./)')
+  await withPreparedGuide(source, actual => assert.equal(actual, expected))
+})
+
+test('leave independently published HTML bytes untouched and create only route redirects', async () => {
+  await withPreparedGuide('# Guide\n', async (actual, root) => {
+    assert.equal(actual, '# Guide\n')
+    const reference = await readFile(join(root, 'reference/cam/1.4.0/index.html'), 'utf8')
+    assert.equal(reference, '<!doctype html><html><body>Immutable specification</body></html>\n')
+    const redirect = await readFile(join(root, 'public/authoring/example.html'), 'utf8')
+    assert.match(redirect, /\/dapp32\/start\/example\.html/)
+    assert.doesNotMatch(redirect, /Immutable specification/)
+  })
 })
