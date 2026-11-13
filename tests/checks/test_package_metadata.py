@@ -161,6 +161,11 @@ class PackageInstallIdentityTest(unittest.TestCase):
                         ]
                         self.assertGreaterEqual(len(project_values), len(actual) + 1, project_values)
                         self.assertEqual(1, len(set(project_values)), project_values)
+                        teardown = [call for call in calls if " down " in call]
+                        self.assertEqual(1, len(teardown), teardown)
+                        self.assertIn("--rmi local", teardown[0])
+                        self.assertIn(f"--project-name {project_values[0]}", teardown[0])
+
                         expected_kind = "solidity" if target.startswith("dapps") else "package"
                         self.assertRegex(
                             project_values[0], rf"^dapp32-{expected_kind}-deps-[0-9a-f]{{20}}$"

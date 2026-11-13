@@ -1242,7 +1242,7 @@ dapps/deps/install:
 	cleanup() { \
 	  status="$$?"; \
 	if [[ -n "$$compose_project" ]]; then \
-	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(call cleanup_disposable_project,$$compose_project,-f $(COMPOSE_DIR)/deps.yml,$$status); \
+	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(call cleanup_disposable_project,$compose_project,-f $(COMPOSE_DIR)/deps.yml,$status,--rmi local); \
 	fi; \
 	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
 	  if [[ "$$status" != "0" && -n "$$created_dependency_metadata_placeholders" ]]; then \
@@ -1348,7 +1348,7 @@ js/deps/install:
 	  status="$$?"; \
 	  if [[ -n "$$package_input_dir" ]]; then \
 	if [[ -n "$$compose_project" ]]; then \
-	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$$compose_project,-f $(COMPOSE_DIR)/package-deps.yml,$$status); \
+	  COMPOSE_PROJECT_NAME="$$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(call cleanup_disposable_project,$compose_project,-f $(COMPOSE_DIR)/package-deps.yml,$status,--rmi local); \
 	fi; \
 	if [[ -n "$$compose_directory" ]]; then rmdir -- "$$compose_directory"; fi; \
 	    rm -rf "$$package_input_dir"; \

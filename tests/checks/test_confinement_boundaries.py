@@ -92,6 +92,8 @@ class ConfinementBoundariesTest(unittest.TestCase):
                 self.assertIn('COMPOSE_PROJECT_NAME="$$compose_project"', block)
                 self.assertNotIn('COMPOSE_PROJECT_NAME="$compose_project"', block)
                 self.assertIn("cleanup_disposable_project,$$compose_project", block)
+                self.assertIn("--rmi local", block)
+
                 self.assertNotIn("cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME)", block)
                 self.assertNotIn("cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME)", block)
 
