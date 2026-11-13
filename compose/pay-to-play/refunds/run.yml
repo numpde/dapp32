@@ -45,6 +45,11 @@ services:
         eth_getLogs eth_call eth_getTransactionCount eth_estimateGas
         eth_getTransactionReceipt eth_getTransactionByHash
         eth_feeHistory eth_gasPrice eth_maxPriorityFeePerGas
+      # The worker caps received HTTP bodies at 2 MiB; do not buffer 16 MiB
+      # in the proxy for a response the worker must reject.
+      RPC_PROXY_MAX_REQUEST_BYTES: "262144"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "2097152"
+      RPC_PROXY_MAX_QUEUED_REQUESTS: "4"
     secrets:
       - source: refund_rpc_url
         target: rpc_url

@@ -28,6 +28,9 @@ class ConfinementBoundariesTest(unittest.TestCase):
         self.assertTrue(proxy["read_only"])
         self.assertEqual(["ALL"], proxy["cap_drop"])
         self.assertNotIn("eth_sendRawTransaction", proxy["environment"]["RPC_ALLOWED_METHODS"])
+        self.assertEqual("262144", proxy["environment"]["RPC_PROXY_MAX_REQUEST_BYTES"])
+        self.assertEqual("2097152", proxy["environment"]["RPC_PROXY_MAX_RESPONSE_BYTES"])
+        self.assertEqual("4", proxy["environment"]["RPC_PROXY_MAX_QUEUED_REQUESTS"])
         self.assertEqual("NO", worker["environment"]["REFUND_EXECUTE"])
 
         worker_mounts = {entry["target"]: entry for entry in worker["volumes"]}
@@ -53,7 +56,18 @@ class ConfinementBoundariesTest(unittest.TestCase):
         self.assertNotIn("/run/secrets/refund-relayer", {
             mount["target"] for mount in (proxy["volumes"] if "volumes" in proxy else ())
         })
-        self.assertIn("eth_sendRawTransaction", proxy["environment"]["RPC_ALLOWED_METHODS"])
+        plan = rendered_compose_config(REFUND_FILES[0])["services"]["refund-rpc-proxy"]
+        plan_methods = plan["environment"]["RPC_ALLOWED_METHODS"].split()
+        execute_methods = proxy["environment"]["RPC_ALLOWED_METHODS"].split()
+        self.assertEqual(len(plan_methods), len(set(plan_methods)), "Duplicate plan RPC method")
+        self.assertEqual(len(execute_methods), len(set(execute_methods)), "Duplicate execute RPC method")
+        self.assertEqual(
+            set(plan_methods) | {"eth_sendRawTransaction"},
+            set(execute_methods),
+            "Execute must add exactly one RPC capability, never drift in read methods",
+        )
+        for key in ("RPC_PROXY_MAX_REQUEST_BYTES", "RPC_PROXY_MAX_RESPONSE_BYTES", "RPC_PROXY_MAX_QUEUED_REQUESTS"):
+            self.assertEqual(plan["environment"][key], proxy["environment"][key])
         self.assertNotIn("secrets", worker, "Worker should only receive protected bind files")
 
     def test_docs_site_checker_only_reads_its_three_inputs(self) -> None:
