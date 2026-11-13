@@ -20,3 +20,13 @@ services:
         read_only: false
         bind:
           create_host_path: false
+
+# The signing overlay alone permits submitting raw transactions.
+  refund-rpc-proxy:
+    environment:
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getCode
+        eth_getLogs eth_call eth_getTransactionCount eth_estimateGas
+        eth_getTransactionReceipt eth_getTransactionByHash
+        eth_feeHistory eth_gasPrice eth_maxPriorityFeePerGas
+        eth_sendRawTransaction

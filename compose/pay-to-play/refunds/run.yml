@@ -6,8 +6,11 @@ services:
       file: ../../fragments/node-workspace.yml
       service: hardened-node-workspace
     working_dir: /work
+    depends_on:
+      refund-rpc-proxy:
+        condition: service_healthy
     networks:
-      - refund_rpc_egress
+      - refund_rpc_internal
     environment:
       REFUND_EXECUTE: "NO"
       REFUND_CONFIG_FILE: /run/secrets/refund-config
@@ -23,7 +26,7 @@ services:
         bind:
           create_host_path: false
       - type: bind
-        source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+        source: ./rpc-proxy-url.txt
         target: /run/secrets/refund-rpc
         read_only: true
         bind:
@@ -38,5 +41,30 @@ services:
         ./node_modules/.bin/tsc -p tools/pay-to-play-refunds/tsconfig.json
         node --experimental-strip-types tools/pay-to-play-refunds/runner.ts
 
+  refund-rpc-proxy:
+    extends:
+      file: ../../fragments/release-rpc-proxy.yml
+      service: release-rpc-proxy-base
+    environment:
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getCode
+        eth_getLogs eth_call eth_getTransactionCount eth_estimateGas
+        eth_getTransactionReceipt eth_getTransactionByHash
+        eth_feeHistory eth_gasPrice eth_maxPriorityFeePerGas
+    secrets:
+      - source: refund_rpc_url
+        target: rpc_url
+    networks:
+      refund_rpc_internal:
+        aliases:
+          - refund-rpc-proxy
+      refund_rpc_egress: {}
+
+secrets:
+  refund_rpc_url:
+    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+
 networks:
-  refund_rpc_egress:
+  refund_rpc_internal:
+    internal: true
+  refund_rpc_egress: {}
