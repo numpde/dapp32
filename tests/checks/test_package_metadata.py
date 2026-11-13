@@ -289,7 +289,7 @@ class PackageInstallIdentityTest(unittest.TestCase):
                     self.assertIn(projects[0], result.stderr)
                     self.assertEqual(1, len([line for line in calls if " down " in line]), calls)
                     if target.startswith("js"):
-                        match = re.search(r"Retained staging inputs: (/tmp/\\S+)", result.stderr)
+                        match = re.search(r"Retained staging inputs: (/tmp/\S+)", result.stderr)
                         self.assertIsNotNone(match, result.stderr)
                         stage = Path(match.group(1))
                         self.assertTrue(stage.is_dir(), "failed cleanup must retain mounted inputs")
