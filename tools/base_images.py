@@ -45,6 +45,13 @@ def selected_dockerfiles(root: Path, selection: str | None) -> list[Path]:
                 raise ValueError(f"Dockerfile path passes through a symlink: {name!r}")
         if not path.is_file():
             raise ValueError(f"Dockerfile is not a regular file: {name!r}")
+        # Buildx can acquire a Dockerfile syntax frontend during stage discovery,
+        # before FROM-image pin checks. Use the built-in frontend instead.
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("# syntax="):
+                raise ValueError(f"External Dockerfile syntax frontend is prohibited: {name!r}")
+            if line.strip() and not line.startswith("#"):
+                break
         dockerfiles.append(Path(name))
     return dockerfiles
 
