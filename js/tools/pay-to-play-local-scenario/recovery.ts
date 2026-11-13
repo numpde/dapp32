@@ -63,8 +63,24 @@ async function main() {
     assert.equal(found[0]!.disabled === true, disabled, `${route} availability`)
     return found[0]!
   }
+  async function disabledOnForm(form: string, route: string) {
+    const selected = view()
+    const args = inert({ customer: selected.customer, channelId: selected.channelId })
+    await session.navigate(form, args)
+    button(route, true)
+    await session.navigate("position", args)
+  }
   async function write(role: Role, route: string, state: Record<string, unknown>) {
     phase = route
+    const forms: Record<string, string> = {
+      registerVoucherKey: "voucherPaymentsForm", collect: "voucherPaymentsForm",
+      fund: "depositForm", requestWithdrawal: "withdrawalForm", move: "withdrawalForm",
+    }
+    const form = forms[route]
+    if (form) {
+      const selected = view()
+      await session.navigate(form, inert({ customer: selected.customer, channelId: selected.channelId }))
+    }
     session.updateState(inert(state))
     const result = await session.dispatchAction(button(route, false))
     assert.equal(result.type, "contractCall")
@@ -85,7 +101,7 @@ async function main() {
   const COLLECTED = parseAbiItem("event VoucherCollected(address indexed customer,uint256 indexed channelId,address indexed payee,uint256 amount,uint256 voucherPaid,bytes32 invoiceHash)")
   async function create() {
     await open("admin", accounts.admin.address, "0", false)
-    await session.navigate("choosePosition", inert({ customer: accounts.admin.address, channelId: "0" }))
+    await session.navigate("createChannelForm", inert({}))
     const receipt = await write("admin", "createChannel", { newPayee: accounts.payee.address, newChannelCollector: accounts.relayer.address, newClaimPeriod: "60" })
     const logs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase() && log.topics[0] === toEventSelector(CREATED))
     assert.equal(logs.length, 1)
@@ -146,8 +162,8 @@ async function main() {
   button("renewPosition", true)
   button("refund", true)
   await open("customer", accounts.customer.address, id, false)
-  button("fund", true)
-  button("setWithdrawal", true)
+  await disabledOnForm("depositForm", "fund")
+  await disabledOnForm("withdrawalForm", "setWithdrawal")
   await open("relayer", accounts.customer.address, id, false)
   const collection = await write("relayer", "collect", signed)
   const collectionLogs = collection.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
@@ -157,7 +173,7 @@ async function main() {
   assert.equal(firstCollection.amount, 30n)
   assert.equal(view().balance, "70")
   await warp(deadline)
-  button("collect", true)
+  await disabledOnForm("voucherPaymentsForm", "collect")
   await open("relayer", accounts.customer.address, id, true)
   const recipientBefore = await client.getBalance({ address: accounts.admin.address })
   await write("relayer", "refund", {})
@@ -182,7 +198,7 @@ async function main() {
   await write("customer", "fund", { fundAmount: "50" })
   const annual = BigInt(String(view().refundAt))
   await warp(annual - 60n)
-  button("fund", true)
+  await disabledOnForm("depositForm", "fund")
   await open("customer", accounts.customer.address, id, true)
   button("renewPosition", true)
   button("refund", true)
@@ -206,7 +222,7 @@ async function main() {
   assert.equal(view().escrowTotal, "120")
   const closing = BigInt(String(view().closeAt))
   await open("customer", accounts.customer.address, retired, false)
-  button("fund", true)
+  await disabledOnForm("depositForm", "fund")
   await warp(closing)
   await open("payee", accounts.customer.address, retired, true)
   button("closeChannel", true)
@@ -237,7 +253,6 @@ async function main() {
   const directory = mkdtempSync(join(tmpdir(), "recovery-worker-"))
   try {
     const configFile = join(directory, "config.json")
-    const rpcFile = join(directory, "rpc")
     const keyFile = join(directory, "key")
     const code = await client.getBytecode({ address: payments })
     assert(code && code !== "0x")
@@ -247,11 +262,10 @@ async function main() {
       confirmations: 1, blockChunk: 5, maxCustomers: 10, maxTransactions: 1,
       gasLimit: "300000", maxFeePerGas: "10000000000", maxPriorityFeePerGas: "1000000000",
     }), { mode: 0o600 })
-    writeFileSync(rpcFile, rpcURL.href, { mode: 0o600 })
     writeFileSync(keyFile, requiredEnv(process.env, "PAY_TO_PLAY_PAYEE_PRIVATE_KEY"), { mode: 0o600 })
     async function cli(execute: boolean) {
       phase = "refund CLI"
-      const env: NodeJS.ProcessEnv = { REFUND_CONFIG_FILE: configFile, RPC_URL_FILE: rpcFile, REFUND_EXECUTE: execute ? "YES" : "NO" }
+      const env: NodeJS.ProcessEnv = { REFUND_CONFIG_FILE: configFile, REFUND_RPC_PROXY_URL: rpcURL.href, REFUND_EXECUTE: execute ? "YES" : "NO" }
       if (execute) { env.REFUND_PRIVATE_KEY_FILE = keyFile; env.REFUND_STATE_DIR = directory }
       const result = await new Promise<{ code: number; stdout: string }>(resolve => {
         execFile(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("../pay-to-play-refunds/runner.ts", import.meta.url))],
@@ -291,7 +305,7 @@ async function main() {
 const rename=fs.renameSync;fs.renameSync=(source,target)=>{if(target.endsWith('/refunds.json'))throw Object.assign(new Error('SECRET_FAULT_BODY'),{code:'EACCES',syscall:'rename'});return rename(source,target)};syncBuiltinESMExports();`)
     const failed = await new Promise<{ code: number; stdout: string; stderr: string }>(resolve => {
       execFile(process.execPath, ["--import", fault, "--experimental-strip-types", fileURLToPath(new URL("../pay-to-play-refunds/runner.ts", import.meta.url))], {
-        env: { REFUND_CONFIG_FILE: configFile, RPC_URL_FILE: rpcFile, REFUND_EXECUTE: "YES", REFUND_PRIVATE_KEY_FILE: keyFile, REFUND_STATE_DIR: directory },
+        env: { REFUND_CONFIG_FILE: configFile, REFUND_RPC_PROXY_URL: rpcURL.href, REFUND_EXECUTE: "YES", REFUND_PRIVATE_KEY_FILE: keyFile, REFUND_STATE_DIR: directory },
         timeout: 90_000, maxBuffer: 262_144,
       }, (error, stdout, stderr) => resolve({ code: error ? (typeof error.code === "number" ? error.code : -1) : 0, stdout, stderr }))
     })
@@ -303,7 +317,7 @@ const rename=fs.renameSync;fs.renameSync=(source,target)=>{if(target.endsWith('/
   } finally { rmSync(directory, { recursive: true, force: true }) }
   await open("customer", accounts.customer.address, retired, false)
   assert.equal(view().escrowTotal, "0")
-  button("fund", true)
+  await disabledOnForm("depositForm", "fund")
   assert.equal(await client.getBalance({ address: payments }), 0n)
   process.stdout.write(JSON.stringify({ event: "ok", test: "recovery CAM and refund batches", channel: retired }) + "\n")
 }
