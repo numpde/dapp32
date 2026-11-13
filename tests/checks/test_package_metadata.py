@@ -109,7 +109,10 @@ class PackageInstallIdentityTest(unittest.TestCase):
             events = root / "events"
             events.touch()
             delegate = root / "compose.sh"
-            delegate.write_text('printf "compose %s\\n" "$*" >> "$TEST_EVENTS"\n')
+            delegate.write_text(
+                'printf "compose %s\\n" "$*" >> "$TEST_EVENTS"\n'
+                'printf "compose-project=%s\\n" "$COMPOSE_PROJECT_NAME" >> "$TEST_EVENTS"\n'
+            )
             if unwritable:
                 # Permission errors must be detected before the networked stage.
                 output = root / ("dapps/dependencies" if target == "dapps/deps/install"
@@ -152,6 +155,16 @@ class PackageInstallIdentityTest(unittest.TestCase):
                             services = (*services, "soldeer-verify")
                         actual = [call for call in calls if " run " in call]
                         self.assertEqual(len(services), len(actual), actual)
+                        project_values = [
+                            call.removeprefix("compose-project=")
+                            for call in calls if call.startswith("compose-project=")
+                        ]
+                        self.assertGreaterEqual(len(project_values), len(actual) + 1, project_values)
+                        self.assertEqual(1, len(set(project_values)), project_values)
+                        expected_kind = "solidity" if target.startswith("dapps") else "package"
+                        self.assertRegex(
+                            project_values[0], rf"^dapp32-{expected_kind}-deps-[0-9a-f]{{20}}$"
+                        )
                         for call, service in zip(actual, services):
                             self.assertTrue(call.endswith(f"--user {mapped} {service}"), call)
                         self.assertFalse(any(call.startswith("info ") for call in calls),

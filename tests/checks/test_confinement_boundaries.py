@@ -89,6 +89,8 @@ class ConfinementBoundariesTest(unittest.TestCase):
                 self.assertIn("mktemp -d", block)
                 self.assertIn(project, block)
                 self.assertIn("sha256sum | cut -c1-20", block)
+                self.assertIn('COMPOSE_PROJECT_NAME="$$compose_project"', block)
+                self.assertNotIn('COMPOSE_PROJECT_NAME="$compose_project"', block)
                 self.assertIn("cleanup_disposable_project,$$compose_project", block)
                 self.assertNotIn("cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME)", block)
                 self.assertNotIn("cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME)", block)
