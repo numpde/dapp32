@@ -108,6 +108,15 @@ class ConfinementBoundariesTest(unittest.TestCase):
                 self.assertNotIn("cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME)", block)
                 self.assertNotIn("cleanup_disposable_project,$(PACKAGE_DEPS_COMPOSE_PROJECT_NAME)", block)
 
+    def test_refund_worker_changes_trigger_containerized_ci(self) -> None:
+        workflow = read_text(repo_path(".github/workflows/rpc-proxy-checks.yml"))
+        self.assertEqual(
+            2, workflow.count("      - js/tools/pay-to-play-refunds/**"),
+            "Push and PR paths must both include the signing worker",
+        )
+        self.assertIn("make js/deps/install DOCKER_CONTEXT=default", workflow)
+        self.assertIn("make pay-to-play/refunds/check DOCKER_CONTEXT=default", workflow)
+
     def test_source_publication_ci_uses_maintained_offline_lanes(self) -> None:
         workflow = read_text(repo_path(".github/workflows/source-publication-checks.yml"))
         self.assertIn("make js/deps/install DOCKER_CONTEXT=default", workflow)
