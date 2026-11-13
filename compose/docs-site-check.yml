@@ -1,0 +1,13 @@
+services:
+  docs-site-check:
+    extends:
+      file: checks.yml
+      service: checks
+    volumes:
+      - type: bind
+        source: ${DOCS_SITE_DIR:?missing_DOCS_SITE_DIR}
+        target: /site
+        read_only: true
+        bind:
+          create_host_path: false
+    command: ["-I", "-B", "tools/docs_site.py", "check", "docs", "/site"]

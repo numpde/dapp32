@@ -123,6 +123,13 @@ state_file.write_text(json.dumps(state))
 
 
 class DocsBuildLifecycleTests(unittest.TestCase):
+    def test_site_check_reads_existing_site_offline(self) -> None:
+        config = rendered_compose_config("compose/docs-site-check.yml")
+        service = config["services"]["docs-site-check"]
+        mount = next(mount for mount in service["volumes"] if mount["target"] == "/site")
+        self.assertTrue(mount["read_only"])
+        self.assertIsNot(mount["bind"].get("create_host_path"), True)
+
     def test_all_services_are_offline_read_only_and_capability_free(self) -> None:
         config = rendered_compose_config("compose/docs.yml", env={
             "LOCAL_UID": "1000",
