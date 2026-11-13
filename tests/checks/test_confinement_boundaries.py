@@ -100,7 +100,9 @@ class ConfinementBoundariesTest(unittest.TestCase):
                 self.assertIn("sha256sum | cut -c1-20", block)
                 self.assertIn('COMPOSE_PROJECT_NAME="$$compose_project"', block)
                 self.assertNotIn('COMPOSE_PROJECT_NAME="$compose_project"', block)
-                self.assertIn("cleanup_disposable_project,$$compose_project", block)
+                self.assertIn("disposable_cleanup_command,$$compose_project", block)
+                self.assertIn('cleanup_status="$$?"', block)
+                self.assertIn('if [[ "$$cleanup_status" != 0 ]]', block)
                 self.assertIn("--rmi local", block)
 
                 self.assertNotIn("cleanup_disposable_project,$(DEPS_COMPOSE_PROJECT_NAME)", block)

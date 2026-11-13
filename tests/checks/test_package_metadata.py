@@ -278,8 +278,11 @@ class PackageInstallIdentityTest(unittest.TestCase):
                          "DOCKER_CONTEXT=fixture", "ALLOW_UPDATE=0"],
                         cwd=root, env=env, capture_output=True, text=True, timeout=25,
                     )
-                    self.assertEqual(23 if apply_fails else 17, result.returncode,
-                                     result.stdout + result.stderr)
+                    expected_error = 23 if apply_fails else 17
+                    # GNU Make returns 2 for a failing recipe, but prints the
+                    # original recipe exit status. Require both signals.
+                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                    self.assertIn(f"Error {expected_error}", result.stderr)
                     kind = "Solidity" if target.startswith("dapps") else "JavaScript"
                     self.assertIn(kind + " dependency cleanup incomplete", result.stderr)
                     calls = events.read_text().splitlines()
