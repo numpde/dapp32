@@ -1219,16 +1219,25 @@ help:
 	  '    Alternatively set RPC_URL in the environment; the command copies it to a temporary file.' \
 	  '    Supply only one URL source. This query sends no transaction.'
 
+define dependency_install_lock
+install_lock_root="/tmp/dapp32-install-$$(id -u)"; \
+mkdir -p -m 0700 -- "$$install_lock_root"; \
+if [[ -L "$$install_lock_root" || "$$(stat -c %a "$$install_lock_root")" != 700 || "$$(stat -c %u "$$install_lock_root")" != "$$(id -u)" ]]; then \
+  printf '%s\n' 'Dependency lock directory is not private to the invoking user.' >&2; exit 2; \
+fi; \
+install_lock="$$install_lock_root/$$(printf '%s' "$$(pwd -P)" | sha256sum | cut -c1-40).lock"; \
+if [[ -L "$$install_lock" ]]; then printf '%s\n' 'Dependency lock must not be a symlink.' >&2; exit 2; fi; \
+exec 9>"$$install_lock"; \
+flock -w 600 9 || { printf '%s\n' 'Dependency install lock is busy.' >&2; exit 2; }
+endef
+
 dapps/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
 	created_dependency_metadata_placeholders=""; \
 	compose_project=""; \
 	compose_directory=""; \
-	install_lock="$$(git rev-parse --git-path dapp32-install.lock)"; \
-	if [[ -L "$$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
-	exec 9>"$$install_lock"; \
-	flock -w 600 9 || { printf "%s\n" "Dependency install lock is busy." >&2; exit 2; }; \
+	$(dependency_install_lock); \
 	cleanup() { \
 	  status="$$?"; \
 	if [[ -n "$$compose_project" ]]; then \
@@ -1306,7 +1315,7 @@ dapps/deps/install:
 	test -d $(DEPENDENCIES_DIR); \
 	reject_unsafe_dependency_targets; \
 	compose_directory="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
-	compose_project="dapp32-solidity-deps-$${compose_directory##*.}"; \
+	compose_project="dapp32-solidity-deps-$$(printf '%s' "$$compose_directory" | sha256sum | cut -c1-20)"; \
 	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-stage; \
 	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" soldeer-verify-stage; \
 	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm --user "$$mapped_user" "$$apply_service"; \
@@ -1333,10 +1342,7 @@ js/deps/install:
 	created_package_lock_placeholder="0"; \
 	compose_project=""; \
 	compose_directory=""; \
-	install_lock="$$(git rev-parse --git-path dapp32-install.lock)"; \
-	if [[ -L "$$install_lock" ]]; then printf "%s\n" "Dependency lock must not be a symlink." >&2; exit 2; fi; \
-	exec 9>"$$install_lock"; \
-	flock -w 600 9 || { printf "%s\n" "Dependency install lock is busy." >&2; exit 2; }; \
+	$(dependency_install_lock); \
 	cleanup() { \
 	  status="$$?"; \
 	  if [[ -n "$$package_input_dir" ]]; then \
@@ -1411,7 +1417,7 @@ js/deps/install:
 	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
 	done < <(find $(JS_DIR)/packages $(JS_DIR)/apps -mindepth 2 -maxdepth 2 -name package.json | sort); \
 	compose_directory="$$(mktemp -d "$${TMPDIR:-/tmp}/dapp32-deps.XXXXXXXX")"; \
-	compose_project="dapp32-package-deps-$${compose_directory##*.}"; \
+	compose_project="dapp32-package-deps-$$(printf '%s' "$$compose_directory" | sha256sum | cut -c1-20)"; \
 	COMPOSE_PROJECT_NAME="$compose_project" ALLOW_UPDATE=$(ALLOW_UPDATE) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm --user "$$package_user" package-stage; \
 	reject_unsafe_package_targets; \
 	mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"; \
