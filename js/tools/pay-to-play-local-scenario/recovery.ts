@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -264,7 +264,7 @@ async function main() {
     }), { mode: 0o600 })
     writeFileSync(keyFile, requiredEnv(process.env, "PAY_TO_PLAY_PAYEE_PRIVATE_KEY"), { mode: 0o600 })
     async function cli(execute: boolean, stopAfterDrop: boolean) {
-      phase = "refund CLI"
+      phase = stopAfterDrop ? "interrupted refund CLI" : execute ? "refund execution CLI" : "refund planning CLI"
       const env: NodeJS.ProcessEnv = { REFUND_CONFIG_FILE: configFile, REFUND_RPC_PROXY_URL: refundProxy.href, REFUND_EXECUTE: execute ? "YES" : "NO" }
       if (execute) { env.REFUND_PRIVATE_KEY_FILE = keyFile; env.REFUND_STATE_DIR = directory }
       let child: ReturnType<typeof execFile>
@@ -315,9 +315,10 @@ async function main() {
     const dropped = await (await fixtureControl("/fixture/dropped")).text()
     const firstJournal = record(JSON.parse(readFileSync(join(directory, "refunds.json"), "utf8")))
     assert.equal(record(firstJournal.pending).hash, dropped, "the dropped response must match the pending journal")
-    // A stopped worker leaves one empty journal lock directory. Do not silently
-    // remove unexpected contents or accept a lock that was already missing.
-    rmdirSync(join(directory, "refunds.lock"))
+    // The worker may have closed its lock before the signal arrived. Remove
+    // only an empty leftover lock, never recursively erase unexpected contents.
+    const lock = join(directory, "refunds.lock")
+    if (existsSync(lock)) rmdirSync(lock)
     assert.equal((await fixtureControl("/fixture/release-receipts")).status, 204)
     const second = await cli(true, false)
     assert.equal(second.code, 0)
