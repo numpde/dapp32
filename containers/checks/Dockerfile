@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.19
-
 # Minimal Python runtime for offline repository/source checks.
 #
 # This image deliberately does not copy repository files. The Compose lane

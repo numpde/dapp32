@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.19
-
 # Image definition for the Compose lanes in compose/forge.yml, compose/cast.yml,
 # and compose/anvil.yml.
 #

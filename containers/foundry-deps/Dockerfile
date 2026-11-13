@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.19
-
 # Foundry image for the networked Soldeer installation stage.
 #
 # Keep dependency-staging tools out of the normal offline build/test image. This

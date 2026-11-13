@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.19
-
 # Minimal JSON-RPC reverse proxy for the networked Cast lane.
 #
 # The Cast container itself stays on an internal Docker network. Only this proxy

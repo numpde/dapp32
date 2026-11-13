@@ -63,6 +63,14 @@ class BaseImagesTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.calls(), [f"--host {ENDPOINT} pull {NODE}", f"--host {ENDPOINT} pull {PYTHON}"])
 
+    def test_external_syntax_frontend_is_rejected_before_buildx_or_pull(self) -> None:
+        path = self.dockerfile("first", [{"base": NODE}])
+        path.write_text("# syntax=docker/dockerfile:1.19\nFROM " + NODE + "\n")
+        result = self.run_acquisition()
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("syntax frontend", result.stderr)
+        self.assertEqual([], self.calls())
+
     def test_subset_does_not_acquire_unselected_images(self) -> None:
         self.dockerfile("first", [{"base": NODE}])
         self.dockerfile("other", [{"base": PYTHON}])

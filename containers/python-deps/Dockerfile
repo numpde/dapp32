@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.19
-
 # Python verifier image for the networked dependency staging lane.
 #
 # Foundry/Soldeer installation stays in containers/foundry-deps. This image
