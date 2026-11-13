@@ -120,6 +120,161 @@ function rewriteLink(value, originalPage, canonicalPage) {
   if (destination.endsWith('/') && !relative.endsWith('/')) relative += '/'
   return relative + resolved.search + resolved.hash
 }
+
+function escapedAt(value, at) {
+  let slashes = 0
+  for (let index = at - 1; index >= 0 && value[index] === '\\'; index--) slashes++
+  return slashes % 2 !== 0
+}
+
+function rewriteMarkdownLinks(value, rewrite) {
+  let cursor = 0
+  let output = ''
+  while (true) {
+    const opening = value.indexOf('](', cursor)
+    if (opening < 0) return output + value.slice(cursor)
+    const label = value.lastIndexOf('[', opening)
+    if (label < 0 || escapedAt(value, label)) {
+      output += value.slice(cursor, opening + 2)
+      cursor = opening + 2
+      continue
+    }
+    const start = opening + 2
+    const angle = value[start] === '<'
+    const destinationStart = start + (angle ? 1 : 0)
+    let end = destinationStart
+    let depth = 0
+    while (end < value.length) {
+      const character = value[end]
+      if (character === '\\') {
+        end += 2
+        continue
+      }
+      if (angle && character === '>') break
+      if (!angle && character === '(') depth++
+      else if (!angle && character === ')') {
+        if (depth === 0) break
+        depth--
+      } else if (!angle && /\s/.test(character) && depth === 0) break
+      end++
+    }
+    const after = end + (angle ? 1 : 0)
+    let valid = end > destinationStart && (!angle || value[end] === '>')
+    if (valid && value[after] !== ')') {
+      let position = after
+      while (/\s/.test(value[position] ?? '')) position++
+      const delimiter = value[position]
+      valid = position > after && ['"', "'", '('].includes(delimiter)
+      if (valid) {
+        const closing = delimiter === '(' ? ')' : delimiter
+        position++
+        while (position < value.length && (value[position] !== closing || escapedAt(value, position))) {
+          position++
+        }
+        if (position >= value.length) valid = false
+        position++
+        while (/\s/.test(value[position] ?? '')) position++
+        if (value[position] !== ')') valid = false
+      }
+    }
+    if (!valid) {
+      output += value.slice(cursor, opening + 2)
+      cursor = opening + 2
+      continue
+    }
+    output += value.slice(cursor, destinationStart) + rewrite(value.slice(destinationStart, end))
+    cursor = end
+  }
+}
+
+function rewriteProse(value, rewrite) {
+  const segments = value.split(/(<\/?[A-Za-z][^>]*>)/g)
+  let inCode = false
+  return segments.map(segment => {
+    if (/^<code(?:\s|>)/i.test(segment)) {
+      inCode = true
+      return segment
+    }
+    if (/^<\/code\s*>/i.test(segment)) {
+      inCode = false
+      return segment
+    }
+    if (inCode) return segment
+    if (/^<[A-Za-z]/.test(segment)) {
+      return segment.replace(/(?<![:\w-])(href|src)=(["'])([^"'<>]+)\2/g,
+        (_match, attribute, quote, url) => attribute + '=' + quote + rewrite(url) + quote)
+    }
+    return rewriteMarkdownLinks(segment, rewrite)
+  }).join('')
+}
+
+function rewriteOutsideInlineCode(value, rewrite) {
+  let cursor = 0
+  let output = ''
+  while (true) {
+    const opening = value.indexOf('`', cursor)
+    if (opening < 0) return output + rewriteProse(value.slice(cursor), rewrite)
+    let runEnd = opening + 1
+    while (value[runEnd] === '`') runEnd++
+    const marker = value.slice(opening, runEnd)
+    const closing = value.indexOf(marker, runEnd)
+    if (closing < 0) return output + rewriteProse(value.slice(cursor), rewrite)
+    output += rewriteProse(value.slice(cursor, opening), rewrite)
+    output += value.slice(opening, closing + marker.length)
+    cursor = closing + marker.length
+  }
+}
+
+function rewriteDocumentLinks(content, rewrite) {
+  const lines = content.match(/[^\n]*\n|[^\n]+$/g) ?? []
+  let frontmatter = false
+  let fence = null
+  let rawBlock = null
+  let comment = false
+  return lines.map((line, index) => {
+    const trimmed = line.trim()
+    if (index === 0 && trimmed === '---') {
+      frontmatter = true
+      return line
+    }
+    if (frontmatter) {
+      if (trimmed === '---') frontmatter = false
+      return line
+    }
+    if (comment) {
+      if (line.includes('-->')) comment = false
+      return line
+    }
+    if (rawBlock) {
+      if (new RegExp('</' + rawBlock + '\\s*>', 'i').test(line)) rawBlock = null
+      return line
+    }
+    if (fence) {
+      const close = new RegExp('^ {0,3}' + fence.marker + '{' + fence.length + ',}\\s*$')
+      if (close.test(trimmed)) fence = null
+      return line
+    }
+    const openingFence = /^ {0,3}(`{3,}|~{3,})/.exec(line)
+    if (openingFence) {
+      fence = { marker: openingFence[1][0], length: openingFence[1].length }
+      return line
+    }
+    if (/^(?: {4}|\t)/.test(line)) return line
+    if (trimmed.startsWith('<!--')) {
+      comment = !trimmed.includes('-->')
+      return line
+    }
+    const startRaw = /<(pre|script|style|textarea)(?:\s|>)/i.exec(line)
+    if (startRaw) {
+      if (!new RegExp('</' + startRaw[1] + '\\s*>', 'i').test(line.slice(startRaw.index))) {
+        rawBlock = startRaw[1]
+      }
+      return line
+    }
+    return rewriteOutsideInlineCode(line, rewrite)
+  }).join('')
+}
+
 for (const original of observed) {
   if (original in retired) {
     await rm(join(root, original))
@@ -130,11 +285,7 @@ for (const original of observed) {
   const canonical = page.route
   const file = join(root, original)
   let content = await readFile(file, 'utf8')
-  content = content.replace(/(?<![:\w-])(href|src)=(["'])([^"'<>]+)\2/g,
-    (_whole, attribute, quote, url) =>
-      attribute + '=' + quote + rewriteLink(url, original, canonical) + quote)
-  content = content.replace(/\]\(([^)\s]+)\)/g,
-    (_whole, url) => '](' + rewriteLink(url, original, canonical) + ')')
+  content = rewriteDocumentLinks(content, url => rewriteLink(url, original, canonical))
   await writeFile(file, content)
 }
 for (const [original, canonical] of oldToNew) {
