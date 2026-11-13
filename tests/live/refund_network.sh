@@ -59,7 +59,7 @@ trap cleanup EXIT
 
 # The proxy is the sole process with an external network. Its health endpoint
 # is local and works without attempting to resolve the dummy upstream URL.
-compose up --build -d refund-rpc-proxy
+compose up --build -d --wait --wait-timeout 20 refund-rpc-proxy
 
 node_probe="$(cat <<'JS'
 const { readFileSync, existsSync } = require("node:fs");
@@ -101,7 +101,8 @@ async function run() {
   if (process.env.REFUND_RPC_PROXY_URL !== proxy) {
     throw new Error("Worker has a different configured proxy endpoint");
   }
-  const health = await fetch(proxy + "/healthz", { signal: AbortSignal.timeout(3000) });
+  const health = await fetch(proxy + "/healthz", { signal: AbortSignal.timeout(3000) })
+    .catch(error => { throw new Error("proxy health fetch: " + (error.cause?.code ?? error.name)); });
   if (health.status !== 204) throw new Error(`Internal RPC proxy health returned HTTP ${health.status}`);
 
   const rejected = await fetch(proxy, {
@@ -111,7 +112,7 @@ async function run() {
       jsonrpc: "2.0", id: 1, method: "eth_sendRawTransaction", params: ["0x00"]
     }),
     signal: AbortSignal.timeout(3000)
-  });
+  }).catch(error => { throw new Error("RPC method fetch: " + (error.cause?.code ?? error.name)); });
   const expected = process.env.REFUND_NETWORK_MODE === "execute" ? 502 : 403;
   if (rejected.status !== expected) {
     throw new Error(`RPC method admission returned ${rejected.status}, expected ${expected}`);
@@ -142,7 +143,7 @@ compose run --build --rm --no-deps -T -e REFUND_NETWORK_MODE=plan pay-to-play-re
 # mounts in the diagnostic overlay. The method gate must admit the request,
 # then refuse the non-global dummy upstream without broadcasting any bytes.
 compose_files+=(-f "$root/compose/pay-to-play/refunds/execute.yml")
-compose up --build --force-recreate -d refund-rpc-proxy
+compose up --build --force-recreate -d --wait --wait-timeout 20 refund-rpc-proxy
 compose run --build --rm --no-deps -T -e REFUND_NETWORK_MODE=execute pay-to-play-refunds -e "$node_probe"
 
 printf '%s\n' 'PASS plan/execute refund network separation and owned Compose cleanup'
