@@ -72,12 +72,12 @@ network_names() {
 [[ "$(docker --host "$endpoint" inspect --format '{{json .HostConfig.PortBindings}}' "$static")" == "{}" ]] || {
   printf '%s\n' 'Static viewer has an unexpected published port.' >&2; exit 2;
 }
-if docker --host "$endpoint" exec "$static" sh -c \
-  "awk 'NR>1 && \\$2 == \"00000000\" { found=1 } END { exit !found }' /proc/net/route"; then
+if docker --host "$endpoint" exec "$static" awk
+  'NR>1 && $2 == "00000000" { found=1 } END { exit !found }' /proc/net/route; then
   printf '%s\n' 'Static viewer has an IPv4 default route.' >&2; exit 2
 fi
-if docker --host "$endpoint" exec "$static" sh -c \
-  "awk '\\$1 == \"00000000000000000000000000000000\" && \\$2 == \"00\" && \\$10 != \"lo\" { found=1 } END { exit !found }' /proc/net/ipv6_route"; then
+if docker --host "$endpoint" exec "$static" awk
+  '$1 == "00000000000000000000000000000000" && $2 == "00" && $10 != "lo" { found=1 } END { exit !found }' /proc/net/ipv6_route; then
   printf '%s\n' 'Static viewer has a non-loopback IPv6 default route.' >&2; exit 2
 fi
 
