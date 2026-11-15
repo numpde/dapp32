@@ -1026,6 +1026,7 @@ help:
 	  '    Requires installed locked dependencies (make js/deps/install) and locally available pinned base images.' \
 	  '    The footer records the source revision and UTC build time; modified checkouts are labelled.' \
 	  '  make viewer/up                  Start the built image at http://127.0.0.1:8080; no build or pull.' \
+	  '  make viewer/isolated/live/check  Prove private static nginx plus loopback ingress on disposable Docker.' \
 	  '  make viewer/status              Show this viewer container and its health.' \
 	  '  make viewer/update              Fetch deploy/viewer; build, replace, verify and clean this viewer if needed.' \
 	  '    Requires a clean deployment checkout, an existing labeled viewer, XDG_RUNTIME_DIR and VIEWER_PUBLIC_ORIGIN=https://host.' \
@@ -1859,6 +1860,10 @@ viewer/status:
 pay-to-play/refunds/network/live/check:
 	@$(LANE_GUARD); \
 	bash tests/live/refund_network.sh
+
+.PHONY: viewer/isolated/live/check
+viewer/isolated/live/check:
+	@$(LANE_GUARD); bash tests/live/viewer_isolated.sh
 
 .PHONY: viewer/browser/check
 viewer/browser/check:

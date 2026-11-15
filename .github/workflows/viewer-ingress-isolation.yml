@@ -1,0 +1,55 @@
+name: Viewer ingress isolation
+
+on:
+  push:
+    branches-ignore: [deploy/viewer]
+    paths:
+      - .github/workflows/viewer-ingress-isolation.yml
+      - compose/viewer.yml
+      - compose/viewer-isolated.yml
+      - containers/viewer/**
+      - tools/viewer_update.py
+      - tools/compose_cleanup.sh
+      - tests/live/viewer_isolated.sh
+      - tests/checks/test_viewer_isolation.py
+      - tests/checks/test_viewer_update.py
+      - Makefile
+  pull_request:
+    paths:
+      - .github/workflows/viewer-ingress-isolation.yml
+      - compose/viewer.yml
+      - compose/viewer-isolated.yml
+      - containers/viewer/**
+      - tools/viewer_update.py
+      - tools/compose_cleanup.sh
+      - tests/live/viewer_isolated.sh
+      - tests/checks/test_viewer_isolation.py
+      - tests/checks/test_viewer_update.py
+      - Makefile
+
+permissions:
+  contents: read
+
+concurrency:
+  group: viewer-ingress-isolation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check network probe shell syntax
+        run: bash -n tests/live/viewer_isolated.sh
+      - name: Acquire digest-pinned viewer and checker bases
+        run: >-
+          make base-images/pull DOCKER_CONTEXT=default
+          DOCKERFILES="containers/viewer/Dockerfile containers/checks/Dockerfile"
+      - name: Prove loopback ingress and static network confinement on Docker
+        run: make viewer/isolated/live/check DOCKER_CONTEXT=default
+      - name: Run the maintained contained repository checks
+        run: make tests/checks DOCKER_CONTEXT=default COMPOSE_PROJECT_NAME=viewer-isolation-checks
