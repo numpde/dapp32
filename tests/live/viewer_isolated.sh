@@ -68,11 +68,17 @@ network_names() {
   docker --host "$endpoint" inspect --format \
     '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$1" | sort
 }
-[[ "$(network_names "$static")" == "${project}_viewer_private" ]] || {
-  printf '%s\n' 'Static viewer joined an unexpected external network.' >&2; exit 2;
+static_networks="$(network_names "$static")"
+gateway_networks="$(network_names "$ingress")"
+[[ "$static_networks" == "${project}_viewer_private" ]] || {
+  printf 'Static viewer networks: %q (expected %q)\n' "$static_networks" "${project}_viewer_private" >&2
+  docker --host "$endpoint" inspect --format '{{json .NetworkSettings.Networks}}' "$static" >&2
+  exit 2
 }
-[[ "$(network_names "$ingress")" == "$(printf '%s\n' "${project}_viewer_ingress" "${project}_viewer_private" | sort)" ]] || {
-  printf '%s\n' 'Ingress network membership changed.' >&2; exit 2;
+[[ "$gateway_networks" == "$(printf '%s\n' "${project}_viewer_ingress" "${project}_viewer_private" | sort)" ]] || {
+  printf 'Ingress networks: %q\n' "$gateway_networks" >&2
+  docker --host "$endpoint" inspect --format '{{json .NetworkSettings.Networks}}' "$ingress" >&2
+  exit 2
 }
 [[ "$(docker --host "$endpoint" port "$ingress" 8080/tcp)" == "127.0.0.1:$port" ]] || {
   printf '%s\n' 'Gateway is not published exclusively on loopback.' >&2; exit 2;
