@@ -1030,7 +1030,8 @@ help:
 	  '  make viewer/status              Show this viewer container and its health.' \
 	  '  make viewer/update              Fetch deploy/viewer; build, replace, verify and clean this viewer if needed.' \
 	  '    Requires a clean deployment checkout, an existing labeled viewer, XDG_RUNTIME_DIR and VIEWER_PUBLIC_ORIGIN=https://host.' \
-	  '    Serializes attempts; keeps one rollback image; runtime Compose changes need manual migration.' \
+	  '    Serializes attempts; attempts to restore the healthy starting image if activation fails.' \
+	  '    Runtime Compose changes need manual migration.' \
 	  '  make viewer/isolated/viewer/up  Start or replace the isolated static viewer; requires a running ingress.' \
 	  '  make viewer/isolated/status     Show the isolated static viewer and ingress.' \
 	  '  make viewer/update/unit-files/create       Create configured user service/timer files; refuse existing files; reload systemd without activation.' \
