@@ -38,18 +38,26 @@ class ViewerUpdateTest(unittest.TestCase):
         }
         self.container = {"Image": OLD_ID, "State": {"Running": True, "Health": {"Status": "healthy"}}}
         self.container["HostConfig"] = {"PortBindings": {"8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8080"}]}}
+        self.gateway = None
+        self.network_internal = True
+        self.gateway_config_hash = "f" * 64
         self.target = NEW
         self.main = "e" * 40
         self.ancestry_status = 0
         self.dirty = ""
         self.changed_runtime = False
+        self.changed_checkout_runtime = False
         self.fail_build = False
         self.fail_activate = False
         self.fail_rollback = False
         self.fail_cleanup = False
         self.fail_public = False
         self.fail_retention_tag = False
+        self.malformed_gateway_after_activation = False
+        self.malformed_viewer_after_activation = False
+        self.recover_gateway_on_restore = False
         self.missing_updater = False
+        self.isolated_capability = True
         for name, replacement in (("run", self.run_peer), ("docker", self.docker_peer),
                                   ("make", self.make_peer), ("public_revision", self.public_peer)):
             mock = patch.object(updater, name, replacement)
@@ -72,7 +80,15 @@ class ViewerUpdateTest(unittest.TestCase):
             if self.ancestry_status:
                 raise subprocess.CalledProcessError(self.ancestry_status, args)
         if args[:2] == ("git", "show"):
+            if args[2].endswith(":tools/viewer_update.py"):
+                return "ISOLATED_VIEWER_UPDATER = True" if self.isolated_capability else ""
+            if args[2].endswith(":Makefile"):
+                return "viewer/isolated/viewer/up:\n"
+            if self.changed_checkout_runtime and args[2].startswith("HEAD:"):
+                return "changed checkout model"
             return "changed model" if self.changed_runtime and args[2].startswith(NEW) else "stable model"
+        if args[0] == "docker" and "--hash" in args:
+            return "viewer-ingress " + "f" * 64
         if args[:2] == ("git", "cat-file") and self.missing_updater:
             raise subprocess.CalledProcessError(128, args)
         return ""
@@ -80,9 +96,13 @@ class ViewerUpdateTest(unittest.TestCase):
     def docker_peer(self, *args):
         self.calls.append(args)
         if args[:2] == ("container", "ls"):
+            if "label=com.docker.compose.service=viewer-ingress" in args:
+                return "gateway" if self.gateway else ""
             return "container"
         if args[:2] == ("container", "inspect"):
-            return json.dumps([self.container])
+            return json.dumps([self.gateway if args[2] == "gateway" else self.container])
+        if args[:2] == ("network", "inspect"):
+            return json.dumps([{"Internal": self.network_internal}])
         if args[:2] == ("image", "inspect"):
             selected = [value for identifier, value in self.images.items()
                         if args[2] == identifier or args[2] in value["RepoTags"]]
@@ -116,11 +136,19 @@ class ViewerUpdateTest(unittest.TestCase):
             if self.fail_build:
                 raise ValueError("build failed")
             self.images[NEW_ID] = viewer_image(NEW_ID, NEW, [image])
-        if target == "viewer/up":
+        if target in ("viewer/up", "viewer/isolated/viewer/up"):
             self.container["Image"] = image
             if image == NEW_ID and self.fail_activate or image != NEW_ID and self.fail_rollback:
                 raise ValueError("activation failed")
+            if self.container["State"] is None:
+                self.container["State"] = {"Running": True, "Health": {"Status": "healthy"}}
             self.container["State"]["Health"]["Status"] = "healthy"
+            if image == NEW_ID and self.malformed_gateway_after_activation:
+                self.gateway["NetworkSettings"] = None
+            if image == NEW_ID and self.malformed_viewer_after_activation:
+                self.container["State"] = None
+            if image != NEW_ID and self.recover_gateway_on_restore:
+                self.gateway["State"]["Health"]["Status"] = "healthy"
 
     def public_peer(self, origin, revision):
         self.calls.append(("public", revision))
@@ -164,14 +192,108 @@ class ViewerUpdateTest(unittest.TestCase):
             updater.update()
         self.assertEqual(OLD_ID, self.container["Image"])
 
-    def test_isolated_viewer_requires_manual_migration_not_automatic_update(self):
-        # The opt-in split topology publishes the host port on viewer-ingress,
-        # not viewer. The existing one-container updater must refuse it.
+    def test_viewer_without_port_or_ingress_requires_manual_recovery(self):
         self.container["HostConfig"]["PortBindings"] = {}
         with self.assertRaisesRegex(ValueError, "migrate them manually"):
             updater.update()
         self.assertFalse(any(call[0] == "make" or call[:2] == ("git", "checkout")
                              for call in self.calls))
+        self.assertEqual(OLD_ID, self.container["Image"])
+
+    def use_isolated_viewer(self):
+        self.container["HostConfig"]["PortBindings"] = {}
+        self.container["NetworkSettings"] = {"Networks": {PROJECT + "_viewer_private": {}}}
+        self.gateway = {"Id": "gateway", "State": {"Running": True, "Health": {"Status": "healthy"}},
+                        "Config": {"Labels": {"com.docker.compose.config-hash": self.gateway_config_hash}},
+                        "HostConfig": {"PortBindings": {"8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "8080"}]}},
+                        "NetworkSettings": {"Networks": {PROJECT + "_viewer_private": {}, PROJECT + "_viewer_ingress": {}}}}
+
+    def test_isolated_updates_replace_only_static_viewer(self):
+        self.use_isolated_viewer()
+        updater.update()
+        self.assertIn(("make", "viewer/isolated/viewer/up", NEW_ID), self.calls)
+        self.assertNotIn(("make", "viewer/up", NEW_ID), self.calls)
+        self.assertEqual(NEW_ID, self.container["Image"])
+
+    def test_isolated_gateway_or_network_failure_stops_before_build(self):
+        for failure in ("unhealthy", "extra_port", "external_network", "config_drift"):
+            with self.subTest(failure=failure):
+                self.use_isolated_viewer()
+                if failure == "unhealthy":
+                    self.gateway["State"]["Health"]["Status"] = "unhealthy"
+                elif failure == "extra_port":
+                    self.gateway["HostConfig"]["PortBindings"]["8081/tcp"] = []
+                elif failure == "external_network":
+                    self.network_internal = False
+                else:
+                    self.gateway["Config"]["Labels"]["com.docker.compose.config-hash"] = "0" * 64
+                with self.assertRaisesRegex(ValueError, "ingress"):
+                    updater.update()
+                self.assertFalse(any(call[0] == "make" for call in self.calls))
+                self.calls.clear()
+                self.network_internal = True
+
+    def test_isolated_rejects_release_that_cannot_manage_it_before_checkout(self):
+        self.use_isolated_viewer()
+        self.isolated_capability = False
+        for target in (NEW, OLD):
+            with self.subTest(target=target):
+                self.target = target
+                with self.assertRaisesRegex(ValueError, "lacks an isolated viewer updater"):
+                    updater.update()
+                self.assertFalse(any(call[0] == "make" or call[:2] == ("git", "checkout") for call in self.calls))
+                self.calls.clear()
+
+    def test_isolated_noop_rejects_checkout_runtime_drift(self):
+        self.use_isolated_viewer()
+        self.target = OLD
+        self.changed_checkout_runtime = True
+        with self.assertRaisesRegex(ValueError, "migrate runtime"):
+            updater.update()
+        self.assertFalse(any(call[:2] == ("git", "checkout") for call in self.calls))
+
+    def test_isolated_activation_failure_restores_static_image_behind_same_gateway(self):
+        self.use_isolated_viewer()
+        self.fail_activate = True
+        with patch.object(updater, "observe_isolated_revision", self.public_peer):
+            with self.assertRaisesRegex(ValueError, "activation failed"):
+                updater.update()
+        self.assertIn(("make", "viewer/isolated/viewer/up", OLD_ID), self.calls)
+        self.assertEqual(OLD_ID, self.container["Image"])
+        self.assertEqual("gateway", self.gateway["Id"])
+
+    def test_malformed_gateway_after_activation_still_attempts_rollback(self):
+        self.use_isolated_viewer()
+        self.malformed_gateway_after_activation = True
+        with patch.object(updater.time, "monotonic", side_effect=[0, 21, 21, 42]):
+            with self.assertRaisesRegex(RuntimeError, "Rollback could not be confirmed"):
+                updater.update()
+        self.assertIn(("make", "viewer/isolated/viewer/up", OLD_ID), self.calls)
+        self.assertEqual(OLD_ID, self.container["Image"])
+
+    def test_isolated_guard_allows_recovery_when_static_is_missing_and_gateway_unhealthy(self):
+        self.use_isolated_viewer()
+        self.gateway["State"]["Health"]["Status"] = "unhealthy"
+        self.assertEqual("gateway", updater.isolated_ingress(PROJECT, None, require_health=False))
+
+    def test_unhealthy_isolated_backend_can_recover_using_retained_image(self):
+        self.use_isolated_viewer()
+        self.container["State"]["Health"]["Status"] = "unhealthy"
+        self.gateway["State"]["Health"]["Status"] = "unhealthy"
+        self.fail_activate = True
+        self.recover_gateway_on_restore = True
+        with patch.object(updater, "observe_isolated_revision", self.public_peer):
+            with self.assertRaisesRegex(ValueError, "activation failed"):
+                updater.update()
+        self.assertEqual(BACK_ID, self.container["Image"])
+
+    def test_malformed_viewer_health_after_activation_still_rolls_back(self):
+        self.use_isolated_viewer()
+        self.malformed_viewer_after_activation = True
+        with patch.object(updater, "observe_isolated_revision", self.public_peer):
+            with self.assertRaisesRegex(ValueError, "Cannot determine viewer container health"):
+                updater.update()
+        self.assertIn(("make", "viewer/isolated/viewer/up", OLD_ID), self.calls)
         self.assertEqual(OLD_ID, self.container["Image"])
 
     def test_dirty_source_and_runtime_migrations_stop_before_build(self):
@@ -245,6 +367,14 @@ class ViewerUpdateTest(unittest.TestCase):
 
 
 class PublicViewerTest(unittest.TestCase):
+    def test_isolated_revision_retries_a_transient_gateway_response(self):
+        with patch.object(updater, "public_revision", side_effect=[ValueError("stale route"), None]) as observe, \
+             patch.object(updater.time, "monotonic", side_effect=[0, 1]), \
+             patch.object(updater.time, "sleep") as sleep:
+            updater.observe_isolated_revision("https://viewer.example", NEW)
+        self.assertEqual(2, observe.call_count)
+        sleep.assert_called_once_with(0.5)
+
     def test_observes_entry_revision_and_rejects_https_downgrade(self):
         class Response(BytesIO):
             def geturl(self):

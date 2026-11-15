@@ -6,6 +6,7 @@ Runtime Compose changes require an operator migration so image rollback can
 reuse the same configuration without saving configuration snapshots.
 """
 
+import ast
 from html.parser import HTMLParser
 import json
 import os
@@ -23,6 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = "https://github.com/numpde/dapp32"
 REVISION = re.compile(r"[0-9a-f]{40}")
 IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
+# A release selected after isolated migration must keep this updater contract.
+ISOLATED_VIEWER_UPDATER = True
 
 
 def execute(args: list[str], *, timeout: float, capture: bool) -> str:
@@ -97,12 +100,14 @@ def image_revision(image: dict, project: str) -> str:
     return revision
 
 
-def live_viewer(project: str) -> dict:
-    """Require the single existing runtime, including stopped or unhealthy state."""
+def live_viewer(project: str, *, allow_missing: bool) -> dict | None:
+    """Inspect the sole viewer, allowing absence only for isolated recovery."""
     containers = docker("container", "ls", "--all", "--quiet", "--no-trunc",
                         "--filter", f"label=com.docker.compose.project={project}",
                         "--filter", "label=com.docker.compose.service=viewer",
                         "--filter", "label=com.docker.compose.oneoff=False").splitlines()
+    if not containers and allow_missing:
+        return None
     if len(containers) != 1:
         raise ValueError(f"Expected one existing viewer in {project}; found {len(containers)}. Use manual build/up for initial installation")
     container = inspect("container", containers[0])
@@ -113,7 +118,9 @@ def live_viewer(project: str) -> dict:
 
 
 def healthy(container: dict) -> bool:
-    state = container["State"]
+    state = container.get("State")
+    if not isinstance(state, dict) or not isinstance(state.get("Running"), bool):
+        raise ValueError("Cannot determine viewer container health")
     health = state.get("Health")
     return state["Running"] is True and isinstance(health, dict) and health.get("Status") == "healthy"
 
@@ -168,7 +175,102 @@ def make(target: str, *, image: str | None = None) -> None:
     if target == "base-images/pull":
         args.append("DOCKERFILES=containers/node-deps/Dockerfile containers/https-egress-proxy/Dockerfile containers/viewer/Dockerfile")
     # Build/install progress belongs in the journal; keep it visible immediately.
-    execute(args, timeout=75 if target == "viewer/up" else 600, capture=False)
+    execute(args, timeout=75 if target in ("viewer/up", "viewer/isolated/viewer/up") else 600, capture=False)
+
+
+def isolated_ingress(project: str, viewer: dict | None, *, require_health: bool) -> str | None:
+    """Identify the running topology before choosing how to replace a viewer."""
+    try:
+        return inspect_isolated_ingress(project, viewer, require_health=require_health)
+    except (KeyError, TypeError, AttributeError) as error:
+        raise ValueError("Cannot determine viewer ingress state; inspect the runtime before retrying") from error
+
+
+def inspect_isolated_ingress(project: str, viewer: dict | None, *, require_health: bool) -> str | None:
+    """Admit the legacy viewer or the exact running isolated gateway topology."""
+    gateways = docker("container", "ls", "--all", "--quiet", "--no-trunc",
+                      "--filter", f"label=com.docker.compose.project={project}",
+                      "--filter", "label=com.docker.compose.service=viewer-ingress",
+                      "--filter", "label=com.docker.compose.oneoff=False").splitlines()
+    bindings = viewer["HostConfig"]["PortBindings"] if viewer is not None else {}
+    if bindings is None:
+        bindings = {}
+    if not isinstance(bindings, dict):
+        raise ValueError("Cannot determine viewer port bindings")
+    expected = [{"HostIp": os.environ["VIEWER_BIND_HOST"], "HostPort": os.environ["VIEWER_PORT"]}]
+    if bindings.get("8080/tcp") == expected and not gateways:
+        return None
+    if bindings or len(gateways) != 1:
+        raise ValueError("Viewer runtime or bind/port settings differ from the supported topology; migrate them manually")
+    gateway = inspect("container", gateways[0])
+    if (gateway["State"]["Running"] is not True
+            or (require_health and not healthy(gateway))
+            or gateway["HostConfig"]["PortBindings"] != {"8080/tcp": expected}):
+        raise ValueError("Viewer ingress is unhealthy or has different bind/port settings; recover it manually")
+    private = f"{project}_viewer_private"
+    ingress = f"{project}_viewer_ingress"
+    if ((viewer is not None and set(viewer["NetworkSettings"]["Networks"]) != {private})
+            or set(gateway["NetworkSettings"]["Networks"]) != {private, ingress}
+            or inspect("network", private).get("Internal") is not True):
+        raise ValueError("Viewer ingress networks do not match the isolated topology; recover it manually")
+    return gateways[0]
+
+
+def wait_for_ingress(project: str, viewer: dict, gateway: str) -> None:
+    """Wait for the gateway's backend-dependent health check after replacement."""
+    deadline = time.monotonic() + 20
+    while True:
+        try:
+            if isolated_ingress(project, viewer, require_health=True) != gateway:
+                raise ValueError("Viewer ingress changed during replacement")
+            return
+        except ValueError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.5)
+
+
+def observe_isolated_revision(origin: str, revision: str) -> None:
+    """Allow the ingress's short DNS cache to expire after viewer replacement."""
+    deadline = time.monotonic() + 8
+    while True:
+        try:
+            public_revision(origin, revision)
+            return
+        except (OSError, ValueError, TimeoutError):
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.5)
+
+
+def require_ingress_configuration(project: str, gateway: str) -> None:
+    """Check the running gateway against Compose before replacing its backend."""
+    container = inspect("container", gateway)
+    config = container.get("Config")
+    labels = config.get("Labels") if isinstance(config, dict) else None
+    if not isinstance(labels, dict):
+        raise ValueError("Cannot determine the running viewer ingress configuration")
+    rendered = run("docker", "--host", os.environ["CAM_DOCKER_ENDPOINT"], "compose", "--env-file", "/dev/null",
+                   "-p", project, "-f", "compose/viewer-isolated.yml", "config", "--hash", "viewer-ingress")
+    match = re.fullmatch(r"viewer-ingress ([0-9a-f]{64})", rendered)
+    if not match or labels.get("com.docker.compose.config-hash") != match.group(1):
+        raise ValueError("Viewer ingress configuration differs from this checkout; migrate it manually before updating")
+
+
+def require_isolated_updater(revision: str) -> None:
+    """Do not replace this controller with one unable to maintain the runtime."""
+    try:
+        source = run("git", "show", revision + ":tools/viewer_update.py")
+        makefile = run("git", "show", revision + ":Makefile")
+        statements = ast.parse(source).body
+    except (subprocess.CalledProcessError, SyntaxError) as error:
+        raise ValueError("Selected release lacks an isolated viewer updater; select a compatible release or recover manually") from error
+    declarations = [node for node in statements if isinstance(node, ast.Assign)
+                    and any(isinstance(name, ast.Name) and name.id == "ISOLATED_VIEWER_UPDATER" for name in node.targets)]
+    supported = (len(declarations) == 1 and isinstance(declarations[0].value, ast.Constant)
+                 and declarations[0].value.value is True)
+    if not supported or not re.search(r"(?m)^viewer/isolated/viewer/up:", makefile):
+        raise ValueError("Selected release lacks an isolated viewer updater; select a compatible release or recover manually")
 
 
 def retire_images(project: str, repository: str) -> None:
@@ -232,13 +334,27 @@ def update() -> None:
         run("git", "cat-file", "-e", target + ":tools/viewer_update.py")
     except subprocess.CalledProcessError as error:
         raise ValueError("Selected revision has no viewer updater; keep deploy/viewer on updater-capable source or migrate manually") from error
-    container = live_viewer(project)
-    bindings = container["HostConfig"]["PortBindings"].get("8080/tcp")
-    if bindings != [{"HostIp": os.environ["VIEWER_BIND_HOST"], "HostPort": os.environ["VIEWER_PORT"]}]:
-        raise ValueError("Viewer bind/port settings differ from the existing runtime; migrate them manually before automatic updates")
+    container = live_viewer(project, allow_missing=False)
+    # Gateway health follows the backend: a broken viewer must not block its
+    # own recovery while the gateway process and configuration remain intact.
+    gateway = isolated_ingress(project, container, require_health=healthy(container))
+    if gateway:
+        require_isolated_updater(target)
+        require_ingress_configuration(project, gateway)
+    activation_target = "viewer/isolated/viewer/up" if gateway else "viewer/up"
     old_id = container["Image"]
     old_revision = image_revision(inspect("image", old_id), project)
     repository = "cam-viewer-" + project
+    runtime_files = ("compose/viewer.yml", "compose/viewer-isolated.yml") if gateway else ("compose/viewer.yml",)
+    def require_same_runtime(revision: str) -> None:
+        try:
+            for path in runtime_files:
+                if run("git", "show", revision + ":" + path) != run("git", "show", target + ":" + path):
+                    raise ValueError("Deployment changes viewer runtime configuration; migrate runtime configuration manually before enabling automatic updates")
+        except subprocess.CalledProcessError as error:
+            raise ValueError("Viewer release lacks its runtime configuration; migrate it manually before enabling automatic updates") from error
+    if gateway:
+        require_same_runtime("HEAD")
     if healthy(container) and old_revision == target:
         public_revision(origin, target)
         run("git", "checkout", "--detach", target)
@@ -248,8 +364,7 @@ def update() -> None:
         return
     # Runtime settings stay in operator configuration. Refuse model changes
     # instead of secretly creating snapshots or risking incompatible rollback.
-    if run("git", "show", old_revision + ":compose/viewer.yml") != run("git", "show", target + ":compose/viewer.yml"):
-        raise ValueError("Deployment changes compose/viewer.yml; migrate runtime configuration manually before enabling automatic updates")
+    require_same_runtime(old_revision)
     restore_id = old_id
     restore_revision = old_revision
     if not healthy(container):
@@ -258,9 +373,10 @@ def update() -> None:
             raise ValueError("Viewer is unhealthy and has no retained rollback image; recover it manually before updating")
         restore_id = rollback[0]
         restore_revision = image_revision(inspect("image", restore_id), project)
-        if run("git", "show", restore_revision + ":compose/viewer.yml") != run("git", "show", target + ":compose/viewer.yml"):
-            raise ValueError("Retained rollback requires a different runtime model; recover manually before updating")
+        require_same_runtime(restore_revision)
     run("git", "checkout", "--detach", target)
+    if gateway:
+        require_ingress_configuration(project, gateway)
     make("base-images/pull")
     make("js/deps/install")
     if run("git", "status", "--porcelain", "--untracked-files=all"):
@@ -278,22 +394,31 @@ def update() -> None:
             # must not let cleanup delete the known-good recovery image.
             docker("image", "tag", old_id, repository + ":current")
         try:
-            make("viewer/up", image=candidate_id)
-            current = live_viewer(project)
+            make(activation_target, image=candidate_id)
+            current = live_viewer(project, allow_missing=False)
             if current["Image"] != candidate_id or not healthy(current):
                 raise ValueError("Replacement viewer did not reach healthy state with the selected image")
-            public_revision(origin, target)
+            if gateway:
+                wait_for_ingress(project, current, gateway)
+                observe_isolated_revision(origin, target)
+            else:
+                public_revision(origin, target)
         except (OSError, ValueError, subprocess.SubprocessError, TimeoutError, KeyboardInterrupt) as activation:
             print(f"Activation failed: {activation}. Attempting rollback to {restore_id}.", file=sys.stderr, flush=True)
             try:
-                make("viewer/up", image=restore_id)
-                restored = live_viewer(project)
+                make(activation_target, image=restore_id)
+                restored = live_viewer(project, allow_missing=False)
                 if restored["Image"] != restore_id or not healthy(restored):
                     raise ValueError("Rollback runtime is not healthy with the retained image")
-                public_revision(origin, restore_revision)
+                if gateway:
+                    wait_for_ingress(project, restored, gateway)
+                    observe_isolated_revision(origin, restore_revision)
+                else:
+                    public_revision(origin, restore_revision)
             except (OSError, ValueError, subprocess.SubprocessError, TimeoutError, KeyboardInterrupt) as recovery:
                 print(f"Rollback failed: {recovery}", file=sys.stderr, flush=True)
-                raise RuntimeError(f"Rollback could not be confirmed; images retained. Inspect viewer/status and recover with VIEWER_IMAGE={restore_id}") from recovery
+                status_target = "viewer/isolated/status" if gateway else "viewer/status"
+                raise RuntimeError(f"Rollback could not be confirmed; images retained. Inspect {status_target} and recover with {activation_target} VIEWER_IMAGE={restore_id}") from recovery
             print("Rollback is healthy; the attempted update still failed.", file=sys.stderr, flush=True)
             raise
         # Keep the prior rollback until activation succeeds. An unhealthy old
@@ -321,7 +446,16 @@ def interrupted(signum, frame):
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        update()
+        if sys.argv[1:] == ["--check-isolated-runtime"]:
+            project = os.environ["VIEWER_COMPOSE_PROJECT_NAME"]
+            gateway = isolated_ingress(project, live_viewer(project, allow_missing=True), require_health=False)
+            if gateway is None:
+                raise ValueError("An existing isolated viewer and healthy ingress are required")
+            require_ingress_configuration(project, gateway)
+        elif len(sys.argv) == 1:
+            update()
+        else:
+            raise ValueError("Unsupported viewer updater command")
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, TimeoutError, KeyboardInterrupt) as error:
         print(f"Viewer update failed: {error}", file=sys.stderr)
         sys.exit(1)

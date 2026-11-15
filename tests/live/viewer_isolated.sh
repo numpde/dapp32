@@ -11,8 +11,10 @@ scratch="$(mktemp -d /tmp/dapp32-viewer-isolated.XXXXXXXX)"
 digest="$(printf '%s' "$scratch" | sha256sum | cut -c1-20)"
 project="dapp32-viewer-isolated-$digest"
 image="dapp32-viewer-test:$digest"
+candidate="dapp32-viewer-test:$digest-candidate"
 port="$(shuf -i 20000-59000 -n 1)"
 image_created=0
+candidate_created=0
 verified=0
 export VIEWER_IMAGE="$image" VIEWER_BIND_HOST=127.0.0.1 VIEWER_PORT="$port"
 export COMPOSE_PROJECT_NAME="$project"
@@ -30,6 +32,13 @@ cleanup() {
   if [[ "$image_created" == 1 ]]; then
     if ! docker --host "$endpoint" image rm "$image" >/dev/null; then
       printf 'Fixture image was retained: %s; inputs retained at %s\n' "$image" "$scratch" >&2
+      if [[ "$status" == 0 ]]; then status=2; fi
+      exit "$status"
+    fi
+  fi
+  if [[ "$candidate_created" == 1 ]]; then
+    if ! docker --host "$endpoint" image rm "$candidate" >/dev/null; then
+      printf 'Fixture image was retained: %s; inputs retained at %s\n' "$candidate" "$scratch" >&2
       if [[ "$status" == 0 ]]; then status=2; fi
       exit "$status"
     fi
@@ -56,13 +65,20 @@ fi
 
 mkdir -p "$scratch/context/site/assets"
 cp "$root/containers/viewer/"{Dockerfile,nginx.conf,.dockerignore} "$scratch/context/"
-printf '%s\n' '<!doctype html><html><head><script src="/assets/probe.js"></script></head><body>viewer-isolation-probe</body></html>' >"$scratch/context/site/index.html"
-printf '%s\n' 'console.log("viewer-isolation-probe");' >"$scratch/context/site/assets/probe.js"
+printf '%s\n' '<!doctype html><html><head><script src="/assets/probe.js"></script></head><body>viewer-isolation-original</body></html>' >"$scratch/context/site/index.html"
+printf '%s\n' 'console.log("viewer-isolation-original");' >"$scratch/context/site/assets/probe.js"
 docker --host "$endpoint" build --network=none --pull=false \
   --build-arg "VIEWER_REVISION=$(printf '%040d' 1)" \
   --build-arg "VIEWER_PROJECT=$project" --build-arg VIEWER_MODIFIED=false \
   --tag "$image" "$scratch/context"
 image_created=1
+printf '%s\n' '<!doctype html><html><head><script src="/assets/probe.js"></script></head><body>viewer-isolation-candidate</body></html>' >"$scratch/context/site/index.html"
+printf '%s\n' 'console.log("viewer-isolation-candidate");' >"$scratch/context/site/assets/probe.js"
+docker --host "$endpoint" build --network=none --pull=false \
+  --build-arg "VIEWER_REVISION=$(printf '%040d' 2)" \
+  --build-arg "VIEWER_PROJECT=$project" --build-arg VIEWER_MODIFIED=false \
+  --tag "$candidate" "$scratch/context"
+candidate_created=1
 
 if ! "${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 30; then
   "${compose[@]}" ps >&2 || :
@@ -144,15 +160,15 @@ printf '%s\n' 'PASS static viewer route inspection: no IPv4 or non-loopback IPv6
 
 check_site() {
   response="$(curl --fail --silent --show-error --max-time 4 "http://127.0.0.1:$port/")"
-  [[ "$response" == *viewer-isolation-probe* ]] || { printf '%s\n' 'Gateway returned the wrong viewer content.' >&2; return 2; }
+  [[ "$response" == *"$1"* ]] || { printf '%s\n' 'Gateway returned the wrong viewer content.' >&2; return 2; }
   script="$(curl --fail --silent --show-error --max-time 4 "http://127.0.0.1:$port/assets/probe.js")"
-  [[ "$script" == *viewer-isolation-probe* ]] || { printf '%s\n' 'Gateway did not forward assets.' >&2; return 2; }
+  [[ "$script" == *"$1"* ]] || { printf '%s\n' 'Gateway did not forward the expected assets.' >&2; return 2; }
 }
-check_site
+check_site viewer-isolation-original
 
-# The ingress should keep serving even if the unprivileged static container is
-# replaced and Docker assigns a new address. It must resolve the service name.
-"${compose[@]}" up -d --no-deps --force-recreate --no-build --pull never --wait --wait-timeout 30 viewer
+# Exercise the updater's actual static-only command with a distinct image.
+make --no-print-directory viewer/isolated/viewer/up DOCKER_CONTEXT= CAM_DOCKER_ENDPOINT="$endpoint" \
+  VIEWER_COMPOSE_PROJECT_NAME="$project" VIEWER_IMAGE="$candidate"
 replacement="$("${compose[@]}" ps -q viewer)"
 [[ -n "$replacement" && "$replacement" != "$static" ]] || {
   printf '%s\n' 'Static container was not replaced.' >&2; exit 2;
@@ -162,8 +178,23 @@ replacement="$("${compose[@]}" ps -q viewer)"
 }
 ready=0
 for attempt in {1..20}; do
-  if check_site >/dev/null 2>&1; then ready=1; break; fi
+  if check_site viewer-isolation-candidate >/dev/null 2>&1; then ready=1; break; fi
   sleep .25
 done
 [[ "$ready" == 1 ]] || { printf '%s\n' 'Gateway could not resolve the replacement static viewer.' >&2; exit 2; }
+[[ "$(docker --host "$endpoint" inspect --format '{{.Image}}' "$replacement")" == "$(docker --host "$endpoint" image inspect --format '{{.Id}}' "$candidate")" ]]
+
+# Recover through the same command even if the candidate container disappeared.
+"${compose[@]}" rm --stop --force viewer
+make --no-print-directory viewer/isolated/viewer/up DOCKER_CONTEXT= CAM_DOCKER_ENDPOINT="$endpoint" \
+  VIEWER_COMPOSE_PROJECT_NAME="$project" VIEWER_IMAGE="$image"
+restored="$("${compose[@]}" ps -q viewer)"
+[[ "$restored" != "$replacement" && "$("${compose[@]}" ps -q viewer-ingress)" == "$ingress" ]]
+[[ "$(docker --host "$endpoint" inspect --format '{{.Image}}' "$restored")" == "$(docker --host "$endpoint" image inspect --format '{{.Id}}' "$image")" ]]
+ready=0
+for attempt in {1..20}; do
+  if check_site viewer-isolation-original >/dev/null 2>&1; then ready=1; break; fi
+  sleep .25
+done
+[[ "$ready" == 1 ]] || { printf '%s\n' 'Gateway could not serve the restored viewer.' >&2; exit 2; }
 verified=1

@@ -1031,6 +1031,8 @@ help:
 	  '  make viewer/update              Fetch deploy/viewer; build, replace, verify and clean this viewer if needed.' \
 	  '    Requires a clean deployment checkout, an existing labeled viewer, XDG_RUNTIME_DIR and VIEWER_PUBLIC_ORIGIN=https://host.' \
 	  '    Serializes attempts; keeps one rollback image; runtime Compose changes need manual migration.' \
+	  '  make viewer/isolated/viewer/up  Start or replace the isolated static viewer; requires a running ingress.' \
+	  '  make viewer/isolated/status     Show the isolated static viewer and ingress.' \
 	  '  make viewer/update/unit-files/create       Create configured user service/timer files; refuse existing files; reload systemd without activation.' \
 	  '    Requires explicit DOCKER_CONTEXT, VIEWER_COMPOSE_PROJECT_NAME, VIEWER_BIND_HOST, VIEWER_PORT and VIEWER_PUBLIC_ORIGIN.' \
 	  '    Uses this checkout as the service working directory and XDG_CONFIG_HOME/systemd/user (normally ~/.config/systemd/user).' \
@@ -1813,7 +1815,7 @@ docs/site/check:
 	export DOCS_SITE_DIR; \
 	$(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/docs-site-check.yml run --build --rm -T docs-site-check
 
-.PHONY: viewer/image/build viewer/up viewer/down viewer/status viewer/update
+.PHONY: viewer/image/build viewer/up viewer/down viewer/status viewer/update viewer/isolated/viewer/up viewer/isolated/status
 .PHONY: viewer/update/unit-files/create viewer/update/timer/enable-and-start viewer/update/timer/disable-and-stop viewer/update/timer/status viewer/update/service/logs/recent
 viewer/update/unit-files/create:
 	$(foreach name,DOCKER_CONTEXT VIEWER_COMPOSE_PROJECT_NAME VIEWER_BIND_HOST VIEWER_PORT VIEWER_PUBLIC_ORIGIN,$(and $(filter-out command line environment override,$(origin $(name))),$(error $(name) must be supplied explicitly for viewer/update/unit-files/create)))
@@ -1844,17 +1846,24 @@ viewer/image/build:
 define production_viewer_compose
 @$(LANE_GUARD); \
 if [[ ! "$$VIEWER_PORT" =~ ^[1-9][0-9]{3,4}$$ || "$$VIEWER_PORT" -lt 1024 || "$$VIEWER_PORT" -gt 65535 ]]; then printf '%s\n' 'VIEWER_PORT must be an integer from 1024 to 65535.' >&2; exit 2; fi; \
-$(DOCKER_COMPOSE) --env-file /dev/null -p "$$VIEWER_COMPOSE_PROJECT_NAME" -f $(COMPOSE_DIR)/viewer.yml $(1)
+$(DOCKER_COMPOSE) --env-file /dev/null -p "$$VIEWER_COMPOSE_PROJECT_NAME" -f $(COMPOSE_DIR)/$(2) $(1)
 endef
 
 viewer/up:
-	$(call production_viewer_compose,up -d --no-build --pull never --wait --wait-timeout 30)
+	$(call production_viewer_compose,up -d --no-build --pull never --wait --wait-timeout 30,viewer.yml)
+
+viewer/isolated/viewer/up:
+	@$(LANE_GUARD); python3 -I -B tools/viewer_update.py --check-isolated-runtime
+	$(call production_viewer_compose,up -d --no-deps --no-build --pull never --wait --wait-timeout 30 viewer,viewer-isolated.yml)
+
+viewer/isolated/status:
+	$(call production_viewer_compose,ps --all,viewer-isolated.yml)
 
 viewer/down:
-	$(call production_viewer_compose,down --timeout 10)
+	$(call production_viewer_compose,down --timeout 10,viewer.yml)
 
 viewer/status:
-	$(call production_viewer_compose,ps)
+	$(call production_viewer_compose,ps,viewer.yml)
 
 .PHONY: pay-to-play/refunds/network/live/check
 pay-to-play/refunds/network/live/check:
