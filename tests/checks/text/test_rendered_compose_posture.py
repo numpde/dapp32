@@ -475,6 +475,7 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_all_rendered_ports_secrets_and_fixture_keys_are_explicitly_inventoried(self) -> None:
         expected_ports = {
             ("compose/viewer.yml", "viewer", "127.0.0.1", 8080, "8080"),
+            ("compose/viewer-isolated.yml", "viewer-ingress", "127.0.0.1", 8080, "8080"),
             (
                 makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"),
                 "bike-nft-browser-gateway",

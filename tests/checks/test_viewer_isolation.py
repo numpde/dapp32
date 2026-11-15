@@ -13,11 +13,11 @@ class ViewerIsolatedPostureTest(unittest.TestCase):
         config = rendered_compose_config("compose/viewer-isolated.yml")
         self.assertEqual({"viewer", "viewer-ingress"}, set(config["services"]))
         self.assertTrue(config["networks"]["viewer_private"]["internal"])
-        self.assertFalse(config["networks"]["viewer_ingress"].get("internal", False))
+        self.assertFalse(config["networks"]["viewer_ingress"]["internal"])
 
         static = config["services"]["viewer"]
         self.assertEqual({"viewer_private"}, set(static["networks"]))
-        self.assertEqual([], static.get("ports", []))
+        self.assertNotIn("ports", static)
         self.assertTrue(static["read_only"])
         self.assertEqual(["ALL"], static["cap_drop"])
         self.assertEqual("101:101", static["user"])
@@ -43,7 +43,7 @@ class ViewerIsolatedPostureTest(unittest.TestCase):
             self.assertNotIn(input_name, gateway)
         configuration = " ".join(gateway["command"])
         self.assertIn("resolver 127.0.0.11", configuration)
-        self.assertIn("proxy_pass http://$viewer_backend:8080", configuration)
+        self.assertIn("proxy_pass http://$$viewer_backend:8080", configuration)
         self.assertNotIn("proxy_pass http://$host", configuration)
 
     def test_ingress_uses_existing_digest_pinned_nginx_not_an_additional_image(self) -> None:

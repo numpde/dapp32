@@ -51,7 +51,15 @@ docker --host "$endpoint" build --network=none --pull=false \
   --build-arg "VIEWER_PROJECT=$project" --build-arg VIEWER_MODIFIED=false \
   --tag "$image" "$scratch/context"
 
-"${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 30
+if ! "${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 30; then
+  "${compose[@]}" ps >&2 || :
+  "${compose[@]}" logs --no-color --tail 80 viewer-ingress >&2 || :
+  ingress_id="$("${compose[@]}" ps -q viewer-ingress)"
+  if [[ -n "$ingress_id" ]]; then
+    docker --host "$endpoint" inspect --format '{{json .State.Health.Log}}' "$ingress_id" >&2 || :
+  fi
+  exit 2
+fi
 static="$("${compose[@]}" ps -q viewer)"
 ingress="$("${compose[@]}" ps -q viewer-ingress)"
 [[ -n "$static" && -n "$ingress" ]] || { printf '%s\n' 'Viewer or ingress is missing.' >&2; exit 2; }
