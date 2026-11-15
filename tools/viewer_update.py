@@ -1,6 +1,6 @@
 """Update one existing viewer from deploy/viewer without deployment state files.
 
-Docker owns release identity and retained images. This controller is loaded
+Docker owns release identity and the current image. This controller is loaded
 before changing its source checkout; child Make processes use the new source.
 Runtime Compose changes require an operator migration so image rollback can
 reuse the same configuration without saving configuration snapshots.
@@ -277,11 +277,9 @@ def retire_images(project: str, repository: str) -> None:
     """Retire only this updater's obsolete image tags; Docker refuses in-use removal.
 
     Separate builds may deliberately keep other tags. Preserve such images,
-    all container references, and both release tags. Never force image removal.
+    all container references, and the current image. Never force image removal.
     """
-    protected = set()
-    for tag in ("current", "rollback"):
-        protected.update(docker("image", "ls", "--quiet", "--no-trunc", "--filter", f"reference={repository}:{tag}").splitlines())
+    protected = set(docker("image", "ls", "--quiet", "--no-trunc", "--filter", f"reference={repository}:current").splitlines())
     containers = docker("container", "ls", "--all", "--quiet", "--no-trunc").splitlines()
     if containers:
         for container in json.loads(docker("container", "inspect", *containers)):
@@ -335,9 +333,9 @@ def update() -> None:
     except subprocess.CalledProcessError as error:
         raise ValueError("Selected revision has no viewer updater; keep deploy/viewer on updater-capable source or migrate manually") from error
     container = live_viewer(project, allow_missing=False)
-    # Gateway health follows the backend: a broken viewer must not block its
-    # own recovery while the gateway process and configuration remain intact.
-    gateway = isolated_ingress(project, container, require_health=healthy(container))
+    if not healthy(container):
+        raise ValueError("Viewer is unhealthy; recover it before updating")
+    gateway = isolated_ingress(project, container, require_health=True)
     if gateway:
         require_isolated_updater(target)
         require_ingress_configuration(project, gateway)
@@ -355,7 +353,7 @@ def update() -> None:
             raise ValueError("Viewer release lacks its runtime configuration; migrate it manually before enabling automatic updates") from error
     if gateway:
         require_same_runtime("HEAD")
-    if healthy(container) and old_revision == target:
+    if old_revision == target:
         public_revision(origin, target)
         run("git", "checkout", "--detach", target)
         docker("image", "tag", old_id, repository + ":current")
@@ -365,15 +363,6 @@ def update() -> None:
     # Runtime settings stay in operator configuration. Refuse model changes
     # instead of secretly creating snapshots or risking incompatible rollback.
     require_same_runtime(old_revision)
-    restore_id = old_id
-    restore_revision = old_revision
-    if not healthy(container):
-        rollback = docker("image", "ls", "--quiet", "--no-trunc", "--filter", f"reference={repository}:rollback").splitlines()
-        if len(rollback) != 1 or not IMAGE_ID.fullmatch(rollback[0]):
-            raise ValueError("Viewer is unhealthy and has no retained rollback image; recover it manually before updating")
-        restore_id = rollback[0]
-        restore_revision = image_revision(inspect("image", restore_id), project)
-        require_same_runtime(restore_revision)
     run("git", "checkout", "--detach", target)
     if gateway:
         require_ingress_configuration(project, gateway)
@@ -388,11 +377,15 @@ def update() -> None:
         candidate_id = image["Id"]
         if not IMAGE_ID.fullmatch(candidate_id) or image_revision(image, project) != target:
             raise ValueError("Built image identity does not match the fetched release")
-        if healthy(container):
-            # Protect the actual old runtime before replacement, even when the
-            # operator initially used only a revision tag. A later tag failure
-            # must not let cleanup delete the known-good recovery image.
-            docker("image", "tag", old_id, repository + ":current")
+        # Builds take time. Only replace the still-healthy starting image;
+        # a changed or broken runtime is not this attempt's rollback target.
+        previous = live_viewer(project, allow_missing=False)
+        if previous["Image"] != old_id or not healthy(previous):
+            raise ValueError("Viewer changed or became unhealthy during preparation; no replacement attempted")
+        if isolated_ingress(project, previous, require_health=True) != gateway:
+            raise ValueError("Viewer ingress changed during preparation; no replacement attempted")
+        public_revision(origin, old_revision)
+        docker("image", "tag", old_id, repository + ":current")
         try:
             make(activation_target, image=candidate_id)
             current = live_viewer(project, allow_missing=False)
@@ -404,27 +397,23 @@ def update() -> None:
             else:
                 public_revision(origin, target)
         except (OSError, ValueError, subprocess.SubprocessError, TimeoutError, KeyboardInterrupt) as activation:
-            print(f"Activation failed: {activation}. Attempting rollback to {restore_id}.", file=sys.stderr, flush=True)
+            print(f"Activation failed: {activation}. Attempting rollback to {old_id}.", file=sys.stderr, flush=True)
             try:
-                make(activation_target, image=restore_id)
+                make(activation_target, image=old_id)
                 restored = live_viewer(project, allow_missing=False)
-                if restored["Image"] != restore_id or not healthy(restored):
-                    raise ValueError("Rollback runtime is not healthy with the retained image")
+                if restored["Image"] != old_id or not healthy(restored):
+                    raise ValueError("Rollback runtime is not healthy with the pre-update image")
                 if gateway:
                     wait_for_ingress(project, restored, gateway)
-                    observe_isolated_revision(origin, restore_revision)
+                    observe_isolated_revision(origin, old_revision)
                 else:
-                    public_revision(origin, restore_revision)
+                    public_revision(origin, old_revision)
             except (OSError, ValueError, subprocess.SubprocessError, TimeoutError, KeyboardInterrupt) as recovery:
                 print(f"Rollback failed: {recovery}", file=sys.stderr, flush=True)
                 status_target = "viewer/isolated/status" if gateway else "viewer/status"
-                raise RuntimeError(f"Rollback could not be confirmed; images retained. Inspect {status_target} and recover with {activation_target} VIEWER_IMAGE={restore_id}") from recovery
+                raise RuntimeError(f"Rollback could not be confirmed; images retained. Inspect {status_target} and recover with {activation_target} VIEWER_IMAGE={old_id}") from recovery
             print("Rollback is healthy; the attempted update still failed.", file=sys.stderr, flush=True)
             raise
-        # Keep the prior rollback until activation succeeds. An unhealthy old
-        # container must never replace the known-good rollback image.
-        if healthy(container):
-            docker("image", "tag", old_id, repository + ":rollback")
         docker("image", "tag", candidate_id, repository + ":current")
         print(f"Viewer is healthy and publicly serves {target}.", flush=True)
     except RuntimeError:

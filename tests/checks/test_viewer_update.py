@@ -52,10 +52,10 @@ class ViewerUpdateTest(unittest.TestCase):
         self.fail_rollback = False
         self.fail_cleanup = False
         self.fail_public = False
-        self.fail_retention_tag = False
+        self.fail_current_tag = False
+        self.build_runtime_change = None
         self.malformed_gateway_after_activation = False
         self.malformed_viewer_after_activation = False
-        self.recover_gateway_on_restore = False
         self.missing_updater = False
         self.isolated_capability = True
         for name, replacement in (("run", self.run_peer), ("docker", self.docker_peer),
@@ -112,8 +112,8 @@ class ViewerUpdateTest(unittest.TestCase):
             return "\n".join(identifier for identifier, value in self.images.items()
                              if reference is None or reference in value["RepoTags"])
         if args[:2] == ("image", "tag"):
-            if self.fail_retention_tag and args[3] == REPOSITORY + ":rollback":
-                raise ValueError("retention tag failed")
+            if self.fail_current_tag and args[2] == NEW_ID and args[3] == REPOSITORY + ":current":
+                raise ValueError("current tag failed")
             for value in self.images.values():
                 if args[3] in value["RepoTags"]:
                     value["RepoTags"].remove(args[3])
@@ -136,6 +136,10 @@ class ViewerUpdateTest(unittest.TestCase):
             if self.fail_build:
                 raise ValueError("build failed")
             self.images[NEW_ID] = viewer_image(NEW_ID, NEW, [image])
+            if self.build_runtime_change == "unhealthy":
+                self.container["State"]["Health"]["Status"] = "unhealthy"
+            elif self.build_runtime_change == "image":
+                self.container["Image"] = OTHER_ID
         if target in ("viewer/up", "viewer/isolated/viewer/up"):
             self.container["Image"] = image
             if image == NEW_ID and self.fail_activate or image != NEW_ID and self.fail_rollback:
@@ -147,25 +151,24 @@ class ViewerUpdateTest(unittest.TestCase):
                 self.gateway["NetworkSettings"] = None
             if image == NEW_ID and self.malformed_viewer_after_activation:
                 self.container["State"] = None
-            if image != NEW_ID and self.recover_gateway_on_restore:
-                self.gateway["State"]["Health"]["Status"] = "healthy"
 
     def public_peer(self, origin, revision):
         self.calls.append(("public", revision))
         if self.fail_public and revision == NEW:
             raise ValueError("public revision mismatch")
 
-    def test_success_rotates_rollback_only_after_public_observation(self):
+    def test_success_retires_previous_images_only_after_public_observation(self):
         updater.update()
         self.assertIn(("git", "fetch", "--atomic", "--no-tags", "origin",
                        "refs/heads/main:refs/remotes/origin/main",
                        "refs/heads/deploy/viewer:refs/remotes/origin/deploy/viewer"), self.calls)
         self.assertIn(("git", "merge-base", "--is-ancestor", NEW, self.main), self.calls)
         self.assertEqual(NEW_ID, self.container["Image"])
-        self.assertIn(REPOSITORY + ":rollback", self.images[OLD_ID]["RepoTags"])
+        self.assertEqual([], self.images[OLD_ID]["RepoTags"])
+        self.assertEqual([], self.images[BACK_ID]["RepoTags"])
         self.assertIn(REPOSITORY + ":current", self.images[NEW_ID]["RepoTags"])
         self.assertEqual(["unrelated:keep"], self.images[OTHER_ID]["RepoTags"])
-        self.assertLess(self.calls.index(("public", NEW)), self.calls.index(("image", "tag", OLD_ID, REPOSITORY + ":rollback")))
+        self.assertLess(self.calls.index(("public", NEW)), self.calls.index(("image", "tag", NEW_ID, REPOSITORY + ":current")))
 
     def test_no_change_aligns_source_without_rebuilding(self):
         self.target = OLD
@@ -276,16 +279,14 @@ class ViewerUpdateTest(unittest.TestCase):
         self.gateway["State"]["Health"]["Status"] = "unhealthy"
         self.assertEqual("gateway", updater.isolated_ingress(PROJECT, None, require_health=False))
 
-    def test_unhealthy_isolated_backend_can_recover_using_retained_image(self):
+    def test_unhealthy_isolated_backend_stops_before_build_or_activation(self):
         self.use_isolated_viewer()
         self.container["State"]["Health"]["Status"] = "unhealthy"
         self.gateway["State"]["Health"]["Status"] = "unhealthy"
-        self.fail_activate = True
-        self.recover_gateway_on_restore = True
-        with patch.object(updater, "observe_isolated_revision", self.public_peer):
-            with self.assertRaisesRegex(ValueError, "activation failed"):
-                updater.update()
-        self.assertEqual(BACK_ID, self.container["Image"])
+        with self.assertRaisesRegex(ValueError, "recover it before updating"):
+            updater.update()
+        self.assertEqual(OLD_ID, self.container["Image"])
+        self.assertFalse(any(call[0] == "make" or call[:2] == ("git", "checkout") for call in self.calls))
 
     def test_malformed_viewer_health_after_activation_still_rolls_back(self):
         self.use_isolated_viewer()
@@ -304,12 +305,12 @@ class ViewerUpdateTest(unittest.TestCase):
         self.assertEqual(OLD_ID, self.container["Image"])
         self.assertFalse(any(call[0] == "make" for call in self.calls))
 
-    def test_build_failure_leaves_running_image_and_release_tags(self):
+    def test_build_failure_leaves_running_image(self):
         self.fail_build = True
         with self.assertRaisesRegex(ValueError, "build failed"):
             updater.update()
         self.assertEqual(OLD_ID, self.container["Image"])
-        self.assertIn(REPOSITORY + ":rollback", self.images[BACK_ID]["RepoTags"])
+        self.assertIn(REPOSITORY + ":current", self.images[OLD_ID]["RepoTags"])
 
     def test_activation_and_public_failure_restore_actual_previous_image(self):
         for failure in ("fail_activate", "fail_public"):
@@ -318,7 +319,8 @@ class ViewerUpdateTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     updater.update()
                 self.assertEqual(OLD_ID, self.container["Image"])
-                self.assertIn(REPOSITORY + ":rollback", self.images[BACK_ID]["RepoTags"])
+                self.assertIn(REPOSITORY + ":current", self.images[OLD_ID]["RepoTags"])
+                self.assertNotIn(("make", "viewer/up", BACK_ID), self.calls)
                 setattr(self, failure, False)
 
     def test_failed_rollback_preserves_candidate_and_recovery_images(self):
@@ -334,36 +336,46 @@ class ViewerUpdateTest(unittest.TestCase):
             updater.update()
         self.assertEqual(OLD_ID, self.container["Image"])
 
-    def test_unhealthy_runtime_uses_retained_rollback_without_promoting_it(self):
+    def test_unhealthy_runtime_stops_before_build_or_activation(self):
         self.container["State"]["Health"]["Status"] = "unhealthy"
-        self.fail_activate = True
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "recover it before updating"):
             updater.update()
-        self.assertEqual(BACK_ID, self.container["Image"])
-        self.assertIn(REPOSITORY + ":rollback", self.images[BACK_ID]["RepoTags"])
+        self.assertEqual(OLD_ID, self.container["Image"])
+        self.assertFalse(any(call[0] == "make" or call[:2] == ("git", "checkout") for call in self.calls))
 
     def test_owned_retirement_preserves_referenced_and_externally_tagged_images(self):
         self.images[NEW_ID] = viewer_image(NEW_ID, NEW, [REPOSITORY + ":obsolete"])
         updater.retire_images(PROJECT, REPOSITORY)
         self.assertEqual([], self.images[NEW_ID]["RepoTags"])
         self.assertIn(REPOSITORY + ":current", self.images[OLD_ID]["RepoTags"])
-        self.assertIn(REPOSITORY + ":rollback", self.images[BACK_ID]["RepoTags"])
+        self.assertEqual([], self.images[BACK_ID]["RepoTags"])
         self.assertEqual(["unrelated:keep"], self.images[OTHER_ID]["RepoTags"])
 
-    def test_retention_tag_failure_keeps_actual_previous_image(self):
+    def test_current_tag_failure_keeps_actual_previous_and_running_images(self):
         self.images[OLD_ID]["RepoTags"] = [REPOSITORY + ":" + OLD]
-        self.fail_retention_tag = True
-        with self.assertRaisesRegex(ValueError, "retention tag failed"):
+        self.fail_current_tag = True
+        with self.assertRaisesRegex(ValueError, "current tag failed"):
             updater.update()
         self.assertIn(REPOSITORY + ":current", self.images[OLD_ID]["RepoTags"])
-        self.assertIn(REPOSITORY + ":rollback", self.images[BACK_ID]["RepoTags"])
+        self.assertEqual(NEW_ID, self.container["Image"])
+        self.assertIn(REPOSITORY + ":" + NEW, self.images[NEW_ID]["RepoTags"])
 
-    def test_unhealthy_runtime_refuses_incompatible_retained_rollback(self):
-        self.container["State"]["Health"]["Status"] = "unhealthy"
-        self.images[BACK_ID]["Config"]["Labels"]["com.cam.viewer.modified"] = "true"
-        with self.assertRaisesRegex(ValueError, "clean viewer-owned identity"):
-            updater.update()
-        self.assertFalse(any(call[0] == "make" for call in self.calls))
+    def test_runtime_drift_during_build_does_not_activate_or_roll_back(self):
+        for change in ("unhealthy", "image"):
+            with self.subTest(change=change):
+                self.container["Image"] = OLD_ID
+                self.container["State"]["Health"]["Status"] = "healthy"
+                self.calls.clear()
+                self.build_runtime_change = change
+                with self.assertRaisesRegex(ValueError, "during preparation"):
+                    updater.update()
+                self.assertFalse(any(call[:2] == ("make", "viewer/up") for call in self.calls))
+
+    def test_public_failure_before_replacement_does_not_activate_or_roll_back(self):
+        with patch.object(updater, "public_revision", side_effect=ValueError("existing viewer unavailable")):
+            with self.assertRaisesRegex(ValueError, "existing viewer unavailable"):
+                updater.update()
+        self.assertFalse(any(call[:2] == ("make", "viewer/up") for call in self.calls))
 
 
 class PublicViewerTest(unittest.TestCase):
