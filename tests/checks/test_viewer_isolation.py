@@ -13,7 +13,7 @@ class ViewerIsolatedPostureTest(unittest.TestCase):
         config = rendered_compose_config("compose/viewer-isolated.yml")
         self.assertEqual({"viewer", "viewer-ingress"}, set(config["services"]))
         self.assertTrue(config["networks"]["viewer_private"]["internal"])
-        self.assertFalse(config["networks"]["viewer_ingress"]["internal"])
+        self.assertNotIn("internal", config["networks"]["viewer_ingress"])
 
         static = config["services"]["viewer"]
         self.assertEqual({"viewer_private"}, set(static["networks"]))
