@@ -12,6 +12,8 @@ digest="$(printf '%s' "$scratch" | sha256sum | cut -c1-20)"
 project="dapp32-viewer-isolated-$digest"
 image="dapp32-viewer-test:$digest"
 port="$(shuf -i 20000-59000 -n 1)"
+image_created=0
+verified=0
 export VIEWER_IMAGE="$image" VIEWER_BIND_HOST=127.0.0.1 VIEWER_PORT="$port"
 export COMPOSE_PROJECT_NAME="$project"
 compose=(docker --host "$endpoint" compose --env-file /dev/null -f "$root/compose/viewer-isolated.yml")
@@ -25,10 +27,20 @@ cleanup() {
     if [[ "$status" == 0 ]]; then status=2; fi
     exit "$status"
   fi
-  if docker --host "$endpoint" image inspect "$image" >/dev/null 2>&1; then
-    docker --host "$endpoint" image rm "$image" >/dev/null || { printf 'Fixture image was retained: %s\n' "$image" >&2; status=2; }
+  if [[ "$image_created" == 1 ]]; then
+    if ! docker --host "$endpoint" image rm "$image" >/dev/null; then
+      printf 'Fixture image was retained: %s; inputs retained at %s\n' "$image" "$scratch" >&2
+      if [[ "$status" == 0 ]]; then status=2; fi
+      exit "$status"
+    fi
   fi
-  rm -rf -- "$scratch"
+  if ! rm -rf -- "$scratch"; then
+    printf 'Viewer isolation scratch cleanup failed: %s\n' "$scratch" >&2
+    if [[ "$status" == 0 ]]; then status=2; fi
+  fi
+  if [[ "$status" == 0 && "$verified" == 1 ]]; then
+    printf 'PASS isolated static nginx, IPv4/IPv6 routes, loopback gateway, live replacement and completed cleanup (%s)\n' "$project"
+  fi
   exit "$status"
 }
 trap cleanup EXIT
@@ -50,6 +62,7 @@ docker --host "$endpoint" build --network=none --pull=false \
   --build-arg "VIEWER_REVISION=$(printf '%040d' 1)" \
   --build-arg "VIEWER_PROJECT=$project" --build-arg VIEWER_MODIFIED=false \
   --tag "$image" "$scratch/context"
+image_created=1
 
 if ! "${compose[@]}" up -d --no-build --pull never --wait --wait-timeout 30; then
   "${compose[@]}" ps >&2 || :
@@ -86,14 +99,48 @@ gateway_networks="$(network_names "$ingress")"
 [[ "$(docker --host "$endpoint" inspect --format '{{json .HostConfig.PortBindings}}' "$static")" == "{}" ]] || {
   printf '%s\n' 'Static viewer has an unexpected published port.' >&2; exit 2;
 }
-if docker --host "$endpoint" exec "$static" awk
-  'NR>1 && $2 == "00000000" { found=1 } END { exit !found }' /proc/net/route; then
-  printf '%s\n' 'Static viewer has an IPv4 default route.' >&2; exit 2
+# Fetch the route tables from inside the *static* container. Parse them on
+# the host so awk failures cannot be misinterpreted as "no default route".
+route_matches() {
+  case "$1" in
+    ipv4) awk 'NR > 1 && $2 == "00000000" { print }' ;;
+    ipv6) awk '$1 == "00000000000000000000000000000000" && $2 == "00" && $10 != "lo" { print }' ;;
+    *) printf 'Unknown route family: %s\n' "$1" >&2; return 2 ;;
+  esac
+}
+assert_no_default_route() {
+  local family="$1" contents="$2" matching
+  if ! matching="$(printf '%s\n' "$contents" | route_matches "$family")"; then
+    printf 'Route inspection failed for %s; cannot establish isolation.\n' "$family" >&2
+    return 2
+  fi
+  if [[ -n "$matching" ]]; then
+    printf '%s default route(s) present:\n%s\n' "$family" "$matching" >&2
+    return 2
+  fi
+}
+
+# Regression controls prove both detectors really execute, rather than
+# accepting a failed awk invocation as a negative route observation.
+assert_no_default_route ipv4 $'Iface Destination\neth0 00000001'
+if assert_no_default_route ipv4 $'Iface Destination\neth0 00000000' >/dev/null 2>&1; then
+  printf '%s\n' 'Broken IPv4 route detector accepted a default route.' >&2; exit 2
 fi
-if docker --host "$endpoint" exec "$static" awk
-  '$1 == "00000000000000000000000000000000" && $2 == "00" && $10 != "lo" { found=1 } END { exit !found }' /proc/net/ipv6_route; then
-  printf '%s\n' 'Static viewer has a non-loopback IPv6 default route.' >&2; exit 2
+assert_no_default_route ipv6 '00000000000000000000000000000000 00 0 0 0 0 0 0 0 lo'
+if assert_no_default_route ipv6 '00000000000000000000000000000000 00 0 0 0 0 0 0 0 eth0' >/dev/null 2>&1; then
+  printf '%s\n' 'Broken IPv6 route detector accepted a default route.' >&2; exit 2
 fi
+
+if ! ipv4_routes="$(docker --host "$endpoint" exec "$static" cat /proc/net/route)"; then
+  printf '%s\n' 'Cannot read the static viewer IPv4 routing table.' >&2; exit 2
+fi
+if ! ipv6_routes="$(docker --host "$endpoint" exec "$static" cat /proc/net/ipv6_route)"; then
+  printf '%s\n' 'Cannot read the static viewer IPv6 routing table.' >&2; exit 2
+fi
+[[ "$ipv4_routes" == Iface* ]] || { printf '%s\n' 'Unexpected IPv4 route-table format.' >&2; exit 2; }
+assert_no_default_route ipv4 "$ipv4_routes"
+assert_no_default_route ipv6 "$ipv6_routes"
+printf '%s\n' 'PASS static viewer route inspection: no IPv4 or non-loopback IPv6 default route'
 
 check_site() {
   response="$(curl --fail --silent --show-error --max-time 4 "http://127.0.0.1:$port/")"
@@ -119,4 +166,4 @@ for attempt in {1..20}; do
   sleep .25
 done
 [[ "$ready" == 1 ]] || { printf '%s\n' 'Gateway could not resolve the replacement static viewer.' >&2; exit 2; }
-printf 'PASS isolated static nginx, loopback gateway, live replacement, owned cleanup (%s)\n' "$project"
+verified=1
