@@ -66,7 +66,7 @@ ingress="$("${compose[@]}" ps -q viewer-ingress)"
 
 network_names() {
   docker --host "$endpoint" inspect --format \
-    '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$1" | sort
+    '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$1" | awk 'NF {print}' | sort
 }
 static_networks="$(network_names "$static")"
 gateway_networks="$(network_names "$ingress")"
