@@ -164,6 +164,16 @@ class ViewerUpdateTest(unittest.TestCase):
             updater.update()
         self.assertEqual(OLD_ID, self.container["Image"])
 
+    def test_isolated_viewer_requires_manual_migration_not_automatic_update(self):
+        # The opt-in split topology publishes the host port on viewer-ingress,
+        # not viewer. The existing one-container updater must refuse it.
+        self.container["HostConfig"]["PortBindings"] = {}
+        with self.assertRaisesRegex(ValueError, "migrate them manually"):
+            updater.update()
+        self.assertFalse(any(call[0] == "make" or call[:2] == ("git", "checkout")
+                             for call in self.calls))
+        self.assertEqual(OLD_ID, self.container["Image"])
+
     def test_dirty_source_and_runtime_migrations_stop_before_build(self):
         for dirty, changed, message in ((" M source", False, "local source"), ("", True, "migrate runtime")):
             self.dirty, self.changed_runtime = dirty, changed
