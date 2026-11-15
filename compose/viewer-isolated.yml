@@ -1,0 +1,79 @@
+# Opt-in portable viewer runtime: copy viewer.yml and this file together.
+# Do not switch an existing viewer in-place; automatic viewer/update currently
+# owns the legacy single-container runtime and must not migrate it implicitly.
+# The static image has no published ports or outbound network. Only the
+# unprivileged ingress has the ordinary bridge needed for loopback publishing.
+services:
+  viewer:
+    extends:
+      file: viewer.yml
+      service: viewer
+    ports: !override []
+    networks: !override [viewer_private]
+
+  viewer-ingress:
+    image: ghcr.io/nginx/nginx-unprivileged:1.31.1-alpine3.23@sha256:8122337ed6c475bb486bc9340da453d4599f225e6b920ff0d92ca2267486b9b5
+    pull_policy: never
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1
+    mem_limit: 64m
+    pids_limit: 64
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=16m"]
+    ports:
+      - host_ip: ${VIEWER_BIND_HOST:?Set_VIEWER_BIND_HOST_to_a_host_interface_IP}
+        published: "${VIEWER_PORT:?Set_VIEWER_PORT_to_an_unprivileged_host_port}"
+        target: 8080
+    networks: [viewer_private, viewer_ingress]
+    depends_on:
+      viewer: {condition: service_healthy}
+    restart: unless-stopped
+    stop_grace_period: 10s
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/healthz]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 2s
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        cat >/tmp/viewer-ingress.conf <<'NGINX'
+        worker_processes 1;
+        pid /tmp/nginx.pid;
+        error_log /dev/stderr warn;
+        events { worker_connections 128; }
+        http {
+          access_log /dev/stdout;
+          server_tokens off;
+          client_max_body_size 1k;
+          proxy_buffering off;
+          resolver 127.0.0.11 valid=3s ipv6=off;
+          server {
+            listen 8080;
+            server_name _;
+            location / {
+              # Resolve the service name on requests: the static viewer's IP
+              # can change on an image update without restarting ingress.
+              set $$viewer_backend viewer;
+              proxy_pass http://$$viewer_backend:8080;
+              proxy_http_version 1.1;
+              proxy_set_header Host $$host;
+              proxy_set_header Connection "";
+              proxy_connect_timeout 3s;
+              proxy_read_timeout 15s;
+            }
+          }
+        }
+        NGINX
+        exec nginx -c /tmp/viewer-ingress.conf -g 'daemon off;'
+
+networks:
+  viewer_private:
+    internal: true
+  viewer_ingress: {}
