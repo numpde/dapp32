@@ -1,6 +1,6 @@
 # Opt-in portable viewer runtime: copy viewer.yml and this file together.
-# Do not switch an existing viewer in-place; automatic viewer/update currently
-# owns the legacy single-container runtime and must not migrate it implicitly.
+# Migrate existing single-container viewers explicitly; viewer/update does not
+# switch runtime topology automatically.
 # The static image has no published ports or outbound network. Only the
 # unprivileged ingress has the ordinary bridge needed for loopback publishing.
 services:
