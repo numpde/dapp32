@@ -15,6 +15,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from urllib.parse import urljoin, urlsplit
 from urllib.request import urlopen
@@ -273,6 +274,20 @@ def require_isolated_updater(revision: str) -> None:
         raise ValueError("Selected release lacks an isolated viewer updater; select a compatible release or recover manually")
 
 
+def runtime_configuration(revision: str, project: str, isolated: bool) -> dict:
+    """Render each revision with its own Compose files and the current settings."""
+    with tempfile.TemporaryDirectory(prefix="cam-viewer-compose-") as temporary:
+        directory = Path(temporary)
+        files = ("viewer.yml", "viewer-isolated.yml") if isolated else ("viewer.yml",)
+        for name in files:
+            (directory / name).write_text(run("git", "show", f"{revision}:compose/{name}"))
+        rendered = run("env", "VIEWER_IMAGE=cam-viewer-compare:runtime", "docker", "--host",
+                       os.environ["CAM_DOCKER_ENDPOINT"], "compose", "--env-file", "/dev/null",
+                       "--project-directory", str(directory), "-p", project, "-f", str(directory / files[-1]),
+                       "config", "--format", "json")
+        return json.loads(rendered)
+
+
 def retire_images(project: str, repository: str) -> None:
     """Retire only this updater's obsolete image tags; Docker refuses in-use removal.
 
@@ -343,12 +358,10 @@ def update() -> None:
     old_id = container["Image"]
     old_revision = image_revision(inspect("image", old_id), project)
     repository = "cam-viewer-" + project
-    runtime_files = ("compose/viewer.yml", "compose/viewer-isolated.yml") if gateway else ("compose/viewer.yml",)
     def require_same_runtime(revision: str) -> None:
         try:
-            for path in runtime_files:
-                if run("git", "show", revision + ":" + path) != run("git", "show", target + ":" + path):
-                    raise ValueError("Deployment changes viewer runtime configuration; migrate runtime configuration manually before enabling automatic updates")
+            if runtime_configuration(revision, project, bool(gateway)) != runtime_configuration(target, project, bool(gateway)):
+                raise ValueError("Deployment changes viewer runtime configuration; migrate runtime configuration manually before enabling automatic updates")
         except subprocess.CalledProcessError as error:
             raise ValueError("Viewer release lacks its runtime configuration; migrate it manually before enabling automatic updates") from error
     if gateway:

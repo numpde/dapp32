@@ -89,6 +89,9 @@ class ViewerUpdateTest(unittest.TestCase):
             return "changed model" if self.changed_runtime and args[2].startswith(NEW) else "stable model"
         if args[0] == "docker" and "--hash" in args:
             return "viewer-ingress " + "f" * 64
+        if args[0] == "env" and "--format" in args:
+            compose_file = Path(args[args.index("-f") + 1])
+            return json.dumps({"runtime": compose_file.read_text()})
         if args[:2] == ("git", "cat-file") and self.missing_updater:
             raise subprocess.CalledProcessError(128, args)
         return ""
@@ -376,6 +379,30 @@ class ViewerUpdateTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "existing viewer unavailable"):
                 updater.update()
         self.assertFalse(any(call[:2] == ("make", "viewer/up") for call in self.calls))
+
+
+class RuntimeConfigurationTest(unittest.TestCase):
+    def test_compose_ignores_comments_but_detects_runtime_and_command_changes(self):
+        root = Path(__file__).resolve().parents[2]
+        sources = {name: (root / "compose" / name).read_text()
+                   for name in ("viewer.yml", "viewer-isolated.yml")}
+        original_run = updater.run
+
+        def render(viewer, isolated):
+            def run(*args, **kwargs):
+                if args[:2] == ("git", "show"):
+                    return {"viewer.yml": viewer, "viewer-isolated.yml": isolated}[args[2].split("/")[-1]]
+                return original_run(*args, **kwargs)
+            with patch.object(updater, "run", run):
+                return updater.runtime_configuration("fixture", PROJECT, True)
+
+        with patch.dict(os.environ, VIEWER_BIND_HOST="127.0.0.1", VIEWER_PORT="8080",
+                        CAM_DOCKER_ENDPOINT="unix:///tmp/unused.sock"):
+            baseline = render(sources["viewer.yml"], sources["viewer-isolated.yml"])
+            self.assertEqual(baseline, render("# new comment\n" + sources["viewer.yml"], sources["viewer-isolated.yml"]))
+            self.assertEqual(baseline, render(sources["viewer.yml"], "# updated comment\n" + sources["viewer-isolated.yml"]))
+            self.assertNotEqual(baseline, render(sources["viewer.yml"].replace("mem_limit: 128m", "mem_limit: 64m"), sources["viewer-isolated.yml"]))
+            self.assertNotEqual(baseline, render(sources["viewer.yml"], sources["viewer-isolated.yml"].replace("server_tokens off;", "server_tokens on;")))
 
 
 class PublicViewerTest(unittest.TestCase):
