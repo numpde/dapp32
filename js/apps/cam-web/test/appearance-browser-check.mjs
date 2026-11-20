@@ -79,6 +79,7 @@ export async function checkViewerAppearance({ call, evaluate, viewerURL }) {
     }
     await open()
     assert.equal(await evaluate(`!!document.querySelector('#app-host') && !!document.querySelector('#app-network')`), true, 'interactive setup mounts alongside the introduction')
+    assert.equal(await evaluate(`!!document.querySelector('.viewer-heading .appearance-switch') && !document.querySelector('.app-shell .topbar')`), true, 'appearance belongs to the page header without a duplicate setup heading')
     previousStorage = await evaluate(`localStorage.getItem('${key}')`)
     await evaluate(`localStorage.removeItem('${key}')`)
     await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] })
