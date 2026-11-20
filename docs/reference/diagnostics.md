@@ -14,7 +14,7 @@ outline: false
 <div class="table-scroll" role="region" aria-label="Table: Observation / Interpretation and next check" tabindex="0">
 <table><thead><tr><th>Observation</th><th>Interpretation and next check</th></tr></thead><tbody>
 <tr><td>Waiting for approval</td><td>No automatic permission is granted. Check the displayed operation and private approval log; do not approve just to clear a stalled terminal.</td></tr>
-<tr><td>A broadcast journal exists</td><td>It may exist after rejection. Check approval audit, sender nonce and actual chain outcome; the file alone proves no transmission.</td></tr>
+<tr><td>A broadcast journal exists</td><td>It may exist after rejection. Its existence alone does not establish whether a transaction was sent. Check the approval audit, sender nonce and actual chain outcome before retrying.</td></tr>
 <tr><td>An RPC submission returned a hash</td><td>Look for a successful mined receipt. Acceptance by an RPC is not contract execution.</td></tr>
 <tr><td>A submission response was lost</td><td>The outcome is uncertain. Reconcile the retained transaction before approving another creation.</td></tr>
 <tr><td><code>request not forwarded</code></td><td>Local admission or deadline failure occurred before forwarding. Check active/queued counts and the request's deadline.</td></tr>
@@ -23,7 +23,8 @@ outline: false
 </tbody></table>
 </div>
 <h2 id="logs">Private logs and their limits</h2>
-<p>The ordinary release launcher collects <code>approval-diagnostics.log</code> before teardown: state and bounded tails for the approval tool and its signing/artifact RPC proxies. The file is capped at 64 KiB with at most 16 KiB per service. Collection is time-limited and cannot replace an existing file; a collection failure is reported separately from cleanup.</p>
+<p>The ordinary release launcher collects <code>approval-diagnostics.log</code> in the signing phase's output directory before teardown: state and bounded tails for the approval tool and its signing/artifact RPC proxies. The file is capped at 64 KiB with at most 16 KiB per service. Collection is time-limited and cannot replace an existing file; a collection failure is reported separately from cleanup.</p>
+<p>The approval audit, if created, is <code>approval-audit/approval.jsonl</code> beneath that same phase directory. The <a href="operations.html#artifacts">phase records reference</a> identifies the business, projection and CAM outputs. A missing audit does not establish that no transaction was sent.</p>
 <p>Automated approval rehearsals additionally retain:</p>
 <div class="table-scroll" role="region" aria-label="Table: File / Evidence" tabindex="0">
 <table><thead><tr><th>File</th><th>Evidence</th></tr></thead><tbody>

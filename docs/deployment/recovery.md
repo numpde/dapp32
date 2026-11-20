@@ -30,7 +30,7 @@ outline: false
 INSTANCE=/absolute/private/pay-to-play-instance &amp;&amp;
 make pay-to-play/release/verify DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
 <p>Select the relevant saved operation, not whichever directory looks newest. Verification does not sign, deploy or submit sources to an external service. It checks retained evidence against the chain. It does not establish current ownership, current balances or current pause state.</p>
-<p>Retain <code>instance.json</code>, <code>selection.json</code>, configurations, source inputs, broadcasts, approval audits and artifacts together. Editing today's default configuration does not alter a saved operation's selected source, approval image or intended handoffs. See the <a href="manual.html#release-records">record layout</a>.</p>
+<p>Retain <code>instance.json</code>, <code>selection.json</code>, configurations, source inputs, broadcasts, approval audits and artifacts together. Editing today's default configuration does not alter a saved operation's selected source, approval image or intended handoffs. See the <a href="../reference/operations.html#instance">record layout</a>.</p>
 <h2 id="records">2. Complete records without signing</h2>
 <p>Choose the command for the missing artifact. Each command offers retained work; it does not create replacement contracts or send missing initialization transactions.</p>
 <pre><code>make pay-to-play/release/contracts/artifact DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code></pre>
@@ -46,7 +46,7 @@ make pay-to-play/release/verify DOCKER_CONTEXT="$CTX" INSTANCE="$INSTANCE"</code
 <h2 id="stop">Stop or cancel</h2>
 <p>Ctrl-C, SIGHUP and SIGTERM initiate owned cleanup. Let it finish; closing the browser tab is not cleanup. A release removes its private ceremony resources, not a separately started shared local network. A successfully cleaned-up operation still retains its deployment evidence.</p>
 <p>SIGKILL, host loss or an inaccessible Docker daemon cannot guarantee cleanup. An unconfirmed cleanup must remain a failure, with its reported records retained. Do not delete arbitrary similarly named projects or weaken private-file permissions to get past the error.</p>
-<p>Inspect <a href="manual.html#progress-and-bounded-diagnostics">diagnostic logs</a> when the failing phase is unclear. For a deliberate new version rather than recovery, return to <a href="update.html">Update an existing app</a>.</p>
+<p>Inspect <a href="../reference/diagnostics.html#logs">diagnostic logs</a> when the failing phase is unclear. For a deliberate new version rather than recovery, return to <a href="update.html">Update an existing app</a>.</p>
 <p>Implementation: <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.py">instance selections and recovery</a>, <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/release_instance.sh">instance command launcher</a> and <a href="https://github.com/numpde/dapp32/blob/04a18763700bbaa25cad73b9806d236ab4d5e139/tools/compose_cleanup.sh">owned Compose cleanup</a>.</p>
 
 </div>
