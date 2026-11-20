@@ -28,6 +28,6 @@ outline: false
 <h2 id="operational-monitoring">Observe the boundaries that can change</h2>
 <p>Monitor root ownership nominations/acceptance and <code>CamUpdated</code>/<code>ContractAddressSet</code>. On the business contract, track agreement creation/state changes, withdrawals, outstanding deadlines and <code>totalLiabilities()</code> against its native balance.</p>
 <p>No component automatically executes expired agreements. Someone must send the appropriate timeout transaction; disputes also depend on the selected arbitrator being available before their deadline. Settlement credit still requires a beneficiary withdrawal.</p>
-<p><a href="../../escrow/">User workflow</a> · <a href="../../viewer/">Host the viewer</a> · <a href="../source-verification.html">Publish original sources</a>. Implementation: <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow">source 04a18763</a>.</p>
+<p><a href="../../escrow/">User workflow</a> · <a href="../../viewer/deploy.html">Host the viewer</a> · <a href="../source-verification.html">Publish original sources</a>. Implementation: <a href="https://github.com/numpde/dapp32/tree/04a18763700bbaa25cad73b9806d236ab4d5e139/dapps/escrow">source 04a18763</a>.</p>
 
 </div>
