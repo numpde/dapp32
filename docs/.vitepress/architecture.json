@@ -131,7 +131,7 @@
       "label": "Build",
       "groups": [
         {
-          "title": "Author a workflow",
+          "title": "Use without a browser",
           "pages": [
             {
               "source": "authoring/headless.md",
