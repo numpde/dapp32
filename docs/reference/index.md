@@ -34,7 +34,7 @@ When converting an existing page, preserve its published fragment IDs. VitePress
 
 Keep HTML or Vue components when needed for structure or behavior, such as a definition list or interactive diagram. When mixing HTML blocks and Markdown, separate them with blank lines and check the rendered result. If VitePress cannot resolve a guide URL, link to its Markdown source. Use an HTML link for the independently published viewer, which is not a VitePress page.
 
-Build and check the site with the selected local Docker context:
+Build the site and check its generated internal links and navigation with the selected local Docker context:
 
 ```sh
 docs_output="$(mktemp -d)"

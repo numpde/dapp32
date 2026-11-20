@@ -27,7 +27,7 @@ make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <tr><td>Repository/tooling</td><td><code>make tests/checks</code>; relevant integration tests for changed behavior.</td></tr>
 <tr><td>JavaScript/runtime</td><td><code>make js/tests</code> and the affected app scenario.</td></tr>
 <tr><td>Complete fixture qualification</td><td><code>make tests</code>, which also runs networked checks and disposable local scenarios.</td></tr>
-<tr><td>Documentation changes</td><td><code>python3 -B -m unittest discover -v -s tests/checks -t . -p 'test_docs_*.py'</code>; the docs candidate workflow builds the site and checks generated routes.</td></tr>
+<tr><td>Documentation changes</td><td>Follow <a href="../reference/#documentation-authoring">Documentation authoring</a> to build the site, inspect its generated output and check generated links and navigation.</td></tr>
 </tbody></table>
 </div>
 <p>Add your context to source Make commands. Run <code>make help</code> for prerequisites and current target options. README-only CI uses its lightweight length check, not application integration.</p>
