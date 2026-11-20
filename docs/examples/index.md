@@ -27,7 +27,7 @@ outline: false
 </div>
 <p>Add <code>DOCKER_CONTEXT=your-local-context</code> and use the same <code>COMPOSE_PROJECT_NAME</code> for startup, wallet attachment and shutdown. Keep the foreground launcher running and open its entire printed URL. Closing the browser tab does not stop the fixture.</p>
 <p>The <a href="../start/local-wallet.html">complete wallet tutorial</a> shows the separate browser profile, attachment, actor selection and transaction approval. The other app guides retain their app-specific exercises. All fixture keys are public test identities; never use them with real funds.</p>
-<p>To rehearse the actual operator approval/publication process rather than just explore an app, use the <a href="../deployment/#rehearse-the-release-locally">isolated release rehearsal</a>. Its deployment process and chain are separate from these demos.</p>
+<p>To rehearse the actual operator approval/publication process rather than just explore an app, use the <a href="../deployment/practice.html#isolated">isolated release rehearsal</a>. Its deployment process and chain are separate from these demos.</p>
 </section>
 
 </div>
