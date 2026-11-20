@@ -6,7 +6,7 @@ import { failureReport, UserFacingError } from "./errors.ts"
 import type { FailureReport } from "./errors.ts"
 import { Feedback } from "./feedback.tsx"
 import { ControlRow } from "./property-row.tsx"
-import { CheckedStatus, StatusSelect } from "./status-select.tsx"
+import { ConnectionCheckStatus, StatusSelect } from "./status-select.tsx"
 
 type RpcDraft = { readonly choice: string; readonly customURL: string }
 type Candidate = { readonly draft: RpcDraft; readonly url: string }
@@ -112,13 +112,18 @@ export function RpcControls({ chainId, suppliedURLs, activeURL, busy, mode, onAp
   const currentAttempt = attempt?.draft === draft ? attempt : undefined
   const checked = mode === "connection" && displayedURL !== undefined && displayedURL === activeURL && currentAttempt?.status !== "checking" && currentAttempt?.status !== "failed"
 
+  const status = currentAttempt?.status === "checking" ? { kind: "checking", label: "Checking RPC connection" } as const
+    : currentAttempt?.status === "failed" ? { kind: "failure", label: "RPC connection check failed" } as const
+    : checked ? { kind: "success", label: "RPC connection checked" } as const
+    : undefined
+
   return <ControlRow className="rpc-connection" label="RPC service" controlId="rpc-endpoint-choice">
     <form id="rpc-connection-form" className="connection-form" noValidate aria-busy={currentAttempt?.status === "checking"} onSubmit={event => { event.preventDefault(); clearTimeout(timer.current); timer.current = undefined; enqueue(draft) }}>
-      <StatusSelect id="rpc-endpoint-choice" value={draft.choice} checkedLabel={draft.choice !== "custom" && checked ? "RPC connection checked" : undefined} onChange={event => edit({ ...draft, choice: event.currentTarget.value })}>
+      <StatusSelect id="rpc-endpoint-choice" value={draft.choice} status={draft.choice === "custom" ? undefined : status} onChange={event => edit({ ...draft, choice: event.currentTarget.value })}>
         {endpoints.map(endpoint => <option key={endpoint.url} value={endpoint.url}>{endpoint.name}</option>)}
         <option value="custom">Custom RPC URL</option>
       </StatusSelect>
-      {draft.choice === "custom" ? <div className="rpc-input-row"><input id="rpc-endpoint-url" type="url" aria-label="Custom RPC URL" aria-describedby={currentAttempt?.status === "failed" ? "rpc-connection-feedback" : undefined} value={draft.customURL} onChange={event => edit({ ...draft, customURL: event.currentTarget.value })} /><CheckedStatus className="rpc-check" label={checked ? "RPC connection checked" : undefined} /></div> : null}
+      {draft.choice === "custom" ? <div className="rpc-input-row"><input id="rpc-endpoint-url" type="url" aria-label="Custom RPC URL" aria-describedby={currentAttempt?.status === "failed" ? "rpc-connection-feedback" : undefined} value={draft.customURL} onChange={event => edit({ ...draft, customURL: event.currentTarget.value })} /><ConnectionCheckStatus className="rpc-check" status={status} /></div> : null}
       {mode === "setup" ? <button id="app-open" className="button-quiet" type="submit" disabled={busy || currentAttempt?.status === "checking"}>Open app</button> : null}
       {currentAttempt?.status === "failed" ? <div id="rpc-connection-feedback"><Feedback report={currentAttempt.failure} kind="error" /></div> : null}
     </form>

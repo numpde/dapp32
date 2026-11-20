@@ -23,11 +23,15 @@ export function IpfsGatewayControls({ gateway, onSelect }: {
   }, [gateway, run, cancel])
   const current = checkedGateway.current === gateway
   const checking = current && resource.status === "pending"
-  const checkedLabel = current && resource.status === "ready" ? "Gateway test file retrieved" : undefined
+  const status = !current ? undefined
+    : resource.status === "pending" ? { kind: "checking", label: "Checking IPFS gateway" } as const
+    : resource.status === "ready" ? { kind: "success", label: "Gateway test file retrieved" } as const
+    : resource.status === "failed" ? { kind: "failure", label: "IPFS gateway check failed" } as const
+    : undefined
 
   return <ControlRow className="ipfs-gateway" label="IPFS gateway" controlId="ipfs-gateway-choice">
     <div className="connection-form" aria-busy={checking}>
-      <StatusSelect id="ipfs-gateway-choice" value={gateway.id} checkedLabel={checkedLabel} aria-describedby="ipfs-gateway-help" onChange={event => {
+      <StatusSelect id="ipfs-gateway-choice" value={gateway.id} status={status} aria-describedby="ipfs-gateway-help" onChange={event => {
         checkedGateway.current = undefined
         cancel()
         onSelect(publicIpfsGateways.find(choice => choice.id === event.currentTarget.value)!)

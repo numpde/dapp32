@@ -39,10 +39,20 @@ export async function checkIpfsGatewayControls({ call, evaluate, viewerURL }) {
       await choose(selected)
       await wait(`!!document.querySelector('.ipfs-gateway [role=alert]')`)
       assert(!await evaluate(tick), 'failure removes the previous success')
+      assert(await evaluate(`!!document.querySelector('.ipfs-gateway [aria-label="IPFS gateway check failed"]')`), 'failure has an explicit icon')
     }
     await evaluate(`gatewayFixture.setProbeMode('hold')`)
     await choose('filebase-public')
     await wait(`!!${checking}`)
+    assert(await evaluate(`!!document.querySelector('.ipfs-gateway [aria-label="Checking IPFS gateway"] .icon')`), 'pending check shows a spinner')
+    try {
+      await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.ipfs-gateway [data-check-state="checking"] .icon')).animationName`), 'connection-check-spin')
+      await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] })
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.ipfs-gateway [data-check-state="checking"] .icon')).animationName`), 'none')
+    } finally {
+      await call('Emulation.setEmulatedMedia', { features: [] })
+    }
     assert(!await evaluate(tick))
     await evaluate(`gatewayFixture.setProbeMode('failure')`)
     await choose('pinata-public')

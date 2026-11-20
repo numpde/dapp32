@@ -35,6 +35,18 @@ export async function checkRpcSelect({ call, evaluate, viewerURL }) {
   }
   await waitForBrowserCondition(() => evaluate(`!!document.querySelector('#rpc-endpoint-url')
     && !document.querySelector('.status-select [aria-label="RPC connection checked"]')`), 'choosing a custom RPC through the native dropdown')
+  await evaluate(`(() => {
+    connectionFixture.state.holdCandidate = true;
+    connectionFixture.state.failCandidateRead = true;
+    const input = document.querySelector('#rpc-endpoint-url');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'https://candidate.fixture.test');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`)
+  await waitForBrowserCondition(() => evaluate(`!!document.querySelector('.rpc-check [aria-label="Checking RPC connection"]')`), 'pending custom RPC displays the shared spinner')
+  await evaluate('connectionFixture.releaseCandidate()')
+  await waitForBrowserCondition(() => evaluate(`!!document.querySelector('.rpc-check [aria-label="RPC connection check failed"]')`), 'failed custom RPC displays the shared failure icon')
+  assert(await evaluate(`!!document.querySelector('#rpc-connection-feedback [role="alert"]')`), 'failed RPC retains its error details')
+  assert(!await evaluate(`!!document.querySelector('.rpc-check [aria-label="RPC connection checked"]')`), 'failed RPC cannot retain the previous tick')
   await call('Emulation.clearDeviceMetricsOverride')
   return { rpcSelect: 'inset acknowledgement, native selection and custom draft', widths: [320, 900] }
 }
