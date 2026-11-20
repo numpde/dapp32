@@ -1,5 +1,6 @@
 :root {
   color-scheme: light dark;
+  scrollbar-gutter: stable;
   --bg: light-dark(#f5f7fa, #101820);
   --panel: light-dark(#ffffff, #1b2834);
   --ink: light-dark(#182230, #e9eff5);
