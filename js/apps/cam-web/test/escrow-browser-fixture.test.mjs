@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import { createWalletClient, custom, HttpRequestError, parseAbi } from 'viem'
 import { createCdpCommands, fixtureAccount, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import * as fixture from './escrow-browser-fixture.mjs'
@@ -321,17 +322,23 @@ test('appearance retains the original failure and attempts every independent res
   const storage = new Error('storage restoration failed')
   const metrics = new Error('viewport restoration failed')
   const media = new Error('media restoration failed')
+  let operationFailed = false
   await assert.rejects(checkViewerAppearance({
     viewerURL,
     call: async method => {
       if (method === 'Page.navigate') return { loaderId: 'appearance' }
       if (method === 'Page.getFrameTree') return { frameTree: { frame: { loaderId: 'appearance' } } }
-      if (method === 'Emulation.clearDeviceMetricsOverride') throw metrics
+      if (method === 'DOM.getDocument') return { root: { nodeId: 1 } }
+      if (method === 'DOM.querySelector') return { nodeId: 2 }
+      if (method === 'DOM.getOuterHTML') return { outerHTML: readFileSync(new URL('../index.html', import.meta.url), 'utf8') }
+      if (method === 'DOM.describeNode') return { node: { childNodeCount: 0 } }
+      if (method === 'DOM.getBoxModel') return { model: { width: 280, height: 200, border: [0, 0, 280, 0, 280, 200, 0, 200] } }
+      if (method === 'Emulation.clearDeviceMetricsOverride' && operationFailed) throw metrics
       if (method === 'Emulation.setEmulatedMedia') throw media
     },
     evaluate: async expression => {
       if (expression === "localStorage.getItem('cam-viewer-appearance')") return 'dark'
-      if (expression === "localStorage.removeItem('cam-viewer-appearance')") throw primary
+      if (expression === "localStorage.removeItem('cam-viewer-appearance')") { operationFailed = true; throw primary }
       if (expression.includes('const previous =')) throw storage
       return true
     },

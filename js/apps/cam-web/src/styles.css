@@ -63,10 +63,22 @@ button:not(.timestamp-options):not(:disabled):active {
   filter: brightness(0.9);
 }
 
+.viewer-introduction,
 .app-shell {
   width: min(980px, calc(100% - 32px));
   margin: 0 auto;
   padding: 32px 0;
+}
+
+.viewer-introduction { display: grid; gap: 16px; border-bottom: 1px solid var(--line); }
+.viewer-introduction h1 { font-size: 1.625rem; line-height: 1.2; }
+.viewer-introduction p { max-width: 68ch; line-height: 1.6; }
+.viewer-introduction a { color: var(--accent); text-underline-offset: 0.2em; }
+.viewer-introduction a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.viewer-introduction nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.viewer-introduction nav a { display: inline-flex; align-items: center; min-height: 32px; }
+@media (max-width: 480px) {
+  .viewer-introduction { width: calc(100% - 24px); padding-block: 24px; }
 }
 
 .build-footer {

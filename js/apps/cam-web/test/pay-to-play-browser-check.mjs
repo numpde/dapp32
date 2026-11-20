@@ -238,7 +238,7 @@ async function assertHierarchy(route, peers, nested) {
     const body=document.querySelector('.elements');
     const headings=[...body.querySelectorAll('h2')];
     return {
-      brand:document.querySelector('h1')?.textContent,
+      brand:document.querySelector('.topbar h1')?.textContent,
       navigation:[...body.querySelectorAll('section[aria-label="App navigation"] button')].map(button=>button.getAttribute('aria-label')),
       peers:headings.map(node=>node.textContent),
       direct:headings.every(node=>node.parentElement.parentElement===body),

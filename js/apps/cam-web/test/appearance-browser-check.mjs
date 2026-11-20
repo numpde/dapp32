@@ -46,7 +46,39 @@ export async function checkViewerAppearance({ call, evaluate, viewerURL }) {
   let previousStorage
   const failures = []
   try {
+    await call('Emulation.setScriptExecutionDisabled', { value: true })
+    try {
+      await navigateBrowserDocument({ call, url, description: 'the viewer introduction without JavaScript',
+        ready: async () => {
+          const { root } = await call('DOM.getDocument', {})
+          return (await call('DOM.querySelector', { nodeId: root.nodeId, selector: '.viewer-introduction noscript p' })).nodeId !== 0
+        } })
+      const { root } = await call('DOM.getDocument', {})
+      const { outerHTML } = await call('DOM.getOuterHTML', { nodeId: root.nodeId })
+      assert.match(outerHTML, /<h1>CAM Viewer<\/h1>/)
+      assert.match(outerHTML, /Contract Application Manifest/)
+      assert.match(outerHTML, /information, forms and actions/)
+      assert.match(outerHTML, /CAM contract address/)
+      assert.match(outerHTML, /<title>CAM Viewer — A browser interface for smart contract apps<\/title>/)
+      assert.match(outerHTML, /name="description" content="CAM Viewer displays information/)
+      assert.match(outerHTML, /rel="canonical" href="https:\/\/app\.dapp32\.com\/"/)
+      for (const path of ['', 'use/', 'gallery/', 'reference/cam/1.4.0/']) {
+        assert(outerHTML.includes(`href="https://numpde.github.io/dapp32/${path}"`))
+      }
+      const app = await call('DOM.querySelector', { nodeId: root.nodeId, selector: '#root' })
+      assert.equal((await call('DOM.describeNode', { nodeId: app.nodeId })).node.childNodeCount, 0, 'the explanation does not require React')
+      const intro = await call('DOM.querySelector', { nodeId: root.nodeId, selector: '.viewer-introduction' })
+      for (const width of [320, 900]) {
+        await call('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false })
+        const { model } = await call('DOM.getBoxModel', { nodeId: intro.nodeId })
+        assert(model.width > 0 && model.height > 0 && model.border[0] >= 0 && model.border[2] <= width, `introduction is visible and fits ${width}px without scripts`)
+      }
+    } finally {
+      await call('Emulation.setScriptExecutionDisabled', { value: false })
+      await call('Emulation.clearDeviceMetricsOverride')
+    }
     await open()
+    assert.equal(await evaluate(`!!document.querySelector('#app-host') && !!document.querySelector('#app-network')`), true, 'interactive setup mounts alongside the introduction')
     previousStorage = await evaluate(`localStorage.getItem('${key}')`)
     await evaluate(`localStorage.removeItem('${key}')`)
     await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] })

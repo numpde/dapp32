@@ -62,6 +62,20 @@ class ViewerPagesTest(unittest.TestCase):
             stage_bundle(self.qualified, self.published, SOURCE_SHA, RUN_ID)
         self.assertEqual("old viewer", (self.published / "index.html").read_text(encoding="utf-8"))
 
+    def test_canonical_is_navigation_but_stylesheets_remain_local_assets(self) -> None:
+        canonical = '<link rel="canonical" href="https://app.dapp32.com/">'
+        index = INDEX.replace("</head>", canonical + "</head>")
+        (self.qualified / "index.html").write_text(index, encoding="utf-8")
+        self.assertEqual("./assets/index-new.js", check_bundle(self.qualified, guide=False))
+        for relation in ("stylesheet", "modulepreload", "canonical stylesheet"):
+            with self.subTest(relation=relation):
+                (self.qualified / "index.html").write_text(
+                    index.replace(canonical, canonical.replace('rel="canonical"', f'rel="{relation}"')),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(ValueError, "nonlocal assets"):
+                    check_bundle(self.qualified, guide=False)
+
     def test_rejects_missing_and_external_asset_references_without_modifying_pages(self) -> None:
         for index in (
             INDEX.replace("./assets/index-new.js", "./assets/missing.js"),

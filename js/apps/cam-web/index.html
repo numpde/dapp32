@@ -11,9 +11,23 @@
         if (saved === "light" || saved === "dark") document.documentElement.dataset.appearance = saved
       } catch { /* System appearance remains available without storage. */ }
     </script>
-    <title>CAM Viewer</title>
+    <title>CAM Viewer — A browser interface for smart contract apps</title>
+    <meta name="description" content="CAM Viewer displays information, forms and actions from a Contract Application Manifest (CAM) published by a smart contract. Browse apps or open one by address.">
+    <link rel="canonical" href="https://app.dapp32.com/">
+    <link rel="stylesheet" href="/src/styles.css">
   </head>
   <body>
+    <header class="viewer-introduction">
+      <h1>CAM Viewer</h1>
+      <p>CAM Viewer displays an app’s information, forms and actions using a description published by a smart contract. This description is called a Contract Application Manifest (CAM).</p>
+      <p>Choose an app from the <a href="https://numpde.github.io/dapp32/gallery/">directory</a>, or enter its network and CAM contract address in the form below. You can read public information without a wallet. Transactions require your approval in your wallet.</p>
+      <noscript><p>Enable JavaScript to use the interactive viewer. You can still browse the directory and read the guides.</p></noscript>
+      <nav aria-label="CAM documentation">
+        <a href="https://numpde.github.io/dapp32/">Project overview</a>
+        <a href="https://numpde.github.io/dapp32/use/">How to open an app</a>
+        <a href="https://numpde.github.io/dapp32/reference/cam/1.4.0/">CAM protocol reference</a>
+      </nav>
+    </header>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

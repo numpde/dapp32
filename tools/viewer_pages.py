@@ -38,7 +38,7 @@ class ViewerIndex(HTMLParser):
         values = dict(attrs)
         if values.get("id") == "root":
             self.has_root = True
-        reference = values.get("src") if tag == "script" else values.get("href") if tag == "link" else None
+        reference = values.get("src") if tag == "script" else values.get("href") if tag == "link" and values.get("rel") != "canonical" else None
         if reference is not None:
             self.references.append(reference)
             if tag == "script":
