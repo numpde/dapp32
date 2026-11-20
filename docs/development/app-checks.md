@@ -10,6 +10,7 @@ outline: false
 
 
 <p>Run source Make targets from the repository root, after <a href="./">locked dependency setup</a>, adding <code>DOCKER_CONTEXT=your-local-context</code>. These are explicit application checks. Ordinary documentation edits do not start chains or wallet tests.</p>
+<p>To edit a form label and preview it locally, follow <a href="../authoring/#edit">Change a screen locally</a>.</p>
 <h2 id="source">Source and generated resources</h2>
 <div class="table-scroll" role="region" aria-label="Table: Target / Evidence or effect" tabindex="0">
 <table><thead><tr><th>Target</th><th>Evidence or effect</th></tr></thead><tbody>

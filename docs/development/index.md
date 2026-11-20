@@ -19,6 +19,7 @@ make js/deps/install DOCKER_CONTEXT=your-local-context
 make ci DOCKER_CONTEXT=your-local-context</code></pre>
 <p>Replace <code>your-local-context</code> with the engine you intend to use. Omit the argument only when you want the interactive chooser. Noninteractive commands need the context on the Make command line. Each operation resolves that engine once and uses the same endpoint for child operations and cleanup.</p>
 <p>Dependency installation is explicitly networked. The offline checks do not install missing dependencies for you. For the standalone viewer, only JavaScript dependencies are needed; its <a href="../viewer/deploy.html#build">build guide</a> also acquires its pinned base images explicitly.</p>
+<p>With dependencies installed, follow <a href="../authoring/#edit">Change a screen locally</a> to edit a form label and inspect the result in the viewer.</p>
 <h2 id="choose-the-relevant-validation">Choose the relevant validation</h2>
 <div class="table-scroll" role="region" aria-label="Table: Change / Validation" tabindex="0">
 <table><thead><tr><th>Change</th><th>Validation</th></tr></thead><tbody>
