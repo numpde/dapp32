@@ -10,6 +10,7 @@ outline: false
 
 
 <p>Escrow lets two parties make an agreement and hold the payment in a smart contract until the agreement is settled.</p>
+<p>These steps require an existing Escrow instance. Check the <a href="../gallery/">Gallery</a> for a published instance, or get its network and CAM host address from a trusted publisher and <a href="../use/#hosted">open it in a viewer</a>. For practice without a published instance, <a href="#try">run the local demo</a>, which requires a source checkout.</p>
 <p>For example, a client hires a developer to build a website for $2,000. The client deposits the money <strong>on-chain</strong>, where the smart contract holds it until the agreement is settled.</p>
 <p>The agreement identifies the parties, payment amount, deadlines and rules for releasing the money. These are recorded <strong>on-chain</strong>, while detailed contract documents are stored <strong>off-chain</strong>, with their references and cryptographic hashes recorded on-chain.</p>
 <p>The developer accepts the agreement and later submits the completed work. The work itself remains <strong>off-chain</strong>, while its submission is recorded on-chain.</p>
