@@ -52,10 +52,10 @@ export function AppSetup({ onOpen, rpcURLs }: {
       setNetwork(selected)
       if (selected !== "custom") setChain(selected)
     }}><option value="custom">Custom chain</option>{networks.map(choice => <option key={choice.chainId} value={choice.chainId}>{choice.name}</option>)}</select></label>
-    {network === "custom" ? <label className="field"><span>Chain ID, such as eip155:43113</span><input id="app-chain" form="rpc-connection-form" value={chain} onChange={event => setChain(event.currentTarget.value)} /></label> : null}
-    <label className="field"><span>CAM contract address</span><input id="app-host" form="rpc-connection-form" value={host} onChange={event => setHost(event.currentTarget.value)} /></label>
+    {network === "custom" ? <label className="field"><span>Chain ID</span><input id="app-chain" placeholder="eip155:43113" form="rpc-connection-form" value={chain} onChange={event => setChain(event.currentTarget.value)} /></label> : null}
+    <label className="field"><span>CAM contract address</span><input id="app-host" placeholder="0x…" form="rpc-connection-form" value={host} onChange={event => setHost(event.currentTarget.value)} /></label>
     <p className="field-hint">The contract publishes the app’s manifest and contract bindings.</p>
-    <label className="field"><span>Viewing address (optional)</span><input id="app-account" form="rpc-connection-form" value={account} onChange={event => setAccount(event.currentTarget.value)} /></label>
+    <label className="field"><span>Viewing address (optional)</span><input id="app-account" placeholder="Leave blank for a public view" form="rpc-connection-form" value={account} onChange={event => setAccount(event.currentTarget.value)} /></label>
     <p className="field-hint">Leave blank for a public view. You can connect a signing wallet after opening the app.</p>
     {error === undefined ? null : <Feedback report={error} kind="error" />}
     {validChain === undefined ? null : <div className="connection-facts"><RpcControls key={validChain} chainId={validChain} suppliedURLs={rpcURLs} activeURL={undefined} busy={false} mode="setup" onApply={open} /></div>}
