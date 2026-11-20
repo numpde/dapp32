@@ -11,8 +11,8 @@
         if (saved === "light" || saved === "dark") document.documentElement.dataset.appearance = saved
       } catch { /* System appearance remains available without storage. */ }
     </script>
-    <title>CAM Viewer — A browser interface for smart contract apps</title>
-    <meta name="description" content="CAM Viewer displays information, forms and actions from a Contract Application Manifest (CAM) published by a smart contract. Browse apps or open one by address.">
+    <title>CAM Viewer — Interfaces for Ethereum-compatible apps</title>
+    <meta name="description" content="Open interfaces for apps on Ethereum-compatible networks using a Contract Application Manifest (CAM). Load interface files, read contracts and prepare transactions.">
     <link rel="canonical" href="https://app.dapp32.com/">
     <link rel="stylesheet" href="/src/styles.css">
   </head>
@@ -22,8 +22,8 @@
         <h1>CAM Viewer</h1>
         <div id="viewer-appearance"></div>
       </div>
-      <p>CAM Viewer displays an app’s information, forms and actions using a description published by a smart contract. This description is called a Contract Application Manifest (CAM).</p>
-      <p>Choose an app from the <a target="_blank" rel="noopener noreferrer" href="https://numpde.github.io/dapp32/gallery/">directory</a>, or enter its network and CAM contract address in the form below. You can read public information without a wallet. Transactions require your approval in your wallet.</p>
+      <p>CAM Viewer displays interfaces for apps on Ethereum-compatible networks. The app’s CAM contract provides a link to its Contract Application Manifest (CAM). The manifest names the interface file and declares the routes used to read contracts and prepare transactions.</p>
+      <p>Choose an app from the <a target="_blank" rel="noopener noreferrer" href="https://numpde.github.io/dapp32/gallery/">directory</a>, or enter its network and CAM contract address in the form below. A connected wallet is required to send a transaction.</p>
       <noscript><p>Enable JavaScript to use the interactive viewer. You can still browse the directory and read the guides.</p></noscript>
       <nav aria-label="CAM documentation">
         <a target="_blank" rel="noopener noreferrer" href="https://numpde.github.io/dapp32/">Project overview</a>

@@ -74,7 +74,7 @@ button:not(.timestamp-options):not(:disabled):active {
 .viewer-introduction { display: grid; gap: 16px; border-bottom: 1px solid var(--line); }
 .viewer-introduction h1 { font-size: 1.625rem; line-height: 1.2; }
 .viewer-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
-.viewer-introduction p { max-width: 68ch; line-height: 1.6; }
+.viewer-introduction p { line-height: 1.6; }
 .viewer-introduction a { color: var(--accent); text-underline-offset: 0.2em; }
 .viewer-introduction a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .viewer-introduction nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
@@ -143,6 +143,7 @@ button:not(.timestamp-options):not(:disabled):active {
 .copy-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .copy-recovery { color: var(--danger); white-space: normal; overflow-wrap: anywhere; }
 .app-setup { display: grid; gap: 12px; }
+.app-setup + .connection { margin-top: 16px; padding-top: 0; row-gap: 12px; }
 
 h1,
 h2,
