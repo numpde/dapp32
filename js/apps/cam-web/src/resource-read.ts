@@ -41,5 +41,6 @@ export async function withResourceDeadline<T>(signal: AbortSignal, timeoutReason
     clearTimeout(timer)
     signal.removeEventListener("abort", cancel)
     controller.signal.removeEventListener("abort", rejectAbort)
+    controller.abort()
   }
 }

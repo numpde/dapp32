@@ -4,7 +4,7 @@ import {
   useState,
 } from "react"
 import type { ReactElement } from "react"
-import { defaultIpfsGateway, publicIpfsGateways } from "@cam/viewer"
+import { defaultIpfsGateway } from "@cam/viewer"
 import { DownloadContext } from "./download-context.ts"
 import { ControlRow } from "./property-row.tsx"
 import { assertDownloadAllowed, downloadScopeForPrefix } from "@cam/protocol"
@@ -62,6 +62,7 @@ import {
 } from "./startup.ts"
 import type { ConnectionOptions, StartupCoordinates, StartupOptions } from "./startup.ts"
 import { RpcControls } from "./rpc-controls.tsx"
+import { IpfsGatewayControls } from "./ipfs-gateway-controls.tsx"
 import { AppSetup } from "./app-setup.tsx"
 import { createRpcConnection } from "./rpc-connection.ts"
 import {
@@ -155,7 +156,7 @@ export function App(): ReactElement {
     }, 400)
     return () => clearTimeout(timer)
   }, [scopeDraft])
-  const [gatewayId, setGatewayId] = useState(defaultIpfsGateway.id)
+  const [gateway, setGateway] = useState(defaultIpfsGateway)
   const gatewayRef = useRef(defaultIpfsGateway.template)
   const resourceLoadAbortRef = useRef<AbortController | undefined>(undefined)
   const [loadRequest, setLoadRequest] = useState<ConnectionOptions | undefined>(undefined)
@@ -930,17 +931,11 @@ export function App(): ReactElement {
     </div>
   </ControlRow>
 
-  const gatewayControl = <ControlRow className="ipfs-gateway" label="IPFS gateway" controlId="ipfs-gateway-choice">
-          <select id="ipfs-gateway-choice" value={gatewayId} aria-describedby="ipfs-gateway-help" onChange={event => {
-            const selected = publicIpfsGateways.find(gateway => gateway.id === event.currentTarget.value)!
-            gatewayRef.current = selected.template
-            setGatewayId(selected.id)
-            if (readyRef.current.status === "failed") retryUnfinishedLoad()
-          }}>
-            {publicIpfsGateways.map(gateway => <option key={gateway.id} value={gateway.id}>{gateway.name}</option>)}
-          </select>
-          <span id="ipfs-gateway-help" className="visually-hidden">Used for new IPFS downloads.</span>
-      </ControlRow>
+  const gatewayControl = <IpfsGatewayControls gateway={gateway} onSelect={selected => {
+    gatewayRef.current = selected.template
+    setGateway(selected)
+    if (readyRef.current.status === "failed") retryUnfinishedLoad()
+  }} />
 
   const rpcControl = "coordinates" in viewerLink ? <RpcControls
     chainId={viewerLink.coordinates.chainId}

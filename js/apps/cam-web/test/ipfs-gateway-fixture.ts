@@ -1,6 +1,7 @@
 import { createElement } from "react"
 import { createRoot } from "react-dom/client"
 import { encodeAbiParameters, encodeFunctionResult, parseAbi, sha256, toFunctionSelector } from "viem"
+import { IPFS_GATEWAY_TEST_URI } from "../src/gateway-check.ts"
 import { App } from "../src/App.tsx"
 import "../src/styles.css"
 
@@ -37,6 +38,10 @@ const canvas = new OffscreenCanvas(2, 2)
 canvas.getContext("2d")!.fillRect(0, 0, 2, 2)
 const png = await canvas.convertToBlob({ type: "image/png" })
 const requests: string[] = []
+const probeRequests: string[] = []
+let probeMode = "success"
+let probeAborted = 0
+let releaseProbe: (() => void) | undefined
 let rootAttempts = 0
 let aborted = 0
 let releaseRootRequest: (() => void) | undefined
@@ -56,6 +61,15 @@ window.fetch = async (input, init) => {
       else throw new Error(`Unexpected fixture contract selector: ${selector}`)
     } else throw new Error(`Unexpected fixture RPC method: ${rpc.method}`)
     return Response.json({ jsonrpc: "2.0", id: rpc.id, result })
+  }
+  if (href.endsWith(`/ipfs/${IPFS_GATEWAY_TEST_URI.slice(7)}`)) {
+    probeRequests.push(href)
+    if (probeMode === "hold") return new Promise(resolve => {
+      init?.signal?.addEventListener("abort", () => { probeAborted++ }, { once: true })
+      releaseProbe = () => { resolve(new Response("hello world\n")); releaseProbe = undefined }
+    })
+    if (probeMode === "failure") return new Response("Unavailable", { status: 503 })
+    return new Response(probeMode === "wrong" ? "wrong file" : "hello world\n")
   }
   requests.push(href)
   if (href.endsWith("/bundle/main.json")) {
@@ -82,5 +96,5 @@ window.fetch = async (input, init) => {
 const url = new URL(location.href)
 url.search = new URLSearchParams({ chainId: "eip155:31337", host, account, rpcUrl: "https://rpc.fixture.test" }).toString()
 history.replaceState(null, "", url)
-Object.assign(window, { gatewayFixture: { requests, get aborted() { return aborted }, logicalRoot, releaseRoot() { releaseRootRequest?.() } } })
+Object.assign(window, { gatewayFixture: { requests, probeRequests, setProbeMode(value: string) { probeMode = value }, get probeAborted() { return probeAborted }, releaseProbe() { releaseProbe?.() }, get aborted() { return aborted }, logicalRoot, releaseRoot() { releaseRootRequest?.() } } })
 createRoot(document.getElementById("root")!).render(createElement(App))

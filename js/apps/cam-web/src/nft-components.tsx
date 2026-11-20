@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useId, useRef, useState } from "react"
+import { useContext, useEffect, useId, useRef, useState } from "react"
 import type { MouseEvent, ReactElement } from "react"
 import { assertRemoteResourceURI, isRecordObject } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
@@ -8,39 +8,8 @@ import { PropertyRow } from "./property-row.tsx"
 import { DownloadContext } from "./download-context.ts"
 import { UriValueView } from "./uri-field.tsx"
 import { editNftMetadataField, isRelativeNftImageURI, loadNftImage, loadNftMetadata, nftMetadataDataURI, parseNftMetadata, readJsonDataURI, NFT_METADATA_MAX_BYTES } from "./nft-metadata.ts"
-
-type SettledResource<T> = { readonly status: "idle" } | { readonly status: "ready"; readonly value: T } | { readonly status: "failed"; readonly error: unknown; readonly value?: T }
-type Resource<T> = SettledResource<T> | { readonly status: "pending"; readonly previous: SettledResource<T> }
-
-function useNftResource<T>() {
-  const [resource, setResource] = useState<Resource<T>>({ status: "idle" })
-  const pending = useRef<AbortController | undefined>(undefined)
-  useEffect(() => () => pending.current?.abort(), [])
-  function cancel(): void {
-    pending.current?.abort()
-    setResource(current => current.status === "pending" ? current.previous : { status: "idle" })
-  }
-  const run = useCallback(async (acquire: (signal: AbortSignal) => Promise<T>): Promise<T | undefined> => {
-    pending.current?.abort()
-    const controller = new AbortController()
-    pending.current = controller
-    setResource(current => ({ status: "pending", previous: current.status === "pending" ? current.previous : current }))
-    try {
-      const value = await acquire(controller.signal)
-      if (controller.signal.aborted) return undefined
-      setResource({ status: "ready", value })
-      return value
-    } catch (error) {
-      if (!controller.signal.aborted) setResource(current => {
-        const previous = current.status === "pending" ? current.previous : current
-        return { status: "failed", error, ...(previous.status !== "idle" && previous.value !== undefined ? { value: previous.value } : {}) }
-      })
-    }
-    return undefined
-  }, [])
-  const settled = resource.status === "pending" ? resource.previous : resource
-  return { resource, settled, value: settled.status === "idle" ? undefined : settled.value, run, cancel }
-}
+import { useResource } from "./use-resource.ts"
+import type { Resource } from "./use-resource.ts"
 
 function ResourceFeedback({ resource }: { readonly resource: Resource<unknown> }): ReactElement | null {
   const settled = resource.status === "pending" ? resource.previous : resource
@@ -65,7 +34,7 @@ export function NftView({ contractAddress, tokenId, metadataURI }: {
   readonly tokenId: string
   readonly metadataURI: string | undefined
 }): ReactElement {
-  const preview = useNftResource<InertRecord>()
+  const preview = useResource<InertRecord>()
   const downloads = useContext(DownloadContext)
   const metadata = preview.value
   const loadLabel = preview.settled.status === "ready" ? "Reload preview"
@@ -104,7 +73,7 @@ export function NftMetadataPreview({ metadata, baseURI, loadImage }: { readonly 
 
 function NftImage({ uri, baseURI, alt, autoLoadFrom }: { readonly uri: string; readonly baseURI: string | undefined; readonly alt: string; readonly autoLoadFrom: InertRecord | undefined }): ReactElement {
   const downloads = useContext(DownloadContext)
-  const image = useNftResource<Blob>()
+  const image = useResource<Blob>()
   const [source, setSource] = useState<string | undefined>(undefined)
   const [decodeFailed, setDecodeFailed] = useState(false)
   const embedded = uri.startsWith("data:")
