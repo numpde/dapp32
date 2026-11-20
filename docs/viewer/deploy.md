@@ -24,8 +24,10 @@ make base-images/pull DOCKER_CONTEXT="$CTX" \
 make js/deps/install DOCKER_CONTEXT="$CTX" &amp;&amp;
 REV=$(git rev-parse --short=12 HEAD) &amp;&amp;
 IMAGE="cam-viewer:$REV" &amp;&amp;
-make viewer/image/build DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE"</code></pre>
+make viewer/image/build DOCKER_CONTEXT="$CTX" VIEWER_IMAGE="$IMAGE" \
+  VIEWER_PUBLIC_ORIGIN=https://viewer.example.org</code></pre>
 <p>Replace <code>your-local-context</code> with a local entry from <code>docker context ls</code>. Image acquisition and locked dependency installation are the networked preparation steps. The viewer builder then runs offline. It does not publish the image or install missing dependencies implicitly. Solidity dependencies are not needed just to build the viewer.</p>
+<p>Set <code>VIEWER_PUBLIC_ORIGIN</code> to the viewer's public origin when building for deployment. The build replaces every <code>%VARIABLE_NAME%</code> template placeholder with its supplied value and fails if a referenced value is missing. This origin supplies the homepage canonical URL, sitemap and robots sitemap link. Generic builds without a public origin omit deployment-specific indexing metadata.</p>
 <p><code>base-images/pull</code> requires host Python 3 (standard library only) and Docker Buildx. Without <code>DOCKERFILES</code>, it discovers all Dockerfiles under <code>containers/</code>. Docker's native <code>--call=targets,format=json</code> parser identifies the stages without running build instructions; BuildKit may acquire a declared syntax frontend during discovery. The command checks all returned bases for literal digest pins before pulling each distinct external image once. Earlier stages and <code>scratch</code> need no pull; unresolved variables and explicit stage platforms are rejected. Package downloads remain separate.</p>
 <p>Downloaded bases stay in the selected Docker engine's cache. Other builds can use the same images, so acquisition does not delete images or containers. Resource cleanup belongs to the command that owns those resources.</p>
 <h2 id="run">2. Start it on loopback</h2>

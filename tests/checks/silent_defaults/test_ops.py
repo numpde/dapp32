@@ -88,6 +88,8 @@ ALLOWED_DOCKER_DEFAULTS = {
     ("ENV", "containers/execution-check/Dockerfile", "PATH", "/usr/local/go/bin:${PATH}"),
 }
 ALLOWED_SHELL_DEFAULTS = {
+    # Generic Pages/CI images omit deployment metadata; the production updater requires an origin.
+    ("compose/viewer-image.yml", "VIEWER_PUBLIC_ORIGIN", "-", ""),
     # The first root-source invocation selects; the retain invocation sets its phase explicitly.
     ("compose/release/cam.yml", "CAM_ROOT_SOURCE_PHASE", "-", "select"),
     # The viewer build launcher supplies provenance; Compose can also render the service independently.

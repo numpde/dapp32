@@ -61,7 +61,6 @@ export async function checkViewerAppearance({ call, evaluate, viewerURL }) {
       assert.match(outerHTML, /CAM contract address/)
       assert.match(outerHTML, /<title>CAM Viewer — Interfaces for Ethereum-compatible apps<\/title>/)
       assert.match(outerHTML, /name="description" content="Open interfaces for apps on Ethereum-compatible networks/)
-      assert.match(outerHTML, /rel="canonical" href="https:\/\/app\.dapp32\.com\/"/)
       for (const path of ['', 'use/', 'gallery/', 'reference/cam/1.4.0/']) {
         assert(outerHTML.includes(`href="https://numpde.github.io/dapp32/${path}"`))
       }

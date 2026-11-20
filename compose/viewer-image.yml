@@ -9,6 +9,7 @@ services:
       network: none
     working_dir: /work/js
     environment:
+      VIEWER_PUBLIC_ORIGIN: "${VIEWER_PUBLIC_ORIGIN-}"
       VITE_CAM_WEB_RESOURCE_ORIGIN: "*"
       VITE_CAM_WEB_BUILD_REVISION: "${VITE_CAM_WEB_BUILD_REVISION-}"
       VITE_CAM_WEB_BUILD_TIME: "${VITE_CAM_WEB_BUILD_TIME-}"

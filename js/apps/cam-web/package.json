@@ -23,6 +23,7 @@
     "@vitejs/plugin-react": "6.0.2",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
+    "sitemap": "9.0.1",
     "vite": "8.1.6"
   }
 }
