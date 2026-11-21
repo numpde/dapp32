@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from hashlib import sha256
+from io import BytesIO
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -48,6 +49,39 @@ def api_with_runs(new_job: str, *, current_status: str):
 
 
 class PublicationIntegrityTest(unittest.TestCase):
+    def test_public_fetch_uses_the_configured_site_url(self) -> None:
+        url = "https://moved.example.test/dapp32/"
+        with patch.object(pages_integrity, "urlopen", return_value=BytesIO(b"page")) as opened:
+            self.assertEqual(b"page", pages_integrity.fetch_public_bytes(url, "guide.html", 4))
+        self.assertEqual(url + "guide.html", opened.call_args.args[0].full_url)
+
+    def test_verification_reads_the_pages_url_before_fetching_public_files(self) -> None:
+        url = "https://moved.example.test/dapp32/"
+        with TemporaryDirectory() as directory:
+            site = Path(directory)
+            (site / "index.html").write_bytes(b"page")
+            files = {"index.html": sha256(b"page").hexdigest()}
+            calls = []
+            def fetch(base: str, path: str, size: int) -> bytes:
+                calls.append((base, path, size))
+                return b"page"
+            def api(path: str) -> dict:
+                self.assertEqual("pages", path)
+                return {"html_url": url}
+            with patch.object(pages_integrity, "local_files", return_value=(recorded_manifest(), files)), \
+                    patch.object(pages_integrity, "check_freshness"):
+                pages_integrity.verify(site, None, ("viewer",), REPOSITORY, api, fetch)
+            self.assertEqual([(url, "index.html", 4)], calls)
+
+    def test_changed_pages_url_rejects_old_documentation_before_public_fetch(self) -> None:
+        manifest = {**recorded_manifest(), "public_url": "https://old.example.test/dapp32/"}
+        with patch.object(pages_integrity, "local_files", return_value=(manifest, {})), \
+                patch.object(pages_integrity, "fetch_public_bytes") as fetch:
+            with self.assertRaisesRegex(ValueError, "differs from GitHub Pages"):
+                pages_integrity.verify(Path("site"), Path("source"), ("docs",), REPOSITORY,
+                                       lambda path: {"html_url": "https://new.example.test/dapp32/"}, fetch)
+            fetch.assert_not_called()
+
     def test_changes_to_shared_qualification_checker_trigger_both_publishers(self) -> None:
         for name in ("docs-pages-candidate.yml", "viewer-pages-preview.yml"):
             with self.subTest(workflow=name):

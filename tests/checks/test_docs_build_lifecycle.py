@@ -32,6 +32,7 @@ with (root / "calls.jsonl").open("a") as stream:
         "gid": os.environ.get("LOCAL_GID"),
         "stage": os.environ.get("DOCS_STAGE_DIR"),
         "image_tag": os.environ.get("DOCS_IMAGE_TAG"),
+        "public_url": os.environ.get("DOCS_PUBLIC_URL"),
     }) + "\n")
 
 if args[0] == "compose":
@@ -256,7 +257,10 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             "PATH": f"{ROOT / 'tests/fixtures/docker-context'}:{os.environ['PATH']}",
             "BASH_ENV": str(bash_env),
             "DOCS_OUTPUT_DIR": str(root / "output"),
+            "DOCS_PUBLIC_URL": "https://docs.example.test/dapp32/",
         }
+        if mode == "missing-url":
+            del environment["DOCS_PUBLIC_URL"]
         # The real identity selector is tested separately against rootless/rootful
         # maps. Here simulate its receipt and assert that all Compose calls use it.
         makefile = (
@@ -301,6 +305,8 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertTrue(all(call["uid"] == "0" and call["gid"] == "0"
                                 for call in calls if call["args"][0] == "compose"))
             self.assertEqual(1, len({call["stage"] for call in calls if call["args"][0] == "compose"}))
+            self.assertEqual({"https://docs.example.test/dapp32/"},
+                             {call["public_url"] for call in calls if call["args"][0] == "compose"})
             image_tags = {call["image_tag"] for call in calls if call["args"][0] == "compose"}
             self.assertEqual(1, len(image_tags))
             image_tag = next(iter(image_tags))
@@ -308,6 +314,21 @@ class DocsBuildLifecycleTests(unittest.TestCase):
             self.assertTrue(state["project"].endswith(f"-docs-{image_tag}"))
             self.assertFalse(any(call["args"][:2] in (["volume", "create"], ["volume", "rm"])
                                  for call in calls))
+
+    def test_missing_public_url_is_rejected_before_docker_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            result, calls, state = self.run_operation(Path(directory), "missing-url", existing_site=False)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("DOCS_PUBLIC_URL", result.stderr)
+            self.assertFalse(calls)
+            self.assertFalse(state["services"])
+
+    def test_builder_receives_the_pages_url_under_the_same_variable_name(self) -> None:
+        url = "https://alternate.example.test/dapp32/"
+        config = rendered_compose_config("compose/docs.yml", env={
+            "DOCS_PUBLIC_URL": url, "DOCS_IMAGE_TAG": "fixture", "DOCS_STAGE_DIR": "/tmp/stage",
+        })
+        self.assertEqual(url, config["services"]["docs-build"]["environment"]["DOCS_PUBLIC_URL"])
 
     def test_docs_publish_automatically_from_main_without_candidate_branches(self) -> None:
         source = (ROOT / ".github/workflows/docs-pages-candidate.yml").read_text(encoding="utf-8")

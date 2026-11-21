@@ -24,6 +24,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pages: read
 
 jobs:
   unit:

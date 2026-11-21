@@ -1,8 +1,12 @@
 # Internal documentation-only Make recipe. Public target remains in root Makefile.
 # Keep this implementation separate so content/build changes do not activate
 # unrelated Solidity, RPC and viewer workflows.
+override DOCS_PUBLIC_URL := $(value DOCS_PUBLIC_URL)
+export DOCS_PUBLIC_URL
+
 define docs_build_impl
 @$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
+: "$${DOCS_PUBLIC_URL:?Set DOCS_PUBLIC_URL to html_url from the GitHub Pages API}"; \
 : "$${DOCS_OUTPUT_DIR:?Set DOCS_OUTPUT_DIR to an existing absolute output directory}"; \
 if [[ "$$DOCS_OUTPUT_DIR" != /* || ! -d "$$DOCS_OUTPUT_DIR" || -L "$$DOCS_OUTPUT_DIR" || -e "$$DOCS_OUTPUT_DIR/site" || -L "$$DOCS_OUTPUT_DIR/site" ]]; then \
   printf '%s\n' 'DOCS_OUTPUT_DIR must be an existing absolute directory without a site entry.' >&2; \

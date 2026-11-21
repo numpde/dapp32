@@ -20,6 +20,7 @@ SERVICE_PAYMENT_SNAPSHOT_ROOT = ROOT / "dapps/pay-to-play/references/service-pay
 # prove that omitted operator inputs fail closed. Negative render checks should
 # own that invariant instead of relying on this fixture map.
 RENDERED_COMPOSE_FIXTURE_ENV = {
+    "DOCS_PUBLIC_URL": "https://docs.example.test/dapp32/",
     "SOURCE_NODE_IMAGE": "sha256:" + "a" * 64,
     "SOURCE_PUBLICATION_APP": "bike-nft",
     "SOURCE_ARTIFACT": "/tmp/source-records/artifact/deployment.json",

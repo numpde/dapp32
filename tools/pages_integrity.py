@@ -35,7 +35,6 @@ from urllib.request import Request, urlopen
 from tools import docs_site, viewer_pages
 
 
-ORIGIN = "https://numpde.github.io/dapp32/"
 COMPONENTS = {
     "docs": ("docs-pages-candidate.yml", "qualify",
              "Documentation qualification and automatic publication"),
@@ -139,8 +138,8 @@ def local_files(component: str, site: Path, docs_source: Path | None) -> tuple[d
     return manifest, files
 
 
-def fetch_public_bytes(relative: str, expected_size: int) -> bytes:
-    url = ORIGIN + quote(relative, safe="/")
+def fetch_public_bytes(public_url: str, relative: str, expected_size: int) -> bytes:
+    url = public_url + quote(relative, safe="/")
     request = Request(url, headers={"Cache-Control": "no-cache",
                                     "User-Agent": "dapp32-publication-integrity"})
     with urlopen(request, timeout=12) as response:
@@ -190,11 +189,14 @@ def github_reader(repository: str, token: str) -> Callable[[str], dict]:
 
 def verify(site: Path, docs_source: Path | None, components: tuple[str, ...],
            repository: str, get_json: Callable[[str], dict],
-           fetch: Callable[[str, int], bytes]) -> None:
+           fetch: Callable[[str, str, int], bytes]) -> None:
+    public_url = docs_site.public_site_url(get_json("pages")["html_url"])
     for component in components:
         manifest, files = local_files(component, site, docs_source)
+        if component == "docs" and manifest["public_url"] != public_url:
+            raise ValueError("Published documentation URL differs from GitHub Pages configuration; rebuild before publishing")
         check_freshness(component, manifest, repository, get_json)
-        check_served_files(site, files, fetch)
+        check_served_files(site, files, lambda path, size: fetch(public_url, path, size))
         print(f"{component}: {manifest['source_sha']} from qualified run "
               f"{manifest['qualified_run_id']}; {len(files)} local and HTTPS hashes match.")
 

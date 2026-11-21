@@ -4,11 +4,13 @@ from __future__ import annotations
 from hashlib import sha256
 from html.parser import HTMLParser
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import sys
 from urllib.parse import unquote, urljoin, urlsplit
+from xml.etree import ElementTree
 
 
 MANIFEST = "docs-publication.json"
@@ -20,6 +22,40 @@ RETIRED_FILES = {
 # Workflow definitions are separately provisioned, never rewritten by the
 # GITHUB_TOKEN publication job (which has no workflow-write permission).
 PAGES_WORKFLOWS = {"pages-check.yml", "viewer-recipe-check.yml"}
+
+
+def public_site_url(value: object) -> str:
+    """Admit the Pages URL only for the layout supported by the docs renderer."""
+    if not isinstance(value, str) or not value or any(ord(c) <= 32 for c in value):
+        raise ValueError("DOCS_PUBLIC_URL must be the HTTPS html_url returned by the GitHub Pages API")
+    parsed = urlsplit(value)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+            or parsed.query or parsed.fragment):
+        raise ValueError("DOCS_PUBLIC_URL must use HTTPS without credentials, query or fragment")
+    if parsed.path != "/dapp32/":
+        raise ValueError("DOCS_PUBLIC_URL must use /dapp32/; migrate documentation routing before changing the Pages path")
+    port = parsed.port
+    if port == 0:
+        raise ValueError("DOCS_PUBLIC_URL must use a valid HTTPS port")
+    hostname = parsed.hostname.encode("idna").decode("ascii")
+    authority = f"[{hostname}]" if ":" in hostname else hostname
+    if port is not None and port != 443:
+        authority += f":{port}"
+    return f"https://{authority}{parsed.path}"
+
+
+class Robots(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.noindex = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        name, content = values.get("name"), values.get("content")
+        if (tag == "meta" and isinstance(name, str) and isinstance(content, str)
+                and name.lower() in {"robots", "googlebot", "bingbot"}):
+            directives = re.split(r"[\s,]+", content.lower())
+            self.noindex |= bool({"noindex", "none"}.intersection(directives))
 
 
 class Ids(HTMLParser):
@@ -373,7 +409,37 @@ def route_url(markdown: str) -> str:
     return markdown.removesuffix(".md") + ".html"
 
 
-def check(source: Path, site: Path, *, published: bool) -> list[Path]:
+def check_sitemap(source: Path, site: Path, public_url: str, pages: list[tuple[str, str]]) -> None:
+    """Compare sitemap output to source-owned pages and the independently supplied URL."""
+    public_url = public_site_url(public_url)
+    routes = ["" if route == "index.md" else route_url(route) for _, route in pages]
+    routes.extend(f"reference/cam/{version}/" for version in reference_versions(source))
+    expected = {urljoin(public_url, route) for route in routes}
+    namespace = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+    root = ElementTree.parse(site / "sitemap.xml").getroot()
+    if root.tag != namespace + "urlset":
+        raise ValueError("Documentation sitemap must be a urlset")
+    locations = []
+    for entry in root:
+        loc = entry.findall(namespace + "loc")
+        if entry.tag != namespace + "url" or len(loc) != 1 or not loc[0].text:
+            raise ValueError("Each documentation sitemap entry must contain exactly one nonempty loc")
+        locations.append(loc[0].text)
+    if len(locations) != len(set(locations)):
+        raise ValueError("Documentation sitemap must be a urlset without duplicate URLs")
+    if set(locations) != expected:
+        raise ValueError(f"Documentation sitemap differs from canonical public pages: "
+                         f"missing={sorted(expected - set(locations))}, "
+                         f"extra={sorted(str(url) for url in set(locations) - expected)}")
+    for route in routes:
+        path = route + "index.html" if not route or route.endswith("/") else route
+        robots = Robots()
+        robots.feed((site / path).read_text(encoding="utf-8"))
+        if robots.noindex:
+            raise ValueError(f"Documentation sitemap includes a page marked noindex: {path}")
+
+
+def check(source: Path, site: Path, *, published: bool, public_url: str) -> list[Path]:
     files = safe_files(site, checkout=published)
     if not published and (
         (site / MANIFEST).exists() or (site / ".github").exists()
@@ -447,11 +513,12 @@ def check(source: Path, site: Path, *, published: bool) -> list[Path]:
     if not any((site / "assets").glob("*.js")):
         raise ValueError("No compiled JavaScript assets")
     check_links(site, pages, retired)
+    check_sitemap(source, site, public_url, pages)
     return files
 
 
-def stage(source: Path, built: Path, site: Path, sha: str, run: str) -> None:
-    qualified = check(source, built, published=False)
+def stage(source: Path, built: Path, site: Path, sha: str, run: str, *, public_url: str) -> None:
+    qualified = check(source, built, published=False, public_url=public_url)
     if not re.fullmatch(r"[0-9a-f]{40}", sha) or not re.fullmatch(r"[1-9][0-9]*", run):
         raise ValueError("Invalid qualification source SHA or run ID")
     expected_roots = {entry.name for entry in built.iterdir()} | RETIRED_FILES | {
@@ -492,14 +559,19 @@ def stage(source: Path, built: Path, site: Path, sha: str, run: str) -> None:
     manifest = {
         "schema": "docs-publication/v1", "source_sha": sha,
         "qualified_run_id": int(run), "files": hashes,
+        "public_url": public_site_url(public_url),
     }
     (site / MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     check_published(source, site)
 
 
 def check_published(source: Path, site: Path) -> None:
-    files = check(source, site, published=True)
+    if not site.is_dir() or site.is_symlink() or (site / MANIFEST).is_symlink():
+        raise ValueError("Unsafe documentation publication manifest; refusing to read provenance")
     manifest = json.loads((site / MANIFEST).read_text())
+    if "public_url" not in manifest:
+        raise ValueError("Published documentation has no qualified Pages URL; rebuild it before auditing sitemap ownership")
+    files = check(source, site, published=True, public_url=manifest["public_url"])
     if manifest["schema"] != "docs-publication/v1":
         raise ValueError("Unknown publication manifest schema")
     if not re.fullmatch(r"[0-9a-f]{40}", manifest["source_sha"]):
@@ -536,11 +608,13 @@ def check_published(source: Path, site: Path) -> None:
 def main() -> None:
     args = sys.argv[1:]
     if len(args) == 3 and args[0] == "check":
-        check(Path(args[1]), Path(args[2]), published=False)
+        check(Path(args[1]), Path(args[2]), published=False,
+              public_url=public_site_url(os.environ.get("DOCS_PUBLIC_URL")))
     elif len(args) == 3 and args[0] == "check-published":
         check_published(Path(args[1]), Path(args[2]))
     elif len(args) == 6 and args[0] == "stage":
-        stage(Path(args[1]), Path(args[2]), Path(args[3]), args[4], args[5])
+        stage(Path(args[1]), Path(args[2]), Path(args[3]), args[4], args[5],
+              public_url=public_site_url(os.environ.get("DOCS_PUBLIC_URL")))
     else:
         raise SystemExit("usage: docs_site.py check SOURCE SITE | "
                          "check-published SOURCE SITE | "

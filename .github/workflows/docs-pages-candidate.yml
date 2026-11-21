@@ -49,12 +49,36 @@ jobs:
   qualify:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      public_url: ${{ steps.pages.outputs.public_url }}
     steps:
       - name: Check out source without persisted credentials
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           path: source
           persist-credentials: false
+
+      - name: Read the configured Pages URL before building
+        id: pages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/pages-settings.json"
+          PYTHONPATH=source python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from tools.docs_site import public_site_url
+          settings = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-settings.json").read_text())
+          url = public_site_url(settings["html_url"])
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"public_url={url}\n")
+          PY
 
       - name: Pull reviewed build and check bases
         shell: bash
@@ -83,6 +107,8 @@ jobs:
 
       - name: Build docs with confined Docker Compose
         shell: bash
+        env:
+          DOCS_PUBLIC_URL: ${{ steps.pages.outputs.public_url }}
         run: |
           set -euo pipefail
           mkdir -p docs-output
@@ -91,6 +117,8 @@ jobs:
 
       - name: Verify complete generated-site routes and immutable resources
         shell: bash
+        env:
+          DOCS_PUBLIC_URL: ${{ steps.pages.outputs.public_url }}
         run: |
           set -euo pipefail
           make -C source docs/site/check DOCKER_CONTEXT=default DOCS_SITE_DIR="$GITHUB_WORKSPACE/docs-output/site"
@@ -142,18 +170,22 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          QUALIFIED_PUBLIC_URL: ${{ needs.qualify.outputs.public_url }}
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/pages" > "$RUNNER_TEMP/pages-settings.json"
-          python3 -B - <<'PY'
+          PYTHONPATH=source python3 -B - <<'PY'
           import json
           import os
           from pathlib import Path
+          from tools.docs_site import public_site_url
           settings = json.loads((Path(os.environ["RUNNER_TEMP"]) / "pages-settings.json").read_text())
           origin = settings.get("source") or {}
           if (settings.get("build_type") != "legacy" or origin.get("branch") != "gh-pages"
                   or origin.get("path") != "/"):
               raise SystemExit("Pages must publish gh-pages / in branch mode")
+          if public_site_url(settings["html_url"]) != os.environ["QUALIFIED_PUBLIC_URL"]:
+              raise SystemExit("Pages URL changed since qualification; rebuild before publishing")
           PY
 
       - name: Validate, stage and update gh-pages without touching the viewer
@@ -161,6 +193,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          DOCS_PUBLIC_URL: ${{ needs.qualify.outputs.public_url }}
         run: |
           set -euo pipefail
           test "$(git -C source rev-parse HEAD)" = "$GITHUB_SHA"

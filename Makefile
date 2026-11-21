@@ -3,6 +3,7 @@ override define reject_external_make_expression
 $(and $(filter command line environment environment override,$(origin $(1))),$(findstring $$,$(value $(1))),$(error $(1) must not contain Make expression syntax))
 endef
 $(call reject_external_make_expression,VIEWER_PUBLIC_ORIGIN)
+$(call reject_external_make_expression,DOCS_PUBLIC_URL)
 $(call reject_external_make_expression,VIEWER_BIND_HOST)
 $(call reject_external_make_expression,VIEWER_PORT)
 override COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME VIEWER_COMPOSE_PROJECT_NAME RELEASE_VIEWER_COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME RPC_INDEXER_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
@@ -898,8 +899,8 @@ help:
 	  '' \
 	  'Compile or update repository files:' \
 	  '  make js/build/check             Compile JS workspace packages/apps; keep outputs inside the container.' \
-	  '  make docs/build DOCS_OUTPUT_DIR=/absolute/existing/dir  Build and export VitePress offline; clean the temporary Docker volume.' \
-	  '  make docs/site/check DOCS_SITE_DIR=/absolute/site  Check an existing built site against the docs source.' \
+	  '  make docs/build DOCS_PUBLIC_URL=<Pages html_url> DOCS_OUTPUT_DIR=/absolute/existing/dir  Build and export VitePress offline.' \
+	  '  make docs/site/check DOCS_PUBLIC_URL=<Pages html_url> DOCS_SITE_DIR=/absolute/site  Check a built site against its source and public URL.' \
 	  '  make js/compiler/qualify        Build packages and fully typecheck the web app/tests in a fresh workspace.' \
 	  '    Reports compiler version, workload time, outcome and whole-container cgroup v2 peak memory.' \
 	  '    Peak includes setup and tmpfs. Compare the same target in baseline/candidate checkouts.' \
@@ -1809,6 +1810,7 @@ docs/build:
 .PHONY: docs/site/check
 docs/site/check:
 	@$(LANE_GUARD); \
+	: "$${DOCS_PUBLIC_URL:?Set DOCS_PUBLIC_URL to html_url from the GitHub Pages API}"; \
 	: "$${DOCS_SITE_DIR:?Set DOCS_SITE_DIR to an existing absolute site directory}"; \
 	if [[ "$$DOCS_SITE_DIR" != /* || ! -d "$$DOCS_SITE_DIR" || -L "$$DOCS_SITE_DIR" ]]; then \
 	  printf '%s\n' 'DOCS_SITE_DIR must be an existing absolute directory, not a symlink.' >&2; exit 2; \

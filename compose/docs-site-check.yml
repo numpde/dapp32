@@ -1,5 +1,7 @@
 services:
   docs-site-check:
+    environment:
+      DOCS_PUBLIC_URL: "${DOCS_PUBLIC_URL:?missing_DOCS_PUBLIC_URL}"
     extends:
       file: checks.yml
       service: checks

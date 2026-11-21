@@ -37,11 +37,15 @@ Keep HTML or Vue components when needed for structure or behavior, such as a def
 Build the site and check its generated internal links and navigation with the selected local Docker context:
 
 ```sh
+DOCS_PUBLIC_URL="$(gh api "repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/pages" --jq .html_url)"
+export DOCS_PUBLIC_URL
 docs_output="$(mktemp -d)"
 make docs/build DOCKER_CONTEXT=your-local-context DOCS_OUTPUT_DIR="$docs_output"
 make docs/site/check DOCKER_CONTEXT=your-local-context DOCS_SITE_DIR="$docs_output/site"
 ```
 
 Replace `your-local-context` with your Docker context. The build leaves the generated site in the temporary directory for inspection; remove that directory when finished.
+
+GitHub Pages owns the published site URL. The `gh` command reads that URL before the offline build; `DOCS_PUBLIC_URL` carries it through Make and Compose to VitePress. The sitemap includes canonical guides and versioned protocol references, excluding redirect aliases and the independent viewer. Publication records the qualified URL and refuses to proceed if Pages configuration changes before publication. The current renderer supports the `/dapp32/` layout; changing that path requires migrating the existing routing rules too.
 
 </div>
