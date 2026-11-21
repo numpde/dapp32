@@ -147,6 +147,7 @@
     "examples/index.html": "07c17c8818f20423b92b4d3dcf34d2bc915fe012c9151e1b2e8b5b881e301689",
     "gallery/deployments.json": "3df96d624f695dbafce38436ceb36bf799148580d516f354f3d894365dd8f51a",
     "gallery/index.html": "6f06828264fe996707ba6a2726391b28e76fdd9b75c554774625b73ee2b781c9",
+    "googledbd02c4d02691f78.html": "c622d3c6cc108f8ca4305f97e03cc6a82e519c45c1ee1ba16ef7879250e1efd7",
     "hashmap.json": "bd2d85cf43a6a99fefc7adf9ec5666f474c40b7577e86bccd1495bf302edc06c",
     "index.html": "ff852da3d1cd3e17e6d56e8c623266e28b90c39b1fd9181636f3beae46bb0c79",
     "pay-to-play/index.html": "8f242532570ae9ecef2fe014d5558c9d0a44f2c55b59a1c4819a3accf6128462",
@@ -177,7 +178,7 @@
     "viewer/deploy.html": "efea389f4e59fe0890cc77512a18a68a7bae013c2fbb93b593c72ac40fc6eebe"
   },
   "public_url": "https://numpde.github.io/dapp32/",
-  "qualified_run_id": 44887770855,
+  "qualified_run_id": 44889416614,
   "schema": "docs-publication/v1",
-  "source_sha": "9daa2681eab792098f881b61161b054318e396da"
+  "source_sha": "b51a2c891bd2fc900284602f9245d1f008776012"
 }
